@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <base href="/">
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <title>sea invaders - epic sea battle</title>
+
+    <!-- Force Cache Refresh Script -->
+    <script>
+        (function() {
+            const CURRENT_VERSION = '202510291010';
+            const STORAGE_KEY = 'sea_invaders_game_version';
+
+            //inwithand but towithbut
+            window.GAME_VERSION = CURRENT_VERSION;
+
+            //ininand inwithand in towith with towithandin formandinand
+            console.log(
+                '%c🎮 sea invaders %c' + CURRENT_VERSION,
+                'background: linear-gradient(90deg, #4e9cfa, #00ddff); color: white; font-size: 16px; font-weight: bold; padding: 8px 12px; border-radius: 4px 0 0 4px;',
+                'background: #001122; color: #00ddff; font-size: 16px; font-weight: bold; padding: 8px 12px; border-radius: 0 4px 4px 0;'
+            );
+            console.log('%cVersion: ' + CURRENT_VERSION + ' | ' + new Date().toISOString(), 'color: #4e9cfa; font-size: 12px;');
+
+            //Checking parameter ?clear=1 for atandbut toand
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('clear') === '1') {
+                localStorage.clear();
+                sessionStorage.clear();
+                //Loading parameter clear
+                window.location.href = window.location.pathname;
+                return;
+            }
+
+            try {
+                const storedVersion = localStorage.getItem(STORAGE_KEY);
+
+                if (storedVersion !== CURRENT_VERSION) {
+                    //Clearing inwith localStorage
+                    const keysToPreserve = ['tournamentMode', 'authToken', 'discordUser', 'selectedTheme'];
+                    const preserved = {};
+                    keysToPreserve.forEach(key => {
+                        const val = localStorage.getItem(key);
+                        if (val) preserved[key] = val;
+                    });
+
+                    localStorage.clear();
+
+                    //inwithwithoninandin in data
+                    Object.keys(preserved).forEach(key => {
+                        localStorage.setItem(key, preserved[key]);
+                    });
+
+                    //Saving butin inwithand
+                    localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
+
+                    //atandbut Loading withand with to cache
+                    if (storedVersion !== null) {
+                        // for iOS Safari - Adding timestamp to URL
+                        if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+                            window.location.href = window.location.pathname + '?t=' + Date.now();
+                        } else {
+                            window.location.reload(true);
+                        }
+                    }
+                }
+
+                //Checking and Deleting Service Workers if with
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                        if (registrations.length > 0) {
+                            for(let registration of registrations) {
+                                registration.unregister();
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('❌ Version check error:', e);
+            }
+        })();
+    </script>
+
+    <!-- Force Default Theme -->
+    <script>
+        // Set default theme BEFORE any scripts load
+        if (!localStorage.getItem('selectedTheme')) {
+            localStorage.setItem('selectedTheme', 'default');
+        }
+    </script>
+
+    <link rel="icon" type="image/png" href="themes/default/images/favicon.png">
+    <link rel="stylesheet" href="sailor-brand.css">
+    <link rel="stylesheet" href="main-game-sailor.css?v=20251218001">
+
+    <script>
+        window.scriptLoadErrors = [];
+        window.scriptLoadSuccess = [];
+
+        window.addEventListener('error', function(e) {
+            if (e.target.tagName === 'SCRIPT') {
+                const errorInfo = {
+                    src: e.target.src,
+                    type: e.target.type,
+                    time: new Date().toISOString()
+                };
+                window.scriptLoadErrors.push(errorInfo);
+                console.error('❌ SCRIPT LOAD ERROR:', errorInfo);
+            }
+        }, true);
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #001122;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Arial', sans-serif;
+            color: var(--sailor-cream);
+            overflow: hidden;
+            position: relative;
+            padding-top: 0;
+        }
+
+
+        .main-leaderboard-button {
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .game-over-active .main-leaderboard-button {
+            display: none;
+        }
+
+        .game-over-active canvas {
+            opacity: 0.3;
+            filter: blur(5px);
+            pointer-events: none;
+        }
+
+        .game-container {
+            position: relative;
+            border: 3px solid var(--sailor-ocean);
+            border-radius: 20px;
+            box-shadow: var(--shadow-glow-strong);
+            background: #0007B6;
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            min-width: 500px;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            margin-left: auto;
+            margin-right: auto;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .nav-button {
+            background: var(--gradient-primary);
+            color: white;
+            border: var(--border-accent);
+            padding: 6px;
+            font-family: 'Arial', sans-serif;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-md);
+            backdrop-filter: blur(10px);
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .nav-button:hover {
+            background: var(--gradient-accent);
+            box-shadow: var(--shadow-glow);
+            transform: translateY(-2px);
+        }
+
+        /* Discord button styling */
+        .nav-button.discord-button {
+            background: linear-gradient(135deg, #5865F2 0%, #7289DA 100%);
+            border: 2px solid #5865F2;
+            color: #ffffff;
+            box-shadow: 0 0 20px rgba(88, 101, 242, 0.5);
+        }
+
+        .nav-button.discord-button:hover {
+            background: linear-gradient(135deg, #4752C4 0%, #5865F2 100%);
+            box-shadow: 0 0 30px rgba(88, 101, 242, 0.8);
+            transform: translateY(-2px);
+        }
+
+        /* Connected user button */
+        .nav-button.connected {
+            background: linear-gradient(135deg, rgba(0, 229, 160, 0.2), rgba(0, 229, 160, 0.3));
+            border-color: var(--color-success);
+            color: var(--color-success);
+            box-shadow: 0 0 20px rgba(0, 229, 160, 0.4);
+        }
+
+        .nav-button.connected:hover {
+            background: linear-gradient(135deg, rgba(0, 229, 160, 0.3), rgba(0, 229, 160, 0.4));
+            box-shadow: 0 0 30px rgba(0, 229, 160, 0.6);
+        }
+
+        .ui {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            font-size: 16px;
+            z-index: 10;
+            color: var(--sailor-sky);
+            background: rgba(0, 17, 34, 0.7);
+            padding: 8px;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(78, 156, 250, 0.3);
+        }
+
+ /* Mobile UI - fromon string on canvas */
+        .mobile-ui {
+ display: none; /* withto on withto */
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, rgba(0, 17, 34, 0.95) 0%, rgba(0, 34, 68, 0.95) 100%);
+            border-top: 2px solid rgba(78, 156, 250, 0.6);
+            border-bottom: 2px solid rgba(78, 156, 250, 0.6);
+            padding: 12px 0;
+            margin-bottom: 0;
+            box-shadow: 0 4px 20px rgba(78, 156, 250, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+ gap: 20px; /* fromwith elementand Score, Lives, Wave */
+ width: 100%; /* withandin on inwith andand canvas */
+ border-radius: 17px 17px 0 0; /* to inand as canvas */
+        }
+
+        .mobile-ui-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-size: 20px;
+            font-weight: bold;
+            flex: 1;
+            position: relative;
+        }
+
+ /* andand elementand - blockand */
+        .mobile-ui-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+ right: -10px; /* inandon gap (20px / 2) */
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2px;
+            height: 60%;
+            background: linear-gradient(180deg, transparent, rgba(78, 156, 250, 0.5), transparent);
+        }
+
+ /* andtotoand and */
+        .mobile-ui-item::before {
+            content: attr(data-icon);
+            font-size: 24px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+        }
+
+        /* values */
+        .mobile-ui-item span {
+            color: var(--sailor-sky);
+            font-size: 18px;
+            text-shadow: 0 2px 8px rgba(78, 156, 250, 0.8), 0 0 20px rgba(78, 156, 250, 0.4);
+            font-weight: 900;
+            letter-spacing: 1px;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: linear-gradient(180deg, rgba(0, 17, 34, 0.9) 0%, rgba(0, 34, 68, 0.8) 30%, rgba(12, 106, 227, 0.7) 70%, rgba(78, 156, 250, 0.6) 100%);
+            border-radius: 17px;
+            touch-action: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+
+        body {
+            touch-action: pan-y;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        button, input {
+            touch-action: manipulation;
+        }
+
+        .game-over, .start-screen {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 99999;
+            background: var(--bg-card);
+            padding: 25px;
+            border: 3px solid var(--sailor-ocean);
+            border-radius: 20px;
+            box-shadow: var(--shadow-glow-strong);
+            backdrop-filter: blur(15px);
+            max-width: 90vw;
+            min-width: 500px;
+        }
+
+        .game-over {
+            color: var(--color-error);
+            font-size: 24px;
+            display: none;
+        }
+
+        .game-over[style*="display: block"] {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        .start-screen {
+            color: var(--sailor-sky);
+            font-size: 20px;
+        }
+
+        .start-screen h1 {
+            font-size: 32px;
+            margin-bottom: 20px;
+            text-shadow: var(--shadow-glow);
+            background: var(--gradient-ocean);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        button {
+            background: var(--gradient-primary);
+            color: white;
+            border: var(--border-accent);
+            padding: 15px 25px;
+            font-family: 'Arial', sans-serif;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 15px;
+            border-radius: var(--radius-md);
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-md);
+        }
+
+        button:hover {
+            background: var(--gradient-accent);
+            box-shadow: var(--shadow-glow);
+            transform: translateY(-2px);
+        }
+
+        button:hover img {
+            filter: drop-shadow(0 0 10px rgba(78, 156, 250, 0.8)) drop-shadow(0 0 5px rgba(255, 215, 0, 0.6));
+            transform: scale(1.05);
+        }
+
+        button:disabled {
+            opacity: 0.5 !important;
+            cursor: not-allowed !important;
+            pointer-events: none;
+        }
+
+        button:disabled:hover {
+            background: var(--gradient-primary);
+            box-shadow: var(--shadow-md);
+            transform: none;
+        }
+
+        .blockchain-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(78, 156, 250, 0.1);
+            border-radius: var(--radius-md);
+            border: var(--border-light);
+            display: none;
+        }
+
+        .blockchain-section input {
+            width: 100%;
+            max-width: 300px;
+            padding: 10px;
+            margin: 10px 0;
+            border: 2px solid var(--sailor-sky);
+            border-radius: var(--radius-sm);
+            background: rgba(0, 17, 34, 0.8);
+            color: var(--sailor-sky);
+            font-size: 14px;
+        }
+
+        .loading-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 17, 34, 0.95);
+            color: var(--sailor-sky);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-content {
+            background: rgba(0, 17, 34, 0.95);
+            color: var(--sailor-sky);
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid var(--sailor-ocean);
+            box-shadow: var(--shadow-glow-strong);
+            text-align: center;
+        }
+
+        .spinner {
+            border: 3px solid rgba(78, 156, 250, 0.3);
+            border-top: 3px solid var(--sailor-sky);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 4px 15px rgba(255, 200, 0, 0.3);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 6px 25px rgba(255, 200, 0, 0.6);
+            }
+        }
+
+
+        .bubbles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .bubble {
+            position: absolute;
+            background: radial-gradient(circle, rgba(78, 156, 250, 0.3), rgba(202, 222, 240, 0.1));
+            border-radius: 50%;
+            animation: float 6s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0% { 
+                transform: translateY(100vh) scale(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% { 
+                transform: translateY(-100px) scale(1);
+                opacity: 0;
+            }
+        }
+
+        .boost-panel {
+            position: fixed;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 300px;
+            max-height: 70vh;
+            background: var(--bg-card);
+            border: 2px solid var(--sailor-ocean);
+            border-radius: 15px;
+            box-shadow: var(--shadow-glow);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            display: none;
+        }
+
+        .boost-panel.show {
+            display: block;
+            animation: slideInFromLeft 0.3s ease;
+        }
+
+        @keyframes slideInFromLeft {
+            from {
+                opacity: 0;
+                transform: translateY(-50%) translateX(-100px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(-50%) translateX(0);
+            }
+        }
+
+        .boost-panel-header {
+            padding: 15px 20px;
+            background: rgba(78, 156, 250, 0.1);
+            border-bottom: 1px solid rgba(78, 156, 250, 0.3);
+        }
+
+        .boost-panel-header h3 {
+            margin: 0;
+            color: #FFFFFF;
+            font-size: 18px;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .boost-panel-content {
+            max-height: calc(70vh - 80px);
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        .boost-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            transition: background 0.2s ease;
+        }
+
+        .boost-item:last-child {
+            border-bottom: none;
+        }
+
+        .boost-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .boost-icon {
+            font-size: 36px;
+            margin-right: 15px;
+            text-align: center;
+            min-width: 50px;
+        }
+
+        .boost-info {
+            flex: 1;
+        }
+
+        .boost-name {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0 0 5px 0;
+        }
+
+        .boost-rarity {
+            font-size: 12px;
+            opacity: 0.8;
+            margin: 0 0 5px 0;
+        }
+
+        .boost-timer {
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .boost-progress {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .boost-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--color-success), var(--sailor-sky));
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        .boost-progress-bar.critical {
+            background: linear-gradient(90deg, var(--color-error), #ff6666);
+        }
+
+        .boost-blocks {
+            display: flex;
+            gap: 2px;
+            margin-top: 5px;
+        }
+
+        .boost-block {
+            width: 12px;
+            height: 12px;
+            background: var(--sailor-sky);
+            border-radius: 2px;
+            transition: background 0.2s ease;
+        }
+
+        .boost-block.used {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .boost-panel {
+                width: 250px;
+                left: 10px;
+                max-height: 60vh;
+            }
+            
+            .boost-panel-header h3 {
+                font-size: 16px;
+            }
+            
+            .boost-icon {
+                font-size: 28px;
+                margin-right: 10px;
+                min-width: 40px;
+            }
+            
+            .boost-name {
+                font-size: 14px;
+            }
+            
+            .boost-rarity, .boost-timer {
+                font-size: 11px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .boost-panel {
+                width: 220px;
+                left: 5px;
+            }
+            
+            .boost-item {
+                padding: 10px 15px;
+            }
+            
+            .boost-icon {
+                font-size: 24px;
+                margin-right: 8px;
+                min-width: 35px;
+            }
+            
+            .boost-name {
+                font-size: 13px;
+            }
+            
+            .boost-rarity, .boost-timer {
+                font-size: 10px;
+            }
+        }
+
+        /* Dropdown Menu Styles */
+        .dropdown-menu {
+            position: fixed;
+            background: linear-gradient(135deg, rgb(0, 17, 34) 0%, rgb(0, 51, 102) 100%);
+            border: 2px solid rgba(0, 221, 255, 0.5);
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0, 221, 255, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            min-width: 200px;
+            overflow: hidden;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .menu-item {
+            display: block;
+            padding: 12px 20px;
+            color: var(--sailor-powder);
+            text-decoration: none;
+            border-bottom: 1px solid rgba(78, 156, 250, 0.2);
+            transition: all 0.2s ease;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .menu-item:hover {
+            background: rgba(78, 156, 250, 0.1);
+            padding-left: 25px;
+            color: var(--sailor-sky);
+        }
+
+        .menu-item.active {
+            background: rgba(78, 156, 250, 0.2);
+            border-left: 3px solid var(--sailor-ocean);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                justify-content: flex-start;
+            }
+
+            .main-leaderboard-button {
+                display: none !important;
+            }
+
+            .nav-button {
+                padding: 8px 12px;
+                font-size: 14px;
+                position: relative;
+                z-index: 10002;
+            }
+
+            body > div[style*="position: fixed"][style*="top: 20px"] {
+                z-index: 10001 !important;
+            }
+
+            .game-container {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                min-width: auto;
+                width: 100vw;
+                max-width: 100vw;
+                margin: 0;
+                padding: 0;
+                border: none;
+                border-radius: 0;
+                background: transparent;
+            }
+
+            #gameCanvas {
+                display: block;
+ border-radius: 0 0 17px 17px; /* to only andand */
+            }
+
+            .desktop-ui {
+                display: none !important;
+            }
+
+            .mobile-ui {
+                display: flex !important;
+            }
+
+            .mobile-ui-item {
+                font-size: 14px;
+            }
+
+            .game-over, .start-screen {
+                min-width: auto;
+                width: 90%;
+                max-width: 90vw;
+                padding: 15px;
+                font-size: 16px;
+                top: calc(50% + 30px);
+            }
+
+            .game-over {
+                background: rgba(0, 17, 34, 0.98) !important;
+                backdrop-filter: none !important;
+            }
+
+            .start-screen h1 {
+                font-size: 24px;
+                margin-bottom: 15px;
+            }
+
+            .start-screen p {
+                font-size: 14px;
+            }
+
+            .game-over h2 {
+                font-size: 28px;
+            }
+
+            .game-over p {
+                font-size: 16px;
+            }
+
+            button {
+                padding: 12px 20px;
+                font-size: 14px;
+                margin: 10px 5px;
+            }
+
+            #musicToggleBtn {
+                bottom: 60px;
+                right: 10px;
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+
+            footer {
+                font-size: 12px;
+                padding: 5px 10px;
+            }
+
+            footer p {
+                font-size: 12px !important;
+            }
+
+            footer a {
+                font-size: 10px !important;
+                padding: 4px 8px !important;
+            }
+
+            .boost-panel {
+                display: none !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 0;
+            }
+
+            .game-container {
+                margin: 0;
+                padding: 0;
+            }
+
+            .start-screen h1 {
+                font-size: 20px;
+            }
+
+            .start-screen p, .game-over p {
+                font-size: 12px;
+            }
+
+            button {
+                padding: 10px 15px;
+                font-size: 12px;
+            }
+
+            .nav-button {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            #controlsInstructions {
+                font-size: 11px !important;
+            }
+        }
+
+        @media (max-width: 900px) and (orientation: landscape) {
+            body {
+                padding: 0;
+            }
+
+            .game-container {
+                margin: 0;
+                padding: 0;
+            }
+
+            .start-screen, .game-over {
+                padding: 10px;
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+
+            .start-screen h1 {
+                font-size: 20px;
+                margin-bottom: 5px;
+            }
+
+            .start-screen p {
+                font-size: 11px;
+                margin: 5px 0;
+            }
+
+            button {
+                padding: 8px 15px;
+                font-size: 12px;
+                margin: 5px;
+            }
+
+            footer {
+                position: relative;
+                padding: 3px 10px;
+            }
+
+            #musicToggleBtn {
+                bottom: 5px;
+                right: 5px;
+                padding: 5px 10px;
+                font-size: 10px;
+            }
+        }
+    </style>
+
+    <!-- 🔍 Eruda - Mobile Console for debugging on iPhone -->
+    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+    <script>
+        //whilein towith only on and withwithin or if in URL with ?debug=1
+        const urlParams = new URLSearchParams(window.location.search);
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+        if (isMobile || urlParams.get('debug') === '1') {
+            eruda.init();
+            console.log('🔍 Eruda mobile console initialized - click the icon in bottom-right corner');
+        }
+    </script>
+
+</head>
+<body>
+
+ <!-- 🌟 LOADING SCREEN - whileinwith with -->
+    <div id="loadingScreen" class="loading-screen" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, rgba(0, 17, 34, 0.8) 0%, rgba(0, 26, 51, 0.8) 50%, rgba(0, 13, 26, 0.9) 100%);
+        background-size: cover;
+        background-position: center;
+        z-index: 99999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    ">
+        <script>
+            //to and Setting bgmain2 as background
+            (function() {
+                //for index withand theme - default
+                const currentTheme = 'default';
+                const loadingScreen = document.getElementById('loadingScreen');
+                const bgImage = `themes/default/images/bgmain2.webp`;
+
+                //Setting background with overlay and
+                loadingScreen.style.backgroundImage = `
+                    linear-gradient(135deg, rgba(0, 17, 34, 0.8) 0%, rgba(0, 26, 51, 0.7) 50%, rgba(0, 13, 26, 0.9) 100%),
+                    url('${bgImage}')
+                `;
+            })();
+        </script>
+        <!-- Animated background waves -->
+        <div style="
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0.1;
+            background:
+                radial-gradient(circle at 20% 50%, rgba(78, 156, 250, 0.4) 0%, transparent 50%),
+                radial-gradient(circle at 80% 50%, rgba(12, 106, 227, 0.3) 0%, transparent 50%);
+            animation: waveMove 8s ease-in-out infinite;
+        "></div>
+
+        <div class="loading-content" style="text-align: center; z-index: 10; max-width: 500px; width: 90%;">
+            <div class="loading-logo" style="margin-bottom: 40px; position: relative; overflow: hidden; padding: 20px;">
+                <!-- Pulsing glow effect -->
+                <div class="logo-glow" style="
+                    position: absolute;
+                    width: 250px;
+                    height: 250px;
+                    background: radial-gradient(circle, rgba(78, 156, 250, 0.4) 0%, rgba(12, 106, 227, 0.2) 40%, transparent 70%);
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    animation: pulse 2s ease-in-out infinite;
+                    pointer-events: none;
+                "></div>
+
+                <!-- Logo image -->
+                <img src="themes/default/images/load.png" alt="sea invaders" style="
+                    max-width: 350px;
+                    width: 85%;
+                    height: auto;
+                    margin: 0 auto;
+                    display: block;
+                    filter: drop-shadow(0 0 20px rgba(78, 156, 250, 0.6));
+                    animation: logoFloat 3s ease-in-out infinite;
+                    position: relative;
+                    z-index: 2;
+                ">
+
+                <div style="
+                    font-family: 'Arial', sans-serif;
+                    font-size: 16px;
+                    color: #CADEF0;
+                    margin-top: 20px;
+                    letter-spacing: 2px;
+                    text-shadow: 0 0 10px rgba(78, 156, 250, 0.5);
+                ">Preparing your battle station...</div>
+            </div>
+
+            <div style="margin: 40px 0 20px 0;">
+                <div style="
+                    width: 100%;
+                    height: 30px;
+                    background: rgba(0, 0, 0, 0.5);
+                    border: 2px solid rgba(78, 156, 250, 0.4);
+                    border-radius: 15px;
+                    overflow: hidden;
+                    position: relative;
+                    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(78, 156, 250, 0.2);
+                ">
+                    <div id="loadingProgressFill" style="
+                        height: 100%;
+                        width: 0%;
+                        background: linear-gradient(90deg, #4E9CFA 0%, #0C6AE3 50%, #4E9CFA 100%);
+                        transition: width 0.3s ease-out;
+                        position: relative;
+                        box-shadow: 0 0 20px rgba(78, 156, 250, 0.8);
+                        border-radius: 13px;
+                        animation: progressShine 2s ease-in-out infinite;
+                    "></div>
+                </div>
+                <div id="loadingProgressText" style="
+                    font-family: 'Orbitron', monospace;
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #4E9CFA;
+                    margin-top: 15px;
+                    text-shadow: 0 0 10px rgba(78, 156, 250, 0.8);
+                ">0%</div>
+            </div>
+
+            <div id="loadingStatus" style="
+                font-family: 'Arial', sans-serif;
+                font-size: 14px;
+                color: #CADEF0;
+                margin-top: 20px;
+                min-height: 20px;
+                letter-spacing: 1px;
+                text-shadow: 0 0 5px rgba(78, 156, 250, 0.3);
+            ">Initializing...</div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+        }
+        @keyframes logoFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        @keyframes waveMove {
+            0%, 100% { transform: translateX(0) scale(1); }
+            50% { transform: translateX(20px) scale(1.1); }
+        }
+        @keyframes progressShine {
+            0% { filter: brightness(1); }
+            50% { filter: brightness(1.3); }
+            100% { filter: brightness(1); }
+        }
+        .loading-screen-fade-out {
+            animation: fadeOut 0.5s ease-out forwards;
+        }
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                transform: scale(1.05);
+            }
+        }
+    </style>
+
+ <!-- to for all to, withto to inand preload -->
+    <div id="gameContent" style="display: none;">
+
+    <div class="main-leaderboard-button" style="display: flex; gap: 10px;">
+        <button class="menu-button" disabled style="cursor: not-allowed; opacity: 0.6; position: relative;">
+            <span>🛒 Shop</span>
+            <img src="/themes/default/images/soon2.webp" alt="Coming Soon" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; border-radius: 50px;">
+        </button>
+        <button class="menu-button" onclick="window.location.href='/leaderboard';">
+            <span>🏆 Leaderboard</span>
+        </button>
+        <button class="menu-button" onclick="window.location.href='/tournament';" style="background: linear-gradient(135deg, rgba(255, 215, 0, 0.9), rgba(255, 165, 0, 0.9)); border-color: #ffd700;">
+            <span>⚔️ Tournament</span>
+        </button>
+    </div>
+
+    <div style="position: fixed; top: 20px; right: 20px; z-index: 10001; display: flex; gap: 5px; align-items: center;">
+        <span id="menuButtonContainer" style="display: contents;"></span>
+        <span id="discordButtonContainer" style="display: contents;"></span>
+    </div>
+
+    <!-- Dropdown Menu -->
+    <div id="dropdownMenu" class="dropdown-menu" style="display: none;">
+        <a href="/" class="menu-item active">🎮 Main Game</a>
+        <a href="/tournament" class="menu-item">⚔️ Tournament</a>
+        <div class="menu-item disabled" style="cursor: not-allowed; position: relative; pointer-events: none;">
+            🛒 Shop
+            <img src="/themes/default/images/soon2.webp" alt="Coming Soon" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 0;">
+        </div>
+        <a href="/leaderboard" class="menu-item">🏆 Leaderboard</a>
+        <a href="/wiki" class="menu-item">📖 Wiki</a>
+    </div>
+
+    <div class="bubbles"></div>
+
+    <div id="boostPanel" class="boost-panel">
+        <div class="boost-panel-header">
+            <h3><img src="themes/default/images/boosts/boost.png" alt="Boost" style="width: 20px; height: 20px; margin-right: 6px; vertical-align: middle;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';"><span style="display: none;">🎁</span> Active Boosts</h3>
+        </div>
+        <div id="boostPanelContent" class="boost-panel-content">
+            <!-- Boosts will be added dynamically -->
+        </div>
+    </div>
+
+    <div class="game-container">
+        <div class="ui desktop-ui">
+            <div>🏆 Score: <span id="score">0</span></div>
+            <div>💙 Lives: <span id="lives">5</span></div>
+            <div>🌊 Wave: <span id="level">1</span></div>
+        </div>
+
+        <div class="mobile-ui">
+            <div class="mobile-ui-item" data-icon="🏆"><span id="mobileScore">0</span></div>
+            <div class="mobile-ui-item" data-icon="💙"><span id="mobileLives">5</span></div>
+            <div class="mobile-ui-item" data-icon="🌊"><span id="mobileLevel">1</span></div>
+        </div>
+
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <div class="start-screen" id="startScreen">
+            <h1>sea invaders</h1>
+            <p>Defend the sea depths from the crab invasion!</p>
+            <p style="font-size: 16px; margin: 15px 0;">Octopi vs an army of crabs</p>
+
+            <button onclick="playButtonSound(); startGame()">START BATTLE</button>
+
+            <div id="controlsInstructions" style="margin-top: 20px; font-size: 14px; opacity: 0.8;">
+                <p class="desktop-controls">🎮 Controls: ← → to move, SPACE to attack</p>
+                <p class="mobile-controls" style="display: none;">📱 Touch & drag the Octopi to move and shoot</p>
+                <p>Use boosts to increase your chances of winning!</p>
+            </div>
+            <script>
+                if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                    document.querySelector('.desktop-controls').style.display = 'none';
+                    document.querySelector('.mobile-controls').style.display = 'block';
+                }
+            </script>
+        </div>
+        
+        <div class="game-over" id="gameOver">
+            <h2>WASTED</h2>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <p>Level: <span id="finalLevel">1</span></p>
+            <p>The crabs have conquered the sea!</p>
+
+            <div id="saveScoreSection" style="margin-top: 20px;">
+                <p id="leaderboardStatus" style="font-size: 16px; font-weight: bold; margin: 10px 0;"></p>
+                <p id="saveScoreMessage"></p>
+            </div>
+
+            <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid rgba(255, 215, 0, 0.3);">
+                <!-- Support Us Header -->
+                <p style="font-size: 16px; margin: 0 0 15px 0; color: #00ddff; text-align: center; font-weight: bold;">Support Us</p>
+
+                <!-- Created by @vi11abajo -->
+                <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px;">
+                    <img src="https://pbs.twimg.com/profile_images/1964062963658014720/42dkxz5I_400x400.jpg" alt="@vi11abajo" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #FFD700;">
+                    <p style="font-size: 13px; margin: 0; color: #ffd700;">Created by @vi11abajo</p>
+                    <a href="https://x.com/vi11abajo" target="_blank" style="display: inline-flex; align-items: center; gap: 5px; background: #000000; color: white; padding: 5px 12px; border-radius: 18px; text-decoration: none; font-weight: bold; font-size: 12px; transition: all 0.3s ease; border: 2px solid #1DA1F2;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="white">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                        </svg>
+                        Follow
+                    </a>
+                </div>
+
+                <!-- Designed by @oooknorov -->
+                <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px;">
+                    <img src="https://pbs.twimg.com/profile_images/1973696093431947264/CVOON8Hq_400x400.jpg" alt="@oooknorov" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #FFD700;">
+                    <p style="font-size: 13px; margin: 0; color: #ffd700;">Designed by @oooknorov</p>
+                    <a href="https://x.com/oooknorov" target="_blank" style="display: inline-flex; align-items: center; gap: 5px; background: #000000; color: white; padding: 5px 12px; border-radius: 18px; text-decoration: none; font-weight: bold; font-size: 12px; transition: all 0.3s ease; border: 2px solid #1DA1F2;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="white">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                        </svg>
+                        Follow
+                    </a>
+                </div>
+            </div>
+
+            <button onclick="playButtonSound(); restartGame()">NEW BATTLE</button>
+        </div>
+    </div>
+
+    <!-- Core utilities (load first) -->
+    <script src="components/discord-button.js"></script>
+    <script src="components/menu-button.js"></script>
+
+    <!-- Theme system -->
+    <script src="themes/theme-manager.js?v=20251219003"></script>
+
+    <script src="state-manager.js"></script>
+    <script src="error-boundary.js"></script>
+    <script src="service-container.js"></script>
+    <script src="utils.js?v=20251218001"></script>
+    <script src="validation.js"></script>
+    <script src="time-utils.js"></script>
+    <script src="logger.js"></script>
+    <script src="sound-manager.js?v=20251227004"></script>
+    <script src="halloween-ambient.js?v=20251218001"></script>
+    <script src="xmas-ambient.js?v=20251220001"></script>
+
+    <!-- Preload System -->
+    <script src="loading-screen.js?v=20251218001"></script>
+    <script src="preload-manager.js?v=20251227002"></script>
+
+    <!-- Game config for speed modifiers -->
+    <script src="game-config.js?v=20251218001">
+
+    <script src="performance-optimizer.js?v=20251218001"></script>
+    <script src="performance-monitor.js?v=20251218001"></script>
+
+    <!-- Boss system (no defer for iOS compatibility) -->
+    <script src="boss-system/boss-system.js?v=20251220001" onerror="console.error('❌ boss-system.js FAILED TO LOAD')"></script>
+    <script src="boss-system/boss-attacks.js?v=20251220001" onerror="console.error('❌ boss-attacks.js FAILED')"></script>
+    <script src="boss-system/boss-abilities.js?v=20251220001" onerror="console.error('❌ boss-abilities.js FAILED')"></script>
+    <script src="boss-system/boss-renderer.js?v=20251220001" onerror="console.error('❌ boss-renderer.js FAILED')"></script>
+
+    <!-- Boost system -->
+    <script src="boosts/boost-constants.js?v=20251218001"></script>
+    <script src="boosts/boost-manager.js?v=20251218001"></script>
+    <script src="boosts/boost-effects.js?v=20251218001"></script>
+    <script src="boosts/boost-integration.js?v=20251218001"></script>
+    <script src="boosts/boost-system.js?v=20251218001"></script>
+
+    <!-- API and authentication -->
+    <script src="api-config.js?v=20251218001"></script>
+    <script src="api-client.js?v=20251218001"></script>
+    <script src="auth-manager.js?v=20251218001"></script>
+    <script src="game-session-manager.js?v=20251218001"></script>
+    <script src="fps-anticheat.js?v=20251218001"></script>
+
+    <!-- 🎮 NEW MODULAR GAME SYSTEM -->
+    <script type="module" src="/game.js?v=20251227002"></script>
+
+
+    <script>
+        window.toggleMenuMusic = function() {
+            const button = document.getElementById('musicToggleBtn');
+
+            if (!window.soundManager) {
+                return;
+            }
+
+            //📱 blockandinto sound for and withwithin
+            if (soundManager.forceUnlockAudio) {
+                soundManager.forceUnlockAudio();
+            }
+
+            if (soundManager.currentMusic) {
+                //music game - Stopping and disconnecting
+                soundManager.stopMusic(true);
+                soundManager.musicEnabled = false;
+                soundManager.saveSettings();
+                button.innerHTML = '🎵 OFF';
+                button.style.background = 'rgba(255,100,100,0.2)';
+                button.style.borderColor = 'rgba(255,100,100,0.5)';
+            } else {
+                //music NOT game - into and Starting
+                soundManager.musicEnabled = true;
+                soundManager.saveSettings();
+                soundManager.playMusic('menu', true);
+                button.innerHTML = '🎵 ON';
+                button.style.background = 'rgba(0,255,100,0.2)';
+                button.style.borderColor = 'rgba(0,255,100,0.5)';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.addEventListener('click', function(event) {
+                const button = event.target.closest('button');
+                if (button && window.soundManager && window.soundManager.playSound) {
+                    window.soundManager.playSound('buttonClick');
+                }
+            }, true);
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                const button = document.getElementById('musicToggleBtn');
+                if (button && window.soundManager) {
+                    if (soundManager.musicEnabled && soundManager.currentMusic) {
+                        button.innerHTML = '🎵 ON';
+                        button.style.background = 'rgba(0,255,100,0.2)';
+                        button.style.borderColor = 'rgba(0,255,100,0.5)';
+                    } else {
+                        button.innerHTML = '🎵 OFF';
+                        button.style.background = 'rgba(255,100,100,0.2)';
+                        button.style.borderColor = 'rgba(255,100,100,0.5)';
+                    }
+                }
+            }, 1000);
+        });
+
+        // Automatically enable music on index page (default theme)
+        // Try autoplay, if blocked by browser - start on first user interaction
+        document.addEventListener('DOMContentLoaded', function() {
+            let musicStarted = false;
+
+            const tryStartMusic = () => {
+                if (musicStarted || !window.soundManager) return;
+                soundManager.musicEnabled = true;
+                if (!soundManager.currentMusic || soundManager.currentMusic.paused) {
+                    soundManager.playMusic('menu', true);
+                }
+                musicStarted = true;
+            };
+
+            // Try after page load
+            setTimeout(tryStartMusic, 1000);
+
+            // Also try on first user interaction (click, keypress, touch)
+            const startOnInteraction = () => {
+                tryStartMusic();
+                document.removeEventListener('click', startOnInteraction);
+                document.removeEventListener('keydown', startOnInteraction);
+                document.removeEventListener('touchstart', startOnInteraction);
+            };
+
+            document.addEventListener('click', startOnInteraction, { once: true });
+            document.addEventListener('keydown', startOnInteraction, { once: true });
+            document.addEventListener('touchstart', startOnInteraction, { once: true });
+        });
+
+        let savedCanvasSize = null;
+
+        function resizeCanvas() {
+            const canvas = document.getElementById('gameCanvas');
+            if (!canvas) return;
+
+            const container = document.querySelector('.game-container');
+            if (!container) return;
+
+            //on and withwithin withand canvas
+            if (window.innerWidth <= 768) {
+                const isPortrait = window.innerHeight > window.innerWidth;
+
+                if (isPortrait) {
+                    const availableWidth = window.innerWidth;
+                    const originalWidth = 800;
+                    const originalHeight = 600;
+                    const aspectRatio = originalWidth / originalHeight;
+
+                    let newWidth = availableWidth;
+                    let newHeight = newWidth / aspectRatio;
+
+                    const maxHeight = window.innerHeight - 110;
+                    if (newHeight > maxHeight) {
+                        newHeight = maxHeight;
+                        newWidth = newHeight * aspectRatio;
+                    }
+
+                    canvas.style.width = newWidth + 'px';
+                    canvas.style.height = newHeight + 'px';
+
+                    savedCanvasSize = {
+                        width: newWidth,
+                        height: newHeight
+                    };
+                } else {
+                    if (savedCanvasSize) {
+                        canvas.style.width = savedCanvasSize.width + 'px';
+                        canvas.style.height = savedCanvasSize.height + 'px';
+                    } else {
+                        const availableWidth = window.innerWidth;
+                        const originalWidth = 800;
+                        const originalHeight = 600;
+                        const aspectRatio = originalWidth / originalHeight;
+
+                        let newWidth = availableWidth;
+                        let newHeight = newWidth / aspectRatio;
+
+                        canvas.style.width = newWidth + 'px';
+                        canvas.style.height = newHeight + 'px';
+                    }
+                }
+            } else {
+                canvas.style.width = '800px';
+                canvas.style.height = '600px';
+                savedCanvasSize = null;
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resizeCanvas, 100);
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            //Theme Manager inandwithtoand withbutinand and background
+            await window.themeManager.loadThemesConfig();
+            window.dispatchEvent(new Event('themeManagerReady'));
+
+            window.authManager = new AuthManager();
+            await window.authManager.init();
+
+            createMenuButton('#menuButtonContainer', {
+                id: 'menuButton',
+                text: 'MENU',
+                icon: 'themes/default/images/menu.webp',
+                onClick: function() {
+                    toggleMenu();
+                }
+            });
+
+            //Starting FPS scoreandto with after toand withand
+            if (typeof startFPSCounter === 'function') {
+                startFPSCounter();
+            }
+
+            //whilein FPS scoreandto only for andbutin
+            if (window.adminManager && window.authManager && window.authManager.currentUser) {
+                await window.adminManager.init(window.authManager.currentUser);
+                if (window.adminManager.isAdmin) {
+                    const fpsCounter = document.getElementById('fpsCounter');
+                    if (fpsCounter) {
+                        fpsCounter.style.display = 'block';
+                    }
+                }
+            }
+
+            createDiscordButton('#discordButtonContainer', {
+                text: 'Login with Discord',
+                autoConnect: true
+            });
+
+            window.gameSessionManager = new GameSessionManager();
+
+            setTimeout(resizeCanvas, 100);
+        });
+    </script>
+
+ <!-- toon button toandinon
+    <button id="musicToggleBtn" onclick="toggleMenuMusic()" style="
+        position: fixed;
+        bottom: 70px;
+        right: 20px;
+        z-index: 9999;
+        background: rgba(0,221,255,0.2);
+        border: 2px solid rgba(0,221,255,0.5);
+        color: #00ddff;
+        font-size: 14px;
+        padding: 10px 15px;
+        border-radius: 50px;
+        cursor: pointer;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 15px rgba(0,221,255,0.3);
+        transition: all 0.3s ease;
+        font-family: Arial, sans-serif;
+        font-weight: bold;
+    " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+        🎵 OFF
+    </button>
+    -->
+
+    <div id="fpsCounter" style="
+        display: none;
+        position: fixed;
+        bottom: 60px;
+        left: 20px;
+        z-index: 9999;
+        background: rgba(0, 17, 34, 0.8);
+        border: 2px solid rgba(78, 156, 250, 0.5);
+        color: #00ddff;
+        font-size: 14px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 15px rgba(0, 221, 255, 0.3);
+        min-width: 80px;
+        text-align: center;
+    ">
+        FPS: <span id="fpsValue">60</span>
+    </div>
+
+ </div><!-- toand gameContent -->
+
+</body>
+<footer style="position: fixed; bottom: 0; left: 0; right: 0; background: linear-gradient(135deg, rgba(22, 91, 51, 0.3), rgba(196, 30, 58, 0.2)); padding: 8px 20px; text-align: center; z-index: 1000; border-top: 2px solid rgba(255, 215, 0, 0.5); backdrop-filter: blur(10px);">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap; max-width: 1400px; margin: 0 auto;">
+        <!-- Left: Created by @vi11abajo -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="https://pbs.twimg.com/profile_images/1964062963658014720/42dkxz5I_400x400.jpg" alt="@vi11abajo" style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid #07ff4d; box-shadow: 0 0 10px rgba(7, 255, 77, 0.4);">
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
+                <p style="margin: 0; color: #FFD700; font-size: 13px; font-weight: bold; line-height: 1.2;">Created by @vi11abajo</p>
+            </div>
+            <a href="https://x.com/vi11abajo" target="_blank" style="display: inline-flex; align-items: center; gap: 5px; background: #000000; color: white; padding: 4px 10px; border-radius: 18px; text-decoration: none; font-weight: bold; font-size: 11px; transition: all 0.3s ease; border: 2px solid #07ff4d; box-shadow: 0 0 15px rgba(7, 255, 77, 0.4);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="white">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                Follow
+            </a>
+        </div>
+
+        <!-- Middle: Designed by @oooknorov -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="https://pbs.twimg.com/profile_images/1973696093431947264/CVOON8Hq_400x400.jpg" alt="@oooknorov" style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid #07ff4d; box-shadow: 0 0 10px rgba(7, 255, 77, 0.4);">
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
+                <p style="margin: 0; color: #FFD700; font-size: 13px; font-weight: bold; line-height: 1.2;">Designed by @oooknorov</p>
+                <p style="margin: 0; color: #FFC700; font-size: 11px; line-height: 1.2; font-style: italic; text-shadow: 0 0 8px rgba(0, 0, 0, 0.8), 0 1px 3px rgba(0, 0, 0, 0.9);">Doing My Best, Honestly :D</p>
+            </div>
+            <a href="https://x.com/oooknorov" target="_blank" style="display: inline-flex; align-items: center; gap: 5px; background: #000000; color: white; padding: 4px 10px; border-radius: 18px; text-decoration: none; font-weight: bold; font-size: 11px; transition: all 0.3s ease; border: 2px solid #07ff4d; box-shadow: 0 0 15px rgba(7, 255, 77, 0.4);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="white">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                Follow
+            </a>
+        </div>
+    </div>
+</footer>
+</html>

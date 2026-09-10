@@ -1,0 +1,136 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+!.example.env
+
+# Backend env
+backend/.env
+
+# Secrets - never commit generated credentials
+secrets-*.txt
+*.pem
+*.key
+!lib/**/*.key
+id_rsa*
+id_ed25519*
+
+# Android signing keys and build outputs
+*.jks
+*.keystore
+*.p12
+*.apk
+*.apks
+*.xapk
+*.aab
+
+# Solana keypairs and program build output
+*-keypair.json
+id.json
+target/
+test-ledger/
+.anchor/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Local agent/editor state
+.claude/settings.local.json
+.claude/plans/
+.claude/launch.json
+.temp/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Build outputs
+build/
+.vite/
+# NOTE: NO MORE dist/ - we serve files directly from root!
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+
+# PM2
+.pm2/
+# ecosystem.config.js is tracked - GitHub Actions needs it
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Docker (local development only - the VPS uses a different setup)
+docker-compose.yml
+Dockerfile
+backend/Dockerfile
+nginx.conf
+.dockerignore
+backend/.dockerignore
+docker-start.bat
+docker-start.sh
+docker-stop.bat
+docker-stop.sh
+docker-logs.bat
+docker-logs.sh
+setup-docker.bat
+setup-docker.sh
+README.DOCKER.md
+DOCKER-QUICKSTART.md
+DOCKER-SETUP-SUMMARY.md
+GIT-DOCKER-FILES.md
+LOCAL-DEVELOPMENT-WORKFLOW.md
+SETUP-README.md
+START-HERE.txt
+DOCKER-AUTO-SETUP-COMPLETE.md
+WHATS-CHANGED.md
+
+# Docker runtime data
+backend/logs/
+postgres_data/
+
+# Backups (server snapshots)
+backup/
+*.tar.gz
+*.sql
+!backend/migrations/*.sql
+*_backup_*
+
+# Build outputs and caches
+artifacts/
+cache/
+.next/
+nul
+next-env.d.ts
+
+# Private operational notes - not for the public repository
+incident-report-*.md
+server-security-audit-guide.md
+free-llm-api-options.md

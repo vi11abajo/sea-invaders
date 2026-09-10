@@ -1,0 +1,80 @@
+{
+  "currentTheme": "default",
+  "themes": {
+    "default": {
+      "name": "Default Theme",
+      "description": "Standard game appearance",
+      "basePath": "themes/default",
+      "images": {
+        "player": {
+          "front": "images/octopiFront.webp",
+          "left": "images/OctopiLeft.webp",
+          "right": "images/octopiRight.webp",
+          "ouch": "images/OctopiOoff.webp"
+        },
+        "enemies": {
+          "crabViolet": "images/crabViolet.webp",
+          "crabRed": "images/crabRed.webp",
+          "crabYellow": "images/crabYellow.webp",
+          "crabBlue": "images/crabBlue.webp",
+          "crabGreen": "images/crabGreen.webp"
+        },
+        "boss": {
+          "crabBossViolet": "images/crabBossViolet.webp",
+          "crabBossVioletGif": "images/crabBossViolet.gif",
+          "crabBossRed": "images/crabBossRed.webp",
+          "crabBossRedGif": "images/crabBossRed.gif",
+          "crabBossYellow": "images/crabBossYellow.webp",
+          "crabBossYellowGif": "images/crabBossYellow.gif",
+          "crabBossBlue": "images/crabBossBlue.webp",
+          "crabBossBlueGif": "images/crabBossBlue.gif",
+          "crabBOSSGreen": "images/crabBOSSGreen.webp",
+          "crabBOSSGreenGif": "images/crabBOSSGreen.gif"
+        },
+        "easterEggs": {
+          "pika": "images/pika.png",
+          "sailor": "images/sailor.png",
+          "hero": "images/hero.png",
+          "pao": "images/pao.png"
+        },
+        "boosts": {
+          "rapidFire": "images/boosts/rapidFire.png",
+          "shieldBarrier": "images/boosts/shieldBarrier.png",
+          "scoreMultiplier": "images/boosts/scoreMultiplier.png",
+          "pointsFreeze": "images/boosts/pointsFreeze.png",
+          "multiShot": "images/boosts/multiShot.png",
+          "healthBoost": "images/boosts/healthBoost.png",
+          "piercingBullets": "images/boosts/piercingBullets.png",
+          "invincibility": "images/boosts/invincibility.png",
+          "gravityWell": "images/boosts/gravityWell.png",
+          "ricochet": "images/boosts/ricochet.png",
+          "randomChaos": "images/boosts/randomChaos.png",
+          "iceFreeze": "images/boosts/iceFreeze.png",
+          "autoTarget": "images/boosts/autoTarget.png",
+          "coinShower": "images/boosts/coinShower.png",
+          "waveBlast": "images/boosts/waveBlast.png",
+          "speedTamer": "images/boosts/speedTamer.png",
+          "scream": "images/boosts/scream.webp",
+          "knifeBoost": "images/boosts/knifeBoost.png"
+        },
+        "ui": {
+          "bg1": "images/bg1.png",
+          "bg2": "images/bg2.png",
+          "bgmain2": "images/bgmain2.webp",
+          "gradient": "images/gradient.png",
+          "favicon": "images/favicon.png",
+          "music": "images/music.png"
+        }
+      },
+      "sounds": {
+        "sfx": {
+          "playerShoot": "sounds/sfx/player/shoot.wav",
+          "playerHurt": "sounds/sfx/player/hurt.wav",
+          "crabDeath": "sounds/sfx/enemies/crab-death.wav",
+          "bossShoot": "sounds/sfx/enemies/boss-shoot.mp3",
+          "buttonClick": "sounds/sfx/ui/button.wav"
+        }
+      }
+    }
+  }
+}

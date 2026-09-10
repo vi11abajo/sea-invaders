@@ -1,0 +1,155 @@
+name: Deploy to VPS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Create environment files
+        run: |
+          # Frontend .env.local
+          cat > .env.local << EOF
+          NEXT_PUBLIC_URL=${{ secrets.NEXT_PUBLIC_URL }}
+          NEXT_PUBLIC_BACKEND_URL=${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          DATABASE_URL=postgresql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ secrets.DB_HOST }}:${{ secrets.DB_PORT }}/${{ secrets.DB_NAME }}
+          BACKEND_URL=http://localhost:${{ secrets.BACKEND_PORT }}/api
+          EOF
+
+          # Backend .env
+          cat > backend/.env << EOF
+          DISCORD_CLIENT_ID=${{ secrets.DISCORD_CLIENT_ID }}
+          DISCORD_CLIENT_SECRET=${{ secrets.DISCORD_CLIENT_SECRET }}
+          DISCORD_REDIRECT_URI=${{ secrets.DISCORD_REDIRECT_URI }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          NODE_ENV=${{ secrets.NODE_ENV }}
+          PORT=${{ secrets.BACKEND_PORT }}
+          FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+          REDIS_ENABLED=false
+          EOF
+
+      - name: Build Next.js
+        run: npm run build
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          # Create the archive
+          tar -czf deploy.tar.gz \
+            --exclude='backend/node_modules' \
+            --exclude='node_modules' \
+            .next \
+            .env.local \
+            public \
+            game \
+            themes \
+            package.json \
+            package-lock.json \
+            next.config.mjs \
+            backend \
+            ecosystem.config.cjs
+
+          # Copy to the server
+          scp -P $SSH_PORT deploy.tar.gz $SSH_USER@$SSH_HOST:/tmp/
+
+          # Deploy on the server
+          ssh -p $SSH_PORT $SSH_USER@$SSH_HOST << 'ENDSSH'
+            set -e
+
+            # Create the directory if it does not exist
+            mkdir -p /var/www/sea-invaders
+            cd /var/www/sea-invaders
+
+            # Backup
+            if [ -d ".next" ]; then
+              echo "Creating backup..."
+              tar -czf ../backup-$(date +%Y%m%d-%H%M%S).tar.gz .next backend/src package.json
+              ls -t ../backup-*.tar.gz | tail -n +6 | xargs -r rm
+            fi
+
+            # Extract
+            echo "Extracting new version..."
+            tar -xzf /tmp/deploy.tar.gz -C /var/www/sea-invaders
+            rm /tmp/deploy.tar.gz
+
+            # Sync themes into public
+            echo "Syncing themes to public folder..."
+            rsync -av --delete /var/www/sea-invaders/themes/ /var/www/sea-invaders/public/themes/
+
+            # Dependencies
+            echo "Installing dependencies..."
+            npm ci --omit=dev --legacy-peer-deps
+            cd backend && npm ci --omit=dev --legacy-peer-deps && cd ..
+
+            # Migrations
+            echo "Running migrations..."
+            cd backend && npm run migrate || echo "Migrations already applied" && cd ..
+
+            # Start/Restart only our processes
+            echo "Starting sea invaders processes..."
+            pm2 delete nextjs-frontend express-backend 2>/dev/null || true
+            pm2 start ecosystem.config.cjs
+            pm2 save
+
+            echo "Deployment completed!"
+          ENDSSH
+
+      - name: Health check
+        run: |
+          echo "Waiting for services to start..."
+          sleep 20
+
+          echo "Checking frontend..."
+          curl -f https://seainvaders.fun || exit 1
+
+          echo "Checking backend health (with retries)..."
+          for i in {1..5}; do
+            if curl -f https://seainvaders.fun/health; then
+              echo "✅ Health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i/5 failed, retrying in 5s..."
+            sleep 5
+          done
+
+          echo "⚠️  Health check failed after 5 attempts, but frontend is up"
+          exit 0

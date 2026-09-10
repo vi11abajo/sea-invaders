@@ -1,0 +1,260 @@
+/* ============================================
+   🌊 SAILOR KIT BRAND DESIGN SYSTEM
+   ============================================ */
+
+:root {
+    /* === SAILOR KIT BRAND COLORS === */
+    --sailor-cream: #F8E3CC;
+    --sailor-powder: #CADEF0;
+    --sailor-sky: #4E9CFA;
+    --sailor-ocean: #0C6AE3;
+    --sailor-navy: #0007B6;
+
+    /* === SEMANTIC COLORS === */
+    --color-primary: var(--sailor-ocean);
+    --color-primary-light: var(--sailor-sky);
+    --color-primary-dark: var(--sailor-navy);
+
+    --color-secondary: var(--sailor-powder);
+    --color-accent: var(--sailor-cream);
+
+    /* === UI STATES === */
+    --color-success: #00E5A0;
+    --color-warning: #FFB84D;
+    --color-error: #FF6B6B;
+    --color-info: var(--sailor-sky);
+
+    /* === BACKGROUNDS === */
+    --bg-primary: linear-gradient(135deg, #001122 0%, #001a33 50%, #000d1a 100%);
+    --bg-card: linear-gradient(135deg, rgba(202, 222, 240, 0.08) 0%, rgba(12, 106, 227, 0.05) 100%);
+    --bg-card-hover: linear-gradient(135deg, rgba(202, 222, 240, 0.12) 0%, rgba(12, 106, 227, 0.08) 100%);
+    --bg-glass: rgba(202, 222, 240, 0.06);
+
+    /* === GRADIENTS === */
+    --gradient-primary: linear-gradient(135deg, var(--sailor-ocean) 0%, var(--sailor-sky) 100%);
+    --gradient-secondary: linear-gradient(135deg, var(--sailor-sky) 0%, var(--sailor-powder) 100%);
+    --gradient-accent: linear-gradient(135deg, var(--sailor-navy) 0%, var(--sailor-ocean) 100%);
+    --gradient-ocean: linear-gradient(180deg, var(--sailor-powder) 0%, var(--sailor-sky) 50%, var(--sailor-ocean) 100%);
+
+    /* === SHADOWS === */
+    --shadow-sm: 0 2px 8px rgba(12, 106, 227, 0.15);
+    --shadow-md: 0 4px 16px rgba(12, 106, 227, 0.2);
+    --shadow-lg: 0 8px 32px rgba(12, 106, 227, 0.25);
+    --shadow-xl: 0 16px 48px rgba(12, 106, 227, 0.3);
+
+    --shadow-glow: 0 0 20px rgba(78, 156, 250, 0.4);
+    --shadow-glow-strong: 0 0 30px rgba(78, 156, 250, 0.6);
+
+    /* === BORDERS === */
+    --border-light: 2px solid rgba(202, 222, 240, 0.3);
+    --border-primary: 2px solid var(--sailor-ocean);
+    --border-accent: 2px solid var(--sailor-sky);
+
+    /* === TYPOGRAPHY === */
+    --text-primary: #FFFFFF;
+    --text-secondary: var(--sailor-cream);
+    --text-muted: var(--sailor-powder);
+    --text-accent: var(--sailor-sky);
+
+    /* === SPACING (8px base unit) === */
+    --space-xs: 4px;   /* 0.5 × base */
+    --space-sm: 8px;   /* 1 × base */
+    --space-md: 16px;  /* 2 × base */
+    --space-lg: 24px;  /* 3 × base */
+    --space-xl: 32px;  /* 4 × base */
+    --space-2xl: 40px; /* 5 × base */
+    --space-3xl: 48px; /* 6 × base */
+    --space-4xl: 64px; /* 8 × base */
+
+    /* === MINIMUM TOUCH TARGET === */
+    --touch-target-min: 44px; /* WCAG AAA minimum touch target size */
+
+    /* === BORDER RADIUS === */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --radius-full: 50%;
+
+    /* === TRANSITIONS === */
+    --transition-fast: 0.2s ease;
+    --transition-normal: 0.3s ease;
+    --transition-slow: 0.5s ease;
+}
+
+/* ============================================
+   🎨 GLOBAL BRAND STYLES
+   ============================================ */
+
+body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+/* === BUTTONS === */
+.sailor-btn {
+    background: var(--gradient-primary);
+    border: var(--border-accent);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    padding: 12px 24px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    box-shadow: var(--shadow-md);
+    position: relative;
+    overflow: hidden;
+}
+
+.sailor-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left var(--transition-slow);
+}
+
+.sailor-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow-strong);
+    border-color: var(--sailor-sky);
+}
+
+.sailor-btn:hover::before {
+    left: 100%;
+}
+
+.sailor-btn:active {
+    transform: translateY(0);
+}
+
+.sailor-btn-secondary {
+    background: var(--gradient-secondary);
+    border-color: var(--sailor-powder);
+}
+
+.sailor-btn-accent {
+    background: var(--gradient-accent);
+    border-color: var(--sailor-navy);
+}
+
+/* === CARDS === */
+.sailor-card {
+    background: var(--bg-card);
+    border: var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-md);
+    transition: all var(--transition-normal);
+}
+
+.sailor-card:hover {
+    background: var(--bg-card-hover);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-4px);
+    border-color: var(--sailor-ocean);
+}
+
+/* === HEADINGS === */
+.sailor-heading {
+    color: var(--text-primary);
+    text-shadow: 0 0 20px rgba(78, 156, 250, 0.5);
+    font-weight: 900;
+    letter-spacing: 1px;
+}
+
+.sailor-heading-gradient {
+    background: var(--gradient-ocean);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 10px rgba(78, 156, 250, 0.3));
+}
+
+/* === BADGES === */
+.sailor-badge {
+    background: var(--gradient-primary);
+    border: 2px solid var(--sailor-sky);
+    border-radius: var(--radius-full);
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: var(--shadow-glow);
+    display: inline-block;
+}
+
+/* === PROGRESS BARS === */
+.sailor-progress {
+    background: rgba(202, 222, 240, 0.1);
+    border: var(--border-light);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    height: 24px;
+    position: relative;
+}
+
+.sailor-progress-bar {
+    background: var(--gradient-primary);
+    height: 100%;
+    border-radius: var(--radius-lg);
+    transition: width var(--transition-slow);
+    box-shadow: var(--shadow-glow);
+    position: relative;
+    overflow: hidden;
+}
+
+.sailor-progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* === GLOWS === */
+.sailor-glow {
+    box-shadow: var(--shadow-glow);
+}
+
+.sailor-glow-strong {
+    box-shadow: var(--shadow-glow-strong);
+    animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(78, 156, 250, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 40px rgba(78, 156, 250, 0.7);
+    }
+}
+
+/* === GLASS MORPHISM === */
+.sailor-glass {
+    background: var(--bg-glass);
+    backdrop-filter: blur(15px);
+    border: var(--border-light);
+    border-radius: var(--radius-lg);
+}
+
+/* === DIVIDERS === */
+.sailor-divider {
+    height: 2px;
+    background: var(--gradient-ocean);
+    border: none;
+    margin: var(--space-lg) 0;
+    box-shadow: var(--shadow-glow);
+}
