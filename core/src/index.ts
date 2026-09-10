@@ -3,6 +3,7 @@ export * from './fixed';
 export * from './game';
 export * from './hash';
 export * from './rng';
+export * from './sim/collide';
 export * from './sim/crabs';
 export * from './sim/ship';
 export * from './step';

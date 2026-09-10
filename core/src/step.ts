@@ -1,3 +1,5 @@
+import { spawnWave } from './game';
+import { hitCrabs, hitShip } from './sim/collide';
 import { marchCrabs, updateEnemyShots } from './sim/crabs';
 import { moveShip, updateShots } from './sim/ship';
 import type { GameState, Input } from './types';
@@ -12,4 +14,7 @@ export function step(s: GameState, input: Input): void {
   marchCrabs(s);
   if (s.over) return;
   updateEnemyShots(s);
+  hitCrabs(s);
+  hitShip(s);
+  if (!s.over && s.crabs.length === 0) spawnWave(s, s.wave + 1);
 }
