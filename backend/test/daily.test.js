@@ -35,6 +35,12 @@ describe('/api/daily', () => {
     expect((await request(app).post('/api/daily/runs')).status).toBe(401);
   });
 
+  it('answers 401 (not 403) for a malformed token', async () => {
+    const res = await request(app).post('/api/daily/runs').set('Authorization', 'Bearer not-a-jwt');
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'InvalidToken', message: 'Invalid access token' });
+  });
+
   it('starts, finishes and ranks a run', async () => {
     const started = await request(app).post('/api/daily/runs').set(auth);
     expect(started.status).toBe(201);

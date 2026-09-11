@@ -34,7 +34,7 @@ export function authenticateToken(req, res, next) {
     }
 
     if (error.name === 'JsonWebTokenError') {
-      return res.status(403).json({
+      return res.status(401).json({
         error: 'InvalidToken',
         message: 'Invalid access token'
       });

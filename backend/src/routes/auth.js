@@ -47,7 +47,7 @@ router.get('/me', async (req, res) => {
       });
     }
 
-    return res.status(403).json({
+    return res.status(401).json({
       error: 'InvalidToken',
       message: 'Invalid token',
     });

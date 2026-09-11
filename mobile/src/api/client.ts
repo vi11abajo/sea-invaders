@@ -14,7 +14,10 @@ export class ApiError extends Error {
 
 const TIMEOUT_MS = 15_000;
 
-/** JSON request to the backend. With `auth`, sends the stored JWT and clears it on a 401. */
+/**
+ * JSON request to the backend. With `auth`, sends the stored JWT and clears it when the
+ * server rejects it: on any 401, or on a 403 whose body reports `error: 'InvalidToken'`.
+ */
 export async function apiFetch<T>(path: string, init: { method?: 'GET' | 'POST'; body?: unknown; auth?: boolean } = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (init.body !== undefined) headers['Content-Type'] = 'application/json';
@@ -46,8 +49,8 @@ export async function apiFetch<T>(path: string, init: { method?: 'GET' | 'POST';
     data = null;
   }
   if (!response.ok) {
-    if (response.status === 401 && init.auth) await clearSession();
     const body = (data ?? {}) as { message?: string; code?: string; error?: string; reason?: string };
+    if (init.auth && (response.status === 401 || (response.status === 403 && body.error === 'InvalidToken'))) await clearSession();
     throw new ApiError(response.status, body.message ?? body.reason ?? body.error ?? `HTTP ${response.status}`, body.code ?? body.reason ?? body.error);
   }
   return data as T;
