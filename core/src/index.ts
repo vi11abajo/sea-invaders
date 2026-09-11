@@ -11,6 +11,7 @@ export * from './sim/ship';
 export * from './state-hash';
 export * from './step';
 export * from './types';
+export * from './view/format';
 export * from './view/frame';
 export * from './view/layout';
 export * from './view/stepper';
