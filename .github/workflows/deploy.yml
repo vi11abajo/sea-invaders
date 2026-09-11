@@ -59,6 +59,7 @@ jobs:
           DAILY_FREE_ATTEMPTS=${{ secrets.DAILY_FREE_ATTEMPTS }}
           AUTH_DOMAIN=${{ secrets.AUTH_DOMAIN }}
           AUTH_URI=${{ secrets.AUTH_URI }}
+          JUPITER_API_KEY=${{ secrets.JUPITER_API_KEY }}
           EOF
 
       - name: Build Next.js
