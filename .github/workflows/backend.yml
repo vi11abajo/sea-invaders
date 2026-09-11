@@ -1,0 +1,27 @@
+name: backend
+
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**', 'core/**', '.github/workflows/backend.yml']
+  pull_request:
+    paths: ['backend/**', 'core/**', '.github/workflows/backend.yml']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+      - run: npm ci
+        working-directory: core
+      - run: npm run build
+        working-directory: core
+      - run: npm ci
+        working-directory: backend
+      - run: npx vitest run
+        working-directory: backend
