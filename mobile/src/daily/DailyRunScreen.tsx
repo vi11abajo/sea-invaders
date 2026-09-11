@@ -16,7 +16,7 @@ type Phase =
   | { kind: 'playing'; run: StartedRun }
   | { kind: 'uploading'; run: StartedRun; outcome: RunOutcome }
   | { kind: 'verified'; run: StartedRun; outcome: RunOutcome; result: FinishedRun }
-  | { kind: 'error'; message: string; canRetry: boolean };
+  | { kind: 'error'; message: string; canRetry: boolean; retryUpload?: { run: StartedRun; outcome: RunOutcome } };
 
 function describe(error: unknown): { message: string; canRetry: boolean } {
   if (error instanceof ApiError) {
@@ -47,6 +47,10 @@ export function DailyRunScreen({ onExit }: { onExit: () => void }) {
       .catch((e) => setPhase({ kind: 'error', ...describe(e) }));
   }, []);
 
+  const retry = useCallback(() => {
+    setPhase((p) => (p.kind === 'error' && p.retryUpload ? { kind: 'uploading', ...p.retryUpload } : p));
+  }, []);
+
   useEffect(() => {
     begin();
   }, [begin]);
@@ -57,7 +61,7 @@ export function DailyRunScreen({ onExit }: { onExit: () => void }) {
     let alive = true;
     finishRun(run.runId, encodeReplay(outcome.replay))
       .then((result) => alive && setPhase({ kind: 'verified', run, outcome, result }))
-      .catch((e) => alive && setPhase({ kind: 'error', ...describe(e) }));
+      .catch((e) => alive && setPhase({ kind: 'error', ...describe(e), retryUpload: { run, outcome } }));
     return () => {
       alive = false;
     };
@@ -122,8 +126,11 @@ export function DailyRunScreen({ onExit }: { onExit: () => void }) {
       ) : (
         <Sheet kind="modal">
           <Txt variant="headline">Daily run</Txt>
+          {phase.retryUpload && (
+            <Txt variant="body" tone="secondary">Your run is saved on this phone. Retry the upload to get it verified.</Txt>
+          )}
           <Txt variant="body" tone="secondary">{phase.message}</Txt>
-          {phase.canRetry && <PillButton label="Try again" onPress={begin} />}
+          {phase.canRetry && <PillButton label="Try again" onPress={phase.retryUpload ? retry : begin} />}
           <PillButton label="Home" kind="secondary" onPress={onExit} />
         </Sheet>
       )}
