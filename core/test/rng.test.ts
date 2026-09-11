@@ -11,6 +11,19 @@ describe('cyrb128', () => {
   });
 });
 
+describe('reference vectors', () => {
+  // Pinned literals, computed once from the current implementation. If these ever need to
+  // change, every replay and golden ever recorded stops replaying identically: bump
+  // CORE_VERSION and regenerate the goldens alongside the change.
+  it('pins cyrb128 and Rng output for fixed seeds, to catch any future change to the PRNG', () => {
+    expect(cyrb128('sea-invaders')).toEqual([1645418780, 46118498, 753677311, 3915276823]);
+
+    const r = new Rng('sea-invaders/vectors');
+    const values = [r.nextU32(), r.nextU32(), r.nextU32(), r.nextU32()];
+    expect(values).toEqual([2783589297, 3438085846, 1153762189, 475224320]);
+  });
+});
+
 describe('Rng', () => {
   it('repeats the same sequence for the same seed', () => {
     const a = new Rng('day-1/waves');
