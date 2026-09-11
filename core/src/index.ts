@@ -1,6 +1,7 @@
 export * from './config';
 export * from './fixed';
 export * from './game';
+export * from './golden';
 export * from './hash';
 export * from './replay';
 export * from './rng';
