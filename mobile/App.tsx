@@ -1,6 +1,8 @@
+import { MobileWalletProvider } from '@wallet-ui/react-native-web3js';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Linking } from 'react-native';
+import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
 import { GameScreen } from './src/game/GameScreen';
 import { HomeScreen } from './src/home/HomeScreen';
 import { OFFLINE_HOME } from './src/home/model';
@@ -33,7 +35,7 @@ export default function App() {
   if (!fontsReady) return null;
 
   return (
-    <>
+    <MobileWalletProvider chain={CHAIN} endpoint={RPC_URL} identity={APP_IDENTITY}>
       <StatusBar hidden />
       {route === 'selftest' ? (
         <SelfTestScreen />
@@ -44,6 +46,6 @@ export default function App() {
       ) : (
         <HomeScreen model={OFFLINE_HOME} onPractice={() => setScreen('practice')} />
       )}
-    </>
+    </MobileWalletProvider>
   );
 }
