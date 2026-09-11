@@ -3,9 +3,12 @@
   "version": "0.1.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo-google-fonts/geist-mono": "^0.4.3",
+    "@expo-google-fonts/instrument-sans": "^0.4.2",
     "@sea-invaders/core": "file:../core",
     "@shopify/react-native-skia": "2.6.2",
     "expo": "~57.0.21",
+    "expo-font": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.3",
