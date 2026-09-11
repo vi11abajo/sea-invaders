@@ -58,6 +58,24 @@ describe('verifySignIn', () => {
     expect(verifySignIn(tampered).ok).toBe(false);
   });
 
+  it('rejects a wrong uri without consuming the nonce', () => {
+    const { nonce, issuedAt } = issueNonce();
+    const p = signInPayload(nonce, issuedAt);
+    const body = signedInput(p, address, keys, { uri: 'https://evil.example' });
+    expect(verifySignIn(body)).toEqual({ ok: false, reason: 'uri_mismatch' });
+    // the nonce is still live: a correctly-built message for it still verifies
+    expect(verifySignIn(signedInput(p, address, keys))).toEqual({ ok: true, address });
+  });
+
+  it('rejects a wrong statement without consuming the nonce', () => {
+    const { nonce, issuedAt } = issueNonce();
+    const p = signInPayload(nonce, issuedAt);
+    const body = signedInput(p, address, keys, { statement: 'Some other statement' });
+    expect(verifySignIn(body)).toEqual({ ok: false, reason: 'statement_mismatch' });
+    // the nonce is still live: a correctly-built message for it still verifies
+    expect(verifySignIn(signedInput(p, address, keys))).toEqual({ ok: true, address });
+  });
+
   it('rejects garbage input without throwing', () => {
     expect(verifySignIn({ address: 'not-base58!!', signedMessage: 'xx', signature: 'yy' }).ok).toBe(false);
     expect(verifySignIn({}).ok).toBe(false);

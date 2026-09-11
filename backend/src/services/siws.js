@@ -61,6 +61,8 @@ export function verifySignIn(body, now = Date.now()) {
   const parsed = parseSignInMessageText(new TextDecoder().decode(signedMessage));
   if (!parsed) return { ok: false, reason: 'unparseable_message' };
   if (parsed.domain !== authDomain()) return { ok: false, reason: 'domain_mismatch' };
+  if (parsed.uri !== authUri()) return { ok: false, reason: 'uri_mismatch' };
+  if (parsed.statement !== STATEMENT) return { ok: false, reason: 'statement_mismatch' };
   if (parsed.address !== address) return { ok: false, reason: 'address_mismatch' };
   const entry = parsed.nonce ? nonces.get(parsed.nonce) : undefined;
   if (!entry || entry.expiresAt <= now || entry.issuedAt !== parsed.issuedAt) {
