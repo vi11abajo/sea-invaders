@@ -28,16 +28,16 @@ function routeFor(url: string | null): Route {
 /** Everything that needs the wallet provider and the session. */
 function Shell() {
   const [screen, setScreen] = useState<Screen>('home');
-  const { session, loading, signIn, error } = useSession();
+  const { session, restoring, signIn, error } = useSession();
   const { model, refresh } = useHomeModel(session);
   const home = () => {
     setScreen('home');
     refresh();
   };
 
-  // The session is loading (the stored one is being restored, or a sign-in is in flight): show the
-  // backdrop only, so a cold start does not flash "Connect wallet" before it resolves.
-  if (loading) return <Backdrop />;
+  // Until the stored session is read, show the backdrop only, so a cold start does not flash
+  // "Connect wallet" before it resolves. A sign-in in flight keeps Home on screen.
+  if (restoring) return <Backdrop />;
 
   switch (screen) {
     case 'practice':

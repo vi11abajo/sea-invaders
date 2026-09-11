@@ -30,7 +30,7 @@ router.post('/runs', authenticateToken, sessionLimiter, async (req, res, next) =
 router.post('/runs/:runId/finish', authenticateToken, scoreSubmitLimiter, async (req, res, next) => {
   try {
     const runId = String(req.params.runId);
-    if (!UUID_RE.test(runId)) return res.status(404).json({ error: 'RunNotFound', message: 'Run not found' });
+    if (!UUID_RE.test(runId)) return res.status(404).json({ error: 'RankedRun', code: 'run_not_found', message: 'Run not found' });
     res.json(await finishRun({ userId: req.user.userId, runId, replayBase64: req.body?.replay, now: nowSeconds() }));
   } catch (error) {
     next(error);

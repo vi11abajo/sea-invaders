@@ -4,11 +4,15 @@ import { signInWithWallet, signOut as apiSignOut } from './auth';
 import { ApiError } from './client';
 import { loadSession, type Session } from './session';
 
-/** The signed-in player, restored from secure storage and refreshed by sign-in / sign-out. */
+/**
+ * The signed-in player, restored from secure storage and refreshed by sign-in / sign-out.
+ * `restoring` is true until the stored session has been read; `loading` while a sign-in is in flight.
+ */
 export function useSession() {
   const { signIn: walletSignIn, disconnect: forgetWalletAuthorization } = useMobileWallet();
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [restoring, setRestoring] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -16,7 +20,7 @@ export function useSession() {
     loadSession().then((s) => {
       if (alive) {
         setSession(s);
-        setLoading(false);
+        setRestoring(false);
       }
     });
     return () => {
@@ -45,5 +49,5 @@ export function useSession() {
     setSession(null);
   }, []);
 
-  return { session, loading, signIn, signOut, error };
+  return { session, restoring, loading, signIn, signOut, error };
 }
