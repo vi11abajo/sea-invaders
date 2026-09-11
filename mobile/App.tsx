@@ -10,6 +10,7 @@ import { GameScreen } from './src/game/GameScreen';
 import { HomeScreen } from './src/home/HomeScreen';
 import { useHomeModel } from './src/home/useHomeModel';
 import { SelfTestScreen } from './src/selftest/SelfTestScreen';
+import { Backdrop } from './src/ui/Backdrop';
 import { useAppFonts } from './src/ui/fonts';
 import { UiGallery } from './src/ui/gallery/UiGallery';
 
@@ -27,12 +28,16 @@ function routeFor(url: string | null): Route {
 /** Everything that needs the wallet provider and the session. */
 function Shell() {
   const [screen, setScreen] = useState<Screen>('home');
-  const { session, signIn, error } = useSession();
+  const { session, loading, signIn, error } = useSession();
   const { model, refresh } = useHomeModel(session);
   const home = () => {
     setScreen('home');
     refresh();
   };
+
+  // The session is loading (the stored one is being restored, or a sign-in is in flight): show the
+  // backdrop only, so a cold start does not flash "Connect wallet" before it resolves.
+  if (loading) return <Backdrop />;
 
   switch (screen) {
     case 'practice':
