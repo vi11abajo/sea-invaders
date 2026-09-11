@@ -1,0 +1,27 @@
+{
+  "name": "sea-invaders-mobile",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@sea-invaders/core": "file:../core",
+    "@shopify/react-native-skia": "2.6.2",
+    "expo": "~57.0.21",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-reanimated": "4.5.1",
+    "react-native-worklets": "0.10.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit"
+  },
+  "private": true
+}

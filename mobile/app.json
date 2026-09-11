@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Sea Invaders",
+    "slug": "sea-invaders",
+    "scheme": "seainvaders",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "xyz.seainvaders.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0007B6",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
