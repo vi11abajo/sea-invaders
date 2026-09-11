@@ -2,7 +2,6 @@ import jwt from 'jsonwebtoken';
 
 export const TEST_SECRET = 'test-secret-that-is-long-enough-for-hs256-0123456789';
 process.env.JWT_SECRET = TEST_SECRET;
-process.env.NODE_ENV = 'test';
 
 /** A token the app's authenticateToken middleware accepts. */
 export function tokenFor(user) {

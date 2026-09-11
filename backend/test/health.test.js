@@ -9,6 +9,10 @@ describe('createApp', () => {
     expect(res.body.status).toBe('ok');
   });
 
+  it('runs the test suite with NODE_ENV=test (so morgan request logging is skipped)', () => {
+    expect(process.env.NODE_ENV).toBe('test');
+  });
+
   it('returns JSON 404 for unknown routes', async () => {
     const res = await request(createApp()).get('/nope');
     expect(res.status).toBe(404);
