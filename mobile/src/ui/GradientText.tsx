@@ -6,7 +6,10 @@ import { SIGNATURE_GRADIENT } from './tokens';
 export function GradientText({ text, size }: { text: string; size: number }) {
   const font = useFont(GeistMono_500Medium, size);
   if (font === null) return null;
-  const width = Math.ceil(font.measureText(text).width);
+  // Size the canvas by the glyph advances: measureText returns tight ink bounds without the side
+  // bearings, and a canvas that narrow clips the last glyph.
+  const advance = font.getGlyphWidths(font.getGlyphIDs(text)).reduce((sum, w) => sum + w, 0);
+  const width = Math.ceil(advance) + 1;
   const { ascent, descent } = font.getMetrics();
   const height = Math.ceil(descent - ascent);
   return (
