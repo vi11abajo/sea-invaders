@@ -6,6 +6,7 @@ import { apiLimiter } from './middleware/rateLimit.js';
 import authRoutes from './routes/auth.js';
 import scoresRoutes from './routes/scores.js';
 import leaderboardRoutes from './routes/leaderboard.js';
+import dailyRoutes from './routes/daily.js';
 import siwsRoutes from './routes/siws.js';
 
 /** Builds the Express app without listening, so tests can drive it with supertest. */
@@ -41,6 +42,7 @@ export function createApp() {
   app.use('/api/auth/siws', siwsRoutes);
   app.use('/api/scores', scoresRoutes);
   app.use('/api/leaderboard', leaderboardRoutes);
+  app.use('/api/daily', dailyRoutes);
 
   app.use((req, res) => {
     res.status(404).json({ error: 'NotFound', message: 'Endpoint not found', path: req.path });
