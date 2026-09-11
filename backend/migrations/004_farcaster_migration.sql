@@ -11,7 +11,13 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS wallet_address VARCHAR(42);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(255);
 
 -- Copy discord_username to username (temporary, for existing users)
-UPDATE users SET username = discord_username WHERE username IS NULL AND discord_username IS NOT NULL;
+-- One-time copy for databases that had the old discord_username column; a fresh database has no such column.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'discord_username') THEN
+    UPDATE users SET username = discord_username WHERE username IS NULL AND discord_username IS NOT NULL;
+  END IF;
+END $$;
 
 -- Make fid unique
 ALTER TABLE users ADD CONSTRAINT users_fid_unique UNIQUE (fid);
