@@ -1,11 +1,13 @@
-name: Deploy to VPS
+name: Deploy API to VPS
 
+# Deploys only the backend (plus the core it depends on) to /var/www/sea-invaders-api,
+# served as api.seainvaders.xyz. The legacy web game on the same server is not touched.
 on:
   workflow_dispatch:
 
 jobs:
   deploy:
-    name: Deploy to Production
+    name: Deploy API
     runs-on: ubuntu-latest
 
     steps:
@@ -16,10 +18,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
 
       - name: Build the core
         run: |
@@ -27,33 +25,18 @@ jobs:
           npm ci
           npm run build
 
-      - name: Create environment files
+      - name: Create the backend .env
         run: |
-          # Frontend .env.local
-          cat > .env.local << EOF
-          NEXT_PUBLIC_URL=${{ secrets.NEXT_PUBLIC_URL }}
-          NEXT_PUBLIC_BACKEND_URL=${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          DB_NAME=${{ secrets.DB_NAME }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          DATABASE_URL=postgresql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ secrets.DB_HOST }}:${{ secrets.DB_PORT }}/${{ secrets.DB_NAME }}
-          BACKEND_URL=http://localhost:${{ secrets.BACKEND_PORT }}/api
-          EOF
-
-          # Backend .env
           cat > backend/.env << EOF
+          NODE_ENV=production
+          PORT=5439
+          FRONTEND_URL=https://seainvaders.xyz
+          DB_HOST=localhost
+          DB_PORT=5432
+          DB_NAME=sea_invaders
+          DB_USER=sea_invaders_user
+          DB_PASSWORD=${{ secrets.API_DB_PASSWORD }}
           JWT_SECRET=${{ secrets.JWT_SECRET }}
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          DB_NAME=${{ secrets.DB_NAME }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          NODE_ENV=${{ secrets.NODE_ENV }}
-          PORT=${{ secrets.BACKEND_PORT }}
-          FRONTEND_URL=${{ secrets.FRONTEND_URL }}
           REDIS_ENABLED=false
           DAILY_SEED_SECRET=${{ secrets.DAILY_SEED_SECRET }}
           DAILY_FREE_ATTEMPTS=${{ secrets.DAILY_FREE_ATTEMPTS }}
@@ -61,9 +44,6 @@ jobs:
           AUTH_URI=${{ secrets.AUTH_URI }}
           JUPITER_API_KEY=${{ secrets.JUPITER_API_KEY }}
           EOF
-
-      - name: Build Next.js
-        run: npm run build
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
@@ -81,63 +61,38 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
-          # Create the archive
           tar -czf deploy.tar.gz \
             --exclude='backend/node_modules' \
             --exclude='core/node_modules' \
-            --exclude='node_modules' \
-            .next \
-            .env.local \
-            public \
-            game \
-            themes \
-            package.json \
-            package-lock.json \
-            next.config.mjs \
             backend \
-            core \
-            ecosystem.config.cjs
+            core
 
-          # Copy to the server
-          scp -P $SSH_PORT deploy.tar.gz $SSH_USER@$SSH_HOST:/tmp/
+          scp -P $SSH_PORT deploy.tar.gz $SSH_USER@$SSH_HOST:/tmp/sea-invaders-api.tar.gz
 
-          # Deploy on the server
           ssh -p $SSH_PORT $SSH_USER@$SSH_HOST << 'ENDSSH'
             set -e
+            mkdir -p /var/www/sea-invaders-api
+            cd /var/www/sea-invaders-api
 
-            # Create the directory if it does not exist
-            mkdir -p /var/www/sea-invaders
-            cd /var/www/sea-invaders
-
-            # Backup
-            if [ -d ".next" ]; then
+            if [ -d backend/src ]; then
               echo "Creating backup..."
-              tar -czf ../backup-$(date +%Y%m%d-%H%M%S).tar.gz .next backend/src package.json
-              ls -t ../backup-*.tar.gz | tail -n +6 | xargs -r rm
+              tar -czf ../sea-invaders-api-backup-$(date +%Y%m%d-%H%M%S).tar.gz backend/src backend/package.json core/dist
+              ls -t ../sea-invaders-api-backup-*.tar.gz | tail -n +6 | xargs -r rm
             fi
 
-            # Extract
             echo "Extracting new version..."
-            tar -xzf /tmp/deploy.tar.gz -C /var/www/sea-invaders
-            rm /tmp/deploy.tar.gz
+            tar -xzf /tmp/sea-invaders-api.tar.gz -C /var/www/sea-invaders-api
+            rm /tmp/sea-invaders-api.tar.gz
 
-            # Sync themes into public
-            echo "Syncing themes to public folder..."
-            rsync -av --delete /var/www/sea-invaders/themes/ /var/www/sea-invaders/public/themes/
-
-            # Dependencies
-            echo "Installing dependencies..."
-            npm ci --omit=dev --legacy-peer-deps
+            echo "Installing backend dependencies..."
             cd backend && npm ci --omit=dev --legacy-peer-deps && cd ..
 
-            # Migrations
             echo "Running migrations..."
-            cd backend && npm run migrate || echo "Migrations already applied" && cd ..
+            cd backend && npm run migrate && cd ..
 
-            # Start/Restart only our processes
-            echo "Starting sea invaders processes..."
-            pm2 delete nextjs-frontend express-backend 2>/dev/null || true
-            pm2 start ecosystem.config.cjs
+            echo "Starting the API..."
+            mkdir -p backend/logs
+            pm2 startOrRestart backend/ecosystem.api.cjs --only sea-invaders-api
             pm2 save
 
             echo "Deployment completed!"
@@ -145,21 +100,15 @@ jobs:
 
       - name: Health check
         run: |
-          echo "Waiting for services to start..."
-          sleep 20
-
-          echo "Checking frontend..."
-          curl -f https://seainvaders.fun || exit 1
-
-          echo "Checking backend health (with retries)..."
-          for i in {1..5}; do
-            if curl -f https://seainvaders.fun/health; then
-              echo "✅ Health check passed!"
+          echo "Waiting for the API to start..."
+          sleep 15
+          for i in {1..6}; do
+            if curl -fsS https://api.seainvaders.xyz/health; then
+              echo; echo "Health check passed"
               exit 0
             fi
-            echo "Attempt $i/5 failed, retrying in 5s..."
-            sleep 5
+            echo "Attempt $i/6 failed, retrying in 10s..."
+            sleep 10
           done
-
-          echo "⚠️  Health check failed after 5 attempts, but frontend is up"
-          exit 0
+          echo "Health check failed"
+          exit 1
