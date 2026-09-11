@@ -164,7 +164,17 @@ ENABLE_SCORE_VALIDATION=true
 MAX_SCORE_PER_LEVEL=10000
 MAX_LEVEL=100
 MIN_GAME_DURATION=5000
+
+# Daily ranked run (generate the secret with: openssl rand -hex 32)
+DAILY_SEED_SECRET=your_64_char_random_string
+DAILY_FREE_ATTEMPTS=3
+
+# Sign-In With Solana: what the wallet shows and the server checks
+AUTH_DOMAIN=seainvaders.xyz
+AUTH_URI=https://seainvaders.xyz
 ```
+
+`DAILY_SEED_SECRET` derives every day's seed; changing it changes all future seeds, so set it once. `DAILY_FREE_ATTEMPTS` is the per-day attempt limit until on-chain tickets replace it. `AUTH_DOMAIN` / `AUTH_URI` must match the identity the app presents to the wallet (`mobile/src/api/config.ts`), and the domain hosts `/.well-known/assetlinks.json` for wallet app verification.
 
 Save (`Ctrl+O`, `Enter`, `Ctrl+X`).
 
