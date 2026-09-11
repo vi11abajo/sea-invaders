@@ -6,6 +6,7 @@ import { apiLimiter } from './middleware/rateLimit.js';
 import authRoutes from './routes/auth.js';
 import scoresRoutes from './routes/scores.js';
 import leaderboardRoutes from './routes/leaderboard.js';
+import siwsRoutes from './routes/siws.js';
 
 /** Builds the Express app without listening, so tests can drive it with supertest. */
 export function createApp() {
@@ -37,6 +38,7 @@ export function createApp() {
 
   app.use('/api', apiLimiter);
   app.use('/api/auth', authRoutes);
+  app.use('/api/auth/siws', siwsRoutes);
   app.use('/api/scores', scoresRoutes);
   app.use('/api/leaderboard', leaderboardRoutes);
 
