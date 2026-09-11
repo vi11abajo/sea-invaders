@@ -14,8 +14,8 @@ export async function loadSession(): Promise<Session | null> {
     const raw = await SecureStore.getItemAsync(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<Session>;
-    if (typeof parsed.token !== 'string' || typeof parsed.walletAddress !== 'string') return null;
-    return parsed as Session;
+    if (typeof parsed.token !== 'string' || typeof parsed.walletAddress !== 'string' || typeof parsed.username !== 'string' || typeof parsed.userId !== 'number' || !Number.isInteger(parsed.userId)) return null;
+    return { token: parsed.token, userId: parsed.userId, walletAddress: parsed.walletAddress, username: parsed.username };
   } catch {
     return null;
   }
