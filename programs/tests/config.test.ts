@@ -1,0 +1,129 @@
+import { expect } from "chai";
+import { Ctx, setup, warpTo } from "./helpers";
+import {
+  configArgs,
+  configPda,
+  createPlayer,
+  createWeekPool,
+  initConfig,
+  playerPda,
+  PAYOUT,
+  weekPda,
+} from "./fixtures";
+
+describe("config and accounts", () => {
+  // A single shared LiteSVM instance for the whole file (see smoke.test.ts
+  // for why): each `it` below uses its own fresh keypairs/days/weeks so the
+  // tests stay independent despite sharing `ctx`.
+  let ctx: Ctx;
+
+  before(async () => {
+    ctx = await setup();
+  });
+
+  it("rejects payout shares that do not sum to 10000 bps and pool shares over 10000", async () => {
+    // Must run before `init_config` succeeds anywhere in this file: the
+    // config PDA has no per-admin seed, so a later attempt to init it again
+    // would fail with "already in use" instead of exercising validation.
+    const bad = {
+      ...configArgs(ctx),
+      payoutBps: [3000, 2000, 1200, 800, 600, 480, 480, 480, 480, 481],
+    };
+    let err = "";
+    try {
+      await ctx.send(
+        [
+          await ctx.program.methods
+            .initConfig(bad)
+            .accounts({ admin: ctx.admin.publicKey, skrMint: ctx.mint })
+            .instruction(),
+        ],
+        [ctx.admin]
+      );
+    } catch (e: any) {
+      err = e.message;
+    }
+    expect(err).to.contain("InvalidConfig");
+  });
+
+  it("init_config stores every field and the admin", async () => {
+    await initConfig(ctx);
+    const c = await ctx.program.account.config.fetch(configPda(ctx.programId));
+    expect(c.admin.equals(ctx.admin.publicKey)).to.be.true;
+    expect(c.ticketPrice.toString()).to.equal("10000000");
+    expect(c.payoutBps).to.deep.equal(PAYOUT);
+    expect(c.paused).to.be.false;
+  });
+
+  it("only the admin can update or pause", async () => {
+    let err = "";
+    try {
+      await ctx.send(
+        [
+          await ctx.program.methods
+            .setPaused(true)
+            .accounts({ admin: ctx.alice.publicKey })
+            .instruction(),
+        ],
+        [ctx.alice]
+      );
+    } catch (e: any) {
+      err = e.message;
+    }
+    expect(err).to.not.equal("");
+
+    await ctx.send(
+      [
+        await ctx.program.methods
+          .setPaused(true)
+          .accounts({ admin: ctx.admin.publicKey })
+          .instruction(),
+      ],
+      [ctx.admin]
+    );
+    expect((await ctx.program.account.config.fetch(configPda(ctx.programId))).paused).to.be.true;
+
+    // Un-pause so later tests/files sharing this ctx are unaffected.
+    await ctx.send(
+      [
+        await ctx.program.methods
+          .setPaused(false)
+          .accounts({ admin: ctx.admin.publicKey })
+          .instruction(),
+      ],
+      [ctx.admin]
+    );
+    expect((await ctx.program.account.config.fetch(configPda(ctx.programId))).paused).to.be.false;
+  });
+
+  it("create_player is paid by the player and starts empty", async () => {
+    await createPlayer(ctx, ctx.alice);
+    const p = await ctx.program.account.player.fetch(playerPda(ctx.programId, ctx.alice.publicKey));
+    expect(p.wallet.equals(ctx.alice.publicKey)).to.be.true;
+    expect(p.attemptsBought).to.equal(0);
+    expect(p.dayBests).to.deep.equal([0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it("create_week_pool makes the pool and its vault, and refuses a duplicate", async () => {
+    // 1_788_739_200 = 2026-09-07T00:00:00Z, a Monday (see tests/fixtures.ts
+    // / time.rs for why this replaces the brief's original constant).
+    const monday = 1_788_739_200;
+    warpTo(ctx, monday);
+    const week = Math.floor((Math.floor(monday / 86400) + 3) / 7);
+
+    await createWeekPool(ctx, week, ctx.server);
+    const pool = await ctx.program.account.weekPool.fetch(weekPda(ctx.programId, week));
+    expect(pool.week).to.equal(week);
+    expect(pool.settled).to.be.false;
+    expect(pool.topLen).to.equal(0);
+    expect(await ctx.tokenBalance(weekPda(ctx.programId, week))).to.equal(0n);
+
+    let err = "";
+    try {
+      await createWeekPool(ctx, week, ctx.server);
+    } catch (e: any) {
+      err = e.message;
+    }
+    expect(err).to.not.equal("");
+  });
+});

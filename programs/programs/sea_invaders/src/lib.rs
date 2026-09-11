@@ -1,13 +1,12 @@
-pub mod constants;
-pub mod error;
+pub mod errors;
 pub mod instructions;
 pub mod state;
+pub mod time;
 
 use anchor_lang::prelude::*;
 
-pub use constants::*;
-pub use instructions::*;
-pub use state::*;
+use instructions::*;
+use state::ConfigArgs;
 
 declare_id!("CHioj4MAKzwE5G8D79QyV7DLVAywAzekHntaD3p5e1WL");
 
@@ -15,11 +14,23 @@ declare_id!("CHioj4MAKzwE5G8D79QyV7DLVAywAzekHntaD3p5e1WL");
 pub mod sea_invaders {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        crate::instructions::initialize::handle_initialize(ctx)
+    pub fn init_config(ctx: Context<InitConfig>, args: ConfigArgs) -> Result<()> {
+        instructions::admin::init_config(ctx, args)
     }
 
-    pub fn increment(ctx: Context<Increment>) -> Result<()> {
-        crate::instructions::increment::handle_increment(ctx)
+    pub fn update_config(ctx: Context<AdminOnly>, args: ConfigArgs) -> Result<()> {
+        instructions::admin::update_config(ctx, args)
+    }
+
+    pub fn set_paused(ctx: Context<AdminOnly>, paused: bool) -> Result<()> {
+        instructions::admin::set_paused(ctx, paused)
+    }
+
+    pub fn create_player(ctx: Context<CreatePlayer>) -> Result<()> {
+        instructions::player::create_player(ctx)
+    }
+
+    pub fn create_week_pool(ctx: Context<CreateWeekPool>, week: u32) -> Result<()> {
+        instructions::week_pool::create_week_pool(ctx, week)
     }
 }
