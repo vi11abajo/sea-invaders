@@ -33,7 +33,7 @@ jobs:
           FRONTEND_URL=https://seainvaders.xyz
           DB_HOST=localhost
           DB_PORT=5432
-          DB_NAME=sea_invaders
+          DB_NAME=sea_invaders_api
           DB_USER=sea_invaders_user
           DB_PASSWORD=${{ secrets.API_DB_PASSWORD }}
           JWT_SECRET=${{ secrets.JWT_SECRET }}
