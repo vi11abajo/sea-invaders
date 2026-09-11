@@ -190,7 +190,6 @@ router.get('/main', optionalAuth, validateLeaderboardQuery, async (req, res) => 
          GROUP BY s.user_id
        )
        SELECT
-         u.discord_id,
          u.username,
          u.avatar,
          ps.best_score as score,
@@ -208,7 +207,6 @@ router.get('/main', optionalAuth, validateLeaderboardQuery, async (req, res) => 
     // Form response with correct rank
     const leaderboard = result.rows.map((row, index) => ({
         rank: offset + index + 1,
-        discord_id: row.discord_id,
         username: row.username,
         avatar: row.avatar,
         score: row.score,
@@ -275,7 +273,6 @@ router.get('/tournament/:tournamentId', optionalAuth, validateLeaderboardQuery, 
     // Get leaderboard (using new composite index)
     const result = await pool.query(
       `SELECT
-         u.discord_id,
          u.username,
          u.avatar,
          ts.score,
@@ -337,7 +334,6 @@ router.get('/top-players', validateLeaderboardQuery, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-         u.discord_id,
          u.username,
          u.avatar,
          us.best_score,

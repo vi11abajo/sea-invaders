@@ -360,17 +360,6 @@
             transform: translateY(-2px);
         }
 
-        .nav-button.discord-button {
-            background: linear-gradient(135deg, #5865F2 0%, #7289DA 100%);
-            border: 2px solid #5865F2;
-            box-shadow: 0 0 20px rgba(88, 101, 242, 0.5);
-        }
-
-        .nav-button.discord-button:hover {
-            background: linear-gradient(135deg, #4752C4 0%, #5865F2 100%);
-            box-shadow: 0 0 30px rgba(88, 101, 242, 0.8);
-        }
-
         .nav-button.connected {
             background: linear-gradient(135deg, rgba(0, 229, 160, 0.2), rgba(0, 229, 160, 0.3));
             border-color: var(--color-success);
@@ -628,7 +617,6 @@
         </div>
         <div class="header-right">
             <div id="menuButtonContainer"></div>
-            <div id="discordButtonContainer"></div>
         </div>
     </div>
 
@@ -687,7 +675,6 @@
     <script src="/api-client.js"></script>
     <script src="/auth-manager.js"></script>
 
-    <script src="/components/discord-button.js"></script>
     <script src="/components/back-button.js"></script>
     <script src="/components/menu-button.js"></script>
 
@@ -720,14 +707,12 @@
                 console.error('❌ Auth Manager init failed:', error);
             }
 
-            //atin tobutto Discord login
+            //Signed-in players open their menu from the auth button
             const authButton = document.getElementById('authButton');
             if (authButton) {
                 authButton.addEventListener('click', () => {
                     if (authManager.currentUser) {
                         authManager.toggleUserMenu();
-                    } else {
-                        authManager.loginWithDiscord();
                     }
                 });
             }
@@ -809,8 +794,7 @@
             //Get within if infromin
             if (authManager.currentUser) {
                 const myEntry = leaderboard.find(entry =>
-                    entry.username === authManager.currentUser.username ||
-                    entry.discord_id === authManager.currentUser.id
+                    entry.username === authManager.currentUser.username
                 );
                 document.getElementById('myRank').textContent = myEntry ? `#${myEntry.rank}` : '-';
             } else {
@@ -974,11 +958,6 @@
                 onClick: function(isActive) {
                     toggleMenu();
                 }
-            });
-
-            createDiscordButton('#discordButtonContainer', {
-                text: 'Login with Discord',
-                autoConnect: true
             });
 
             //Initialization leaderboard

@@ -128,9 +128,6 @@ Open `https://github.com/<your-account>/<your-repo>/settings/secrets/actions` an
 - `DB_NAME`
 - `DB_USER`
 - `DB_PASSWORD` — from Step 1
-- `DISCORD_CLIENT_ID`
-- `DISCORD_CLIENT_SECRET`
-- `DISCORD_REDIRECT_URI` — `https://<DOMAIN>/api/auth/discord/callback`
 - `FRONTEND_URL` — `https://<DOMAIN>`
 - `NODE_ENV` — `production`
 - `BACKEND_PORT` — `5438`

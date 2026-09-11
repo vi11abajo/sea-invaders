@@ -216,15 +216,8 @@ window.startGame = async function startGame() {
             return;
         }
 
-        if (!window.authManager.isAuthenticated()) {
-            isStartingGame = false;
-            alert('Please login with Discord to play');
-            window.authManager.loginWithDiscord();
-            return;
-        }
-
-        //Start game session through backend
-        if (window.gameSessionManager) {
+        //Guests play offline; signed-in players get a backend session
+        if (window.gameSessionManager && window.authManager.isAuthenticated()) {
             try {
                 const session = await window.gameSessionManager.startSession('classic');
                 if (session && session.sessionId) {

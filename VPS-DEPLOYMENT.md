@@ -168,9 +168,6 @@ The deploy workflow writes `.env.local` and `backend/.env` on every run from the
 | `DB_NAME` | Your database name |
 | `DB_USER` | Your database role |
 | `DB_PASSWORD` | Password from Step 2 |
-| `DISCORD_CLIENT_ID` | Your Discord application client ID |
-| `DISCORD_CLIENT_SECRET` | Your Discord application client secret |
-| `DISCORD_REDIRECT_URI` | `https://<DOMAIN>/api/auth/discord/callback` |
 | `FRONTEND_URL` | `https://<DOMAIN>` |
 | `NODE_ENV` | `production` |
 | `BACKEND_PORT` | `5438` |

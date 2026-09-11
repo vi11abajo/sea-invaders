@@ -16,7 +16,7 @@ An arcade shooter set under the sea: you play as Octopi and defend the reef from
 |---|---|
 | Web client | Next.js 16, React 19, TypeScript |
 | Game engine | Framework-free JavaScript on HTML5 Canvas 2D |
-| Backend | Node.js, Express, PostgreSQL, JWT, Discord OAuth2 |
+| Backend | Node.js, Express, PostgreSQL, JWT, Sign-In With Solana |
 
 ## Project structure
 

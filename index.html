@@ -45,7 +45,7 @@
 
                 if (storedVersion !== CURRENT_VERSION) {
                     //Clearing inwith localStorage
-                    const keysToPreserve = ['tournamentMode', 'authToken', 'discordUser', 'selectedTheme'];
+                    const keysToPreserve = ['tournamentMode', 'authToken', 'selectedTheme'];
                     const preserved = {};
                     keysToPreserve.forEach(key => {
                         const val = localStorage.getItem(key);
@@ -200,20 +200,6 @@
         .nav-button:hover {
             background: var(--gradient-accent);
             box-shadow: var(--shadow-glow);
-            transform: translateY(-2px);
-        }
-
-        /* Discord button styling */
-        .nav-button.discord-button {
-            background: linear-gradient(135deg, #5865F2 0%, #7289DA 100%);
-            border: 2px solid #5865F2;
-            color: #ffffff;
-            box-shadow: 0 0 20px rgba(88, 101, 242, 0.5);
-        }
-
-        .nav-button.discord-button:hover {
-            background: linear-gradient(135deg, #4752C4 0%, #5865F2 100%);
-            box-shadow: 0 0 30px rgba(88, 101, 242, 0.8);
             transform: translateY(-2px);
         }
 
@@ -1131,7 +1117,6 @@
 
     <div style="position: fixed; top: 20px; right: 20px; z-index: 10001; display: flex; gap: 5px; align-items: center;">
         <span id="menuButtonContainer" style="display: contents;"></span>
-        <span id="discordButtonContainer" style="display: contents;"></span>
     </div>
 
     <!-- Dropdown Menu -->
@@ -1237,7 +1222,6 @@
     </div>
 
     <!-- Core utilities (load first) -->
-    <script src="components/discord-button.js"></script>
     <script src="components/menu-button.js"></script>
 
     <!-- Theme system -->
@@ -1472,11 +1456,6 @@
                     }
                 }
             }
-
-            createDiscordButton('#discordButtonContainer', {
-                text: 'Login with Discord',
-                autoConnect: true
-            });
 
             window.gameSessionManager = new GameSessionManager();
 

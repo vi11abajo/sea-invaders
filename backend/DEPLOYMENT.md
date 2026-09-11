@@ -10,7 +10,6 @@ For the full stack (web client + backend + CI deploy), see [VPS-DEPLOYMENT.md](.
 - ✅ A VPS running Ubuntu 22.04
 - ✅ SSH access to the server
 - ✅ A domain with a DNS A record pointing at the server IP
-- ✅ A Discord application (Client ID, Client Secret)
 - ✅ PostgreSQL installed
 - ✅ Node.js 20.x installed
 
@@ -141,11 +140,6 @@ nano .env
 Paste and fill in:
 
 ```env
-# Discord OAuth
-DISCORD_CLIENT_ID=your_discord_client_id
-DISCORD_CLIENT_SECRET=your_discord_client_secret
-DISCORD_REDIRECT_URI=https://yourdomain.com/api/auth/discord/callback
-
 # JWT (generate with: openssl rand -hex 64)
 JWT_SECRET=your_64_char_random_key
 
@@ -290,18 +284,7 @@ Let's Encrypt certificates are valid for 90 days and renew automatically.
 
 ---
 
-## 🔟 Update the Discord redirect URI
-
-In the [Discord Developer Portal](https://discord.com/developers/applications):
-
-1. Select your application
-2. OAuth2 → Redirects
-3. Add `https://yourdomain.com/api/auth/discord/callback`
-4. Save
-
----
-
-## 1️⃣1️⃣ Health check
+## 🔟 Health check
 
 ```bash
 # On the server
@@ -324,7 +307,7 @@ Expected response:
 
 ---
 
-## 1️⃣2️⃣ Updating the code
+## 1️⃣1️⃣ Updating the code
 
 ```bash
 # Go to the project directory

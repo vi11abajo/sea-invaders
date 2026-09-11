@@ -236,7 +236,7 @@ class ErrorBoundary {
             'tournament_not_active': 'Tournament is not active',
             'tournament_not_registered': 'Please register for tournament first',
             'tournament_no_attempts': 'No tournament attempts left',
-            'player_name_required': 'Discord username is required',
+            'player_name_required': 'Player name is required',
 
             //Network errors
             'network_error': 'Network error. Please check your connection',

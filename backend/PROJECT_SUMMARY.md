@@ -4,7 +4,7 @@
 
 - **Node.js + Express** HTTP API
 - **PostgreSQL** for users, scores, sessions and tournaments
-- **Discord OAuth2** for sign-in, **JWT** for sessions
+- **Sign-In With Solana** (wallet signature) for sign-in, **JWT** for sessions
 - **NodeCache** (in-process) for leaderboard caching
 - **PM2** cluster mode for production
 
@@ -19,7 +19,6 @@ backend/
 │   ├── loadEnv.js               # Loads .env before anything else
 │   ├── config/
 │   │   ├── database.js          # PostgreSQL connection pool
-│   │   ├── discord.js           # Discord OAuth settings
 │   │   ├── jwt.js               # JWT settings (issuer/audience/expiry)
 │   │   └── redis.js             # Optional Redis settings (not wired into the app yet)
 │   ├── middleware/
@@ -28,12 +27,12 @@ backend/
 │   │   ├── rateLimit.js         # Rate limiting
 │   │   └── validation.js        # Request validation
 │   ├── routes/
-│   │   ├── auth.js              # Discord OAuth, current user, logout
+│   │   ├── auth.js              # Current user, logout
+│   │   ├── siws.js              # Sign-In With Solana (nonce, verify)
 │   │   ├── scores.js            # Game sessions and score submission
 │   │   └── leaderboard.js       # Leaderboards
 │   ├── services/
-│   │   ├── discordService.js    # Discord API calls
-│   │   ├── userService.js       # User upsert
+│   │   ├── siws.js              # SIWS message checks
 │   │   └── scoreService.js      # Score validation and persistence
 │   └── utils/
 │       └── logger.js            # Logging helper
@@ -56,7 +55,7 @@ backend/
 ## 🎯 Features
 
 ### 🔐 Authentication
-- Discord OAuth2 sign-in
+- Sign-In With Solana: the wallet signs a server nonce
 - JWT tokens with expiry
 - Protected endpoints via middleware
 
@@ -105,8 +104,8 @@ Each file is recorded in a `migrations` table and skipped on later runs.
 
 ### Auth (`/api/auth`)
 ```
-GET  /discord            - Redirect to Discord OAuth
-GET  /discord/callback   - Discord OAuth callback
+POST /siws/nonce         - Issue a sign-in nonce
+POST /siws/verify        - Verify the signed message, return a JWT
 GET  /me                 - Current user
 POST /logout             - Log out
 ```
@@ -140,9 +139,6 @@ GET /health              - Liveness check
 ## ⚙️ Environment variables
 
 **Required:**
-- `DISCORD_CLIENT_ID` - Discord application client ID
-- `DISCORD_CLIENT_SECRET` - Discord application secret
-- `DISCORD_REDIRECT_URI` - OAuth redirect URI
 - `JWT_SECRET` - JWT signing secret (64+ characters)
 - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` - PostgreSQL connection
 

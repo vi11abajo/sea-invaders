@@ -3,7 +3,6 @@ import './loadEnv.js';
 
 import { createServer } from 'http';
 import { testConnection } from './config/database.js';
-import { validateDiscordConfig } from './config/discord.js';
 import { validateJwtConfig } from './config/jwt.js';
 import { createApp } from './createApp.js';
 
@@ -15,7 +14,6 @@ async function startServer() {
   try {
     console.log('🚀 Starting Sea Invaders Backend...\n');
     console.log('🔧 Validating configurations...');
-    validateDiscordConfig();
     validateJwtConfig();
     console.log('🔗 Testing database connection...');
     const dbConnected = await testConnection();

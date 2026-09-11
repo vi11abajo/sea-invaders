@@ -15,7 +15,6 @@ const API_CONFIG = {
     //Endpoints
     ENDPOINTS: {
         //Auth
-        AUTH_DISCORD: '/api/auth/discord',
         AUTH_ME: '/api/auth/me',
         AUTH_LOGOUT: '/api/auth/logout',
 
