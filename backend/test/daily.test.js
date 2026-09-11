@@ -58,6 +58,12 @@ describe('/api/daily', () => {
     expect(missing.status).toBe(404);
   });
 
+  it('answers 404 for a non-UUID run id instead of erroring', async () => {
+    const res = await request(app).post('/api/daily/runs/not-a-uuid/finish').set(auth).send({ replay: 'AAAA' });
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'RunNotFound', message: 'Run not found' });
+  });
+
   it('publishes a seed only after its day closes', async () => {
     const today = dayOf(Date.now() / 1000);
     expect((await request(app).get(`/api/daily/seed/${today}`)).status).toBe(404);

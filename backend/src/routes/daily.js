@@ -8,6 +8,7 @@ import { RankedRunError, finishRun, startRun, todayInfo } from '../services/rank
 
 const router = express.Router();
 const nowSeconds = () => Math.floor(Date.now() / 1000);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 router.get('/today', optionalAuth, async (req, res, next) => {
   try {
@@ -28,7 +29,9 @@ router.post('/runs', authenticateToken, sessionLimiter, async (req, res, next) =
 
 router.post('/runs/:runId/finish', authenticateToken, scoreSubmitLimiter, async (req, res, next) => {
   try {
-    res.json(await finishRun({ userId: req.user.userId, runId: String(req.params.runId), replayBase64: req.body?.replay, now: nowSeconds() }));
+    const runId = String(req.params.runId);
+    if (!UUID_RE.test(runId)) return res.status(404).json({ error: 'RunNotFound', message: 'Run not found' });
+    res.json(await finishRun({ userId: req.user.userId, runId, replayBase64: req.body?.replay, now: nowSeconds() }));
   } catch (error) {
     next(error);
   }
