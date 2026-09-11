@@ -23,7 +23,8 @@ async function runMigrations() {
     const migrations = [
       '001_initial_schema.sql',
       '002_performance_optimization.sql',
-      '004_farcaster_migration.sql'
+      '004_farcaster_migration.sql',
+      '005_solana_ranked_runs.sql'
     ];
 
     // Execute each migration
