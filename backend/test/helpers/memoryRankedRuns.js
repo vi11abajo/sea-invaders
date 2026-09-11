@@ -27,7 +27,7 @@ export async function finishRun(id, patch) {
 export async function bestForDay(userId, day) {
   const best = [...runs.values()]
     .filter((r) => r.userId === userId && r.day === day && r.status === 'verified')
-    .sort((a, b) => b.score - a.score)[0];
+    .sort((a, b) => b.score - a.score || a.finishedAt - b.finishedAt)[0];
   return best ? { score: best.score, runId: best.id } : null;
 }
 
@@ -44,5 +44,5 @@ export async function leaderboardForDay(day, limit) {
 }
 
 export async function verifiedRunsForDay(day, limit) {
-  return [...runs.values()].filter((r) => r.day === day && r.status === 'verified').sort((a, b) => b.score - a.score).slice(0, limit);
+  return [...runs.values()].filter((r) => r.day === day && r.status === 'verified').sort((a, b) => b.score - a.score || a.finishedAt - b.finishedAt).slice(0, limit);
 }

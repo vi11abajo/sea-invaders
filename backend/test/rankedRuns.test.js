@@ -105,11 +105,13 @@ describe('finishRun', () => {
     const b = await startRun({ userId: 7, now: NOON + 1 });
     const longer = playReplay(a.seed, 2400);
     const shorter = playReplay(b.seed, 600);
-    const first = await finishRun({ userId: 7, runId: a.runId, replayBase64: longer.base64, now: NOON + 60 });
-    const second = await finishRun({ userId: 7, runId: b.runId, replayBase64: shorter.base64, now: NOON + 61 });
-    expect(first.isDayBest).toBe(true);
-    expect(second.isDayBest).toBe(shorter.score > longer.score);
-    expect(second.dayBest).toBe(Math.max(longer.score, shorter.score));
+    // b finishes before a: ties in score must be broken by finish time, so b (finished first) stays the
+    // day best unless a's score strictly beats it — not whichever run started first.
+    const firstFinished = await finishRun({ userId: 7, runId: b.runId, replayBase64: shorter.base64, now: NOON + 60 });
+    const secondFinished = await finishRun({ userId: 7, runId: a.runId, replayBase64: longer.base64, now: NOON + 61 });
+    expect(firstFinished.isDayBest).toBe(true);
+    expect(secondFinished.isDayBest).toBe(longer.score > shorter.score);
+    expect(secondFinished.dayBest).toBe(Math.max(longer.score, shorter.score));
   });
 
   it('exposes RankedRunError', () => {
