@@ -1,3 +1,5 @@
+// Load .env first: the pool reads DB_* from the environment when it is created.
+import '../src/loadEnv.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
