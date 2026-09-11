@@ -118,3 +118,17 @@ describe('finishRun', () => {
     expect(new RankedRunError('bad_replay', 'x')).toMatchObject({ code: 'bad_replay', status: 400 });
   });
 });
+
+describe('leaderboardForDay tie-break', () => {
+  beforeEach(() => memory.reset());
+
+  it("picks the user's earlier-finished run when two verified runs tie on score", async () => {
+    await memory.insertRun({ id: 'run-a', userId: 7, day: DAY });
+    await memory.insertRun({ id: 'run-b', userId: 7, day: DAY });
+    // run-b finishes first but is patched in after run-a, so insertion order alone must not decide the tie.
+    await memory.finishRun('run-a', { score: 100, finishedAt: NOON + 20, status: 'verified' });
+    await memory.finishRun('run-b', { score: 100, finishedAt: NOON + 10, status: 'verified' });
+    const [entry] = await memory.leaderboardForDay(DAY, 50);
+    expect(entry.runId).toBe('run-b');
+  });
+});

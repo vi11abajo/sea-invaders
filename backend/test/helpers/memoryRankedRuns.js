@@ -35,7 +35,7 @@ export async function leaderboardForDay(day, limit) {
   const bestPerUser = new Map();
   for (const r of [...runs.values()].filter((r) => r.day === day && r.status === 'verified')) {
     const cur = bestPerUser.get(r.userId);
-    if (!cur || r.score > cur.score) bestPerUser.set(r.userId, r);
+    if (!cur || r.score > cur.score || (r.score === cur.score && r.finishedAt < cur.finishedAt)) bestPerUser.set(r.userId, r);
   }
   return [...bestPerUser.values()]
     .sort((a, b) => b.score - a.score || a.finishedAt - b.finishedAt)
