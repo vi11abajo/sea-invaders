@@ -21,7 +21,7 @@ jobs:
         working-directory: core
       - run: npm run build
         working-directory: core
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
         working-directory: backend
       - run: npx vitest run
         working-directory: backend
