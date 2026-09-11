@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { BackHandler, Linking, View } from 'react-native';
 import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
 import { useSession } from './src/api/useSession';
+import { DailyRunScreen } from './src/daily/DailyRunScreen';
 import { GameScreen } from './src/game/GameScreen';
 import { HomeScreen } from './src/home/HomeScreen';
 import { useHomeModel } from './src/home/useHomeModel';
@@ -54,7 +55,7 @@ function Shell() {
     case 'practice':
       return <GameScreen onExit={home} />;
     case 'daily':
-      return <Placeholder name="Daily run" onBack={home} />;
+      return <DailyRunScreen onExit={home} />;
     case 'leaderboard':
       return <Placeholder name="Leaderboard" onBack={home} />;
     default:
