@@ -1,5 +1,5 @@
 import { formatInt } from '@sea-invaders/core';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { ArtSlot } from '../ui/ArtSlot';
 import { GradientText } from '../ui/GradientText';
 import { PillButton } from '../ui/PillButton';
@@ -20,12 +20,19 @@ interface ResultViewProps {
   /** Small line under the primary button. */
   note?: string;
   onPlayAgain: () => void;
+  /** Shows the round back button in the top-left corner. */
+  onBack?: () => void;
 }
 
 /** End of a run: the score in the signature gradient, Octopi's pose and a sheet of stats and actions. */
-export function ResultView({ title, score, stats, note, onPlayAgain }: ResultViewProps) {
+export function ResultView({ title, score, stats, note, onPlayAgain, onBack }: ResultViewProps) {
   return (
     <View style={styles.root}>
+      {onBack !== undefined && (
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} hitSlop={4} style={styles.back}>
+          <Txt variant="button">←</Txt>
+        </Pressable>
+      )}
       <View style={styles.head} pointerEvents="none">
         <Txt variant="label" tone="secondary" style={styles.title}>
           {title}
@@ -61,6 +68,10 @@ export function ResultView({ title, score, stats, note, onPlayAgain }: ResultVie
 
 const styles = StyleSheet.create({
   root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  back: {
+    position: 'absolute', top: 28, left: 16, width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder,
+  },
   head: { position: 'absolute', top: 120, left: 0, right: 0, alignItems: 'center', gap: 8 },
   title: { fontSize: 12, letterSpacing: 0.72 },
   pose: { position: 'absolute', top: 300, left: 0, right: 0, alignItems: 'center' },

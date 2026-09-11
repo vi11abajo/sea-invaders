@@ -4,7 +4,7 @@ import {
   touchToInput, type Frame, type Input,
 } from '@sea-invaders/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
+import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import { Backdrop } from '../ui/Backdrop';
 import { COLORS, FONTS } from '../ui/tokens';
@@ -29,7 +29,8 @@ interface Hud {
 
 const START_HUD: Hud = { score: 0, lives: 3, wave: 1, kills: 0, over: false, fps: 0 };
 
-export function GameScreen() {
+/** A practice run. `onExit` leaves the game, from the result screen or the system back button. */
+export function GameScreen({ onExit }: { onExit: () => void }) {
   const { width, height } = useWindowDimensions();
   const layout = useMemo(() => fitField(width, height), [width, height]);
   const frame = useSharedValue<Frame>(EMPTY_FRAME);
@@ -118,6 +119,17 @@ export function GameScreen() {
     setRun((r) => r + 1);
   };
 
+  // System back: pauses a run, closes the pause sheet, and leaves from the result screen.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (hud.over) onExit();
+      else if (showPause) resume();
+      else pause();
+      return true;
+    });
+    return () => sub.remove();
+  });
+
   return (
     <View style={styles.root}>
       <Backdrop variant={hud.over ? 'menu' : 'play'} />
@@ -131,6 +143,7 @@ export function GameScreen() {
           ]}
           note="Practice · unranked"
           onPlayAgain={playAgain}
+          onBack={onExit}
         />
       ) : (
         <>

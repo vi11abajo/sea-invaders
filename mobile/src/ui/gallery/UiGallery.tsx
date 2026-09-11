@@ -1,6 +1,8 @@
 import { formatCountdown, formatInt, shortAddress } from '@sea-invaders/core';
-import { useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { BackHandler, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { HomeScreen } from '../../home/HomeScreen';
+import { demoHomeModel, type HomeModel } from '../../home/model';
 import { ArtSlot } from '../ArtSlot';
 import { Backdrop } from '../Backdrop';
 import { Glass } from '../Glass';
@@ -19,13 +21,30 @@ export function UiGallery() {
   const ready = useAppFonts();
   const { width } = useWindowDimensions();
   const [theme, setTheme] = useState<WorldTheme>('night');
+  const [home, setHome] = useState<HomeModel | null>(null);
+
+  // System back closes the Home demo; otherwise it does what it normally does.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (home === null) return false;
+      setHome(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [home]);
+
   if (!ready) return <View style={styles.root} />;
+  if (home !== null) return <HomeScreen model={home} onPractice={() => setHome(null)} />;
   return (
     <View style={styles.root}>
       <Backdrop theme={theme} floorGlow />
       <ScrollView contentContainerStyle={styles.content}>
         <Txt variant="label" tone="tertiary">Design system · UI-1</Txt>
         <Txt variant="sheetTitle">Sea Invaders</Txt>
+
+        <Section title="Screens">
+          <PillButton label="Home · demo data" kind="secondary" onPress={() => setHome(demoHomeModel(Date.now()))} />
+        </Section>
 
         <Section title="World theme">
           <View style={styles.row}>
@@ -50,6 +69,7 @@ export function UiGallery() {
           <Txt variant="heroNumber">{formatInt(18920)}</Txt>
           <Txt variant="mono" tone="success">{`new in ${formatCountdown(18764)} · ${shortAddress(SAMPLE_ADDRESS)}`}</Txt>
           <GradientText text={`${formatInt(12480)} SKR`} size={30} />
+          <GradientText text={formatInt(18020)} size={72} />
         </Section>
 
         <Section title="Buttons">

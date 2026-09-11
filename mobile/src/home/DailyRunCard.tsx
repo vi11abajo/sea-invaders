@@ -1,0 +1,83 @@
+import { formatCountdown, formatInt } from '@sea-invaders/core';
+import { StyleSheet, View } from 'react-native';
+import { GradientText } from '../ui/GradientText';
+import { PillButton } from '../ui/PillButton';
+import { Txt } from '../ui/Txt';
+import { COLORS, RADIUS } from '../ui/tokens';
+import type { RankedInfo } from './model';
+
+interface DailyRunCardProps {
+  /** Null while ranked play is not live: the card explains it and the button stays disabled. */
+  ranked: RankedInfo | null;
+  now: number;
+  onPlay: () => void;
+  onBuyTicket: () => void;
+}
+
+/** The Daily Run card on Home: attempts left, time to the next seed, today / week / pool, and the main action. */
+export function DailyRunCard({ ranked, now, onPlay, onBuyTicket }: DailyRunCardProps) {
+  if (ranked === null) {
+    return (
+      <View style={styles.card}>
+        <View>
+          <Txt variant="label" tone="secondary">Daily Run</Txt>
+          <Txt variant="headline" style={styles.headline}>Coming next</Txt>
+        </View>
+        <Txt variant="body" tone="secondary">Same seed for everyone, three attempts a day. It needs wallet sign-in.</Txt>
+        <PillButton label="Play Daily Run" disabled />
+      </View>
+    );
+  }
+
+  const left = ranked.attemptsLeft;
+  return (
+    <View style={styles.card}>
+      <View style={styles.head}>
+        <View>
+          <Txt variant="label" tone="secondary">{`Daily Run · Seed #${ranked.seed}`}</Txt>
+          <Txt variant="headline" style={styles.headline}>{left > 0 ? `${left} of 3 attempts` : 'No attempts left'}</Txt>
+        </View>
+        <View style={styles.seed}>
+          <Txt variant="secondary" tone="tertiary" style={styles.small}>New seed</Txt>
+          <Txt variant="mono" style={styles.countdown}>{formatCountdown((ranked.newSeedAt - now) / 1000)}</Txt>
+        </View>
+      </View>
+      <View style={styles.stats}>
+        <Stat label="Today" value={formatInt(ranked.todayBest)} />
+        <Stat label={ranked.weekRank === null ? 'Week' : `Week · #${ranked.weekRank}`} value={formatInt(ranked.weekTotal)} />
+        <View style={styles.stat}>
+          <Txt variant="secondary" tone="tertiary" style={styles.small}>Pool</Txt>
+          <GradientText text={`${formatInt(ranked.poolSkr)} SKR`} size={13} />
+        </View>
+      </View>
+      {left > 0 ? (
+        <PillButton label="Play Daily Run" onPress={onPlay} />
+      ) : (
+        <PillButton label={`Buy ticket — ${ranked.ticketPriceSkr} SKR`} onPress={onBuyTicket} />
+      )}
+    </View>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.stat}>
+      <Txt variant="secondary" tone="tertiary" style={styles.small}>{label}</Txt>
+      <Txt variant="mono">{value}</Txt>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderRadius: RADIUS.card,
+    backgroundColor: 'rgba(18,18,18,0.66)', borderWidth: 1, borderColor: COLORS.glassBorder,
+  },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  headline: { marginTop: 3 },
+  seed: { alignItems: 'flex-end' },
+  small: { fontSize: 11 },
+  countdown: { fontSize: 14 },
+  stats: { flexDirection: 'row', gap: 6 },
+  stat: { flex: 1, gap: 2 },
+});
