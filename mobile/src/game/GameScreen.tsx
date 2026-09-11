@@ -14,7 +14,7 @@ import { ResultView } from './ResultView';
 import { drawFrame } from './draw';
 
 /** Milli-units between the finger and the ship centre, so the finger never covers the ship. */
-const FINGER_LIFT = 1200;
+const FINGER_LIFT = 600;
 
 const HINT = 'Drag anywhere — ship follows above your finger. Auto-fire.';
 
