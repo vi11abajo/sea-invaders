@@ -1,7 +1,7 @@
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
-  EMPTY_FRAME, FixedStepper, INITIAL_INPUT, ReplayRecorder, createGame, fitField, snapshot, step, touchToInput,
-  type Frame, type Input,
+  EMPTY_FRAME, FixedStepper, INITIAL_INPUT, REPLAY_MODE, ReplayRecorder, createGame, fitField, snapshot, step,
+  touchToInput, type Frame, type Input,
 } from '@sea-invaders/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
@@ -33,7 +33,7 @@ export function GameScreen() {
     // Practice seed: the app may use the clock; only the core must not.
     const seed = `practice-${run}-${Date.now()}`;
     const state = createGame(seed);
-    const recorder = new ReplayRecorder(seed);
+    const recorder = new ReplayRecorder(seed, REPLAY_MODE.practice);
     const stepper = new FixedStepper();
     input.current = INITIAL_INPUT;
     let shown = START_HUD;
