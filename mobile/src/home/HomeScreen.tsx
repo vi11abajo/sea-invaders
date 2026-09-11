@@ -16,14 +16,25 @@ const FEATURE_NAMES: Record<Feature, string> = { campaign: 'Campaign', shop: 'Sh
 interface HomeScreenProps {
   model: HomeModel;
   onPractice: () => void;
+  onDaily: () => void;
+  onLeaderboard: () => void;
+  /** Connect wallet when signed out; profile when signed in (still "coming soon"). */
+  onWallet: () => void;
+  /** A message from the app to show as a toast (e.g. a sign-in error). */
+  alert?: string | null;
 }
 
 /** Home, the "Hangar": Octopi in the idle world, the Daily Run card and the ways into the game. */
-export function HomeScreen({ model, onPractice }: HomeScreenProps) {
+export function HomeScreen({ model, onPractice, onDaily, onLeaderboard, onWallet, alert = null }: HomeScreenProps) {
   const ranked = model.ranked;
   const now = useNow(ranked !== null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
   const soon = (what: string) => setToast((t) => ({ id: (t?.id ?? 0) + 1, text: `${what} — coming soon` }));
+
+  useEffect(() => {
+    if (alert !== null) setToast((t) => ({ id: (t?.id ?? 0) + 1, text: alert }));
+  }, [alert]);
+
   const ticker = ranked === null ? [] : tickerItems(ranked, now);
   const campaign = model.campaign;
 
@@ -32,8 +43,8 @@ export function HomeScreen({ model, onPractice }: HomeScreenProps) {
       <Backdrop floorGlow />
       <View style={styles.column}>
         <View style={styles.inset}>
-          <HomeTopBar wallet={model.wallet} onWallet={() => soon(model.wallet ? 'Profile' : 'Wallet sign-in')} onShop={() => soon('Shop')} />
-          <FeatureRow campaignBadge={campaign?.level ?? null} onPress={(f) => soon(FEATURE_NAMES[f])} />
+          <HomeTopBar wallet={model.wallet} onWallet={model.wallet ? () => soon('Profile') : onWallet} onShop={() => soon('Shop')} />
+          <FeatureRow campaignBadge={campaign?.level ?? null} onPress={(f) => (f === 'ranks' ? onLeaderboard() : soon(FEATURE_NAMES[f]))} />
         </View>
         {ticker.length > 0 && (
           <View style={styles.ticker}>
@@ -42,7 +53,7 @@ export function HomeScreen({ model, onPractice }: HomeScreenProps) {
         )}
         <HangarScene caption="Octopi · base ship" onOctopi={() => soon('Shop')} />
         <View style={[styles.inset, styles.bottom]}>
-          <DailyRunCard ranked={ranked} now={now} onPlay={() => soon('Daily Run')} onBuyTicket={() => soon('Tickets')} />
+          <DailyRunCard ranked={ranked} now={now} onPlay={onDaily} onBuyTicket={() => soon('Tickets')} />
           <View style={styles.row}>
             <View style={styles.half}>
               <PillButton
@@ -74,10 +85,9 @@ function useNow(ticking: boolean): number {
 }
 
 function tickerItems(r: RankedInfo, now: number): TickerItem[] {
-  const items: TickerItem[] = [
-    { text: 'Weekly pool ', highlight: `${formatInt(r.poolSkr)} SKR` },
-    { text: `Seed #${r.seed} · new in `, highlight: formatCountdown((r.newSeedAt - now) / 1000) },
-  ];
+  const items: TickerItem[] = [];
+  if (r.poolSkr > 0) items.push({ text: 'Weekly pool ', highlight: `${formatInt(r.poolSkr)} SKR` });
+  items.push({ text: `Seed #${r.seed} · new in `, highlight: formatCountdown((r.newSeedAt - now) / 1000) });
   if (r.weekRank !== null) items.push({ text: "You're ", highlight: `#${r.weekRank}` });
   items.push({ text: 'Top 10 paid after ', highlight: 'Mon 00:00 UTC' });
   return items;
