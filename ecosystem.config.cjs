@@ -22,12 +22,13 @@ module.exports = {
     },
 
     // Backend - Express API
+    // Runs as a single process: the SIWS nonce store and the leaderboard cache are in-process.
     {
       name: 'express-backend',
       script: './src/app.js',
       cwd: '/var/www/sea-invaders/backend',
-      instances: 2,
-      exec_mode: 'cluster',
+      instances: 1,
+      exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
         PORT: 5438,
