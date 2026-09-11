@@ -1,7 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { AnchorProvider, Program } from "@anchor-lang/core";
-import type Provider from "@anchor-lang/core/dist/cjs/provider";
+import { AnchorProvider, Program, Provider } from "@anchor-lang/core";
 import {
   AccountInfo,
   Connection,
@@ -76,6 +75,15 @@ class LiteSVMProvider implements Provider {
           ...info,
           data: Buffer.from(info.data),
         } as AccountInfo<Buffer>;
+      },
+      getAccountInfoAndContext: async (pubkey: PublicKey) => {
+        const info = svm.getAccount(pubkey);
+        const slot = Number(svm.getClock().slot);
+        if (!info) return { context: { slot }, value: null };
+        return {
+          context: { slot },
+          value: { ...info, data: Buffer.from(info.data) } as AccountInfo<Buffer>,
+        };
       },
       getMinimumBalanceForRentExemption: async (dataLength: number) =>
         Number(svm.minimumBalanceForRentExemption(BigInt(dataLength))),
