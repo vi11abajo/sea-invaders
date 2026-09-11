@@ -14,7 +14,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(255);
 -- One-time copy for databases that had the old discord_username column; a fresh database has no such column.
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'discord_username') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'discord_username' AND table_schema = current_schema()) THEN
     UPDATE users SET username = discord_username WHERE username IS NULL AND discord_username IS NOT NULL;
   END IF;
 END $$;
