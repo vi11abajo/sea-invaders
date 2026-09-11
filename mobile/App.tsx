@@ -1,18 +1,17 @@
 import { MobileWalletProvider } from '@wallet-ui/react-native-web3js';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { BackHandler, Linking, View } from 'react-native';
+import { Linking } from 'react-native';
 import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
 import { useSession } from './src/api/useSession';
 import { DailyRunScreen } from './src/daily/DailyRunScreen';
+import { LeaderboardScreen } from './src/daily/LeaderboardScreen';
 import { GameScreen } from './src/game/GameScreen';
 import { HomeScreen } from './src/home/HomeScreen';
 import { useHomeModel } from './src/home/useHomeModel';
 import { SelfTestScreen } from './src/selftest/SelfTestScreen';
-import { Txt } from './src/ui/Txt';
 import { useAppFonts } from './src/ui/fonts';
 import { UiGallery } from './src/ui/gallery/UiGallery';
-import { COLORS } from './src/ui/tokens';
 
 type Route = 'app' | 'selftest' | 'ui';
 type Screen = 'home' | 'practice' | 'daily' | 'leaderboard';
@@ -23,22 +22,6 @@ function routeFor(url: string | null): Route {
   if (url.startsWith('seainvaders://selftest')) return 'selftest';
   if (url.startsWith('seainvaders://ui')) return 'ui';
   return 'app';
-}
-
-function Placeholder({ name, onBack }: { name: string; onBack: () => void }) {
-  useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      onBack();
-      return true;
-    });
-    return () => sub.remove();
-  }, [onBack]);
-  return (
-    <View style={{ flex: 1, backgroundColor: COLORS.app, alignItems: 'center', justifyContent: 'center' }}>
-      <Txt variant="headline">{name}</Txt>
-      <Txt variant="secondary" tone="tertiary">Coming in the next task · back returns home</Txt>
-    </View>
-  );
 }
 
 /** Everything that needs the wallet provider and the session. */
@@ -57,7 +40,7 @@ function Shell() {
     case 'daily':
       return <DailyRunScreen onExit={home} />;
     case 'leaderboard':
-      return <Placeholder name="Leaderboard" onBack={home} />;
+      return <LeaderboardScreen onBack={home} />;
     default:
       return (
         <HomeScreen
