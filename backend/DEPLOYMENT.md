@@ -122,11 +122,19 @@ cd /var/www
 
 # Clone the repository
 git clone https://github.com/vi11abajo/sea-invaders.git
-cd sea-invaders/backend
+cd sea-invaders
+
+# The backend depends on the workspace package "@sea-invaders/core" (file:../core), so build it first
+cd core
+npm ci
+npm run build
+cd ../backend
 
 # Install production dependencies
 npm ci --omit=dev
 ```
+
+The CI deploy workflow does this same build (`cd core && npm ci && npm run build`) and ships `core/dist` in the deploy archive, so a server updated by CI already has it; only a manual clone needs this step.
 
 ---
 
@@ -191,6 +199,8 @@ You should see: `✅ All migrations completed successfully!`
 ---
 
 ## 7️⃣ Start the server with PM2
+
+`ecosystem.config.cjs` runs `express-backend` as a single process (`instances: 1`, `exec_mode: 'fork'`) on purpose: the SIWS nonce store and the leaderboard cache are in-process, so a second instance would not share them.
 
 ```bash
 # Start
@@ -325,6 +335,9 @@ cd /var/www/sea-invaders/backend
 
 # Pull updates
 git pull
+
+# Rebuild the core workspace package the backend depends on
+cd ../core && npm ci && npm run build && cd ../backend
 
 # Install new dependencies (if any)
 npm ci --omit=dev
