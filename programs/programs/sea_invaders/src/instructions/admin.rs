@@ -57,6 +57,7 @@ pub fn init_config(ctx: Context<InitConfig>, args: ConfigArgs) -> Result<()> {
     cfg.skr_mint = ctx.accounts.skr_mint.key();
     cfg.paused = false;
     cfg.bump = ctx.bumps.config;
+    cfg.clock_override = 0;
     apply(cfg, &args);
     Ok(())
 }
@@ -76,5 +77,14 @@ pub fn update_config(ctx: Context<AdminOnly>, args: ConfigArgs) -> Result<()> {
 
 pub fn set_paused(ctx: Context<AdminOnly>, paused: bool) -> Result<()> {
     ctx.accounts.config.paused = paused;
+    Ok(())
+}
+
+/// Test-only: lets the admin pin the clock `time::now` reads instead of the
+/// real `Clock` sysvar. Compiled only under the `test-clock` feature, so it
+/// never ships in a production build.
+#[cfg(feature = "test-clock")]
+pub fn set_test_clock(ctx: Context<AdminOnly>, unix_ts: i64) -> Result<()> {
+    ctx.accounts.config.clock_override = unix_ts;
     Ok(())
 }

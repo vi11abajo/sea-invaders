@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 #[account]
-#[derive(InitSpace)]
+#[derive(InitSpace, Default)]
 pub struct Config {
     pub admin: Pubkey,
     pub server_authority: Pubkey,
@@ -17,6 +17,10 @@ pub struct Config {
     pub payout_bps: [u16; 10],   // 3000,2000,1200,800,600,480×5
     pub paused: bool,
     pub bump: u8,
+    /// Test-only clock override (0 = off). Read only via `time::now`, and
+    /// only takes effect when the program is built with the `test-clock`
+    /// feature - see `time.rs`.
+    pub clock_override: i64,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]

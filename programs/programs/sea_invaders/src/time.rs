@@ -4,7 +4,27 @@
 //! `weekday_of` returns `0` for Monday (the epoch, 1970-01-01, was a
 //! Thursday, i.e. weekday `3`).
 
+use anchor_lang::prelude::*;
+
+use crate::state::Config;
+
 pub const DAY: i64 = 86_400;
+
+/// The current unix time, as every instruction that needs "now" must read
+/// it: never call `Clock::get()` directly. Under the `test-clock` feature,
+/// a non-zero `config.clock_override` takes precedence (set by the
+/// test-only `set_test_clock` instruction); otherwise - and always in a
+/// production build, since `test-clock` is never enabled there - this
+/// falls back to the real `Clock` sysvar.
+pub fn now(config: &Config) -> Result<i64> {
+    #[cfg(feature = "test-clock")]
+    if config.clock_override != 0 {
+        return Ok(config.clock_override);
+    }
+    #[cfg(not(feature = "test-clock"))]
+    let _ = config;
+    Ok(Clock::get()?.unix_timestamp)
+}
 
 pub fn day_of(ts: i64) -> u32 {
     (ts / DAY) as u32
@@ -69,5 +89,23 @@ mod tests {
         let w = week_of(20_707);
         assert_eq!(weekday_of(day_of(week_end(w))), 0);
         assert!(week_end(w) > day_start(20_707));
+    }
+
+    #[test]
+    fn now_falls_back_to_the_clock_sysvar_when_override_is_zero() {
+        // Outside a Solana runtime there is no Clock sysvar, so falling
+        // through to `Clock::get()` must surface its error rather than
+        // silently returning some default - proving `now()` really defers
+        // to the sysvar path when there is no override (or, without the
+        // `test-clock` feature, unconditionally).
+        let cfg = Config { clock_override: 0, ..Default::default() };
+        assert!(now(&cfg).is_err());
+    }
+
+    #[cfg(feature = "test-clock")]
+    #[test]
+    fn now_returns_the_override_when_set() {
+        let cfg = Config { clock_override: 1_788_739_200, ..Default::default() };
+        assert_eq!(now(&cfg).unwrap(), 1_788_739_200);
     }
 }

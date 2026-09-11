@@ -26,6 +26,11 @@ pub mod sea_invaders {
         instructions::admin::set_paused(ctx, paused)
     }
 
+    #[cfg(feature = "test-clock")]
+    pub fn set_test_clock(ctx: Context<AdminOnly>, unix_ts: i64) -> Result<()> {
+        instructions::admin::set_test_clock(ctx, unix_ts)
+    }
+
     pub fn create_player(ctx: Context<CreatePlayer>) -> Result<()> {
         instructions::player::create_player(ctx)
     }
