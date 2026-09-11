@@ -24,11 +24,13 @@ const RAY_COLORS: Record<WorldTheme, [[string, string], [string, string]]> = {
 
 interface BackdropProps {
   theme?: WorldTheme;
+  /** 'play' drops the blurred bands and halves the rays, so crabs and shots stay readable. */
+  variant?: 'menu' | 'play';
   floorGlow?: boolean;
 }
 
 /** Light through deep water: the world gradient, blurred bands, two animated rays and fine noise. */
-export function Backdrop({ theme = 'night', floorGlow = false }: BackdropProps) {
+export function Backdrop({ theme = 'night', variant = 'menu', floorGlow = false }: BackdropProps) {
   const { width: w, height: h } = useWindowDimensions();
   const rayA = useSharedValue<number>(MOTION.raysMin);
   const rayB = useSharedValue<number>(MOTION.raysMax);
@@ -41,6 +43,7 @@ export function Backdrop({ theme = 'night', floorGlow = false }: BackdropProps) 
 
   const world = WORLD_GRADIENT[theme];
   const night = theme === 'night';
+  const play = variant === 'play';
   const [rayColorA, rayColorB] = RAY_COLORS[theme];
 
   return (
@@ -49,14 +52,14 @@ export function Backdrop({ theme = 'night', floorGlow = false }: BackdropProps) 
         <Rect x={0} y={0} width={w} height={h}>
           <LinearGradient start={vec(0, 0)} end={vec(0, h)} colors={[...world.colors]} positions={[...world.positions]} />
         </Rect>
-        {night && (
+        {night && !play && (
           <Group layer={<Paint><Blur blur={80} mode="decal" /></Paint>}>
             <Band w={w} y={h * 0.06} height={h * 0.2} colors={['#9945FF', '#5497D5']} opacity={0.28} />
             <Band w={w} y={h * 0.46} height={h * 0.16} colors={['#43B4CA', '#19FB9B']} opacity={0.2} />
             <Band w={w} y={h * 0.8} height={h * 0.18} colors={['#8752F3', '#9945FF']} opacity={0.16} />
           </Group>
         )}
-        <Group layer={<Paint><Blur blur={18} mode="decal" /></Paint>}>
+        <Group opacity={play ? 0.5 : 1} layer={<Paint><Blur blur={18} mode="decal" /></Paint>}>
           <Ray x={w * 0.1} width={w * 0.3} h={h} skew={-0.244} colors={rayColorA} opacity={rayA} />
           <Ray x={w * 0.55} width={w * 0.25} h={h} skew={-0.349} colors={rayColorB} opacity={rayB} />
         </Group>

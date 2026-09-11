@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Linking } from 'react-native';
 import { GameScreen } from './src/game/GameScreen';
 import { SelfTestScreen } from './src/selftest/SelfTestScreen';
+import { useAppFonts } from './src/ui/fonts';
 import { UiGallery } from './src/ui/gallery/UiGallery';
 
 type Route = 'game' | 'selftest' | 'ui';
@@ -17,12 +18,15 @@ function routeFor(url: string | null): Route {
 
 export default function App() {
   const [route, setRoute] = useState<Route>('game');
+  const fontsReady = useAppFonts();
 
   useEffect(() => {
     Linking.getInitialURL().then((url) => setRoute(routeFor(url)));
     const sub = Linking.addEventListener('url', ({ url }) => setRoute(routeFor(url)));
     return () => sub.remove();
   }, []);
+
+  if (!fontsReady) return null;
 
   return (
     <>
