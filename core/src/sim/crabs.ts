@@ -8,10 +8,10 @@ const HALF = idiv(CRAB.size, 2);
 /** A crab whose bottom edge reaches this line has invaded the reef. */
 export const INVASION_Y = FIELD_H - 300;
 
-/** Horizontal speed per tick: faster in later waves and as the formation thins out. */
+/** Horizontal speed per tick: faster in later waves, as the formation thins out, and by the level's reef. */
 export function crabSpeed(s: GameState): number {
   const killed = s.waveTotal - s.crabs.length;
-  return CRAB.baseSpeed + (s.wave - 1) + idiv(killed * 8, s.waveTotal);
+  return CRAB.baseSpeed + (s.wave - 1) + idiv(killed * 8, s.waveTotal) + (s.run.level?.speedOffset ?? 0);
 }
 
 /** This crab's own signed horizontal step: swift crabs move 1.5x the shared formation speed. */
@@ -90,9 +90,9 @@ export function marchCrabs(s: GameState): void {
   }
 }
 
-/** Chance per tick, in 1/1000, that some crab fires. */
-export function fireChance(wave: number): number {
-  return Math.min(ENEMY_SHOT.perMille + (wave - 1) * 4, 60);
+/** Chance per tick, in 1/1000, that some crab fires. `offset` is the level's fireOffset (0 outside the campaign). */
+export function fireChance(wave: number, offset = 0): number {
+  return Math.min(ENEMY_SHOT.perMille + offset + (wave - 1) * 4, 60);
 }
 
 /** Moves enemy shots and drops those off the field, then maybe fires from a random crab: one aimed shot, or three fanned out for a `fanner`. */
@@ -106,7 +106,7 @@ export function updateEnemyShots(s: GameState): void {
   }
   s.enemyShots = kept;
   if (s.crabs.length === 0) return;
-  if (s.rngFire.nextInt(1000) >= fireChance(s.wave)) return;
+  if (s.rngFire.nextInt(1000) >= fireChance(s.wave, s.run.level?.fireOffset ?? 0)) return;
   const crab = s.crabs[s.rngFire.nextInt(s.crabs.length)]!;
   const y = crab.y + HALF;
   const dx = s.ship.x - crab.x;

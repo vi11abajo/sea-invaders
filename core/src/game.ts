@@ -4,6 +4,7 @@ import { formationPositions } from './formations';
 import type { CrabType, Formation } from './levels';
 import { Rng } from './rng';
 import type { RunConfig } from './run';
+import { spawnBoss } from './sim/boss';
 import type { GameState, Input } from './types';
 
 /** Where the ship starts; also the input a replay assumes before its first recorded change. */
@@ -33,7 +34,12 @@ export function createGame(seed: string, run: RunConfig): GameState {
     rngBoosts: new Rng(`${seed}/boosts`),
     events: [],
   };
-  spawnWave(s, 1);
+  if (run.level) {
+    if (run.level.waves > 0) startLevelWave(s, 1);
+    else spawnBoss(s, run.level.boss!);
+  } else {
+    spawnWave(s, 1);
+  }
   return s;
 }
 
@@ -98,13 +104,34 @@ export function spawnFormation(
   s.waveTotal = s.crabs.length;
 }
 
+/** Starts wave `wave` of the current level: rows grow by one every 2 waves, capped at 6. */
+export function startLevelWave(s: GameState, wave: number): void {
+  const l = s.run.level!;
+  const rows = Math.min(6, l.rows + Math.floor((wave - 1) / 2));
+  s.wave = wave;
+  spawnFormation(s, { formation: l.formation, rows, cols: l.cols, kinds: l.kinds });
+}
+
 /**
- * Advances past a cleared wave. Without a campaign level this is the endless behaviour unchanged;
- * with one, Task 3 replaces this branch, but Task 1 already marks the clear with an event.
+ * Advances past a cleared wave. Without a campaign level this is the endless behaviour unchanged.
+ * With one: the next wave inside the level, or the level's boss once all waves are done, or the
+ * level is cleared (boss dead already handled by the boss engine clearing `s.boss`).
  */
 export function nextWave(s: GameState): void {
-  if (s.run.level) {
-    s.events.push({ tick: s.tick, type: 'wave_cleared' });
+  s.events.push({ tick: s.tick, type: 'wave_cleared' });
+  const l = s.run.level;
+  if (!l) {
+    spawnWave(s, s.wave + 1);
+    return;
   }
-  spawnWave(s, s.wave + 1);
+  if (s.wave < l.waves) {
+    startLevelWave(s, s.wave + 1);
+    return;
+  }
+  if (l.boss && s.boss === null) {
+    spawnBoss(s, l.boss);
+    return;
+  }
+  s.cleared = true;
+  s.events.push({ tick: s.tick, type: 'level_cleared' });
 }
