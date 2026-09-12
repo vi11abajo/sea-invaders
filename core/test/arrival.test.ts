@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { ARRIVAL, DAILY_RUN, INITIAL_INPUT, PRACTICE_RUN, createGame, levelById, step } from '../src';
+import {
+  ARRIVAL, DAILY_RUN, INITIAL_INPUT, PRACTICE_RUN, createGame, formationPositions, levelById, step,
+} from '../src';
 
 describe('wave arrival (campaign only)', () => {
   it('spawns a level wave above its slots and lands exactly on them after ARRIVAL.ticks', () => {
@@ -42,6 +44,36 @@ describe('wave arrival (campaign only)', () => {
     step(s, INITIAL_INPUT);
     expect(s.crabs[0]!.x).toBe(x0); // x untouched during arrival, only y/homeY move
     expect(s.over).toBe(false);
+  });
+
+  it('a wave spawned mid-level by nextWave also gets its full 30 descent ticks', () => {
+    const l = levelById(1); // 2 waves
+    const s = createGame('arrival-midlevel', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+    s.crabs = []; // clear wave 1 so this tick's end-of-step nextWave spawns wave 2
+    step(s, INITIAL_INPUT);
+    expect(s.wave).toBe(2);
+    expect(s.arrival).toBe(ARRIVAL.ticks); // the full 30, not 29 — nothing was eaten by the transition tick
+
+    // The slot wave 2's formation targets: the same positions a fresh startLevelWave would use.
+    const rows = Math.min(6, l.rows + Math.floor((2 - 1) / 2));
+    const slots = formationPositions(l.formation, rows, l.cols);
+    expect(s.crabs).toHaveLength(slots.length);
+
+    for (let i = 0; i < ARRIVAL.ticks; i++) step(s, INITIAL_INPUT);
+
+    expect(s.arrival).toBe(0);
+    s.crabs.forEach((c, i) => {
+      expect(c.x).toBe(slots[i]!.x);
+      expect(c.y).toBe(c.homeY);
+      expect(c.homeY).toBe(slots[i]!.y);
+    });
+
+    // The 31st step now marches sideways instead of continuing to descend.
+    const x0 = s.crabs[0]!.x;
+    const y0 = s.crabs[0]!.y;
+    step(s, INITIAL_INPUT);
+    expect(s.crabs[0]!.x).not.toBe(x0);
+    expect(s.crabs[0]!.y).toBe(y0); // one march step, well short of the next wall/step-down
   });
 
   it('daily and practice runs never set arrival', () => {

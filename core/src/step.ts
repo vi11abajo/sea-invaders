@@ -21,6 +21,9 @@ export function step(s: GameState, input: Input): void {
   hitCrabs(s);
   hitShip(s);
   updateBoosts(s);
-  if (!s.over && !s.cleared && s.crabs.length === 0 && s.boss === null) nextWave(s);
+  // Decrement before nextWave so a wave it spawns this same tick (arrival reset to 30) keeps its
+  // full descent — marchCrabs already consumed this tick's old-wave arrival tick above, and the
+  // new wave's own 30 ticks only start counting down from the next step() call.
   if (s.arrival > 0) s.arrival -= 1;
+  if (!s.over && !s.cleared && s.crabs.length === 0 && s.boss === null) nextWave(s);
 }
