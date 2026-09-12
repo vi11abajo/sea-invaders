@@ -106,8 +106,8 @@ export const confirmLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 60, // maximum 60 confirmation polls per minute
   message: {
-    error: 'TooManySessions',
-    message: 'Too many game sessions created. Please wait.'
+    error: 'TooManyConfirmations',
+    message: 'Too many confirmation polls. Please wait.'
   },
   keyGenerator: getUserKey, // Per-user limiting
 });
