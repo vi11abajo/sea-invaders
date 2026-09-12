@@ -49,3 +49,20 @@ jobs:
           # programs/README.md).
           anchor build --arch v1 -- --features test-clock
           anchor test --skip-build --validator legacy
+      - name: Production build
+        working-directory: programs
+        run: |
+          # No feature flags: this is the exact artifact that gets deployed, so
+          # `set_test_clock` (only compiled in under --features test-clock, see the Test
+          # step above) must not leak into it, and its IDL must match the copy committed at
+          # backend/src/chain/idl/sea_invaders.json, which the backend reads at runtime
+          # (see programs/README.md: refresh that copy after any program change or this
+          # step fails).
+          anchor build --arch v1
+          count=$(grep -c set_test_clock target/idl/sea_invaders.json || true)
+          echo "set_test_clock occurrences in the production IDL: $count"
+          if [ "$count" -ne 0 ]; then
+            echo "::error::set_test_clock leaked into the production IDL"
+            exit 1
+          fi
+          diff <(jq -S . target/idl/sea_invaders.json) <(jq -S . ../backend/src/chain/idl/sea_invaders.json)

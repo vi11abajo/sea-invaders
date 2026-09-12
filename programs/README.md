@@ -55,3 +55,14 @@ running with the key removed: all `config`/`ticket`/`record`/`settle`/
 `tests/helpers.ts`'s `setup()` therefore makes `admin` the provider wallet
 keypair (read from the `ANCHOR_WALLET` env var `anchor test` sets), not a
 random one.
+
+## Keeping the committed IDL in sync
+
+`backend/src/chain/idl/sea_invaders.json` is a committed copy of the
+production IDL (`anchor build --arch v1`, no feature flags); the backend
+loads it at runtime instead of building the program itself. **Refresh that
+copy after any change to the program** (instructions, accounts, types -
+anything that changes the IDL). The `anchor` CI workflow's "Production
+build" step rebuilds the production artifact and fails if the freshly
+built `target/idl/sea_invaders.json` differs from the committed copy, or
+if `set_test_clock` (a test-only instruction, see above) appears in it.
