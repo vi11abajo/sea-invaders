@@ -136,3 +136,6 @@ incident-report-*.md
 server-security-audit-guide.md
 free-llm-api-options.md
 .claude/worktrees/
+
+# Legacy web client and Base-era files, moved out of the tree on 2026-09-13 (history keeps them)
+_legacy/

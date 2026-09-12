@@ -4,7 +4,7 @@ How the Sea Invaders API (`backend/` + the `@sea-invaders/core` package it depen
 and how to set up the same thing by hand.
 
 The legacy web game that used to live on this backend has its own, separate deployment
-(the Next.js client, `VPS-DEPLOYMENT.md` / `QUICKSTART-VPS.md` at the repo root) on the same VPS.
+(the Next.js client; its deployment docs left the tree on 2026-09-13 and live in the git history) on the same VPS.
 It is a different application with its own PM2 process and Nginx site — this document is about
 the API only.
 

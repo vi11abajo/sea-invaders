@@ -23,7 +23,6 @@ The current build runs on devnet against a test SKR mint. Mainnet and the real S
 | Game core (`core/`) | TypeScript, integer-only deterministic simulation, replays and golden tests (Vitest) |
 | Backend (`backend/`) | Node.js, Express, PostgreSQL, JWT, Sign-In With Solana, `@solana/web3.js` |
 | On-chain (`programs/`) | Anchor 1.2 program: tickets, daily records, weekly pool settlement |
-| Legacy web client | Next.js 16, React 19, framework-free Canvas 2D engine (kept in the repo, not the focus) |
 
 ## How a ranked run works
 
@@ -41,16 +40,11 @@ mobile/         Expo/React Native app: the primary client (wallet sign-in, daily
 core/           @sea-invaders/core: deterministic game engine shared by the app and the backend
 backend/        Express API: auth, daily runs and replay verification, on-chain reads and transaction building
 programs/       Anchor program (tickets, daily records, weekly pool) and its devnet scripts
-app/            Legacy web client: Next.js routes and API routes
-components/     Legacy web client: React components
-game/           Legacy web client: game engine
-boss-system/    Legacy web client: boss logic, attacks, abilities and rendering
-boosts/         Legacy web client: power-up system
-themes/         Legacy web client: theme config, images and sounds
-public/         Legacy web client: static assets and scripts
-lib/            Legacy web client: shared server helpers
-scripts/        One-off maintenance scripts (database init)
+boss-system/    Reference for the campaign bosses being ported into core/ (legacy web engine, read-only)
+boosts/         Reference for the power-ups being ported into core/ (legacy web engine, read-only)
 ```
+
+The original web client (Next.js, Canvas 2D) was removed from the tree on 2026-09-13; it stays in the git history before that date.
 
 ## Getting started
 
@@ -67,11 +61,7 @@ npm run build   # the backend imports core/dist
 
 ### 2. Database
 
-`setup-database.sql` creates the database and its user. Set a real password in it first:
-
-```bash
-sudo -u postgres psql -f setup-database.sql
-```
+Create a PostgreSQL database and a user that owns it, then put them into `backend/.env` (`DB_*`). `backend/DEPLOYMENT.md` shows the production layout.
 
 ### 3. Backend
 
@@ -98,19 +88,9 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 `EXPO_PUBLIC_*` values are inlined into the APK, so the app holds no secrets. Opening `seainvaders://selftest` on the device runs the core's golden replays on Hermes and reports whether they match the Node results.
 
-### 5. Legacy web client (optional)
-
-```bash
-npm install
-cp .env.example .env.local
-npm run dev -- -p 3001
-```
-
-The web client expects the backend on `http://localhost:3000`.
-
 ## Deployment
 
-The API (backend plus the built core) is deployed by the "Deploy API to VPS" GitHub Actions workflow, started manually from the **Actions** tab; `backend/DEPLOYMENT.md` documents the target layout, the PM2 processes (`sea-invaders-api` and the `weekly-crank` job) and the required secrets. The legacy web client has its own, separate deployment described in `VPS-DEPLOYMENT.md` and `QUICKSTART-VPS.md`.
+The API (backend plus the built core) is deployed by the "Deploy API to VPS" GitHub Actions workflow, started manually from the **Actions** tab; `backend/DEPLOYMENT.md` documents the target layout, the PM2 processes (`sea-invaders-api` and the `weekly-crank` job) and the required secrets.
 
 ## Security
 

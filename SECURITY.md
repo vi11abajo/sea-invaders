@@ -31,6 +31,6 @@ Out of scope:
 
 ## Handling secrets
 
-This repository contains no credentials. Every secret used by the deployment pipeline is stored in GitHub Actions secrets and injected at deploy time — see [VPS-DEPLOYMENT.md](./VPS-DEPLOYMENT.md).
+This repository contains no credentials. Every secret used by the deployment pipeline is stored in GitHub Actions secrets and injected at deploy time — see [backend/DEPLOYMENT.md](./backend/DEPLOYMENT.md).
 
 If you believe a credential has been committed, report it privately rather than opening an issue, so it can be rotated first.
