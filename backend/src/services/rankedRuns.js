@@ -2,6 +2,7 @@ import { CORE_VERSION, MAX_REPLAY_TICKS, REPLAY_MODE, TICKS_PER_SECOND, decodeRe
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../db/rankedRuns.js';
 import { getConfig, getPlayer, getTokenBalance, getVaultBalance, getWeekPool } from '../chain/readers.js';
+import { currentCluster } from '../chain/config.js';
 import { dailySeed, dayOf, isDayOpen, secondsToNextDay, weekOf, weekdayOf } from './dailySeed.js';
 
 const STATUS = {
@@ -97,7 +98,7 @@ export async function todayInfo({ userId, wallet, now }) {
     weekTotal: inCurrentWeek ? player.dayBests.reduce((sum, score) => sum + score, 0) : 0,
     weekRank,
     skrBalance: Number(skrBalance) / 1e6,
-    cluster: process.env.SOLANA_CLUSTER || 'devnet',
+    cluster: currentCluster(),
   };
 }
 

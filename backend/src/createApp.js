@@ -9,6 +9,7 @@ import leaderboardRoutes from './routes/leaderboard.js';
 import dailyRoutes from './routes/daily.js';
 import siwsRoutes from './routes/siws.js';
 import devnetRoutes from './routes/devnet.js';
+import { currentCluster } from './chain/config.js';
 
 /** Builds the Express app without listening, so tests can drive it with supertest. */
 export function createApp() {
@@ -44,7 +45,7 @@ export function createApp() {
   app.use('/api/scores', scoresRoutes);
   app.use('/api/leaderboard', leaderboardRoutes);
   app.use('/api/daily', dailyRoutes);
-  if (process.env.SOLANA_CLUSTER === 'devnet') {
+  if (currentCluster() === 'devnet') {
     app.use('/api/devnet', devnetRoutes);
   }
 
