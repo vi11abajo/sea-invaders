@@ -4,6 +4,7 @@ import './loadEnv.js';
 import { createServer } from 'http';
 import { testConnection } from './config/database.js';
 import { validateJwtConfig } from './config/jwt.js';
+import { validateChainConfig } from './chain/config.js';
 import { createApp } from './createApp.js';
 
 const app = createApp();
@@ -15,6 +16,7 @@ async function startServer() {
     console.log('🚀 Starting Sea Invaders Backend...\n');
     console.log('🔧 Validating configurations...');
     validateJwtConfig();
+    validateChainConfig();
     console.log('🔗 Testing database connection...');
     const dbConnected = await testConnection();
     if (!dbConnected) {

@@ -20,8 +20,11 @@
   "author": "vi11abajo",
   "license": "MIT",
   "dependencies": {
+    "@anchor-lang/core": "^1.2.0",
     "@sea-invaders/core": "file:../core",
+    "@solana/spl-token": "^0.4.15",
     "@solana/wallet-standard-util": "^1.1.4",
+    "@solana/web3.js": "^1.99.0",
     "axios": "^1.6.5",
     "bs58": "^6.0.0",
     "cors": "^2.8.5",
