@@ -52,6 +52,25 @@ export interface LeaderboardEntry {
   score: number;
 }
 
+export interface WeekEntry {
+  rank: number;
+  walletAddress: string;
+  username: string | null;
+  total: number;
+  /** Mon..Sun totals; 0 means no record that day. */
+  days: number[];
+  forecastSkr: number;
+}
+
+export interface WeekBoard {
+  week: number;
+  /** Unix seconds when the week's payout window ends. */
+  endsAt: number;
+  poolSkr: number;
+  entries: WeekEntry[];
+  settled: boolean;
+}
+
 export function getToday(signedIn: boolean): Promise<TodayInfo> {
   return apiFetch<TodayInfo>('/api/daily/today', { auth: signedIn });
 }
@@ -66,6 +85,10 @@ export function finishRun(runId: string, replay: Uint8Array): Promise<FinishedRu
 
 export function getLeaderboard(day?: number): Promise<{ day: number; entries: LeaderboardEntry[] }> {
   return apiFetch(`/api/daily/leaderboard${day === undefined ? '' : `?day=${day}`}`);
+}
+
+export function getWeek(week?: number): Promise<WeekBoard> {
+  return apiFetch(`/api/daily/week${week === undefined ? '' : `?week=${week}`}`);
 }
 
 /** Prepares the on-chain ticket purchase transaction for the caller to sign and send. */
