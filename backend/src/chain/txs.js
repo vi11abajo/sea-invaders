@@ -205,7 +205,13 @@ export async function buildSettleWeekTx(week, winners, { connection = defaultCon
 export async function mintTestTokens(wallet, amount, { connection = defaultConnection() } = {}) {
   const walletKey = toPublicKey(wallet);
   const { skrMint, serverAuthority } = chainConfig();
-  const destination = await getOrCreateAssociatedTokenAccount(connection, serverAuthority, skrMint, walletKey, true);
-  const signature = await mintTo(connection, serverAuthority, skrMint, destination.address, serverAuthority, amount);
+  // Read back at 'confirmed': spl-token re-fetches the ATA right after creating it, and the connection's
+  // default (finalized) commitment does not see the new account yet (TokenAccountNotFoundError).
+  const destination = await getOrCreateAssociatedTokenAccount(
+    connection, serverAuthority, skrMint, walletKey, true, 'confirmed', { commitment: 'confirmed' },
+  );
+  const signature = await mintTo(
+    connection, serverAuthority, skrMint, destination.address, serverAuthority, amount, [], { commitment: 'confirmed' },
+  );
   return { signature };
 }
