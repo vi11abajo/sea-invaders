@@ -1,10 +1,11 @@
 import {
-  applyLevelResult, formatInt, levelById, levelSeed, REPLAY_MODE, type CampaignProgress, type RunConfig,
+  applyLevelResult, currentLevelId, formatInt, levelById, levelSeed, REPLAY_MODE, type CampaignProgress, type RunConfig,
 } from '@sea-invaders/core';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { GameScreen, type RunOutcome } from '../game/GameScreen';
 import { ResultView } from '../game/ResultView';
+import { PillButton } from '../ui/PillButton';
 import { COLORS } from '../ui/tokens';
 import { BossIntro } from './BossIntro';
 import { LevelIntro } from './LevelIntro';
@@ -15,7 +16,6 @@ type Outcome = ReturnType<typeof applyLevelResult>['outcome'];
 
 type Phase = 'intro' | 'boss-intro' | 'playing';
 
-/** Task 19 replaces these with the proper per-outcome copy and buttons. */
 const TITLE: Record<Outcome, string> = {
   cleared: 'Level cleared',
   failed: 'Level failed',
@@ -24,6 +24,9 @@ const TITLE: Record<Outcome, string> = {
   practice: 'Practice over',
 };
 
+/** Task 3B hook: flips true once a paid/ad-gated revive ships. */
+const REVIVE_ENABLED = false;
+
 interface CampaignLevelScreenProps {
   levelId: number;
   practice: boolean;
@@ -31,13 +34,15 @@ interface CampaignLevelScreenProps {
   progress: CampaignProgress;
   startLevel: (id: number, practice: boolean) => RunConfig;
   finishLevel: (result: FinishLevelInput) => Promise<Outcome>;
+  /** Opens a level id (always non-practice) — "Next level", "Retry level" or "Retry reef". */
+  onNext: (id: number) => void;
   /** Called once the player leaves the result screen. */
   onDone: (outcome: Outcome) => void;
   onExit: () => void;
 }
 
 /** One campaign level: the intro card, the boss reveal on boss rows, then the run and its result. */
-export function CampaignLevelScreen({ levelId, practice, progress, startLevel, finishLevel, onDone, onExit }: CampaignLevelScreenProps) {
+export function CampaignLevelScreen({ levelId, practice, progress, startLevel, finishLevel, onNext, onDone, onExit }: CampaignLevelScreenProps) {
   const level = useMemo(() => levelById(levelId), [levelId]);
   // Computed once per screen instance: a fresh RunConfig/seed each time the player re-enters this
   // level, but stable across this screen's own re-renders so the game loop is not restarted.
@@ -71,7 +76,7 @@ export function CampaignLevelScreen({ levelId, practice, progress, startLevel, f
       hudMode={`LEVEL ${levelId}`}
       onExit={onExit}
       onRunOver={handleRunOver}
-      renderResult={(outcome) => {
+      renderResult={(outcome, playAgain) => {
         if (result === null) {
           return (
             <View style={styles.overlay}>
@@ -92,19 +97,76 @@ export function CampaignLevelScreen({ levelId, practice, progress, startLevel, f
         }
         const kind = result.kind;
         const best = Math.max(progress.best[levelId - 1] ?? 0, outcome.score);
-        return (
-          <ResultView
-            title={TITLE[kind]}
-            score={outcome.score}
-            stats={[
-              { label: 'Score', value: formatInt(outcome.score) },
-              { label: 'Best', value: formatInt(best) },
-              { label: 'Lives left', value: String(outcome.livesLeft) },
-            ]}
-            onPlayAgain={() => onDone(kind)}
-            onBack={onExit}
-          />
-        );
+        const stats = [
+          { label: 'Score', value: formatInt(outcome.score) },
+          { label: 'Best', value: formatInt(best) },
+          { label: 'Lives left', value: String(outcome.livesLeft) },
+        ];
+        const toMap = { label: 'Map', onPress: () => onDone(kind) };
+
+        switch (kind) {
+          case 'cleared':
+            return (
+              <ResultView
+                title={TITLE.cleared}
+                score={outcome.score}
+                stats={stats}
+                primaryLabel="Next level"
+                onPlayAgain={() => onNext(currentLevelId(progress))}
+                secondary={toMap}
+                onBack={onExit}
+              />
+            );
+          case 'failed':
+            return (
+              <ResultView
+                title={TITLE.failed}
+                score={outcome.score}
+                stats={stats}
+                primaryLabel="Retry level"
+                onPlayAgain={() => onNext(levelId)}
+                secondary={toMap}
+                onBack={onExit}
+              />
+            );
+          case 'reef_lost':
+            return (
+              <ResultView
+                title={TITLE.reef_lost}
+                score={outcome.score}
+                stats={stats}
+                primaryLabel="Retry reef"
+                onPlayAgain={() => onNext(currentLevelId(progress))}
+                secondary={toMap}
+                extra={REVIVE_ENABLED ? <PillButton label="Revive · 3 lives" kind="glass" disabled /> : undefined}
+                onBack={onExit}
+              />
+            );
+          case 'campaign_complete':
+            return (
+              <ResultView
+                title={TITLE.campaign_complete}
+                score={outcome.score}
+                stats={stats}
+                primaryLabel="Map"
+                onPlayAgain={() => onDone(kind)}
+                onBack={onExit}
+              />
+            );
+          case 'practice':
+            return (
+              <ResultView
+                title={TITLE.practice}
+                score={outcome.score}
+                stats={stats}
+                onPlayAgain={playAgain}
+                secondary={toMap}
+                onBack={onExit}
+              />
+            );
+          default:
+            return null;
+        }
       }}
     />
   );

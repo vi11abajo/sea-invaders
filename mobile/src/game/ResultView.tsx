@@ -13,6 +13,11 @@ export interface ResultStat {
   value: string;
 }
 
+interface ResultSecondary {
+  label: string;
+  onPress: () => void;
+}
+
 interface ResultViewProps {
   /** e.g. "Run over"; shown in caps. */
   title: string;
@@ -20,15 +25,19 @@ interface ResultViewProps {
   stats: ResultStat[];
   /** Small line under the primary button. */
   note?: string;
+  /** Primary button label. Defaults to "Play again". */
+  primaryLabel?: string;
   onPlayAgain: () => void;
+  /** A second, glass-styled action under the primary button, e.g. "Map". */
+  secondary?: ResultSecondary;
   /** Shows the round back button in the top-left corner. */
   onBack?: () => void;
-  /** Extra content rendered below "Play again" and above `note` (e.g. the "Record score" action). */
+  /** Extra content rendered below the buttons and above `note` (e.g. the "Record score" action). */
   extra?: ReactNode;
 }
 
 /** End of a run: the score in the signature gradient, Octopi's pose and a sheet of stats and actions. */
-export function ResultView({ title, score, stats, note, onPlayAgain, onBack, extra }: ResultViewProps) {
+export function ResultView({ title, score, stats, note, primaryLabel = 'Play again', onPlayAgain, secondary, onBack, extra }: ResultViewProps) {
   return (
     <View style={styles.root}>
       {onBack !== undefined && (
@@ -58,7 +67,8 @@ export function ResultView({ title, score, stats, note, onPlayAgain, onBack, ext
             </View>
           ))}
         </View>
-        <PillButton label="Play again" onPress={onPlayAgain} />
+        <PillButton label={primaryLabel} onPress={onPlayAgain} />
+        {secondary !== undefined && <PillButton label={secondary.label} kind="glass" onPress={secondary.onPress} />}
         {extra}
         {note !== undefined && (
           <Txt variant="secondary" tone="tertiary" style={styles.note}>

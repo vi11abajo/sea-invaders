@@ -44,6 +44,9 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
   // The deep link is a QA tool: it always opens in practice mode so it can never mutate real
   // progress (a non-current level would also make finishLevel reject — see CampaignLevelScreen).
   const [screen, setScreen] = useState<Screen>(initialLevelId !== null ? { kind: 'level', id: initialLevelId, practice: true } : 'home');
+  // Bumped on every level (re-)entry so the level screen's key changes even when `id`/`practice`
+  // do not (e.g. "Retry level"), forcing a fresh mount instead of reusing the finished run's state.
+  const [levelAttempt, setLevelAttempt] = useState(0);
   const { session, restoring, signIn, error } = useSession();
   const campaign = useCampaign();
   const { model, refresh } = useHomeModel(session, campaign.progress);
@@ -109,12 +112,16 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
     if (campaign.progress === null) return <Backdrop />;
     return (
       <CampaignLevelScreen
-        key={`${screen.id}-${screen.practice}`}
+        key={`${screen.id}-${screen.practice}-${levelAttempt}`}
         levelId={screen.id}
         practice={screen.practice}
         progress={campaign.progress}
         startLevel={campaign.startLevel}
         finishLevel={campaign.finishLevel}
+        onNext={(id) => {
+          setLevelAttempt((n) => n + 1);
+          setScreen({ kind: 'level', id, practice: false });
+        }}
         onDone={() => setScreen('campaign')}
         onExit={() => setScreen('campaign')}
       />

@@ -1,7 +1,8 @@
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
-  DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder, SHIP, createGame,
-  fitField, formatInt, snapshot, step, touchToInput, type Frame, type Input, type Replay, type ReplayMode, type RunConfig,
+  BOOSTS, BOOST_INDEX, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
+  SHIP, createGame, fitField, formatInt, snapshot, step, touchToInput,
+  type BoostType, type BossFrame, type Frame, type Input, type Replay, type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
@@ -9,7 +10,7 @@ import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import { Backdrop } from '../ui/Backdrop';
 import { Txt } from '../ui/Txt';
 import { COLORS, FONTS } from '../ui/tokens';
-import { GameHud } from './GameHud';
+import { GameHud, type HudBoost } from './GameHud';
 import { PauseSheet } from './PauseSheet';
 import { ResultView } from './ResultView';
 import { drawFrame } from './draw';
@@ -20,6 +21,53 @@ const FINGER_LIFT = 600;
 
 const HINT = 'Drag anywhere — ship follows above your finger. Auto-fire.';
 
+/** How long the wave/phase banner and the pickup toast stay up, in rendered frames. */
+const BANNER_FRAMES = 60;
+const TOAST_FRAMES = 60;
+
+/** `BoostType` for each `BOOST_INDEX` slot, in index order (0..15). */
+const BOOST_BY_INDEX = Object.keys(BOOST_INDEX) as BoostType[];
+
+/** Chip colour by rarity: spec Task 19 decisions. */
+const RARITY_COLOR: Record<string, string> = {
+  common: '#FFFFFF', rare: '#00ddff', epic: '#9f00ff', legendary: '#ffd700',
+};
+
+/** "RAPID_FIRE" -> "Rapid Fire". */
+function titleCase(type: string): string {
+  return type.split('_').map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
+}
+
+/** `Frame.boosts` (flat typeIndex/ticksLeft pairs) into HUD chips. */
+function boostsFromFrame(flat: number[]): HudBoost[] {
+  const list: HudBoost[] = [];
+  for (let i = 0; i < flat.length; i += 2) {
+    const type = BOOST_BY_INDEX[flat[i]!];
+    if (type === undefined) continue;
+    const ticksLeft = flat[i + 1]!;
+    const seconds = ticksLeft < 0 ? -1 : Math.ceil(ticksLeft / 60);
+    list.push({ name: titleCase(type), color: RARITY_COLOR[BOOSTS[type].rarity] ?? '#FFFFFF', seconds });
+  }
+  return list;
+}
+
+function sameBoss(a: BossFrame | null, b: BossFrame | null): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  return (
+    a.kind === b.kind && a.hp === b.hp && a.maxHp === b.maxHp && a.phase === b.phase &&
+    a.maxPhases === b.maxPhases && a.shieldHp === b.shieldHp && a.rage === b.rage && a.freeze === b.freeze
+  );
+}
+
+function sameBoosts(a: HudBoost[], b: HudBoost[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]!.name !== b[i]!.name || a[i]!.seconds !== b[i]!.seconds || a[i]!.color !== b[i]!.color) return false;
+  }
+  return true;
+}
+
 interface Hud {
   score: number;
   lives: number;
@@ -27,9 +75,19 @@ interface Hud {
   kills: number;
   over: boolean;
   fps: number;
+  boss: BossFrame | null;
+  boosts: HudBoost[];
+  shield: number;
+  /** "WAVE N" / "LEVEL N · WAVE 1" / "PHASE N", shown centre-screen for `BANNER_FRAMES` frames. */
+  banner: string | null;
+  /** A pickup's name, shown under the HUD for `TOAST_FRAMES` frames. */
+  toast: string | null;
 }
 
-const START_HUD: Hud = { score: 0, lives: 3, wave: 1, kills: 0, over: false, fps: 0 };
+const START_HUD: Hud = {
+  score: 0, lives: 3, wave: 1, kills: 0, over: false, fps: 0,
+  boss: null, boosts: [], shield: 0, banner: null, toast: null,
+};
 
 export interface RunOutcome {
   replay: Replay;
@@ -55,7 +113,7 @@ interface GameScreenProps {
   hudMode?: string;
   /** Small line under the default result's button. */
   note?: string;
-  /** Campaign level config; used verbatim for `createGame` and the replay's level id/lives, and sets the HUD's max lives. Daily/practice runs omit it. */
+  /** Campaign level config; used verbatim for `createGame` and the replay's level id/lives. Daily/practice runs omit it. */
   run?: RunConfig;
   /** Called once when the run ends (game over or quit), with the finished replay. */
   onRunOver?: (outcome: RunOutcome) => void;
@@ -101,6 +159,12 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     let fpsSince = performance.now();
     let fps = 0;
     let handle = 0;
+    // 0 so the first frame's wave (always 1) is treated as a change and announced.
+    let prevWave = 0;
+    let bannerText: string | null = null;
+    let bannerFrames = 0;
+    let toastText: string | null = null;
+    let toastFrames = 0;
 
     const loop = () => {
       const now = performance.now();
@@ -114,12 +178,37 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           step(state, input.current);
         }
       }
-      // Nothing consumes events yet; drop whatever this frame's ticks produced.
+      // Wave/phase banner and pickup toast, from this frame's ticks; state.events is cleared below.
+      if (state.wave !== prevWave) {
+        bannerText = run?.level !== undefined && state.wave === 1 && prevWave === 0
+          ? `LEVEL ${run.level.id} · WAVE 1`
+          : `WAVE ${state.wave}`;
+        bannerFrames = BANNER_FRAMES;
+        prevWave = state.wave;
+      }
+      for (const ev of state.events) {
+        if (ev.type === 'boss_phase') {
+          bannerText = `PHASE ${state.boss?.phase ?? 0}`;
+          bannerFrames = BANNER_FRAMES;
+        } else if (ev.type === 'boost_pickup') {
+          toastText = titleCase(ev.boost);
+          toastFrames = TOAST_FRAMES;
+        }
+      }
       state.events.length = 0;
+      if (bannerFrames > 0) {
+        bannerFrames -= 1;
+        if (bannerFrames === 0) bannerText = null;
+      }
+      if (toastFrames > 0) {
+        toastFrames -= 1;
+        if (toastFrames === 0) toastText = null;
+      }
       const dx = state.ship.x - prevShipX;
       facing.value = dx > 20 ? 1 : dx < -20 ? -1 : 0;
       prevShipX = state.ship.x;
-      frame.value = snapshot(state);
+      const f = snapshot(state);
+      frame.value = f;
       frames += 1;
       if (now - fpsSince >= 1000) {
         fps = Math.round((frames * 1000) / (now - fpsSince));
@@ -127,10 +216,15 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         fpsSince = now;
       }
       const over = state.over || state.cleared || quit.current;
-      const next: Hud = { score: state.score, lives: state.ship.lives, wave: state.wave, kills: state.kills, over, fps };
+      const next: Hud = {
+        score: state.score, lives: state.ship.lives, wave: state.wave, kills: state.kills, over, fps,
+        boss: f.boss, boosts: boostsFromFrame(f.boosts), shield: f.shield, banner: bannerText, toast: toastText,
+      };
       if (
         next.score !== shown.score || next.lives !== shown.lives || next.wave !== shown.wave ||
-        next.kills !== shown.kills || next.over !== shown.over || next.fps !== shown.fps
+        next.kills !== shown.kills || next.over !== shown.over || next.fps !== shown.fps ||
+        next.shield !== shown.shield || next.banner !== shown.banner || next.toast !== shown.toast ||
+        !sameBoss(next.boss, shown.boss) || !sameBoosts(next.boosts, shown.boosts)
       ) {
         shown = next;
         setHud(next);
@@ -183,8 +277,6 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     setOutcome(null);
     setRunIndex((r) => r + 1);
   };
-  /** The run's max lives for the HUD; daily/practice always shows 3. */
-  const maxLives = run ? Math.max(3, run.lives) : 3;
 
   // System back: pauses a run, closes the pause sheet, and leaves from the result screen.
   useEffect(() => {
@@ -230,7 +322,23 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
             onResponderGrant={onTouch}
             onResponderMove={onTouch}
           />
-          <GameHud mode={hudMode} score={hud.score} lives={hud.lives} maxLives={maxLives} hint={HINT} onPause={pause} />
+          {hud.boss !== null && hud.boss.freeze > 0 && <View style={styles.frozen} pointerEvents="none" />}
+          <GameHud
+            mode={hudMode}
+            score={hud.score}
+            lives={hud.lives}
+            boss={hud.boss}
+            boosts={hud.boosts}
+            shield={hud.shield}
+            toast={hud.toast}
+            hint={HINT}
+            onPause={pause}
+          />
+          {hud.banner !== null && (
+            <Text style={styles.banner} pointerEvents="none">
+              {hud.banner}
+            </Text>
+          )}
           <Text style={styles.fps} pointerEvents="none">
             {hud.fps} FPS
           </Text>
@@ -245,5 +353,10 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.app },
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   loading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  frozen: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(51,153,255,0.18)' },
+  banner: {
+    position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center',
+    fontFamily: FONTS.medium, fontSize: 22, letterSpacing: 1.2, color: COLORS.text,
+  },
   fps: { position: 'absolute', left: 16, bottom: 64, fontFamily: FONTS.mono, fontSize: 10, color: COLORS.textTertiary },
 });

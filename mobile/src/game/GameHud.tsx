@@ -1,30 +1,47 @@
-import { formatInt } from '@sea-invaders/core';
+import { formatInt, type BossFrame } from '@sea-invaders/core';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Hearts } from '../ui/Hearts';
 import { GradientFill } from '../ui/GradientFill';
 import { COLORS, FONTS, RADIUS } from '../ui/tokens';
 
 export interface HudBoost {
   name: string;
   color: string;
+  /** Seconds remaining, or -1 for a boost that lasts until consumed (no timer to show). */
   seconds: number;
 }
+
+/** Boss HP-bar tint per kind (1..5): spec §4.2 palette. */
+const BOSS_COLOR = ['#33cc66', '#3366ff', '#ffdd33', '#ff3333', '#9966ff'];
+
+/**
+ * Boss display names (1..5): spec §4.2. Kept local rather than imported from
+ * `campaign/CampaignScreen` so the game package does not depend on the campaign package.
+ */
+const BOSS_NAME = ['Emerald Warlord', 'Azure Leviathan', 'Solar Kraken', 'Crimson Behemoth', 'Void Sovereign'];
 
 interface GameHudProps {
   /** Mode label, e.g. "PRACTICE" or "DAILY · SEED #214". */
   mode: string;
   score: number;
   lives: number;
-  maxLives?: number;
   /** Shown only when the core reports a combo. */
   combo?: number;
   /** Shown only when the core reports active boosts. */
   boosts?: HudBoost[];
+  /** The ship's SHIELD_BARRIER hits left; a chip shows only when > 0. */
+  shield?: number;
+  /** The active boss, when the level has one. */
+  boss?: BossFrame | null;
+  /** A short line under the HUD, e.g. a pickup name. */
+  toast?: string | null;
   hint?: string;
   onPause: () => void;
 }
 
 /** The in-run HUD over the world. Only the pause button takes touches. */
-export function GameHud({ mode, score, lives, maxLives = 3, combo, boosts, hint, onPause }: GameHudProps) {
+export function GameHud({ mode, score, lives, combo, boosts, shield = 0, boss, toast, hint, onPause }: GameHudProps) {
+  const showBoosts = boosts !== undefined && boosts.length > 0;
   return (
     <View style={styles.root} pointerEvents="box-none">
       <View style={styles.top} pointerEvents="none">
@@ -34,24 +51,37 @@ export function GameHud({ mode, score, lives, maxLives = 3, combo, boosts, hint,
         </View>
         <View style={styles.right}>
           <View style={[styles.glass, styles.pill, styles.lives]}>
-            {Array.from({ length: maxLives }, (_, i) => (
-              <View key={i} style={[styles.dot, i < lives ? styles.dotOn : styles.dotOff]} />
-            ))}
+            <Hearts lives={lives} size={14} />
           </View>
           {combo !== undefined && <ComboPill combo={combo} />}
         </View>
       </View>
-      {boosts !== undefined && boosts.length > 0 && (
-        <View style={styles.boosts} pointerEvents="none">
-          {boosts.map((b) => (
-            <View key={b.name} style={[styles.glass, styles.pill, styles.chip]}>
-              <View style={[styles.chipDot, { backgroundColor: b.color }]} />
-              <Text style={styles.chipName}>{b.name}</Text>
-              <Text style={styles.chipTime}>{`${b.seconds}s`}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+      <View style={styles.stack} pointerEvents="none">
+        {boss != null && <BossBar boss={boss} />}
+        {(showBoosts || shield > 0) && (
+          <View style={styles.boosts}>
+            {boosts?.map((b) => (
+              <View key={b.name} style={[styles.glass, styles.pill, styles.chip]}>
+                <View style={[styles.chipDot, { backgroundColor: b.color }]} />
+                <Text style={styles.chipName}>{b.name}</Text>
+                <Text style={styles.chipTime}>{b.seconds < 0 ? '∞' : `${b.seconds}s`}</Text>
+              </View>
+            ))}
+            {shield > 0 && (
+              <View style={[styles.glass, styles.pill, styles.chip]}>
+                <View style={[styles.chipDot, { backgroundColor: COLORS.info }]} />
+                <Text style={styles.chipName}>Shield</Text>
+                <Text style={styles.chipTime}>{`×${shield}`}</Text>
+              </View>
+            )}
+          </View>
+        )}
+        {toast != null && (
+          <Text style={styles.toast} numberOfLines={1}>
+            {toast}
+          </Text>
+        )}
+      </View>
       {hint !== undefined && (
         <Text style={styles.hint} pointerEvents="none">
           {hint}
@@ -76,6 +106,49 @@ function ComboPill({ combo }: { combo: number }) {
   );
 }
 
+/** Name, HP bar with phase notches, shield pips and status tags: spec §4.3. */
+function BossBar({ boss }: { boss: BossFrame }) {
+  const color = BOSS_COLOR[boss.kind - 1] ?? COLORS.text;
+  const name = BOSS_NAME[boss.kind - 1] ?? `Boss ${boss.kind}`;
+  const pct = boss.maxHp > 0 ? Math.max(0, Math.min(1, boss.hp / boss.maxHp)) : 0;
+  const notchCount = Math.max(0, boss.maxPhases - 1);
+  const notches = Array.from({ length: notchCount }, (_, i) => ((i + 1) / boss.maxPhases) * 100);
+  return (
+    <View style={[styles.glass, styles.bossCard]}>
+      <View style={styles.bossHead}>
+        <Text style={styles.bossName} numberOfLines={1}>
+          {name}
+        </Text>
+        <View style={styles.bossTags}>
+          {boss.rage === 1 && (
+            <View style={[styles.bossTag, styles.rageTag]}>
+              <Text style={styles.bossTagText}>RAGE</Text>
+            </View>
+          )}
+          {boss.freeze > 0 && (
+            <View style={[styles.bossTag, styles.freezeTag]}>
+              <Text style={styles.bossTagText}>FROZEN</Text>
+            </View>
+          )}
+        </View>
+      </View>
+      <View style={styles.bossBarTrack}>
+        <View style={[styles.bossBarFill, { width: `${pct * 100}%`, backgroundColor: color }]} />
+        {notches.map((left) => (
+          <View key={left} style={[styles.bossNotch, { left: `${left}%` }]} />
+        ))}
+      </View>
+      {boss.shieldHp > 0 && (
+        <View style={styles.shieldPips}>
+          {Array.from({ length: boss.shieldHp }, (_, i) => (
+            <View key={i} style={styles.shieldPip} />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   top: { position: 'absolute', top: 28, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
@@ -85,18 +158,30 @@ const styles = StyleSheet.create({
   score: { fontFamily: FONTS.mono, fontSize: 26, lineHeight: 30, letterSpacing: -0.52, color: COLORS.text },
   right: { alignItems: 'flex-end', gap: 6 },
   pill: { borderRadius: RADIUS.pill, overflow: 'hidden' },
-  lives: { flexDirection: 'row', gap: 5, paddingHorizontal: 10, paddingVertical: 8 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  dotOn: { backgroundColor: COLORS.success },
-  dotOff: { backgroundColor: 'rgba(255,255,255,0.2)' },
+  lives: { flexDirection: 'row', paddingHorizontal: 10, paddingVertical: 8 },
   combo: { paddingHorizontal: 10, paddingVertical: 6 },
   comboText: { fontFamily: FONTS.mono, fontSize: 13, color: COLORS.text },
   comboHot: { color: COLORS.onPrimary },
-  boosts: { position: 'absolute', top: 104, left: 16, flexDirection: 'row', gap: 6 },
+  stack: { position: 'absolute', top: 100, left: 16, right: 16, gap: 8 },
+  bossCard: { borderRadius: RADIUS.hudCard, padding: 10, gap: 6 },
+  bossHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  bossName: { flex: 1, fontFamily: FONTS.medium, fontSize: 13, color: COLORS.text },
+  bossTags: { flexDirection: 'row', gap: 4 },
+  bossTag: { borderRadius: RADIUS.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  bossTagText: { fontFamily: FONTS.medium, fontSize: 9, letterSpacing: 0.4, color: COLORS.text },
+  rageTag: { backgroundColor: 'rgba(255,51,51,0.35)' },
+  freezeTag: { backgroundColor: 'rgba(51,153,255,0.35)' },
+  bossBarTrack: { height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden' },
+  bossBarFill: { position: 'absolute', top: 0, bottom: 0, left: 0, borderRadius: 5 },
+  bossNotch: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  shieldPips: { flexDirection: 'row', gap: 4 },
+  shieldPip: { width: 8, height: 8, borderRadius: 2, backgroundColor: COLORS.info },
+  boosts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { height: 26, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
   chipDot: { width: 6, height: 6, borderRadius: 3 },
   chipName: { fontFamily: FONTS.regular, fontSize: 11, color: COLORS.text },
   chipTime: { fontFamily: FONTS.mono, fontSize: 11, color: COLORS.textSecondary },
+  toast: { fontFamily: FONTS.regular, fontSize: 11, color: 'rgba(255,255,255,0.72)' },
   hint: { position: 'absolute', left: 16, right: 80, bottom: 44, fontFamily: FONTS.regular, fontSize: 11, color: 'rgba(255,255,255,0.55)' },
   pause: {
     position: 'absolute', right: 16, bottom: 28, width: 48, height: 48, borderRadius: 24,

@@ -6,6 +6,7 @@ import { currentLevelId, formatInt, livesForEntry, LEVELS, type CampaignProgress
 import { useSprites } from '../game/sprites';
 import { ArtSlot } from '../ui/ArtSlot';
 import { Backdrop } from '../ui/Backdrop';
+import { Hearts } from '../ui/Hearts';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS, REEF_PROGRESS } from '../ui/tokens';
 
@@ -17,7 +18,6 @@ export const BOSS_NAMES = ['Emerald Warlord', 'Azure Leviathan', 'Solar Kraken',
 
 const NODE_SIZE = 48;
 const BOSS_NODE_SIZE = 72;
-const MAX_HEARTS = 5;
 
 type NodeState = 'locked' | 'current' | 'cleared';
 
@@ -47,7 +47,9 @@ export function CampaignScreen({ progress, onPlay, onBack, synced = true }: Camp
           <Txt variant="button">←</Txt>
         </Pressable>
         <Txt variant="screenTitle">Campaign</Txt>
-        <Hearts lives={lives} />
+        <View style={styles.heartsSlot}>
+          <Hearts lives={lives} />
+        </View>
       </View>
       {!synced && (
         <Txt variant="secondary" tone="tertiary" style={styles.syncHint}>
@@ -66,21 +68,6 @@ export function CampaignScreen({ progress, onPlay, onBack, synced = true }: Camp
           />
         ))}
       </ScrollView>
-    </View>
-  );
-}
-
-function Hearts({ lives }: { lives: number }) {
-  const shown = Math.min(lives, MAX_HEARTS);
-  const overflow = lives - MAX_HEARTS;
-  return (
-    <View style={styles.hearts}>
-      {Array.from({ length: MAX_HEARTS }, (_, i) => (
-        <View key={i} style={[styles.heart, i < shown ? styles.heartOn : styles.heartOff]} />
-      ))}
-      {overflow > 0 && (
-        <Txt variant="monoSmall" tone="secondary">{`+${overflow}`}</Txt>
-      )}
     </View>
   );
 }
@@ -204,10 +191,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
   syncHint: { paddingHorizontal: 16, marginBottom: 4 },
-  hearts: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 5 },
-  heart: { width: 10, height: 10, borderRadius: 5 },
-  heartOn: { backgroundColor: COLORS.success },
-  heartOff: { backgroundColor: 'rgba(255,255,255,0.2)' },
+  heartsSlot: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
   list: { paddingHorizontal: 16, paddingBottom: 28, gap: 14 },
   card: {
     borderRadius: RADIUS.card, padding: 14, gap: 12, backgroundColor: COLORS.glass,
