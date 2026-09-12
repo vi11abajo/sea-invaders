@@ -80,4 +80,7 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   // Same input trajectory as `wander`, cut short with the game still running.
   truncated: { ticks: 600, makeInput: wander },
   survivor: { ticks: 18_000, makeInput: survivor },
+  // Task 15 plays this on level 6 (Emerald Warlord) as a campaign run, stopping early on
+  // `cleared || over`; `ticks` here is only the fallback cap for that early-exit loop.
+  level6: { ticks: 18_000, makeInput: survivor },
 };

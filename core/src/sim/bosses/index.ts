@@ -1,6 +1,7 @@
 import type { Rng } from '../../rng';
 import type { BossState, GameState } from '../../types';
 import { castStraight, muzzle } from '../boss';
+import { EMERALD_HOOKS } from './emerald';
 
 /**
  * Per-boss behaviour, looked up by `BOSS_HOOKS[b.kind]`. `attack` and `ability` are mandatory;
@@ -39,9 +40,9 @@ function defaultHooks(): BossHooks {
   };
 }
 
-/** Per-kind boss hooks. Tasks 6-10 replace these one by one with the real attacks/abilities. */
+/** Per-kind boss hooks. Tasks 7-10 replace the remaining defaults with the real attacks/abilities. */
 export const BOSS_HOOKS: Record<1 | 2 | 3 | 4 | 5, BossHooks> = {
-  1: defaultHooks(),
+  1: EMERALD_HOOKS,
   2: defaultHooks(),
   3: defaultHooks(),
   4: defaultHooks(),
