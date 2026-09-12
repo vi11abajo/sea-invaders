@@ -31,14 +31,21 @@ jobs:
             ~/.cargo/git
             programs/target
           key: anchor-${{ runner.os }}-${{ hashFiles('programs/Cargo.lock') }}
+      - name: Solana CLI wallet
+        run: solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json
       - name: Test
         working-directory: programs
         run: |
           npm ci
-          # --arch v1: litesvm 0.8.0 (pinned for @solana/web3.js v1 compatibility,
-          # see programs/tests/helpers.ts) cannot load the SBPFv3 ELF that
-          # `anchor build`'s default --arch v3 produces with this Anchor/Solana
-          # toolchain combination, so the program must be built for the older,
-          # widely-supported v1 architecture before the LiteSVM harness runs.
-          anchor build --arch v1
-          anchor test --skip-build
+          # --arch v1: matches the artifact deployed on devnet/localnet (see
+          # programs/README.md). `-- --features test-clock` passes the cargo
+          # feature that compiles in `set_test_clock` (see
+          # programs/programs/sea_invaders/src/time.rs), which the harness
+          # in programs/tests/helpers.ts needs to warp the on-chain clock;
+          # `anchor test` starts its own solana-test-validator and runs
+          # every file under programs/tests/ in one mocha process.
+          # --validator legacy: this Anchor 1.2.0 build defaults to
+          # starting `surfpool` instead, which isn't installed here (see
+          # programs/README.md).
+          anchor build --arch v1 -- --features test-clock
+          anchor test --skip-build --validator legacy

@@ -1,5 +1,3 @@
-skip_local_validator = true
-
 [toolchain]
 package_manager = "npm"
 

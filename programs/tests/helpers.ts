@@ -1,35 +1,33 @@
 import * as fs from "fs";
 import * as path from "path";
-import { AnchorProvider, Program, Provider } from "@anchor-lang/core";
+import { AnchorProvider, BN, Program } from "@anchor-lang/core";
 import {
-  AccountInfo,
   Connection,
   Keypair,
   PublicKey,
+  SendTransactionError,
   Transaction,
   TransactionInstruction,
+  sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  createInitializeMint2Instruction,
-  createMintToInstruction,
+  createMint,
+  getAccount,
   getAssociatedTokenAddressSync,
-  MINT_SIZE,
-  TOKEN_PROGRAM_ID,
-  unpackAccount,
+  getOrCreateAssociatedTokenAccount,
+  mintTo as splMintTo,
+  TokenAccountNotFoundError,
 } from "@solana/spl-token";
-import { SystemProgram } from "@solana/web3.js";
-import { FailedTransactionMetadata, LiteSVM } from "litesvm";
-import bs58 from "bs58";
 import { SeaInvaders } from "../target/types/sea_invaders";
 
-const LAMPORTS_PER_SOL = 1_000_000_000n;
-const FUNDING_LAMPORTS = 10n * LAMPORTS_PER_SOL;
+const LAMPORTS_PER_SOL = 1_000_000_000;
+const FUNDING_LAMPORTS = 10 * LAMPORTS_PER_SOL;
 const MINT_DECIMALS = 6;
 
 export interface Ctx {
-  svm: LiteSVM; // the VM
-  program: Program<SeaInvaders>; // @anchor-lang/core Program bound to a LiteSVM-backed provider
+  connection: Connection;
+  provider: AnchorProvider;
+  program: Program<SeaInvaders>;
   programId: PublicKey;
   admin: Keypair;
   server: Keypair;
@@ -41,169 +39,100 @@ export interface Ctx {
   mintTo(owner: PublicKey, amount: bigint): Promise<void>; // creates the ATA if needed, mints amount base units
   tokenBalance(owner: PublicKey): Promise<bigint>; // 0n when the ATA does not exist
   send(ixs: TransactionInstruction[], signers: Keypair[]): Promise<string>; // throws Error with the program log on failure
-  now(): number; // current unix time in the VM clock
+  now(): Promise<number>; // current unix time (the program's clock override, or the validator's real clock)
 }
 
-/**
- * A minimal `Provider` (see `@anchor-lang/core`) backed directly by a LiteSVM
- * instance instead of a real RPC connection. It exists so `program.methods
- * .<ix>(...).accounts({...}).instruction()` works (pure IDL/borsh encoding,
- * no network access) and so `program.provider.connection.getAccountInfo`
- * resolves against the VM's account store, which Anchor's account resolver
- * (e.g. for `init_if_needed`) may call while building instructions.
- *
- * Actual transaction submission in these tests goes through `Ctx.send`,
- * which talks to `svm` directly - `sendAndConfirm` below is provided for
- * completeness (e.g. if a later task prefers `program.methods(...).rpc()`)
- * and is not exercised by the Task 1 harness test.
- */
-class LiteSVMProvider implements Provider {
-  readonly connection: Connection;
-  readonly publicKey: PublicKey;
-
-  constructor(
-    private readonly svm: LiteSVM,
-    wallet: Keypair
-  ) {
-    this.publicKey = wallet.publicKey;
-    this.connection = {
-      rpcEndpoint: "litesvm",
-      getAccountInfo: async (pubkey: PublicKey) => {
-        const info = svm.getAccount(pubkey);
-        if (!info) return null;
-        return {
-          ...info,
-          data: Buffer.from(info.data),
-        } as AccountInfo<Buffer>;
-      },
-      getAccountInfoAndContext: async (pubkey: PublicKey) => {
-        const info = svm.getAccount(pubkey);
-        const slot = Number(svm.getClock().slot);
-        if (!info) return { context: { slot }, value: null };
-        return {
-          context: { slot },
-          value: { ...info, data: Buffer.from(info.data) } as AccountInfo<Buffer>,
-        };
-      },
-      getMinimumBalanceForRentExemption: async (dataLength: number) =>
-        Number(svm.minimumBalanceForRentExemption(BigInt(dataLength))),
-      getLatestBlockhash: async () => ({
-        blockhash: svm.latestBlockhash(),
-        lastValidBlockHeight: 0,
-      }),
-      getBalance: async (pubkey: PublicKey) => Number(svm.getBalance(pubkey) ?? 0n),
-    } as unknown as Connection;
-  }
-
-  async sendAndConfirm(
-    tx: Transaction,
-    signers: Keypair[] = []
-  ): Promise<string> {
-    return submit(this.svm, tx, signers);
-  }
+async function airdrop(
+  connection: Connection,
+  pubkey: PublicKey,
+  lamports: number
+): Promise<void> {
+  const signature = await connection.requestAirdrop(pubkey, lamports);
+  const { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash();
+  await connection.confirmTransaction(
+    { signature, blockhash, lastValidBlockHeight },
+    "confirmed"
+  );
 }
 
-function submit(svm: LiteSVM, tx: Transaction, signers: Keypair[]): string {
-  tx.recentBlockhash = svm.latestBlockhash();
-  if (!tx.feePayer) {
-    tx.feePayer = signers[0]?.publicKey;
-  }
-  if (signers.length > 0) {
-    tx.sign(...signers);
-  }
-  const result = svm.sendTransaction(tx);
-  if (result instanceof FailedTransactionMetadata) {
-    throw new Error(result.err().toString() + "\n" + result.meta().logs().join("\n"));
-  }
-  return bs58.encode(Buffer.from(result.signature()));
-}
+// `config` (seeds = [b"config"]) is a singleton PDA on the single
+// `solana-test-validator` this harness now shares across every test file in
+// the mocha run (unlike the Task 1 LiteSVM harness, where each file got its
+// own isolated in-memory VM and could freely `init_config` on its own). Only
+// one admin keypair can ever own that PDA for the life of the process, so
+// `admin` is cached at module scope and reused by every `setup()` call
+// (across files), while every other actor (server/alice/bob) and the mint
+// stay fresh per call so per-file PDAs (player, week pool) and token
+// balances remain collision-free. `config.test.ts` performs the one real
+// `init_config` (mocha loads `tests/**/*.ts` alphabetically, so it always
+// runs before `smoke.test.ts`); `smoke.test.ts`'s clock test only calls the
+// already-gated `set_test_clock`, which requires that `admin` to match.
+let sharedAdmin: Keypair | undefined;
 
 export async function setup(): Promise<Ctx> {
-  const svm = new LiteSVM();
+  const provider = AnchorProvider.env();
+  const connection = provider.connection;
 
-  const idlPath = path.join(__dirname, "..", "target", "idl", "sea_invaders.json");
-  const soPath = path.join(__dirname, "..", "target", "deploy", "sea_invaders.so");
-  const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
-  const programId = new PublicKey(idl.address);
-  svm.addProgramFromFile(programId, soPath);
-
-  const admin = Keypair.generate();
+  if (!sharedAdmin) {
+    sharedAdmin = Keypair.generate();
+  }
+  const admin = sharedAdmin;
   const server = Keypair.generate();
   const alice = Keypair.generate();
   const bob = Keypair.generate();
   for (const kp of [admin, server, alice, bob]) {
-    svm.airdrop(kp.publicKey, FUNDING_LAMPORTS);
+    await airdrop(connection, kp.publicKey, FUNDING_LAMPORTS);
   }
 
-  // Create the 6-decimal test mint, authority = admin.
-  const mintKeypair = Keypair.generate();
-  const mintRent = svm.minimumBalanceForRentExemption(BigInt(MINT_SIZE));
-  const createMintTx = new Transaction();
-  createMintTx.feePayer = admin.publicKey;
-  createMintTx.add(
-    SystemProgram.createAccount({
-      fromPubkey: admin.publicKey,
-      newAccountPubkey: mintKeypair.publicKey,
-      space: MINT_SIZE,
-      lamports: Number(mintRent),
-      programId: TOKEN_PROGRAM_ID,
-    }),
-    createInitializeMint2Instruction(
-      mintKeypair.publicKey,
-      MINT_DECIMALS,
-      admin.publicKey,
-      null
-    )
+  const mint = await createMint(
+    connection,
+    admin,
+    admin.publicKey,
+    null,
+    MINT_DECIMALS
   );
-  submit(svm, createMintTx, [admin, mintKeypair]);
-  const mint = mintKeypair.publicKey;
-
-  // admin's own ATA for the mint, used as the treasury.
-  const treasury = getAssociatedTokenAddressSync(mint, admin.publicKey, true);
-  const createTreasuryTx = new Transaction();
-  createTreasuryTx.feePayer = admin.publicKey;
-  createTreasuryTx.add(
-    createAssociatedTokenAccountIdempotentInstruction(
-      admin.publicKey,
-      treasury,
-      admin.publicKey,
-      mint
-    )
+  const treasuryAccount = await getOrCreateAssociatedTokenAccount(
+    connection,
+    admin,
+    mint,
+    admin.publicKey
   );
-  submit(svm, createTreasuryTx, [admin]);
+  const treasury = treasuryAccount.address;
 
-  const provider = new LiteSVMProvider(svm, admin);
-  const program = new Program<SeaInvaders>(idl, provider as unknown as AnchorProvider);
+  const idlPath = path.join(
+    __dirname,
+    "..",
+    "target",
+    "idl",
+    "sea_invaders.json"
+  );
+  const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
+  const programId = new PublicKey(idl.address);
+  const program = new Program<SeaInvaders>(idl, provider);
 
   const ata = (owner: PublicKey): PublicKey =>
     getAssociatedTokenAddressSync(mint, owner, true);
 
-  const mintTo = async (owner: PublicKey, amount: bigint): Promise<void> => {
-    const ataAddress = ata(owner);
-    const tx = new Transaction();
-    tx.feePayer = admin.publicKey;
-    tx.add(
-      createAssociatedTokenAccountIdempotentInstruction(
-        admin.publicKey,
-        ataAddress,
-        owner,
-        mint
-      ),
-      createMintToInstruction(mint, ataAddress, admin.publicKey, amount)
+  const mintToFn = async (owner: PublicKey, amount: bigint): Promise<void> => {
+    const account = await getOrCreateAssociatedTokenAccount(
+      connection,
+      admin,
+      mint,
+      owner,
+      true
     );
-    submit(svm, tx, [admin]);
+    await splMintTo(connection, admin, mint, account.address, admin, amount);
   };
 
   const tokenBalance = async (owner: PublicKey): Promise<bigint> => {
-    const ataAddress = ata(owner);
-    const info = svm.getAccount(ataAddress);
-    if (!info) return 0n;
-    const accountInfo = {
-      ...info,
-      data: Buffer.from(info.data),
-    } as AccountInfo<Buffer>;
-    const decoded = unpackAccount(ataAddress, accountInfo, TOKEN_PROGRAM_ID);
-    return decoded.amount;
+    try {
+      const account = await getAccount(connection, ata(owner));
+      return account.amount;
+    } catch (err) {
+      if (err instanceof TokenAccountNotFoundError) return 0n;
+      throw err;
+    }
   };
 
   const send = async (
@@ -212,13 +141,53 @@ export async function setup(): Promise<Ctx> {
   ): Promise<string> => {
     const tx = new Transaction();
     tx.add(...ixs);
-    return submit(svm, tx, signers);
+    tx.feePayer = signers[0]?.publicKey;
+    try {
+      return await sendAndConfirmTransaction(connection, tx, signers, {
+        commitment: "confirmed",
+        skipPreflight: false,
+      });
+    } catch (err) {
+      let logs: string[] | undefined;
+      if (err instanceof SendTransactionError) {
+        logs = err.logs ?? undefined;
+        if (!logs) {
+          try {
+            logs = await err.getLogs(connection);
+          } catch {
+            // fall through to the simulate-based fallback below
+          }
+        }
+      }
+      if (!logs) {
+        try {
+          const sim = await connection.simulateTransaction(tx);
+          logs = sim.value.logs ?? undefined;
+        } catch {
+          // no logs available from either path; the raw error message is
+          // still surfaced below
+        }
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`${message}\n${(logs ?? []).join("\n")}`);
+    }
   };
 
-  const now = (): number => Number(svm.getClock().unixTimestamp);
+  const configPda = PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    programId
+  )[0];
+
+  const now = async (): Promise<number> => {
+    const config = await program.account.config.fetch(configPda);
+    const override = Number(config.clockOverride);
+    if (override !== 0) return override;
+    return await connection.getBlockTime(await connection.getSlot());
+  };
 
   return {
-    svm,
+    connection,
+    provider,
     program,
     programId,
     admin,
@@ -228,15 +197,17 @@ export async function setup(): Promise<Ctx> {
     mint,
     treasury,
     ata,
-    mintTo,
+    mintTo: mintToFn,
     tokenBalance,
     send,
     now,
   };
 }
 
-export function warpTo(ctx: Ctx, unixTs: number): void {
-  const clock = ctx.svm.getClock();
-  clock.unixTimestamp = BigInt(unixTs);
-  ctx.svm.setClock(clock);
+export async function warpTo(ctx: Ctx, unixTs: number): Promise<void> {
+  const ix = await ctx.program.methods
+    .setTestClock(new BN(unixTs))
+    .accounts({ admin: ctx.admin.publicKey })
+    .instruction();
+  await ctx.send([ix], [ctx.admin]);
 }
