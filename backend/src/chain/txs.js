@@ -45,6 +45,21 @@ function finalize(envelope) {
   return { ...envelope, transaction: Buffer.from(envelope.transaction.serialize()).toString('base64') };
 }
 
+/**
+ * Sends an already-signed envelope (as returned by `buildCreateWeekPoolTx` / `buildSettleWeekTx`,
+ * both fully signed by the server authority) and waits for confirmation. Every RPC send in the
+ * backend goes through this one function so tests can mock it via `chain/txs.js`.
+ */
+export async function sendSigned(prepared, { connection = defaultConnection() } = {}) {
+  const raw = Buffer.from(prepared.transaction, 'base64');
+  const signature = await connection.sendRawTransaction(raw, { skipPreflight: false });
+  await connection.confirmTransaction(
+    { signature, blockhash: prepared.blockhash, lastValidBlockHeight: prepared.lastValidBlockHeight },
+    'confirmed',
+  );
+  return signature;
+}
+
 /** `create_player`: initializes the caller's `Player` account. Unsigned; fee payer = wallet. */
 export async function buildCreatePlayerTx(wallet, { connection = defaultConnection() } = {}) {
   const walletKey = toPublicKey(wallet);

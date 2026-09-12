@@ -226,6 +226,28 @@ pm2 monit                          # Live monitoring
 pm2 flush                          # Clear logs
 ```
 
+### Weekly crank
+
+`src/jobs/weekly.js` (run via `npm run crank`) creates the current and next week's on-chain pools and settles the finished week once its grace period has passed; see `src/services/weekly.js` for the exact rules. It also runs once, fire-and-forget, at backend startup (`src/app.js`, right after the DB check) so pools exist on a fresh deploy without waiting for Monday.
+
+On the production API VPS the crank runs as the `weekly-crank` app in `backend/ecosystem.api.config.cjs` (not this guide's generic `ecosystem.config.cjs`), alongside `sea-invaders-api`:
+
+```bash
+pm2 start backend/ecosystem.api.config.cjs --only weekly-crank
+```
+
+- `cron_restart: '20 0 * * 1'` fires Monday 00:20 UTC - shortly after the week closes and its 900s (00:15) grace period ends. **The server clock must be set to UTC**, or the crank fires at the wrong local time. Check with:
+  ```bash
+  timedatectl
+  # "Time zone" should read something like "UTC (UTC, +0000)"
+  ```
+- `autorestart: false` is intentional: the job runs once and exits, so `pm2 status` correctly shows `weekly-crank` as **stopped** between Monday runs - that is expected, not a crash.
+- Run it manually at any time with:
+  ```bash
+  npm run crank
+  ```
+- The deploy workflow starts/restarts both apps in one command - `pm2 startOrRestart backend/ecosystem.api.config.cjs --only sea-invaders-api,weekly-crank` (see `.github/workflows/deploy.yml`) - so a fresh deploy always (re)arms the cron schedule too.
+
 ---
 
 ## 8️⃣ Configure Nginx (reverse proxy)

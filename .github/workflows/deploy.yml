@@ -92,7 +92,7 @@ jobs:
 
             echo "Starting the API..."
             mkdir -p backend/logs
-            pm2 startOrRestart backend/ecosystem.api.config.cjs --only sea-invaders-api
+            pm2 startOrRestart backend/ecosystem.api.config.cjs --only sea-invaders-api,weekly-crank
             pm2 save
 
             echo "Deployment completed!"

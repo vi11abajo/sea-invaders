@@ -58,6 +58,9 @@ export const state = {
   weekPools: new Map(),
   balances: new Map(),
   txs: new Map(),
+  calls: { createWeekPool: [], settleWeek: [] },
+  sentTxs: [],
+  sendSignedError: null,
 };
 
 /** Resets all fake chain state between tests. */
@@ -67,6 +70,9 @@ export function reset() {
   state.weekPools.clear();
   state.balances.clear();
   state.txs.clear();
+  state.calls = { createWeekPool: [], settleWeek: [] };
+  state.sentTxs = [];
+  state.sendSignedError = null;
 }
 
 /** Merges `patch` into the current config (or clears it with `null`). */
@@ -96,6 +102,11 @@ export function setBalance(owner, amount) {
 /** Sets what `getTransactionStatus(signature)` reports: `true` for confirmed, `false` for failed, unset for missing. */
 export function setTxStatus(signature, ok) {
   state.txs.set(signature, { ok });
+}
+
+/** Makes the next `sendSigned` call(s) throw `error` instead of "sending" the transaction. */
+export function setSendSignedError(error) {
+  state.sendSignedError = error;
 }
 
 // ---- readers.js ----
@@ -146,12 +157,21 @@ export async function buildSubmitDailyBestTx() {
   return { ...FIXED_ENVELOPE };
 }
 
-export async function buildCreateWeekPoolTx() {
+export async function buildCreateWeekPoolTx(week) {
+  state.calls.createWeekPool.push(week);
   return { ...FIXED_ENVELOPE };
 }
 
-export async function buildSettleWeekTx() {
+export async function buildSettleWeekTx(week, winners) {
+  state.calls.settleWeek.push({ week, winners: winners.map(keyOf) });
   return { ...FIXED_ENVELOPE };
+}
+
+/** Fake stand-in for `chain/txs.js`'s `sendSigned`: records the envelope it "sent" and returns a fake signature. */
+export async function sendSigned(prepared) {
+  if (state.sendSignedError) throw state.sendSignedError;
+  state.sentTxs.push(prepared);
+  return `FakeSendSignature${state.sentTxs.length}`;
 }
 
 export async function mintTestTokens(wallet, amount) {

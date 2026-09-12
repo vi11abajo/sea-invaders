@@ -8,6 +8,7 @@
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "migrate": "node migrations/run.js",
+    "crank": "node src/jobs/weekly.js",
     "build:core": "npm --prefix ../core run build",
     "pretest": "npm run build:core",
     "test": "vitest run"

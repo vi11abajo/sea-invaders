@@ -6,6 +6,7 @@ import { testConnection } from './config/database.js';
 import { validateJwtConfig } from './config/jwt.js';
 import { validateChainConfig } from './chain/config.js';
 import { createApp } from './createApp.js';
+import { runWeekly } from './services/weekly.js';
 
 const app = createApp();
 const httpServer = createServer(app);
@@ -23,6 +24,9 @@ async function startServer() {
       console.error('⚠️  Database connection failed - server will start but data endpoints may not work');
       console.error('   Check DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD environment variables');
     }
+    // Fire-and-forget: makes sure the current/next week pools exist right after a fresh deploy,
+    // without waiting for the weekly-crank PM2 cron job to fire. Must never block or crash listen.
+    runWeekly({ now: Math.floor(Date.now() / 1000) }).catch((e) => console.error('weekly crank failed at startup', e));
     httpServer.listen(PORT, () => {
       console.log('\n✅ Server is running!');
       console.log(`📡 HTTP Server: http://localhost:${PORT}`);
