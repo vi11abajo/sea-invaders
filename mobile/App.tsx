@@ -40,6 +40,16 @@ function Shell() {
     refresh();
   };
 
+  // Screens show `ticketMessage` as a one-shot toast (an effect keyed on the prop value, so a
+  // repeated identical string or a remount would otherwise replay it). Clearing it back to null
+  // right after this render commits means every new message is a real null -> text transition —
+  // the screen's effect always fires exactly once per message, and re-entering a screen later
+  // sees null rather than replaying whatever was last shown.
+  useEffect(() => {
+    if (ticketMessage === null) return;
+    setTicketMessage(null);
+  }, [ticketMessage]);
+
   // Buys a ranked ticket: prepare, sign and send (a stale blockhash gets one fresh
   // prepare-and-retry), then poll the backend until the tx is confirmed on-chain before
   // refreshing — the backend only clears its 5s player cache once it sees the confirmation, so
