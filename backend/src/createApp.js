@@ -7,6 +7,7 @@ import authRoutes from './routes/auth.js';
 import scoresRoutes from './routes/scores.js';
 import leaderboardRoutes from './routes/leaderboard.js';
 import dailyRoutes from './routes/daily.js';
+import campaignRoutes from './routes/campaign.js';
 import siwsRoutes from './routes/siws.js';
 import devnetRoutes from './routes/devnet.js';
 import { currentCluster } from './chain/config.js';
@@ -45,6 +46,7 @@ export function createApp() {
   app.use('/api/scores', scoresRoutes);
   app.use('/api/leaderboard', leaderboardRoutes);
   app.use('/api/daily', dailyRoutes);
+  app.use('/api/campaign', campaignRoutes);
   if (currentCluster() === 'devnet') {
     app.use('/api/devnet', devnetRoutes);
   }

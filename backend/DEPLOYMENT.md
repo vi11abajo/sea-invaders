@@ -33,7 +33,8 @@ the API only.
 - **Migrations:** run automatically by the workflow on the server (`npm run migrate`,
   inside `backend/`). `backend/migrations/run.js` applies, in order, only:
   `001_initial_schema.sql`, `002_performance_optimization.sql`,
-  `004_farcaster_migration.sql`, `005_solana_ranked_runs.sql`, `006_chain_records.sql`
+  `004_farcaster_migration.sql`, `005_solana_ranked_runs.sql`, `006_chain_records.sql`,
+  `007_campaign_progress.sql`
   (each tracked in a `migrations` table so re-running is a no-op). Note
   `002_add_admin_and_attempts.sql` also exists in the directory but is **not** run by
   `run.js` — it predates `002_performance_optimization.sql` and was superseded.

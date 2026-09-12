@@ -26,4 +26,15 @@ describe('migration list', () => {
     expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS ranked_records/);
     expect(sql).toMatch(/PRIMARY KEY \(user_id, day\)/);
   });
+
+  it('runs 007 after 006', () => {
+    const order = [...runner.matchAll(/'(\d{3}_[a-z_]+\.sql)'/g)].map((m) => m[1]);
+    expect(order.indexOf('007_campaign_progress.sql')).toBe(order.indexOf('006_chain_records.sql') + 1);
+  });
+
+  it('007 creates campaign_progress', () => {
+    const sql = readFileSync(new URL('../migrations/007_campaign_progress.sql', import.meta.url), 'utf8');
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS campaign_progress/);
+    expect(sql).toMatch(/user_id INTEGER PRIMARY KEY REFERENCES users\(id\)/);
+  });
 });
