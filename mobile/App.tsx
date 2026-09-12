@@ -41,7 +41,9 @@ function routeFor(url: string | null): Route {
 
 /** Everything that needs the wallet provider and the session. */
 function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
-  const [screen, setScreen] = useState<Screen>(initialLevelId !== null ? { kind: 'level', id: initialLevelId, practice: false } : 'home');
+  // The deep link is a QA tool: it always opens in practice mode so it can never mutate real
+  // progress (a non-current level would also make finishLevel reject — see CampaignLevelScreen).
+  const [screen, setScreen] = useState<Screen>(initialLevelId !== null ? { kind: 'level', id: initialLevelId, practice: true } : 'home');
   const { session, restoring, signIn, error } = useSession();
   const campaign = useCampaign();
   const { model, refresh } = useHomeModel(session, campaign.progress);
@@ -107,6 +109,7 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
     if (campaign.progress === null) return <Backdrop />;
     return (
       <CampaignLevelScreen
+        key={`${screen.id}-${screen.practice}`}
         levelId={screen.id}
         practice={screen.practice}
         progress={campaign.progress}

@@ -44,14 +44,16 @@ export function CampaignLevelScreen({ levelId, practice, progress, startLevel, f
   const [run] = useState<RunConfig>(() => startLevel(levelId, practice));
   const [seed] = useState<string>(() => levelSeed(`campaign-${Date.now()}`, levelId));
   const [phase, setPhase] = useState<Phase>('intro');
-  const [result, setResult] = useState<{ outcome: RunOutcome; kind: Outcome } | null>(null);
+  // 'error' covers a rejected finishLevel — e.g. the QA deep link opening a level that is not
+  // `currentLevelId(progress)`, which `applyLevelResult` refuses for a non-practice result.
+  const [result, setResult] = useState<{ outcome: RunOutcome; kind: Outcome | 'error' } | null>(null);
 
   const beginPlay = () => setPhase(level.boss !== undefined ? 'boss-intro' : 'playing');
 
   const handleRunOver = (outcome: RunOutcome) => {
-    void finishLevel({ levelId, practice, cleared: outcome.cleared, livesLeft: outcome.livesLeft, score: outcome.score }).then(
-      (kind) => setResult({ outcome, kind }),
-    );
+    finishLevel({ levelId, practice, cleared: outcome.cleared, livesLeft: outcome.livesLeft, score: outcome.score })
+      .then((kind) => setResult({ outcome, kind }))
+      .catch(() => setResult({ outcome, kind: 'error' }));
   };
 
   if (phase === 'intro') {
@@ -77,17 +79,29 @@ export function CampaignLevelScreen({ levelId, practice, progress, startLevel, f
             </View>
           );
         }
+        if (result.kind === 'error') {
+          return (
+            <ResultView
+              title="Could not save progress"
+              score={outcome.score}
+              stats={[{ label: 'Score', value: formatInt(outcome.score) }]}
+              onPlayAgain={onExit}
+              onBack={onExit}
+            />
+          );
+        }
+        const kind = result.kind;
         const best = Math.max(progress.best[levelId - 1] ?? 0, outcome.score);
         return (
           <ResultView
-            title={TITLE[result.kind]}
+            title={TITLE[kind]}
             score={outcome.score}
             stats={[
               { label: 'Score', value: formatInt(outcome.score) },
               { label: 'Best', value: formatInt(best) },
               { label: 'Lives left', value: String(outcome.livesLeft) },
             ]}
-            onPlayAgain={() => onDone(result.kind)}
+            onPlayAgain={() => onDone(kind)}
             onBack={onExit}
           />
         );
