@@ -51,37 +51,36 @@ function advanceDivers(s: GameState): void {
 
 /**
  * Marches the formation sideways; at a wall it reverses and steps down instead. Swift crabs cover
- * extra ground on their own, and the wall check honours that extent too. Crabs mid-dive skip the
- * march (advanceDivers moves them instead), but their formation slot keeps tracking the group so
- * they return to the right place. Ends the run on invasion.
+ * extra ground on their own, and the wall check honours that extent too. The march always applies
+ * to every crab's formation slot — a diving crab's `(homeX, homeY)` for a crab that's away, its
+ * actual `(x, y)` otherwise — so the slot keeps tracking the group even when every crab is diving.
+ * `advanceDivers` runs after, so a crab whose dive ends this tick snaps to its already-moved slot
+ * and isn't marched again in the same tick. Ends the run on invasion.
  */
 export function marchCrabs(s: GameState): void {
   if (s.crabs.length === 0) return;
-  advanceDivers(s);
-  const v = crabSpeed(s) * s.dir;
-  const formation = s.crabs.filter((c) => c.dive === 0);
-  if (formation.length > 0) {
-    let hitsWall = false;
-    for (const c of formation) {
-      const nx = c.x + crabSpeedFor(s, c);
-      if (nx + HALF > FIELD_W || nx - HALF < 0) {
-        hitsWall = true;
-        break;
-      }
-    }
-    if (hitsWall) {
-      s.dir = -s.dir;
-      for (const c of s.crabs) {
-        if (c.dive === 0) c.y += CRAB.stepDown;
-        else c.homeY += CRAB.stepDown;
-      }
-    } else {
-      for (const c of s.crabs) {
-        if (c.dive === 0) c.x += crabSpeedFor(s, c);
-        else c.homeX += v;
-      }
+  let hitsWall = false;
+  for (const c of s.crabs) {
+    const slotX = c.dive === 0 ? c.x : c.homeX;
+    const nx = slotX + crabSpeedFor(s, c);
+    if (nx + HALF > FIELD_W || nx - HALF < 0) {
+      hitsWall = true;
+      break;
     }
   }
+  if (hitsWall) {
+    s.dir = -s.dir;
+    for (const c of s.crabs) {
+      if (c.dive === 0) c.y += CRAB.stepDown;
+      else c.homeY += CRAB.stepDown;
+    }
+  } else {
+    for (const c of s.crabs) {
+      if (c.dive === 0) c.x += crabSpeedFor(s, c);
+      else c.homeX += crabSpeedFor(s, c);
+    }
+  }
+  advanceDivers(s);
   triggerDiver(s);
   for (const c of s.crabs) {
     if (c.dive === 0 && c.y + HALF >= INVASION_Y) {

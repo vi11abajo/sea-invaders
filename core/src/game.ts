@@ -59,8 +59,11 @@ export function spawnWave(s: GameState, wave: number): void {
  * Replaces the crabs with a named formation of mixed crab kinds (the campaign's spawn path).
  * Types cycle through `kinds` over the positions sorted by y descending then x ascending (an
  * explicit tie-break), so a pool that ends in 'swift' places swift crabs on the rows closest to
- * the player. The colour `kind` is drawn once per row, top row first, in the same order and from
- * the same rngWaves stream spawnWave uses, so the two spawners stay consistent.
+ * the player. The colour `kind` is drawn exactly `rows` times up front, from the same rngWaves
+ * stream and in the same row-ascending order spawnWave uses, then each crab picks its colour by
+ * banding its y into `rows` bands from the formation's top row — so the draw count depends only
+ * on `rows`, never on the formation's shape (e.g. a ring's off-grid y values still land in one of
+ * `rows` bands instead of drawing one colour per distinct y).
  */
 export function spawnFormation(
   s: GameState,
@@ -73,16 +76,17 @@ export function spawnFormation(
   const typeByPos = new Map<string, CrabType>();
   typeOrder.forEach((p, i) => typeByPos.set(`${p.x},${p.y}`, kinds[i % kinds.length]!));
 
-  const rowYs = [...new Set(positions.map((p) => p.y))].sort((a, b) => a - b);
-  const colourByY = new Map<number, number>();
-  for (const y of rowYs) colourByY.set(y, s.rngWaves.nextInt(CRAB.kinds));
+  const topY = Math.min(...positions.map((p) => p.y));
+  const colours: number[] = [];
+  for (let r = 0; r < rows; r++) colours.push(s.rngWaves.nextInt(CRAB.kinds));
 
   s.crabs = positions.map((p) => {
     const type = typeByPos.get(`${p.x},${p.y}`)!;
+    const row = Math.min(rows - 1, idiv(p.y - topY, CRAB.gapY));
     return {
       x: p.x,
       y: p.y,
-      kind: colourByY.get(p.y)!,
+      kind: colours[row]!,
       type,
       hp: CRAB_TYPES[type].hp,
       dive: 0,

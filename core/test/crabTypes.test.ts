@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   CRAB_TYPES,
-  ENEMY_SHOT,
+  DIVER,
   PRACTICE_RUN,
   createGame,
+  crabSpeed,
   hitCrabs,
+  hitShip,
   marchCrabs,
   spawnFormation,
   updateEnemyShots,
@@ -65,7 +67,45 @@ describe('crab types', () => {
     expect(c.dive).toBe(0);
     expect(c.y).toBe(c.homeY);
   });
-  it('diver contact costs a life like a shot', () => {
-    expect(ENEMY_SHOT.radius).toBe(96);
+  it('a lone diver returns exactly to its moved slot, with no jump and no extra step', () => {
+    const s = game('diver');
+    const c = s.crabs[0]!;
+    s.dir = 1;
+    const startHomeX = c.homeX;
+    const startHomeY = c.homeY;
+    c.dive = DIVER.ticks; // start the dive now; the interval trigger itself is covered above
+    const v = crabSpeed(s); // constant: wave/waveTotal/kills never change across this span
+    // Travel needed to reach a wall from here vastly exceeds DIVER.ticks * v, so the lone
+    // formation slot never bounces during the dive: the expected drift is exactly ticks * v.
+    for (let i = 0; i < DIVER.ticks; i++) {
+      s.tick += 1;
+      marchCrabs(s);
+    }
+    expect(c.dive).toBe(0);
+    expect(c.x).toBe(c.homeX);
+    expect(c.y).toBe(c.homeY);
+    expect(c.homeX).toBe(startHomeX + DIVER.ticks * v);
+    expect(c.homeY).toBe(startHomeY);
+  });
+  it('spawnFormation draws exactly `rows` colours plus one direction draw, independent of the formation shape', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    let calls = 0;
+    const real = s.rngWaves.nextInt.bind(s.rngWaves);
+    s.rngWaves.nextInt = ((n: number) => {
+      calls += 1;
+      return real(n);
+    }) as never;
+    spawnFormation(s, { formation: 'ring', rows: 3, cols: 6, kinds: ['normal'] });
+    expect(calls).toBe(4); // 3 row colours + 1 direction draw, not one per distinct y
+  });
+  it('diver contact costs a life through hitShip, like a shot', () => {
+    const s = game('diver');
+    const c = s.crabs[0]!;
+    c.dive = 45; // mid-dive
+    c.x = s.ship.x;
+    c.y = s.ship.y;
+    hitShip(s);
+    expect(s.ship.lives).toBe(2);
+    expect(s.crabs).toHaveLength(0);
   });
 });
