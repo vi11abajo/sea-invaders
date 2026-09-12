@@ -8,6 +8,7 @@ import { Glass } from '../ui/Glass';
 import { PillButton } from '../ui/PillButton';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS } from '../ui/tokens';
+import { boardStyles } from './boardStyles';
 import { WeekBoard } from './WeekBoard';
 
 type Tab = 'today' | 'week';
@@ -72,20 +73,20 @@ export function LeaderboardScreen({ onBack }: { onBack: () => void }) {
       </View>
       {tab === 'today' ? (
         error !== null ? (
-          <Txt variant="body" tone="warning" style={styles.center}>{error}</Txt>
+          <Txt variant="body" tone="warning" style={boardStyles.center}>{error}</Txt>
         ) : entries === null ? (
           <ActivityIndicator color={COLORS.text} />
         ) : entries.length === 0 ? (
-          <Txt variant="body" tone="secondary" style={styles.center}>No verified runs yet today. Be the first.</Txt>
+          <Txt variant="body" tone="secondary" style={boardStyles.center}>No verified runs yet today. Be the first.</Txt>
         ) : (
           <FlatList
             data={entries}
             keyExtractor={(e) => String(e.rank)}
-            contentContainerStyle={styles.list}
+            contentContainerStyle={boardStyles.list}
             renderItem={({ item }) => (
-              <Glass radius={RADIUS.row} style={[styles.row, item.walletAddress === mine && styles.mine]}>
-                <Txt variant="mono" tone="secondary" style={styles.rank}>{String(item.rank)}</Txt>
-                <View style={styles.who}>
+              <Glass radius={RADIUS.row} style={[boardStyles.row, item.walletAddress === mine && boardStyles.mine]}>
+                <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
+                <View style={boardStyles.who}>
                   <Txt variant="body">{item.username}</Txt>
                   <Txt variant="monoSmall" tone="tertiary">{shortAddress(item.walletAddress)}</Txt>
                 </View>
@@ -109,11 +110,5 @@ const styles = StyleSheet.create({
   head: { gap: 4, marginBottom: 20 },
   tabs: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   tab: { flex: 1 },
-  list: { gap: 8, paddingBottom: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, minHeight: 56 },
-  mine: { borderColor: COLORS.success },
-  rank: { width: 28, textAlign: 'right' },
-  who: { flex: 1, gap: 2 },
-  center: { textAlign: 'center', marginTop: 40 },
   footer: { marginTop: 12 },
 });

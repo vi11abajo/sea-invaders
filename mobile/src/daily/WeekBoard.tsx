@@ -4,6 +4,7 @@ import type { WeekBoard as WeekBoardData } from '../api/daily';
 import { Glass } from '../ui/Glass';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS } from '../ui/tokens';
+import { boardStyles } from './boardStyles';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -21,10 +22,10 @@ interface WeekBoardProps {
 /** The "Week" tab of the leaderboard: per-day totals and the payout forecast for the current week. */
 export function WeekBoard({ data, error, mine }: WeekBoardProps) {
   if (error !== null) {
-    return <Txt variant="body" tone="warning" style={styles.center}>{error}</Txt>;
+    return <Txt variant="body" tone="warning" style={boardStyles.center}>{error}</Txt>;
   }
   if (data === null) {
-    return <ActivityIndicator color={COLORS.text} style={styles.center} />;
+    return <ActivityIndicator color={COLORS.text} style={boardStyles.center} />;
   }
   return (
     <View style={styles.root}>
@@ -33,16 +34,16 @@ export function WeekBoard({ data, error, mine }: WeekBoardProps) {
         <Txt variant="secondary" tone="tertiary">{data.settled ? 'Settled' : 'Paid after Mon 00:00 UTC'}</Txt>
       </View>
       {data.entries.length === 0 ? (
-        <Txt variant="body" tone="secondary" style={styles.center}>No records this week yet.</Txt>
+        <Txt variant="body" tone="secondary" style={boardStyles.center}>No records this week yet.</Txt>
       ) : (
         <FlatList
           data={data.entries}
           keyExtractor={(e) => String(e.rank)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={boardStyles.list}
           renderItem={({ item }) => (
-            <Glass radius={RADIUS.row} style={[styles.row, item.walletAddress === mine && styles.mine]}>
-              <Txt variant="mono" tone="secondary" style={styles.rank}>{String(item.rank)}</Txt>
-              <View style={styles.who}>
+            <Glass radius={RADIUS.row} style={[boardStyles.row, item.walletAddress === mine && boardStyles.mine]}>
+              <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
+              <View style={boardStyles.who}>
                 <Txt variant="body">{item.username ?? shortAddress(item.walletAddress)}</Txt>
                 <Txt variant="monoSmall" tone="tertiary">{dayLine(item.days)}</Txt>
               </View>
@@ -61,11 +62,5 @@ export function WeekBoard({ data, error, mine }: WeekBoardProps) {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   head: { gap: 4, marginBottom: 16 },
-  list: { gap: 8, paddingBottom: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, minHeight: 56 },
-  mine: { borderColor: COLORS.success },
-  rank: { width: 20, textAlign: 'right' },
-  who: { flex: 1, gap: 2 },
   totals: { alignItems: 'flex-end', gap: 2 },
-  center: { textAlign: 'center', marginTop: 40 },
 });
