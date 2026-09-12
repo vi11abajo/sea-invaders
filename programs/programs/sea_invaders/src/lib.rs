@@ -42,4 +42,13 @@ pub mod sea_invaders {
     pub fn buy_ticket(ctx: Context<BuyTicket>) -> Result<()> {
         instructions::ticket::buy_ticket(ctx)
     }
+
+    pub fn submit_daily_best(
+        ctx: Context<SubmitDailyBest>,
+        day: u32,
+        score: u32,
+        replay_hash: [u8; 32],
+    ) -> Result<()> {
+        instructions::record::submit_daily_best(ctx, day, score, replay_hash)
+    }
 }

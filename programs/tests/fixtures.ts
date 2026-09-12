@@ -129,3 +129,46 @@ export async function fetchPlayer(ctx: Ctx, who: Keypair) {
     playerPda(ctx.programId, who.publicKey)
   );
 }
+
+export async function fetchWeekPool(ctx: Ctx, week: number) {
+  return ctx.program.account.weekPool.fetch(weekPda(ctx.programId, week));
+}
+
+// `week_pool`'s seeds read the account's own `week` field (see
+// `record.rs` - a self-referential seed like `buy_ticket`'s, needed
+// because Anchor 1.2.0's IDL builder cannot express a seed that calls a
+// program-defined function such as `time::week_of(day)`), so - unlike
+// `config`/`player` above, whose seeds Anchor's client derives on its own
+// from constants/args it already has - the client cannot auto-resolve
+// `weekPool` without already knowing its address. It is always derived
+// and passed explicitly here, the same way `vault`/`treasury` are in
+// `buyTicket`.
+export async function submitIx(
+  ctx: Ctx,
+  who: Keypair,
+  day: number,
+  score: number,
+  replayHash: number[] = new Array(32).fill(0),
+  serverAuthority: PublicKey = ctx.server.publicKey
+) {
+  const week = Math.floor((day + 3) / 7);
+  return ctx.program.methods
+    .submitDailyBest(day, score, replayHash)
+    .accountsPartial({
+      wallet: who.publicKey,
+      serverAuthority,
+      weekPool: weekPda(ctx.programId, week),
+    })
+    .instruction();
+}
+
+export async function submit(
+  ctx: Ctx,
+  who: Keypair,
+  day: number,
+  score: number,
+  replayHash?: number[]
+) {
+  const ix = await submitIx(ctx, who, day, score, replayHash);
+  await ctx.send([ix], [who, ctx.server]);
+}

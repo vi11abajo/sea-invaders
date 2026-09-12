@@ -48,16 +48,20 @@ async function bootstrap() {
 describe("buy_ticket", () => {
   it("splits 10 SKR into 9.5 pool and 0.5 treasury and grants 3 attempts", async () => {
     const { ctx, week, today } = await bootstrap();
+    // `ctx.treasury` is `admin`'s ATA (see helpers.ts), a singleton shared
+    // with every other test file on this validator (record.test.ts's
+    // ticket purchases included) - so its balance is checked as a delta
+    // around this one `buyTicket` call rather than an absolute value.
+    const treasuryBefore = await ctx.tokenBalance(ctx.admin.publicKey);
     await buyTicket(ctx, ctx.alice, week);
 
     expect(await ctx.tokenBalance(ctx.alice.publicKey)).to.equal(90_000_000n);
     expect(await ctx.tokenBalance(weekPda(ctx.programId, week))).to.equal(
       9_500_000n
     );
-    // `ctx.treasury` is `admin`'s ATA (see helpers.ts) and this is the
-    // first ticket ever bought in the whole `anchor test` run, so it holds
-    // exactly this one ticket's treasury share.
-    expect(await ctx.tokenBalance(ctx.admin.publicKey)).to.equal(500_000n);
+    expect(await ctx.tokenBalance(ctx.admin.publicKey)).to.equal(
+      treasuryBefore + 500_000n
+    );
 
     const p = await fetchPlayer(ctx, ctx.alice);
     expect(p.attemptsBought).to.equal(3);
