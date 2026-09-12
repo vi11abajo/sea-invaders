@@ -1,3 +1,4 @@
+export * from './campaign/progress';
 export * from './config';
 export * from './fixed';
 export * from './formations';
