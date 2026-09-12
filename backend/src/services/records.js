@@ -68,31 +68,49 @@ export async function confirmRecord({ userId, wallet, day, signature }) {
 
   await recordsDb.upsertRecord({ userId, day, score: onChainBest, signature });
   const stored = await recordsDb.getRecord(userId, day);
+  clearWeekViewCache(weekOf(day));
   return { confirmed: true, score: stored ? stored.score : onChainBest };
 }
 
-/** The current week's leaderboard: `WeekPool.top` annotated with usernames, day-by-day scores and the payout forecast. */
+const WEEK_VIEW_TTL_MS = 30_000;
+/** `week` -> `{ value, expiresAt }`. Populated and read by `weekView`; invalidated by `confirmRecord` and `clearWeekViewCache`. */
+const weekViewCache = new Map();
+
+/** Clears the cached week view: just `week`'s entry when given, the whole cache otherwise. */
+export function clearWeekViewCache(week) {
+  if (week === undefined) weekViewCache.clear();
+  else weekViewCache.delete(week);
+}
+
+/** The current week's leaderboard: `WeekPool.top` annotated with usernames, day-by-day scores and the payout forecast. Cached per `week` for 30 s. */
 export async function weekView({ week, now }) {
+  const cached = weekViewCache.get(week);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
   const [pool, vaultBalance, config] = await Promise.all([getWeekPool(week), getVaultBalance(week), getConfig()]);
   const poolSkr = Number(vaultBalance) / 1e6;
   const endsAt = weekEnd(week);
 
+  let result;
   if (!pool) {
-    return { week, endsAt, poolSkr, entries: [], settled: false };
+    result = { week, endsAt, poolSkr, entries: [], settled: false };
+  } else {
+    const wallets = pool.top.map((entry) => entry.player);
+    const users = await findUsersByWallets(wallets);
+    const usernameByWallet = new Map(users.map((u) => [u.wallet_address, u.username]));
+    const payoutBps = config ? config.payoutBps : [];
+
+    const entries = await Promise.all(pool.top.map(async (entry, i) => {
+      const player = await getPlayer(entry.player);
+      const days = player && player.week === week ? player.dayBests : new Array(7).fill(0);
+      const bps = BigInt(payoutBps[i] ?? 0);
+      const forecastSkr = Number((vaultBalance * bps) / 10_000n) / 1e6;
+      return { rank: i + 1, walletAddress: entry.player, username: usernameByWallet.get(entry.player) ?? null, total: entry.total, days, forecastSkr };
+    }));
+
+    result = { week, endsAt, poolSkr, entries, settled: pool.settled };
   }
 
-  const wallets = pool.top.map((entry) => entry.player);
-  const users = await findUsersByWallets(wallets);
-  const usernameByWallet = new Map(users.map((u) => [u.wallet_address, u.username]));
-  const payoutBps = config ? config.payoutBps : [];
-
-  const entries = await Promise.all(pool.top.map(async (entry, i) => {
-    const player = await getPlayer(entry.player);
-    const days = player && player.week === week ? player.dayBests : new Array(7).fill(0);
-    const bps = BigInt(payoutBps[i] ?? 0);
-    const forecastSkr = Number((vaultBalance * bps) / 10_000n) / 1e6;
-    return { rank: i + 1, walletAddress: entry.player, username: usernameByWallet.get(entry.player) ?? null, total: entry.total, days, forecastSkr };
-  }));
-
-  return { week, endsAt, poolSkr, entries, settled: pool.settled };
+  weekViewCache.set(week, { value: result, expiresAt: Date.now() + WEEK_VIEW_TTL_MS });
+  return result;
 }

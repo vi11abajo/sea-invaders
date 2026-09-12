@@ -58,7 +58,7 @@ export const state = {
   weekPools: new Map(),
   balances: new Map(),
   txs: new Map(),
-  calls: { createWeekPool: [], settleWeek: [] },
+  calls: { createWeekPool: [], settleWeek: [], getWeekPool: [] },
   sentTxs: [],
   sendSignedError: null,
   solBalance: 1_000_000_000n, // 1 SOL - plenty, so the faucet's balance check passes by default
@@ -72,7 +72,7 @@ export function reset() {
   state.weekPools.clear();
   state.balances.clear();
   state.txs.clear();
-  state.calls = { createWeekPool: [], settleWeek: [] };
+  state.calls = { createWeekPool: [], settleWeek: [], getWeekPool: [] };
   state.sentTxs = [];
   state.sendSignedError = null;
   state.solBalance = 1_000_000_000n;
@@ -134,6 +134,7 @@ export async function getPlayer(wallet) {
 }
 
 export async function getWeekPool(week) {
+  state.calls.getWeekPool.push(week);
   return state.weekPools.get(week) ?? null;
 }
 

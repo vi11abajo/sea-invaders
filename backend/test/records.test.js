@@ -11,7 +11,7 @@ vi.mock('../src/db/users.js', () => import('./helpers/memoryUsers.js'));
 vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
 vi.mock('../src/chain/txs.js', () => import('./helpers/fakeChain.js'));
 
-const { issueTicket, issueRecord, confirmRecord, weekView } = await import('../src/services/records.js');
+const { issueTicket, issueRecord, confirmRecord, weekView, clearWeekViewCache } = await import('../src/services/records.js');
 const { RankedRunError } = await import('../src/services/rankedRuns.js');
 
 const NOON = Date.UTC(2026, 8, 11, 12) / 1000;
@@ -200,6 +200,7 @@ describe('weekView', () => {
     memory.reset();
     memoryUsers.reset();
     fakeChain.reset();
+    clearWeekViewCache();
   });
 
   it('returns an empty view before the week pool exists', async () => {
@@ -238,5 +239,31 @@ describe('weekView', () => {
     expect(new RankedRunError('no_ticket', 'x')).toMatchObject({ status: 409 });
     expect(new RankedRunError('no_player_account', 'x')).toMatchObject({ status: 404 });
     expect(new RankedRunError('record_failed', 'x')).toMatchObject({ status: 409 });
+  });
+
+  it('caches the computed view for 30s: two calls within the TTL hit the fake chain once', async () => {
+    fakeChain.setWeekPool(WEEK, { vault: 'Vault1', top: [], settled: false });
+
+    const first = await weekView({ week: WEEK, now: NOON });
+    const second = await weekView({ week: WEEK, now: NOON });
+
+    expect(second).toEqual(first);
+    expect(fakeChain.state.calls.getWeekPool).toEqual([WEEK]);
+  });
+
+  it('a successful confirmRecord clears the cache for the confirmed day\'s week', async () => {
+    fakeChain.setWeekPool(WEEK, { vault: 'Vault1', top: [], settled: false });
+    await weekView({ week: WEEK, now: NOON });
+    expect(fakeChain.state.calls.getWeekPool).toEqual([WEEK]);
+
+    await seedVerifiedRun(500);
+    fakeChain.setTxStatus('sig', true);
+    const dayBests = [0, 0, 0, 0, 0, 0, 0];
+    dayBests[WEEKDAY] = 500;
+    fakeChain.setPlayer(WALLET, { week: WEEK, dayBests });
+    await confirmRecord({ userId: user.id, wallet: WALLET, day: DAY, signature: 'sig' });
+
+    await weekView({ week: WEEK, now: NOON });
+    expect(fakeChain.state.calls.getWeekPool).toEqual([WEEK, WEEK]);
   });
 });

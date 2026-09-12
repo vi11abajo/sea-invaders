@@ -32,6 +32,7 @@ process.env.SERVER_AUTHORITY_SECRET = process.env.SERVER_AUTHORITY_SECRET || bs5
 
 const { createApp } = await import('../src/createApp.js');
 const { clearPlayerCache } = await import('../src/services/rankedRuns.js');
+const { clearWeekViewCache } = await import('../src/services/records.js');
 const { resetFaucetCooldown } = await import('../src/routes/devnet.js');
 const user = memory.TEST_USER;
 const auth = { Authorization: `Bearer ${tokenFor(user)}` };
@@ -45,6 +46,7 @@ describe('/api/daily', () => {
     memoryUsers.reset();
     fakeChain.reset();
     clearPlayerCache();
+    clearWeekViewCache();
     sessionLimiter.resetKey(`user:${user.id}`);
     confirmLimiter.resetKey(`user:${user.id}`);
     app = createApp();
