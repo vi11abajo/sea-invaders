@@ -20,12 +20,17 @@ interface HomeScreenProps {
   onLeaderboard: () => void;
   /** Connect wallet when signed out; profile when signed in (still "coming soon"). */
   onWallet: () => void;
-  /** A message from the app to show as a toast (e.g. a sign-in error). */
+  /** Buys a ranked ticket on-chain; resolves false when declined or failed. */
+  onBuyTicket: () => Promise<boolean>;
+  /** Devnet only: mints test SKR to the wallet. */
+  onFaucet: () => Promise<void>;
+  ticketBusy?: boolean;
+  /** A message from the app to show as a toast (e.g. a sign-in error, or a ticket/faucet result). */
   alert?: string | null;
 }
 
 /** Home, the "Hangar": Octopi in the idle world, the Daily Run card and the ways into the game. */
-export function HomeScreen({ model, onPractice, onDaily, onLeaderboard, onWallet, alert = null }: HomeScreenProps) {
+export function HomeScreen({ model, onPractice, onDaily, onLeaderboard, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null }: HomeScreenProps) {
   const ranked = model.ranked;
   const now = useNow(ranked !== null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
@@ -53,7 +58,15 @@ export function HomeScreen({ model, onPractice, onDaily, onLeaderboard, onWallet
         )}
         <HangarScene caption="Octopi · base ship" onOctopi={() => soon('Shop')} />
         <View style={[styles.inset, styles.bottom]}>
-          <DailyRunCard ranked={ranked} now={now} onPlay={onDaily} onBuyTicket={() => soon('Tickets')} />
+          <DailyRunCard
+            ranked={ranked}
+            now={now}
+            onPlay={onDaily}
+            onBuyTicket={() => void onBuyTicket()}
+            onFaucet={() => void onFaucet()}
+            skrBalance={model.wallet?.skr ?? 0}
+            busy={ticketBusy}
+          />
           <View style={styles.row}>
             <View style={styles.half}>
               <PillButton

@@ -2,43 +2,64 @@ import { REPLAY_MODE, encodeReplay, formatInt } from '@sea-invaders/core';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
 import { ApiError } from '../api/client';
+import type { Cluster } from '../api/config';
 import { finishRun, startRun, type FinishedRun, type StartedRun } from '../api/daily';
 import { GameScreen, type RunOutcome } from '../game/GameScreen';
 import { ResultView } from '../game/ResultView';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
+import { Toast } from '../ui/Toast';
 import { Txt } from '../ui/Txt';
 import { COLORS } from '../ui/tokens';
+import { TicketCard } from './TicketCard';
 
 type Phase =
   | { kind: 'starting' }
   | { kind: 'playing'; run: StartedRun }
   | { kind: 'uploading'; run: StartedRun; outcome: RunOutcome }
   | { kind: 'verified'; run: StartedRun; outcome: RunOutcome; result: FinishedRun }
-  | { kind: 'error'; message: string; canRetry: boolean; retryUpload?: { run: StartedRun; outcome: RunOutcome } };
+  | { kind: 'error'; message: string; canRetry: boolean; code?: string; retryUpload?: { run: StartedRun; outcome: RunOutcome } };
 
-function describe(error: unknown): { message: string; canRetry: boolean } {
+function describe(error: unknown): { message: string; canRetry: boolean; code?: string } {
   if (error instanceof ApiError) {
     switch (error.code) {
       case 'no_attempts':
-        return { message: 'No ranked attempts left today. Come back after midnight UTC.', canRetry: false };
+        return { message: 'No ranked attempts left today. Come back after midnight UTC.', canRetry: false, code: 'no_attempts' };
       case 'update_required':
-        return { message: 'This version of the game is out of date. Please update.', canRetry: false };
+        return { message: 'This version of the game is out of date. Please update.', canRetry: false, code: error.code };
       case 'not_signed_in':
-        return { message: 'Sign in with your wallet to play the daily run.', canRetry: false };
+        return { message: 'Sign in with your wallet to play the daily run.', canRetry: false, code: error.code };
       case 'network':
-        return { message: error.message, canRetry: true };
+        return { message: error.message, canRetry: true, code: error.code };
       default:
-        return { message: error.message, canRetry: error.status >= 500 };
+        return { message: error.message, canRetry: error.status >= 500, code: error.code };
     }
   }
   return { message: 'Something went wrong.', canRetry: true };
 }
 
+interface DailyRunScreenProps {
+  onExit: () => void;
+  /** Null while the ticket price / balance / cluster is not known yet. */
+  ticket: { priceSkr: number; skrBalance: number; cluster: Cluster } | null;
+  /** Buys a ranked ticket on-chain; resolves false when declined or failed. */
+  onBuyTicket: () => Promise<boolean>;
+  /** Devnet only: mints test SKR to the wallet. */
+  onFaucet: () => Promise<void>;
+  ticketBusy?: boolean;
+  /** A message from the app to show as a toast (a ticket/faucet result). */
+  alert?: string | null;
+}
+
 /** Ranked run: seed from the server, replay back to the server, score shown only once verified. */
-export function DailyRunScreen({ onExit }: { onExit: () => void }) {
+export function DailyRunScreen({ onExit, ticket, onBuyTicket, onFaucet, ticketBusy = false, alert = null }: DailyRunScreenProps) {
   const [phase, setPhase] = useState<Phase>({ kind: 'starting' });
+  const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+
+  useEffect(() => {
+    if (alert !== null) setToast((t) => ({ id: (t?.id ?? 0) + 1, text: alert }));
+  }, [alert]);
 
   const begin = useCallback(() => {
     setPhase({ kind: 'starting' });
@@ -50,6 +71,12 @@ export function DailyRunScreen({ onExit }: { onExit: () => void }) {
   const retry = useCallback(() => {
     setPhase((p) => (p.kind === 'error' && p.retryUpload ? { kind: 'uploading', ...p.retryUpload } : p));
   }, []);
+
+  // Buying a ticket only helps if it succeeds; a decline or failure leaves this same prompt on screen.
+  const buyThenRetry = useCallback(async () => {
+    const bought = await onBuyTicket();
+    if (bought) begin();
+  }, [onBuyTicket, begin]);
 
   useEffect(() => {
     begin();
@@ -130,10 +157,22 @@ export function DailyRunScreen({ onExit }: { onExit: () => void }) {
             <Txt variant="body" tone="secondary">Your run is saved on this phone. Retry the upload to get it verified.</Txt>
           )}
           <Txt variant="body" tone="secondary">{phase.message}</Txt>
-          {phase.canRetry && <PillButton label="Try again" onPress={phase.retryUpload ? retry : begin} />}
+          {phase.code === 'no_attempts' && ticket ? (
+            <TicketCard
+              priceSkr={ticket.priceSkr}
+              skrBalance={ticket.skrBalance}
+              cluster={ticket.cluster}
+              onBuy={() => void buyThenRetry()}
+              onFaucet={() => void onFaucet()}
+              busy={ticketBusy}
+            />
+          ) : (
+            phase.canRetry && <PillButton label="Try again" onPress={phase.retryUpload ? retry : begin} />
+          )}
           <PillButton label="Home" kind="secondary" onPress={onExit} />
         </Sheet>
       )}
+      {toast !== null && <Toast key={toast.id} text={toast.text} onHide={() => setToast(null)} />}
     </View>
   );
 }

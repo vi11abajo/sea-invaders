@@ -12,16 +12,18 @@ function rankedFrom(today: TodayInfo, fetchedAt: number): RankedInfo {
     attemptsLeft: today.attemptsLeft,
     newSeedAt: fetchedAt + today.secondsToNextDay * 1000,
     todayBest: today.todayBest ?? 0,
-    weekTotal: 0,
-    weekRank: null,
-    poolSkr: 0,
-    ticketPriceSkr: TICKET_PRICE_SKR,
+    weekTotal: today.weekTotal,
+    weekRank: today.weekRank,
+    poolSkr: today.poolSkr,
+    ticketPriceSkr: today.ticketPriceSkr ?? TICKET_PRICE_SKR,
+    cluster: today.cluster,
   };
 }
 
 /** Builds the HomeModel from the session and the server's view of today. Ranked data needs a session. */
 export function useHomeModel(session: Session | null): { model: HomeModel; refresh: () => void; error: string | null } {
   const [ranked, setRanked] = useState<RankedInfo | null>(null);
+  const [skrBalance, setSkrBalance] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
@@ -29,6 +31,7 @@ export function useHomeModel(session: Session | null): { model: HomeModel; refre
   useEffect(() => {
     if (session === null) {
       setRanked(null);
+      setSkrBalance(0);
       return;
     }
     let alive = true;
@@ -37,6 +40,7 @@ export function useHomeModel(session: Session | null): { model: HomeModel; refre
       .then((today) => {
         if (!alive) return;
         setRanked(rankedFrom(today, fetchedAt));
+        setSkrBalance(today.skrBalance);
         setError(null);
       })
       .catch((e: Error) => {
@@ -49,6 +53,6 @@ export function useHomeModel(session: Session | null): { model: HomeModel; refre
     };
   }, [session, version]);
 
-  const wallet = session === null ? null : { address: session.walletAddress, seeker: false, skr: 0 };
+  const wallet = session === null ? null : { address: session.walletAddress, seeker: false, skr: skrBalance };
   return { model: { wallet, ranked, campaign: null }, refresh, error };
 }

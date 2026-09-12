@@ -1,3 +1,5 @@
+import type { Cluster } from '../api/config';
+
 /** What Home shows. Every part is null until the service behind it exists. */
 export interface HomeModel {
   wallet: WalletInfo | null;
@@ -22,6 +24,7 @@ export interface RankedInfo {
   weekRank: number | null;
   poolSkr: number;
   ticketPriceSkr: number;
+  cluster: Cluster;
 }
 
 export interface CampaignInfo {
@@ -45,6 +48,7 @@ export function demoHomeModel(now: number): HomeModel {
       weekRank: 37,
       poolSkr: 12480,
       ticketPriceSkr: 10,
+      cluster: 'devnet',
     },
     campaign: { level: 9, total: 30 },
   };

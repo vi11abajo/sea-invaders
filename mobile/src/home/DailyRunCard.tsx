@@ -1,5 +1,6 @@
 import { formatCountdown, formatInt } from '@sea-invaders/core';
 import { StyleSheet, View } from 'react-native';
+import { TicketCard } from '../daily/TicketCard';
 import { GradientText } from '../ui/GradientText';
 import { PillButton } from '../ui/PillButton';
 import { Txt } from '../ui/Txt';
@@ -12,10 +13,13 @@ interface DailyRunCardProps {
   now: number;
   onPlay: () => void;
   onBuyTicket: () => void;
+  onFaucet: () => void;
+  skrBalance: number;
+  busy?: boolean;
 }
 
 /** The Daily Run card on Home: attempts left, time to the next seed, today / week / pool, and the main action. */
-export function DailyRunCard({ ranked, now, onPlay, onBuyTicket }: DailyRunCardProps) {
+export function DailyRunCard({ ranked, now, onPlay, onBuyTicket, onFaucet, skrBalance, busy = false }: DailyRunCardProps) {
   if (ranked === null) {
     return (
       <View style={styles.card}>
@@ -53,7 +57,14 @@ export function DailyRunCard({ ranked, now, onPlay, onBuyTicket }: DailyRunCardP
       {left > 0 ? (
         <PillButton label="Play Daily Run" onPress={onPlay} />
       ) : (
-        <PillButton label={`Buy ticket — ${ranked.ticketPriceSkr} SKR`} onPress={onBuyTicket} />
+        <TicketCard
+          priceSkr={ranked.ticketPriceSkr}
+          skrBalance={skrBalance}
+          cluster={ranked.cluster}
+          onBuy={onBuyTicket}
+          onFaucet={onFaucet}
+          busy={busy}
+        />
       )}
     </View>
   );

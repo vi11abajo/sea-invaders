@@ -1,5 +1,7 @@
 import { fromUint8Array } from 'js-base64';
+import type { PreparedTx } from './chain';
 import { apiFetch } from './client';
+import type { Cluster } from './config';
 
 export interface TodayInfo {
   day: number;
@@ -8,6 +10,20 @@ export interface TodayInfo {
   /** The player's best verified score today; null when signed out or without a run. */
   todayBest: number | null;
   coreVersion: number;
+  /** Ranked attempts bought today on top of the free daily allowance. */
+  attemptsBought: number;
+  freeAttempts: number;
+  /** Whether the wallet already has a player account on-chain. */
+  hasPlayerAccount: boolean;
+  /** The on-chain best recorded for today's weekday, 0 until a record transaction lands. */
+  recordedBest: number;
+  /** Null when the on-chain Config account cannot be read. */
+  ticketPriceSkr: number | null;
+  poolSkr: number;
+  weekTotal: number;
+  weekRank: number | null;
+  skrBalance: number;
+  cluster: Cluster;
 }
 
 export interface StartedRun {
@@ -50,4 +66,14 @@ export function finishRun(runId: string, replay: Uint8Array): Promise<FinishedRu
 
 export function getLeaderboard(day?: number): Promise<{ day: number; entries: LeaderboardEntry[] }> {
   return apiFetch(`/api/daily/leaderboard${day === undefined ? '' : `?day=${day}`}`);
+}
+
+/** Prepares the on-chain ticket purchase transaction for the caller to sign and send. */
+export function requestTicket(): Promise<PreparedTx & { createsPlayer: boolean }> {
+  return apiFetch('/api/daily/ticket', { method: 'POST', auth: true });
+}
+
+/** Devnet only: mints 100 test SKR to the caller's wallet server-side, no wallet interaction needed. */
+export function requestFaucet(): Promise<{ signature: string; amountSkr: number }> {
+  return apiFetch('/api/devnet/faucet', { method: 'POST', auth: true });
 }

@@ -1,8 +1,10 @@
 import { MobileWalletProvider } from '@wallet-ui/react-native-web3js';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Linking } from 'react-native';
+import { BlockhashExpired, WalletDeclined, useSignAndSend } from './src/api/chain';
 import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
+import { requestFaucet, requestTicket } from './src/api/daily';
 import { useSession } from './src/api/useSession';
 import { DailyRunScreen } from './src/daily/DailyRunScreen';
 import { LeaderboardScreen } from './src/daily/LeaderboardScreen';
@@ -30,10 +32,50 @@ function Shell() {
   const [screen, setScreen] = useState<Screen>('home');
   const { session, restoring, signIn, error } = useSession();
   const { model, refresh } = useHomeModel(session);
+  const signAndSend = useSignAndSend();
+  const [ticketBusy, setTicketBusy] = useState(false);
+  const [ticketMessage, setTicketMessage] = useState<string | null>(null);
   const home = () => {
     setScreen('home');
     refresh();
   };
+
+  // Buys a ranked ticket: prepare, sign and send; a stale blockhash gets one fresh prepare-and-retry.
+  // A decline leaves the caller on the same screen with no message (spec §8).
+  const buyTicket = useCallback(async (): Promise<boolean> => {
+    setTicketBusy(true);
+    try {
+      let prepared = await requestTicket();
+      try {
+        await signAndSend(prepared);
+      } catch (e) {
+        if (!(e instanceof BlockhashExpired)) throw e;
+        prepared = await requestTicket();
+        await signAndSend(prepared);
+      }
+      setTicketMessage('Ticket bought');
+      refresh();
+      return true;
+    } catch (e) {
+      if (!(e instanceof WalletDeclined)) setTicketMessage(e instanceof Error ? e.message : 'Purchase failed');
+      return false;
+    } finally {
+      setTicketBusy(false);
+    }
+  }, [signAndSend, refresh]);
+
+  const buyFaucet = useCallback(async () => {
+    setTicketBusy(true);
+    try {
+      const { amountSkr } = await requestFaucet();
+      setTicketMessage(`+${amountSkr} SKR from the faucet`);
+      refresh();
+    } catch (e) {
+      setTicketMessage(e instanceof Error ? e.message : 'Faucet failed');
+    } finally {
+      setTicketBusy(false);
+    }
+  }, [refresh]);
 
   // Until the stored session is read, show the backdrop only, so a cold start does not flash
   // "Connect wallet" before it resolves. A sign-in in flight keeps Home on screen.
@@ -43,7 +85,20 @@ function Shell() {
     case 'practice':
       return <GameScreen onExit={home} />;
     case 'daily':
-      return <DailyRunScreen onExit={home} />;
+      return (
+        <DailyRunScreen
+          onExit={home}
+          ticket={
+            model.ranked && model.wallet
+              ? { priceSkr: model.ranked.ticketPriceSkr, skrBalance: model.wallet.skr, cluster: model.ranked.cluster }
+              : null
+          }
+          onBuyTicket={buyTicket}
+          onFaucet={buyFaucet}
+          ticketBusy={ticketBusy}
+          alert={ticketMessage}
+        />
+      );
     case 'leaderboard':
       return <LeaderboardScreen onBack={home} />;
     default:
@@ -54,7 +109,10 @@ function Shell() {
           onDaily={() => setScreen('daily')}
           onLeaderboard={() => setScreen('leaderboard')}
           onWallet={() => void signIn()}
-          alert={error}
+          onBuyTicket={buyTicket}
+          onFaucet={buyFaucet}
+          ticketBusy={ticketBusy}
+          alert={ticketMessage ?? error}
         />
       );
   }

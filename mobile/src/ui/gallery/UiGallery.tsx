@@ -34,7 +34,19 @@ export function UiGallery() {
   }, [home]);
 
   if (!ready) return <View style={styles.root} />;
-  if (home !== null) return <HomeScreen model={home} onPractice={() => setHome(null)} onDaily={() => {}} onLeaderboard={() => {}} onWallet={() => {}} />;
+  if (home !== null) {
+    return (
+      <HomeScreen
+        model={home}
+        onPractice={() => setHome(null)}
+        onDaily={() => {}}
+        onLeaderboard={() => {}}
+        onWallet={() => {}}
+        onBuyTicket={() => Promise.resolve(false)}
+        onFaucet={() => Promise.resolve()}
+      />
+    );
+  }
   return (
     <View style={styles.root}>
       <Backdrop theme={theme} floorGlow />
