@@ -94,6 +94,8 @@ function Shell() {
           onFaucet={buyFaucet}
           ticketBusy={ticketBusy}
           alert={ticketMessage}
+          recordedBest={model.ranked?.recordedBest ?? 0}
+          onRecorded={refresh}
         />
       );
     case 'leaderboard':
@@ -108,6 +110,7 @@ function Shell() {
           onWallet={() => void signIn()}
           onBuyTicket={buyTicket}
           onFaucet={buyFaucet}
+          onRecorded={refresh}
           ticketBusy={ticketBusy}
           alert={ticketMessage ?? error}
         />

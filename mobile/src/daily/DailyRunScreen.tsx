@@ -12,6 +12,7 @@ import { Sheet } from '../ui/Sheet';
 import { Toast } from '../ui/Toast';
 import { Txt } from '../ui/Txt';
 import { COLORS } from '../ui/tokens';
+import { RecordScore } from './RecordScore';
 import { TicketCard } from './TicketCard';
 
 type Phase =
@@ -50,10 +51,14 @@ interface DailyRunScreenProps {
   ticketBusy?: boolean;
   /** A message from the app to show as a toast (a ticket/faucet result). */
   alert?: string | null;
+  /** The on-chain best recorded for today's weekday; decides whether "Record score" shows. */
+  recordedBest: number;
+  /** Called once a record transaction is confirmed (or found already recorded), to refresh Home. */
+  onRecorded: () => void;
 }
 
 /** Ranked run: seed from the server, replay back to the server, score shown only once verified. */
-export function DailyRunScreen({ onExit, ticket, onBuyTicket, onFaucet, ticketBusy = false, alert = null }: DailyRunScreenProps) {
+export function DailyRunScreen({ onExit, ticket, onBuyTicket, onFaucet, ticketBusy = false, alert = null, recordedBest, onRecorded }: DailyRunScreenProps) {
   const [phase, setPhase] = useState<Phase>({ kind: 'starting' });
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
 
@@ -128,6 +133,15 @@ export function DailyRunScreen({ onExit, ticket, onBuyTicket, onFaucet, ticketBu
                 note={result.isDayBest ? 'New day best · ranked' : 'Ranked · below your day best'}
                 onPlayAgain={run.attemptsLeft > 0 ? begin : onExit}
                 onBack={onExit}
+                extra={
+                  <RecordScore
+                    day={result.day}
+                    score={result.score}
+                    isDayBest={result.isDayBest}
+                    alreadyRecorded={recordedBest >= result.score}
+                    onRecorded={onRecorded}
+                  />
+                }
               />
             );
           }

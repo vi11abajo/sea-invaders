@@ -1,4 +1,5 @@
 import { formatInt } from '@sea-invaders/core';
+import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { ArtSlot } from '../ui/ArtSlot';
 import { GradientText } from '../ui/GradientText';
@@ -22,10 +23,12 @@ interface ResultViewProps {
   onPlayAgain: () => void;
   /** Shows the round back button in the top-left corner. */
   onBack?: () => void;
+  /** Extra content rendered below "Play again" and above `note` (e.g. the "Record score" action). */
+  extra?: ReactNode;
 }
 
 /** End of a run: the score in the signature gradient, Octopi's pose and a sheet of stats and actions. */
-export function ResultView({ title, score, stats, note, onPlayAgain, onBack }: ResultViewProps) {
+export function ResultView({ title, score, stats, note, onPlayAgain, onBack, extra }: ResultViewProps) {
   return (
     <View style={styles.root}>
       {onBack !== undefined && (
@@ -56,6 +59,7 @@ export function ResultView({ title, score, stats, note, onPlayAgain, onBack }: R
           ))}
         </View>
         <PillButton label="Play again" onPress={onPlayAgain} />
+        {extra}
         {note !== undefined && (
           <Txt variant="secondary" tone="tertiary" style={styles.note}>
             {note}

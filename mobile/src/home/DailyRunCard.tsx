@@ -1,5 +1,6 @@
 import { formatCountdown, formatInt } from '@sea-invaders/core';
 import { StyleSheet, View } from 'react-native';
+import { RecordScore } from '../daily/RecordScore';
 import { TicketCard } from '../daily/TicketCard';
 import { GradientText } from '../ui/GradientText';
 import { PillButton } from '../ui/PillButton';
@@ -14,12 +15,14 @@ interface DailyRunCardProps {
   onPlay: () => void;
   onBuyTicket: () => void;
   onFaucet: () => void;
+  /** Called once a record transaction is confirmed, so `recordedBest` refreshes and the hint clears. */
+  onRecorded: () => void;
   skrBalance: number;
   busy?: boolean;
 }
 
 /** The Daily Run card on Home: attempts left, time to the next seed, today / week / pool, and the main action. */
-export function DailyRunCard({ ranked, now, onPlay, onBuyTicket, onFaucet, skrBalance, busy = false }: DailyRunCardProps) {
+export function DailyRunCard({ ranked, now, onPlay, onBuyTicket, onFaucet, onRecorded, skrBalance, busy = false }: DailyRunCardProps) {
   if (ranked === null) {
     return (
       <View style={styles.card}>
@@ -54,6 +57,14 @@ export function DailyRunCard({ ranked, now, onPlay, onBuyTicket, onFaucet, skrBa
           <GradientText text={`${formatInt(ranked.poolSkr)} SKR`} size={13} />
         </View>
       </View>
+      <RecordScore
+        day={ranked.seed}
+        score={ranked.todayBest}
+        isDayBest
+        alreadyRecorded={ranked.recordedBest >= ranked.todayBest}
+        onRecorded={onRecorded}
+        kind="glass"
+      />
       {left > 0 ? (
         <PillButton label="Play Daily Run" onPress={onPlay} />
       ) : (

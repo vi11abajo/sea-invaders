@@ -20,6 +20,8 @@ export interface RankedInfo {
   /** Start of the next daily seed, epoch milliseconds. */
   newSeedAt: number;
   todayBest: number;
+  /** The on-chain best recorded for today's weekday, 0 until a record transaction lands. */
+  recordedBest: number;
   weekTotal: number;
   weekRank: number | null;
   poolSkr: number;
@@ -44,6 +46,7 @@ export function demoHomeModel(now: number): HomeModel {
       attemptsLeft: 2,
       newSeedAt: now + 18764 * 1000,
       todayBest: 18920,
+      recordedBest: 15200,
       weekTotal: 41300,
       weekRank: 37,
       poolSkr: 12480,

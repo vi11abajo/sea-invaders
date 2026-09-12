@@ -27,10 +27,12 @@ interface HomeScreenProps {
   ticketBusy?: boolean;
   /** A message from the app to show as a toast (e.g. a sign-in error, or a ticket/faucet result). */
   alert?: string | null;
+  /** Called once a record transaction is confirmed, so ranked data (and the hint) refreshes. */
+  onRecorded?: () => void;
 }
 
 /** Home, the "Hangar": Octopi in the idle world, the Daily Run card and the ways into the game. */
-export function HomeScreen({ model, onPractice, onDaily, onLeaderboard, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null }: HomeScreenProps) {
+export function HomeScreen({ model, onPractice, onDaily, onLeaderboard, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null, onRecorded = () => {} }: HomeScreenProps) {
   const ranked = model.ranked;
   const now = useNow(ranked !== null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
@@ -64,6 +66,7 @@ export function HomeScreen({ model, onPractice, onDaily, onLeaderboard, onWallet
             onPlay={onDaily}
             onBuyTicket={() => void onBuyTicket()}
             onFaucet={() => void onFaucet()}
+            onRecorded={onRecorded}
             skrBalance={model.wallet?.skr ?? 0}
             busy={ticketBusy}
           />

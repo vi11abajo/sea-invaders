@@ -92,3 +92,29 @@ export interface ConfirmTicketResult {
 export function confirmTicket(signature: string): Promise<ConfirmTicketResult> {
   return apiFetch('/api/daily/ticket/confirm', { method: 'POST', auth: true, body: { signature } });
 }
+
+/**
+ * Prepares the dual-signed `submit_daily_best` transaction recording the caller's verified best
+ * for `day` on chain. The score comes from the server's own record of the caller's best run for
+ * that day, not from the client. Re-callable any number of times while the day is open; rejects
+ * with `ApiError` (codes `no_verified_run`, `day_closed`, `no_ticket`, `no_player_account`,
+ * `already_recorded`) when there is nothing to record.
+ */
+export function requestRecord(day: number): Promise<PreparedTx & { day: number; score: number }> {
+  return apiFetch('/api/daily/records', { method: 'POST', auth: true, body: { day } });
+}
+
+export interface ConfirmRecordResult {
+  confirmed: boolean;
+  /** Present once `confirmed` is true. */
+  score?: number;
+}
+
+/**
+ * Polls whether a record transaction landed. Resolves `{ confirmed: false }` (202) while the
+ * transaction is not yet visible on-chain, `{ confirmed: true, score }` (200) once it lands, or
+ * rejects with `ApiError` (code `record_failed`, 409) if it landed but errored on chain.
+ */
+export function confirmRecord(signature: string, day: number): Promise<ConfirmRecordResult> {
+  return apiFetch('/api/daily/records/confirm', { method: 'POST', auth: true, body: { signature, day } });
+}
