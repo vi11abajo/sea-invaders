@@ -56,8 +56,9 @@ export function moveShip(s: GameState, input: Input): void {
  * keeps today's vertical-only flight): once it leaves `[0, FIELD_W]` it is reflected back inside,
  * `vx` flips sign and the credit is spent, so a second wall contact never reflects again.
  * While Void Sovereign's temporal freeze is active (`s.boss.kind === 5 && effectTicks > 0`, spec
- * §4.2 row 5), shots already in flight skip this motion entirely — `vx`/`vy` stay untouched, so
- * they resume exactly where they left off once `effectTicks` reaches 0 — but new shots still fire.
+ * §4.2 row 5), shots already in flight skip this motion AND AUTO_TARGET's steering entirely —
+ * `vx`/`vy` stay untouched, so they resume exactly where they left off once `effectTicks` reaches
+ * 0 — but new shots still fire.
  */
 export function updateShots(s: GameState): void {
   const kept: Bullet[] = [];
@@ -81,7 +82,7 @@ export function updateShots(s: GameState): void {
     if (b.y + idiv(SHOT.h, 2) > 0) kept.push(b);
   }
   s.shots = kept;
-  if (isActive(s, 'AUTO_TARGET')) {
+  if (isActive(s, 'AUTO_TARGET') && !frozen) {
     for (const b of s.shots) {
       const targetX = autoTargetX(s, b);
       if (targetX === null) continue;

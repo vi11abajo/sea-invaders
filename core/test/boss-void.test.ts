@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BOSS, BOSS_HOOKS, FIELD_W, INITIAL_INPUT, PRACTICE_RUN, createGame, hashState, idiv, isqrt, muzzle,
+  BOSS, BOSS_HOOKS, FIELD_W, INITIAL_INPUT, PRACTICE_RUN, activateBoost, createGame, hashState, idiv, isqrt, muzzle,
   pullShotsTowardGravity, spawnBoss, step, updateShots,
 } from '../src';
 
@@ -190,6 +190,27 @@ describe('Void Sovereign (kind 5)', () => {
 
     updateShots(s);
     expect(s.shots[0]!.y).toBe(yBefore - 50); // resumes with its original vy, untouched
+  });
+
+  it('does not let AUTO_TARGET steer a frozen shot, then resumes steering once the freeze ends', () => {
+    const s = fresh();
+    const b = s.boss!;
+    activateBoost(s, 'AUTO_TARGET');
+    s.crabs = [{ x: 5000, y: 500, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 5000, homeY: 500 }];
+    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
+    VOID.ability(s, b);
+    expect(b.effectTicks).toBe(180);
+
+    for (let i = 0; i < 180; i++) {
+      updateShots(s);
+      VOID.tick!(s, b);
+    }
+    expect(s.shots[0]!.vx).toBe(0); // AUTO_TARGET steering skipped while frozen: stored vx untouched
+    expect(s.shots[0]!.vy).toBe(-240); // motion skipped too
+    expect(b.effectTicks).toBe(0);
+
+    updateShots(s);
+    expect(s.shots[0]!.vx).toBe(60); // steers again immediately once the freeze ends
   });
 
   it('is deterministic over 600 ticks', () => {
