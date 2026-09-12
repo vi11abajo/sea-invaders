@@ -1,7 +1,7 @@
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
   DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder, SHIP, createGame,
-  fitField, formatInt, snapshot, step, touchToInput, type Frame, type Input, type Replay, type ReplayMode,
+  fitField, formatInt, snapshot, step, touchToInput, type Frame, type Input, type Replay, type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
@@ -39,6 +39,10 @@ export interface RunOutcome {
   ticks: number;
   /** false when the player quit before the game ended. */
   over: boolean;
+  /** Ship lives remaining when the run ended. */
+  livesLeft: number;
+  /** True when a campaign level's win condition was met (`state.cleared`). */
+  cleared: boolean;
 }
 
 interface GameScreenProps {
@@ -51,14 +55,16 @@ interface GameScreenProps {
   hudMode?: string;
   /** Small line under the default result's button. */
   note?: string;
+  /** Campaign level config; used verbatim for `createGame` and the replay's level id/lives, and sets the HUD's max lives. Daily/practice runs omit it. */
+  run?: RunConfig;
   /** Called once when the run ends (game over or quit), with the finished replay. */
   onRunOver?: (outcome: RunOutcome) => void;
   /** Replaces the default result view. `playAgain` restarts with the same props. */
   renderResult?: (outcome: RunOutcome, playAgain: () => void) => ReactNode;
 }
 
-/** A run of the game. Without `seed` it is practice on a fresh seed. */
-export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode = 'PRACTICE', note = 'Practice · unranked', onRunOver, renderResult }: GameScreenProps) {
+/** A run of the game. Without `seed` it is practice on a fresh seed. Without `run` it is the daily/practice mapping from `mode`. */
+export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode = 'PRACTICE', note = 'Practice · unranked', run, onRunOver, renderResult }: GameScreenProps) {
   const { width, height } = useWindowDimensions();
   const layout = useMemo(() => fitField(width, height), [width, height]);
   const sprites = useSprites();
@@ -70,7 +76,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const quit = useRef(false);
   const [hud, setHud] = useState<Hud>(START_HUD);
   const [showPause, setShowPause] = useState(false);
-  const [run, setRun] = useState(0);
+  const [runIndex, setRunIndex] = useState(0);
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
   const onRunOverRef = useRef(onRunOver);
   onRunOverRef.current = onRunOver;
@@ -79,9 +85,10 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     // Sprites load once on mount; hold the loop until they are ready (see the loading branch below).
     if (sprites === null) return;
     // Practice seed: the app may use the clock; only the core must not.
-    const runSeed = seed ?? `practice-${run}-${Date.now()}`;
-    const state = createGame(runSeed, mode === REPLAY_MODE.daily ? DAILY_RUN : PRACTICE_RUN);
-    const recorder = new ReplayRecorder(runSeed, mode, 0, SHIP.lives);
+    const runSeed = seed ?? `practice-${runIndex}-${Date.now()}`;
+    const config = run ?? (mode === REPLAY_MODE.daily ? DAILY_RUN : PRACTICE_RUN);
+    const state = createGame(runSeed, config);
+    const recorder = new ReplayRecorder(runSeed, mode, run?.level?.id ?? 0, run?.lives ?? SHIP.lives);
     const stepper = new FixedStepper();
     input.current = INITIAL_INPUT;
     paused.current = false;
@@ -119,7 +126,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         frames = 0;
         fpsSince = now;
       }
-      const over = state.over || quit.current;
+      const over = state.over || state.cleared || quit.current;
       const next: Hud = { score: state.score, lives: state.ship.lives, wave: state.wave, kills: state.kills, over, fps };
       if (
         next.score !== shown.score || next.lives !== shown.lives || next.wave !== shown.wave ||
@@ -130,7 +137,10 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       }
       if (over && !reported) {
         reported = true;
-        const result: RunOutcome = { replay: recorder.finish(state.tick), score: state.score, wave: state.wave, kills: state.kills, ticks: state.tick, over: state.over };
+        const result: RunOutcome = {
+          replay: recorder.finish(state.tick), score: state.score, wave: state.wave, kills: state.kills, ticks: state.tick,
+          over: state.over, livesLeft: state.ship.lives, cleared: state.cleared,
+        };
         setOutcome(result);
         onRunOverRef.current?.(result);
       }
@@ -138,7 +148,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     };
     handle = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(handle);
-  }, [run, frame, facing, seed, mode, sprites]);
+  }, [runIndex, frame, facing, seed, mode, sprites, run]);
 
   const recorder = useMemo(() => Skia.PictureRecorder(), []);
   const paint = useMemo(() => Skia.Paint(), []);
@@ -171,8 +181,10 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const playAgain = () => {
     setHud(START_HUD);
     setOutcome(null);
-    setRun((r) => r + 1);
+    setRunIndex((r) => r + 1);
   };
+  /** The run's max lives for the HUD; daily/practice always shows 3. */
+  const maxLives = run ? Math.max(3, run.lives) : 3;
 
   // System back: pauses a run, closes the pause sheet, and leaves from the result screen.
   useEffect(() => {
@@ -218,7 +230,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
             onResponderGrant={onTouch}
             onResponderMove={onTouch}
           />
-          <GameHud mode={hudMode} score={hud.score} lives={hud.lives} hint={HINT} onPause={pause} />
+          <GameHud mode={hudMode} score={hud.score} lives={hud.lives} maxLives={maxLives} hint={HINT} onPause={pause} />
           <Text style={styles.fps} pointerEvents="none">
             {hud.fps} FPS
           </Text>

@@ -6,6 +6,9 @@ import { WalletDeclined, pollUntilConfirmed, sendWithBlockhashRetry, useSignAndS
 import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
 import { confirmTicket, requestFaucet, requestTicket } from './src/api/daily';
 import { useSession } from './src/api/useSession';
+import { CampaignLevelScreen } from './src/campaign/CampaignLevelScreen';
+import { CampaignScreen } from './src/campaign/CampaignScreen';
+import { useCampaign } from './src/campaign/useCampaign';
 import { DailyRunScreen } from './src/daily/DailyRunScreen';
 import { LeaderboardScreen } from './src/daily/LeaderboardScreen';
 import { GameScreen } from './src/game/GameScreen';
@@ -16,22 +19,32 @@ import { Backdrop } from './src/ui/Backdrop';
 import { useAppFonts } from './src/ui/fonts';
 import { UiGallery } from './src/ui/gallery/UiGallery';
 
-type Route = 'app' | 'selftest' | 'ui';
-type Screen = 'home' | 'practice' | 'daily' | 'leaderboard';
+type Route = 'app' | 'selftest' | 'ui' | { kind: 'level'; id: number };
+type Screen = 'home' | 'practice' | 'daily' | 'leaderboard' | 'campaign' | { kind: 'level'; id: number; practice: boolean };
 
-/** seainvaders://selftest opens the self-test, seainvaders://ui the design gallery; anything else opens the app. */
+/**
+ * seainvaders://selftest opens the self-test, seainvaders://ui the design gallery,
+ * seainvaders://level/<id> opens that campaign level directly (QA entry point for boss levels);
+ * anything else opens the app.
+ */
 function routeFor(url: string | null): Route {
   if (url === null) return 'app';
   if (url.startsWith('seainvaders://selftest')) return 'selftest';
   if (url.startsWith('seainvaders://ui')) return 'ui';
+  const level = /^seainvaders:\/\/level\/(\d+)/.exec(url);
+  if (level) {
+    const id = Number(level[1]);
+    if (Number.isInteger(id) && id >= 1 && id <= 30) return { kind: 'level', id };
+  }
   return 'app';
 }
 
 /** Everything that needs the wallet provider and the session. */
-function Shell() {
-  const [screen, setScreen] = useState<Screen>('home');
+function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
+  const [screen, setScreen] = useState<Screen>(initialLevelId !== null ? { kind: 'level', id: initialLevelId, practice: false } : 'home');
   const { session, restoring, signIn, error } = useSession();
-  const { model, refresh } = useHomeModel(session);
+  const campaign = useCampaign();
+  const { model, refresh } = useHomeModel(session, campaign.progress);
   const signAndSend = useSignAndSend();
   const [ticketBusy, setTicketBusy] = useState(false);
   const [ticketMessage, setTicketMessage] = useState<string | null>(null);
@@ -88,9 +101,35 @@ function Shell() {
   // "Connect wallet" before it resolves. A sign-in in flight keeps Home on screen.
   if (restoring) return <Backdrop />;
 
+  // The campaign screens need the loaded progress; a fresh install or the level deep link can
+  // reach them before AsyncStorage resolves, so they briefly show the backdrop only.
+  if (typeof screen === 'object') {
+    if (campaign.progress === null) return <Backdrop />;
+    return (
+      <CampaignLevelScreen
+        levelId={screen.id}
+        practice={screen.practice}
+        progress={campaign.progress}
+        startLevel={campaign.startLevel}
+        finishLevel={campaign.finishLevel}
+        onDone={() => setScreen('campaign')}
+        onExit={() => setScreen('campaign')}
+      />
+    );
+  }
+
   switch (screen) {
     case 'practice':
       return <GameScreen onExit={home} />;
+    case 'campaign':
+      if (campaign.progress === null) return <Backdrop />;
+      return (
+        <CampaignScreen
+          progress={campaign.progress}
+          onPlay={(id, practice) => setScreen({ kind: 'level', id, practice })}
+          onBack={home}
+        />
+      );
     case 'daily':
       return (
         <DailyRunScreen
@@ -116,6 +155,7 @@ function Shell() {
           model={model}
           onPractice={() => setScreen('practice')}
           onDaily={() => setScreen('daily')}
+          onCampaign={() => setScreen('campaign')}
           onLeaderboard={() => setScreen('leaderboard')}
           onWallet={() => void signIn()}
           onBuyTicket={buyTicket}
@@ -140,10 +180,12 @@ export default function App() {
 
   if (!fontsReady) return null;
 
+  const initialLevelId = typeof route === 'object' ? route.id : null;
+
   return (
     <MobileWalletProvider chain={CHAIN} endpoint={RPC_URL} identity={APP_IDENTITY}>
       <StatusBar hidden />
-      {route === 'selftest' ? <SelfTestScreen /> : route === 'ui' ? <UiGallery /> : <Shell />}
+      {route === 'selftest' ? <SelfTestScreen /> : route === 'ui' ? <UiGallery /> : <Shell initialLevelId={initialLevelId} />}
     </MobileWalletProvider>
   );
 }

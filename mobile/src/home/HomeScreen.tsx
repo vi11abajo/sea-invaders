@@ -22,6 +22,7 @@ interface HomeScreenProps {
   model: HomeModel;
   onPractice: () => void;
   onDaily: () => void;
+  onCampaign: () => void;
   onLeaderboard: () => void;
   /** Connect wallet when signed out; profile when signed in (still "coming soon"). */
   onWallet: () => void;
@@ -37,7 +38,7 @@ interface HomeScreenProps {
 }
 
 /** Home, the "Hangar": Octopi in the idle world, the Daily Run card and the ways into the game. */
-export function HomeScreen({ model, onPractice, onDaily, onLeaderboard, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null, onRecorded = () => {} }: HomeScreenProps) {
+export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboard, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null, onRecorded = () => {} }: HomeScreenProps) {
   const ranked = model.ranked;
   const now = useNow(ranked !== null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
@@ -56,7 +57,10 @@ export function HomeScreen({ model, onPractice, onDaily, onLeaderboard, onWallet
       <View style={styles.column}>
         <View style={styles.inset}>
           <HomeTopBar wallet={model.wallet} onWallet={model.wallet ? () => soon('Profile') : onWallet} onShop={() => soon('Shop')} />
-          <FeatureRow campaignBadge={campaign?.level ?? null} onPress={(f) => (f === 'ranks' ? onLeaderboard() : soon(FEATURE_NAMES[f]))} />
+          <FeatureRow
+            campaignBadge={campaign?.level ?? null}
+            onPress={(f) => (f === 'campaign' ? onCampaign() : f === 'ranks' ? onLeaderboard() : soon(FEATURE_NAMES[f]))}
+          />
         </View>
         {ticker.length > 0 && (
           <View style={styles.ticker}>
@@ -80,7 +84,7 @@ export function HomeScreen({ model, onPractice, onDaily, onLeaderboard, onWallet
               <PillButton
                 kind="glass"
                 label={campaign ? `Campaign · ${campaign.level}/${campaign.total}` : 'Campaign'}
-                onPress={() => soon('Campaign')}
+                onPress={onCampaign}
               />
             </View>
             <View style={styles.half}>

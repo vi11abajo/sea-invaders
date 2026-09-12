@@ -1,7 +1,15 @@
+import type { CampaignProgress } from '@sea-invaders/core';
 import { useCallback, useEffect, useState } from 'react';
 import { getToday, type TodayInfo } from '../api/daily';
 import type { Session } from '../api/session';
-import type { HomeModel, RankedInfo } from './model';
+import type { CampaignInfo, HomeModel, RankedInfo } from './model';
+
+const CAMPAIGN_TOTAL = 30;
+
+function campaignFrom(progress: CampaignProgress | null): CampaignInfo | null {
+  if (progress === null) return null;
+  return { level: progress.cleared.filter(Boolean).length, total: CAMPAIGN_TOTAL };
+}
 
 /** The on-chain ticket price (spec §4); shown on the card even before tickets exist. */
 const TICKET_PRICE_SKR = 10;
@@ -26,7 +34,7 @@ function rankedFrom(today: TodayInfo, fetchedAt: number): RankedInfo {
 }
 
 /** Builds the HomeModel from the session and the server's view of today. Ranked data needs a session. */
-export function useHomeModel(session: Session | null): { model: HomeModel; refresh: () => void; error: string | null } {
+export function useHomeModel(session: Session | null, progress: CampaignProgress | null): { model: HomeModel; refresh: () => void; error: string | null } {
   const [ranked, setRanked] = useState<RankedInfo | null>(null);
   const [skrBalance, setSkrBalance] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -59,5 +67,5 @@ export function useHomeModel(session: Session | null): { model: HomeModel; refre
   }, [session, version]);
 
   const wallet = session === null ? null : { address: session.walletAddress, seeker: false, skr: skrBalance };
-  return { model: { wallet, ranked, campaign: null }, refresh, error };
+  return { model: { wallet, ranked, campaign: campaignFrom(progress) }, refresh, error };
 }

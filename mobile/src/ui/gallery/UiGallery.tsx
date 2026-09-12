@@ -40,6 +40,7 @@ export function UiGallery() {
         model={home}
         onPractice={() => setHome(null)}
         onDaily={() => {}}
+        onCampaign={() => {}}
         onLeaderboard={() => {}}
         onWallet={() => {}}
         onBuyTicket={() => Promise.resolve(false)}
