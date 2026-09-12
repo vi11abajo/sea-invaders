@@ -14,7 +14,7 @@ export function hashState(s: GameState): string {
     for (const b of list) h.int(b.x).int(b.y).int(b.vx).int(b.vy).int(KIND_INDEX[b.kind]).int(b.data);
   }
   for (const r of [s.rngWaves, s.rngFire, s.rngBoss, s.rngBoosts]) h.int(r.a).int(r.b).int(r.c).int(r.d);
-  h.int(s.cleared ? 1 : 0).int(s.ship.lives);
+  h.int(s.cleared ? 1 : 0).int(s.ship.lives).int(s.arrival);
   if (s.boss) {
     const b = s.boss;
     h.int(b.kind).int(b.hp).int(b.maxHp).int(b.phase).int(b.x).int(b.y).int(b.vx).int(b.state === 'fighting' ? 0 : 1)

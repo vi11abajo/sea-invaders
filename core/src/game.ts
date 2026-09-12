@@ -1,4 +1,4 @@
-import { CRAB, CRAB_TYPES, FIELD_W, SHIP } from './config';
+import { ARRIVAL, CRAB, CRAB_TYPES, FIELD_W, SHIP, TYPE_COLOUR } from './config';
 import { idiv } from './fixed';
 import { formationPositions } from './formations';
 import type { CrabType, Formation } from './levels';
@@ -33,6 +33,7 @@ export function createGame(seed: string, run: RunConfig): GameState {
     rngBoss: new Rng(`${seed}/boss`),
     rngBoosts: new Rng(`${seed}/boosts`),
     events: [],
+    arrival: 0,
   };
   if (run.level) {
     if (run.level.waves > 0) startLevelWave(s, 1);
@@ -65,11 +66,9 @@ export function spawnWave(s: GameState, wave: number): void {
  * Replaces the crabs with a named formation of mixed crab kinds (the campaign's spawn path).
  * Types cycle through `kinds` over the positions sorted by y descending then x ascending (an
  * explicit tie-break), so a pool that ends in 'swift' places swift crabs on the rows closest to
- * the player. The colour `kind` is drawn exactly `rows` times up front, from the same rngWaves
- * stream and in the same row-ascending order spawnWave uses, then each crab picks its colour by
- * banding its y into `rows` bands from the formation's top row — so the draw count depends only
- * on `rows`, never on the formation's shape (e.g. a ring's off-grid y values still land in one of
- * `rows` bands instead of drawing one colour per distinct y).
+ * the player. Colour is a fixed cosmetic per type (`TYPE_COLOUR`, spec §14 amendment) rather than
+ * drawn: the only RNG draw here is the direction draw, so the draw count no longer depends on
+ * `rows` or the formation's shape.
  */
 export function spawnFormation(
   s: GameState,
@@ -82,17 +81,12 @@ export function spawnFormation(
   const typeByPos = new Map<string, CrabType>();
   typeOrder.forEach((p, i) => typeByPos.set(`${p.x},${p.y}`, kinds[i % kinds.length]!));
 
-  const topY = Math.min(...positions.map((p) => p.y));
-  const colours: number[] = [];
-  for (let r = 0; r < rows; r++) colours.push(s.rngWaves.nextInt(CRAB.kinds));
-
   s.crabs = positions.map((p) => {
     const type = typeByPos.get(`${p.x},${p.y}`)!;
-    const row = Math.min(rows - 1, idiv(p.y - topY, CRAB.gapY));
     return {
       x: p.x,
       y: p.y,
-      kind: colours[row]!,
+      kind: TYPE_COLOUR[type],
       type,
       hp: CRAB_TYPES[type].hp,
       dive: 0,
@@ -104,12 +98,23 @@ export function spawnFormation(
   s.waveTotal = s.crabs.length;
 }
 
-/** Starts wave `wave` of the current level: rows grow by one every 2 waves, capped at 6. */
+/**
+ * Starts wave `wave` of the current level: rows grow by one every 2 waves, capped at 6. The
+ * formation spawns `ARRIVAL.drop` units above its slots and descends into them over
+ * `ARRIVAL.ticks` (spec §14 amendment); `nextWave`/`createGame` route every level wave through
+ * here, so level 1 wave 1 arrives too.
+ */
 export function startLevelWave(s: GameState, wave: number): void {
   const l = s.run.level!;
   const rows = Math.min(6, l.rows + Math.floor((wave - 1) / 2));
   s.wave = wave;
   spawnFormation(s, { formation: l.formation, rows, cols: l.cols, kinds: l.kinds });
+  for (const c of s.crabs) {
+    c.y -= ARRIVAL.drop;
+    c.homeY -= ARRIVAL.drop;
+  }
+  s.arrival = ARRIVAL.ticks;
+  s.events.push({ tick: s.tick, type: 'wave_start', wave });
 }
 
 /**

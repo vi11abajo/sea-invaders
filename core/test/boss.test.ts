@@ -9,9 +9,9 @@ const fresh = (kind: 1 | 2 | 3 | 4 | 5 = 1) => {
 };
 
 describe('boss engine', () => {
-  it('spawns with legacy hp, one phase for Emerald, five for Void', () => {
-    expect(fresh(1).boss).toMatchObject({ hp: 50, maxHp: 50, maxPhases: 1, phase: 1, state: 'fighting' });
-    expect(fresh(5).boss).toMatchObject({ hp: 150, maxHp: 150, maxPhases: 5 });
+  it('spawns with baseHp/hpStep-derived hp, one phase for Emerald, five for Void', () => {
+    expect(fresh(1).boss).toMatchObject({ hp: 200, maxHp: 200, maxPhases: 1, phase: 1, state: 'fighting' });
+    expect(fresh(5).boss).toMatchObject({ hp: 600, maxHp: 600, maxPhases: 5 });
   });
   it('bounces between the walls at BOSS.speed', () => {
     const s = fresh(1);
@@ -21,11 +21,11 @@ describe('boss engine', () => {
     expect(b.vx).toBe(-BOSS.speed);
   });
   it('enters a 120-tick invulnerable transition at each phase threshold', () => {
-    const s = fresh(2); // 75 hp, 2 phases: threshold at 75*(2-1)/2 = 37
-    damageBoss(s, 38);
-    expect(s.boss).toMatchObject({ hp: 37, state: 'transition', transitionTicks: BOSS.transitionTicks, phase: 1 });
+    const s = fresh(2); // 300 hp, 2 phases: threshold at 300*(2-1)/2 = 150
+    damageBoss(s, 150);
+    expect(s.boss).toMatchObject({ hp: 150, state: 'transition', transitionTicks: BOSS.transitionTicks, phase: 1 });
     damageBoss(s, 5);
-    expect(s.boss!.hp).toBe(37);
+    expect(s.boss!.hp).toBe(150);
     for (let i = 0; i < BOSS.transitionTicks; i++) updateBoss(s);
     expect(s.boss).toMatchObject({ state: 'fighting', phase: 2 });
   });
@@ -40,7 +40,7 @@ describe('boss engine', () => {
   it('scores 10000*kind decayed 1% per 150 ticks, floor 1%, on death', () => {
     const s = fresh(1);
     s.boss!.fightTicks = 150 * 50;
-    damageBoss(s, 50);
+    damageBoss(s, 200);
     expect(s.boss).toBeNull();
     expect(s.score).toBe(5000);
     expect(s.cleared).toBe(false); // practice run without a level
@@ -58,7 +58,7 @@ describe('boss engine', () => {
     const b = s.boss!;
     s.shots.push({ x: b.x, y: b.y, vx: 0, vy: -240, kind: 'straight', data: 0 });
     step(s, INITIAL_INPUT);
-    expect(b.hp).toBe(49);
+    expect(b.hp).toBe(199);
     expect(s.shots).toHaveLength(0);
   });
   it('is deterministic', () => {

@@ -20,7 +20,8 @@ export interface Ship {
 
 export type BulletKind =
   | 'crab' | 'straight' | 'zigzag' | 'large' | 'wave' | 'ring' | 'explosive' | 'fragment'
-  | 'meteor' | 'berserk' | 'spiral' | 'gravity' | 'clone';
+  | 'meteor' | 'berserk' | 'spiral' | 'gravity' | 'clone'
+  | 'heavy' | 'fast';
 
 export interface Bullet {
   x: number;
@@ -110,7 +111,8 @@ export type GameEvent =
   | { tick: number; type: 'boss_clone'; leftX: number; rightX: number }
   | { tick: number; type: 'meteor_warning'; x: number }
   | { tick: number; type: 'boost_drop' | 'boost_pickup' | 'boost_expire'; boost: BoostType }
-  | { tick: number; type: 'player_freeze'; ticks: number };
+  | { tick: number; type: 'player_freeze'; ticks: number }
+  | { tick: number; type: 'wave_start'; wave: number };
 
 export interface GameState {
   tick: number;
@@ -136,6 +138,8 @@ export interface GameState {
   rngBoss: Rng;
   rngBoosts: Rng;
   events: GameEvent[];
+  /** Ticks left in a campaign wave's arrival descent; 0 when idle. Daily/practice never set this. */
+  arrival: number;
 }
 
 /** Index of each CrabType in the state hash and the view frame, in declaration order. */
@@ -145,6 +149,7 @@ export const TYPE_INDEX: Record<CrabType, number> = { normal: 0, armored: 1, swi
 export const KIND_INDEX: Record<BulletKind, number> = {
   crab: 0, straight: 1, zigzag: 2, large: 3, wave: 4, ring: 5, explosive: 6, fragment: 7,
   meteor: 8, berserk: 9, spiral: 10, gravity: 11, clone: 12,
+  heavy: 13, fast: 14,
 };
 
 /** Index of each BoostType in the state hash, in declaration order. */

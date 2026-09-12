@@ -22,10 +22,10 @@ describe('Solar Kraken (kind 3)', () => {
     expect(s.enemyShots[0]).toMatchObject({ x: m.x, y: m.y, vx: 0, vy: 134, kind: 'straight' });
   });
 
-  it('enters phase 2 at hp <= 66 (100 * (3-1)/3) after the 120-tick transition', () => {
+  it('enters phase 2 at hp <= 266 (400 * (3-1)/3) after the 120-tick transition', () => {
     const s = fresh();
-    damageBoss(s, 34); // 100 - 34 = 66
-    expect(s.boss).toMatchObject({ hp: 66, state: 'transition', transitionTicks: BOSS.transitionTicks, phase: 1 });
+    damageBoss(s, 134); // 400 - 134 = 266
+    expect(s.boss).toMatchObject({ hp: 266, state: 'transition', transitionTicks: BOSS.transitionTicks, phase: 1 });
     for (let i = 0; i < BOSS.transitionTicks; i++) updateBoss(s);
     expect(s.boss).toMatchObject({ state: 'fighting', phase: 2 });
   });
@@ -33,7 +33,7 @@ describe('Solar Kraken (kind 3)', () => {
   it('fires 8 ring shots with vx 122 at x1.11 speed in phase 2', () => {
     const s = fresh();
     const b = s.boss!;
-    damageBoss(s, 34);
+    damageBoss(s, 134);
     for (let i = 0; i < BOSS.transitionTicks; i++) updateBoss(s);
     expect(b.phase).toBe(2);
     s.enemyShots = [];
@@ -44,12 +44,12 @@ describe('Solar Kraken (kind 3)', () => {
     expect(s.enemyShots[0]!.vx).toBe(122);
   });
 
-  it('enters phase 3 at hp <= 33 (66 * (3-2)/3) and fires 5 explosive shots with a 45-tick fuse', () => {
+  it('enters phase 3 at hp <= 133 (266 * (3-2)/3) and fires 5 explosive shots with a 45-tick fuse', () => {
     const s = fresh();
     const b = s.boss!;
-    damageBoss(s, 34); // -> 66, phase 1 -> transition
+    damageBoss(s, 134); // -> 266, phase 1 -> transition
     for (let i = 0; i < BOSS.transitionTicks; i++) updateBoss(s);
-    damageBoss(s, 33); // 66 - 33 = 33, phase 2 -> transition
+    damageBoss(s, 133); // 266 - 133 = 133, phase 2 -> transition
     for (let i = 0; i < BOSS.transitionTicks; i++) updateBoss(s);
     expect(b.phase).toBe(3);
     s.enemyShots = [];

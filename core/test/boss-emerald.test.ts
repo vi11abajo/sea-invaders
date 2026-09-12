@@ -51,7 +51,7 @@ describe('Emerald Warlord (kind 1)', () => {
     b.regenCooldown = 0;
     b.abilityTimer = 1;
     updateBoss(s);
-    expect(b.hp).toBe(50);
+    expect(b.hp).toBe(65); // 45 + ceil(200*0.1) = 65
     expect(b.regenCooldown).toBeGreaterThan(0);
     expect(s.events).toContainEqual({ tick: s.tick, type: 'boss_ability', name: 'regen' });
   });
@@ -60,11 +60,11 @@ describe('Emerald Warlord (kind 1)', () => {
     const s = fresh();
     const b = s.boss!;
     s.rngBoss = { nextInt: () => 0 } as never;
-    b.hp = 48;
+    b.hp = 195;
     b.regenCooldown = 0;
     b.abilityTimer = 1;
     updateBoss(s);
-    expect(b.hp).toBe(50);
+    expect(b.hp).toBe(200); // 195 + 20 would overshoot maxHp
   });
 
   it('does not heal again while regenCooldown has not elapsed', () => {

@@ -23,10 +23,10 @@ describe('Azure Leviathan (kind 2)', () => {
     expect(s.enemyShots[0]).toMatchObject({ x: m.x, y: m.y, vx: 0, vy: 93, kind: 'large' });
   });
 
-  it('enters phase 2 at hp <= 37 (75 * (2-1)/2) after the 120-tick transition', () => {
+  it('enters phase 2 at hp <= 150 (300 * (2-1)/2) after the 120-tick transition', () => {
     const s = fresh();
-    damageBoss(s, 38); // 75 - 38 = 37
-    expect(s.boss).toMatchObject({ hp: 37, state: 'transition', transitionTicks: BOSS.transitionTicks, phase: 1 });
+    damageBoss(s, 150); // 300 - 150 = 150
+    expect(s.boss).toMatchObject({ hp: 150, state: 'transition', transitionTicks: BOSS.transitionTicks, phase: 1 });
     for (let i = 0; i < BOSS.transitionTicks; i++) updateBoss(s);
     expect(s.boss).toMatchObject({ state: 'fighting', phase: 2 });
   });
@@ -34,7 +34,7 @@ describe('Azure Leviathan (kind 2)', () => {
   it('fires 7 tidal-wave shots with symmetric vx and positive vy in phase 2', () => {
     const s = fresh();
     const b = s.boss!;
-    damageBoss(s, 38);
+    damageBoss(s, 150);
     for (let i = 0; i < BOSS.transitionTicks; i++) updateBoss(s);
     expect(b.phase).toBe(2);
     s.rngBoss = { nextInt: () => 0 } as never;
@@ -81,13 +81,13 @@ describe('Azure Leviathan (kind 2)', () => {
     b.shieldHp = 5;
     for (let i = 0; i < 4; i++) {
       damageBoss(s, 1);
-      expect(b.hp).toBe(75);
+      expect(b.hp).toBe(300);
     }
     expect(b.shieldHp).toBe(1);
     expect(s.enemyShots).toHaveLength(0);
 
     damageBoss(s, 1); // the 5th hit brings the shield to 0
-    expect(b.hp).toBe(75);
+    expect(b.hp).toBe(300);
     expect(b.shieldHp).toBe(0);
     expect(s.enemyShots).toHaveLength(12);
     for (const shot of s.enemyShots) {
@@ -100,7 +100,7 @@ describe('Azure Leviathan (kind 2)', () => {
 
     // A 6th hit now damages hp directly since the shield is down.
     damageBoss(s, 1);
-    expect(b.hp).toBe(74);
+    expect(b.hp).toBe(299);
   });
 
   it('is deterministic over 600 ticks', () => {

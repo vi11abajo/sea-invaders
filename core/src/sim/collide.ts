@@ -8,12 +8,14 @@ const CRAB_HALF = idiv(CRAB.size, 2);
 const BOSS_HALF_W = idiv(BOSS.width, 2);
 const BOSS_HALF_H = idiv(BOSS.height, 2);
 
-/** Enemy shot collision radius by kind: `large` is ×2, `ring` widens by its own `data`, `fragment`/`meteor` are fixed sizes, everything else is the base radius. */
+/** Enemy shot collision radius by kind: `large` is ×2, `ring` widens by its own `data`, `fragment`/`meteor`/`heavy`/`fast` are fixed sizes, everything else is the base radius. */
 export function shotRadius(b: Bullet): number {
   if (b.kind === 'large') return ENEMY_SHOT.radius * 2;
   if (b.kind === 'ring') return ENEMY_SHOT.radius + b.data;
   if (b.kind === 'fragment') return 48;
   if (b.kind === 'meteor') return 173;
+  if (b.kind === 'heavy') return 140;
+  if (b.kind === 'fast') return 80;
   return ENEMY_SHOT.radius;
 }
 

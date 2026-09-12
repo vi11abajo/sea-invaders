@@ -1,4 +1,5 @@
-import type { BoostType } from './types';
+import type { CrabType } from './levels';
+import type { BoostType, BulletKind } from './types';
 
 /**
  * Gameplay constants in milli-units and ticks. The playfield is fixed and
@@ -54,6 +55,31 @@ export const CRAB_TYPES = {
   diver: { hp: 1, points: 30 },
 } as const;
 
+/**
+ * Colour a crab is drawn with, by type (spec §14 amendment): graded like the bosses, one colour
+ * index per type, cosmetic only. `spawnFormation` assigns this directly and draws no colours.
+ */
+export const TYPE_COLOUR: Record<CrabType, number> = {
+  normal: 0, // green
+  armored: 1, // blue
+  swift: 4, // yellow
+  fanner: 3, // red
+  diver: 2, // violet
+};
+
+/**
+ * Enemy shot fired by each crab type when chosen to fire (spec §14 amendment): `null` means the
+ * chosen crab fires nothing that tick (the shooter and fire-chance RNG draws still happen).
+ * `fanner`'s `count: 3` fires the same fanned spread as before, now data-driven by type.
+ */
+export const CRAB_SHOTS: Record<CrabType, { kind: BulletKind; speed: number; count: 1 | 3 } | null> = {
+  normal: { kind: 'crab', speed: 110, count: 1 },
+  armored: { kind: 'heavy', speed: 80, count: 1 },
+  swift: { kind: 'fast', speed: 150, count: 1 },
+  fanner: { kind: 'crab', speed: 110, count: 3 },
+  diver: null,
+};
+
 /** A `diver`-type crab leaves formation every `interval` ticks for `ticks` ticks, closing at `speed` units/tick. */
 export const DIVER = { interval: 360, ticks: 90, speed: 220 } as const;
 
@@ -108,8 +134,8 @@ export const BOSS = {
   height: 2960,
   top: 700,
   speed: 15,
-  baseHp: 50,
-  hpStep: 25,
+  baseHp: 200,
+  hpStep: 100,
   transitionTicks: 120,
   attackBase: 120,
   attackJitter: 61,
@@ -119,3 +145,10 @@ export const BOSS = {
 
 /** Boss bullets: same base speed as crab shots, radius scaled from legacy BULLET_SIZE 10px. */
 export const BOSS_SHOT = { speed: 110, radius: 96 } as const;
+
+/**
+ * Campaign-only wave arrival (spec §14 amendment): a level wave spawns `drop` units above its
+ * slots and descends at `speed` units/tick for `ticks` ticks (30 * 50 = 1500, landing exactly on
+ * the slots) with no enemy fire. Daily/practice never trigger this.
+ */
+export const ARRIVAL = { ticks: 30, drop: 1500, speed: 50 } as const;

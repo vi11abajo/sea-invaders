@@ -7,8 +7,9 @@ describe('LEVELS', () => {
     for (const l of LEVELS) {
       expect(l.reef).toBe(Math.floor((l.id - 1) / 6) + 1);
       expect(l.index).toBe(((l.id - 1) % 6) + 1);
-      expect(l.speedOffset).toBe(2 * (l.reef - 1));
-      expect(l.fireOffset).toBe(6 * (l.reef - 1));
+      const indexOffset = l.boss ? 0 : l.index - 1;
+      expect(l.speedOffset).toBe(3 * (l.reef - 1) + indexOffset);
+      expect(l.fireOffset).toBe(8 * (l.reef - 1) + 3 * indexOffset);
       if (l.index === 6) expect(l).toMatchObject({ waves: 0, boss: l.reef });
       else expect(l.waves).toBeGreaterThan(0);
     }
@@ -28,6 +29,7 @@ describe('LEVELS', () => {
   it('clears a level after its last wave and stops stepping', () => {
     const l = levelById(1);
     const s = createGame('x', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+    s.wave = l.waves; // force the last wave, regardless of the table's actual wave count
     s.crabs = [];
     step(s, INITIAL_INPUT);
     expect(s.cleared).toBe(true);
@@ -37,7 +39,7 @@ describe('LEVELS', () => {
     expect(s.tick).toBe(tick);
   });
   it('advances waves inside a level with growing rows', () => {
-    const l = levelById(4); // 3 waves, 4 rows
+    const l = levelById(4); // 3 waves, 5 rows
     const s = createGame('x', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
     expect(s.wave).toBe(1);
     s.crabs = [];

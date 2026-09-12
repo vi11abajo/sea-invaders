@@ -87,7 +87,7 @@ describe('crab types', () => {
     expect(c.homeX).toBe(startHomeX + DIVER.ticks * v);
     expect(c.homeY).toBe(startHomeY);
   });
-  it('spawnFormation draws exactly `rows` colours plus one direction draw, independent of the formation shape', () => {
+  it('spawnFormation draws exactly one direction draw and no colours, independent of the formation shape', () => {
     const s = createGame('t', PRACTICE_RUN);
     let calls = 0;
     const real = s.rngWaves.nextInt.bind(s.rngWaves);
@@ -96,7 +96,23 @@ describe('crab types', () => {
       return real(n);
     }) as never;
     spawnFormation(s, { formation: 'ring', rows: 3, cols: 6, kinds: ['normal'] });
-    expect(calls).toBe(4); // 3 row colours + 1 direction draw, not one per distinct y
+    expect(calls).toBe(1); // only the direction draw, colour is no longer randomised
+  });
+
+  it('a K5 formation colours every type per TYPE_COLOUR: normal 0, armored 1, swift 4, fanner 3, diver 2', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    spawnFormation(s, {
+      formation: 'grid',
+      rows: 1,
+      cols: 5,
+      kinds: ['normal', 'armored', 'swift', 'fanner', 'diver'],
+    });
+    const colourByType = new Map(s.crabs.map((c) => [c.type, c.kind]));
+    expect(colourByType.get('normal')).toBe(0);
+    expect(colourByType.get('armored')).toBe(1);
+    expect(colourByType.get('swift')).toBe(4);
+    expect(colourByType.get('fanner')).toBe(3);
+    expect(colourByType.get('diver')).toBe(2);
   });
   it('diver contact costs a life through hitShip, like a shot', () => {
     const s = game('diver');

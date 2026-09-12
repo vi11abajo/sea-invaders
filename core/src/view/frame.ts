@@ -38,6 +38,8 @@ export interface Frame {
   shield: number;
   /** GRAVITY_WELL's pull point, or null when no well is active. */
   well: { x: number; y: number } | null;
+  /** Ticks left in a campaign wave's arrival descent; 0 when idle. */
+  arrival: number;
 }
 
 export const EMPTY_FRAME: Frame = {
@@ -52,6 +54,7 @@ export const EMPTY_FRAME: Frame = {
   boosts: [],
   shield: 0,
   well: null,
+  arrival: 0,
 };
 
 function bossFrame(s: GameState): BossFrame | null {
@@ -97,5 +100,6 @@ export function snapshot(s: GameState): Frame {
     boosts,
     shield: s.boosts.shield,
     well: s.boosts.well ? { x: s.boosts.well.x, y: s.boosts.well.y } : null,
+    arrival: s.arrival,
   };
 }

@@ -1,4 +1,4 @@
-import { CRAB, DIVER, ENEMY_SHOT, FANNER_SPREAD, FIELD_H, FIELD_W } from '../config';
+import { ARRIVAL, CRAB, CRAB_SHOTS, DIVER, ENEMY_SHOT, FANNER_SPREAD, FIELD_H, FIELD_W } from '../config';
 import { idiv, isqrt } from '../fixed';
 import { icos, isin } from '../trig';
 import type { Bullet, Crab, GameState } from '../types';
@@ -125,9 +125,20 @@ function advanceDivers(s: GameState): void {
  * actual `(x, y)` otherwise — so the slot keeps tracking the group even when every crab is diving.
  * `advanceDivers` runs after, so a crab whose dive ends this tick snaps to its already-moved slot
  * and isn't marched again in the same tick. Ends the run on invasion.
+ *
+ * While a campaign wave is arriving (`s.arrival > 0`, spec §14 amendment) every crab's `y` and
+ * `homeY` instead just descend by `ARRIVAL.speed`, `x` untouched, no diver trigger and no wall or
+ * invasion test — the formation is still above the field, closing in on its slots.
  */
 export function marchCrabs(s: GameState): void {
   if (s.crabs.length === 0) return;
+  if (s.arrival > 0) {
+    for (const c of s.crabs) {
+      c.y += ARRIVAL.speed;
+      c.homeY += ARRIVAL.speed;
+    }
+    return;
+  }
   let hitsWall = false;
   for (const c of s.crabs) {
     const slotX = c.dive === 0 ? c.x : c.homeX;
@@ -178,13 +189,19 @@ const FRAGMENT_VECTORS: ReadonlyArray<readonly [number, number]> = [
 /**
  * Moves enemy shots (a `zigzag` boss shot flips `vx` every 20 ticks via `data`; an `explosive`
  * shot's `data` counts down its fuse) and drops those off the field, then maybe fires from a
- * random crab: one aimed shot, or three fanned out for a `fanner`. Crab shots (`kind: 'crab'`) are
- * untouched by the zigzag/explosive branches and keep the same collision radius as before, so this
- * stays bit-for-bit compatible with the v2 goldens. SPEED_TAMER and ICE_FREEZE both scale the
- * per-tick displacement (never the stored `vx`/`vy`, so the hash stays stable across activation/
- * expiry mid-flight): always for crab shots, skipped for boss shots while `bossImmuneToSlowdown`.
- * A shot above the field but still moving down (a meteor-shower drop spawned at y -200) is never
- * pruned for being off the top edge — only for having left through the bottom, left or right.
+ * random crab: one aimed shot of the shooter type's `CRAB_SHOTS` kind/speed, or three fanned out
+ * when its entry has `count: 3`; a `null` entry (`diver`) fires nothing that tick, though the fire
+ * chance and shooter RNG draws still happen exactly as for any other type. Crab shots
+ * (`kind: 'crab'`, from a `normal` shooter) are untouched by the zigzag/explosive branches and keep
+ * the same collision radius as before, so this stays bit-for-bit compatible with the v2 goldens.
+ * SPEED_TAMER and ICE_FREEZE both scale the per-tick displacement (never the stored `vx`/`vy`, so
+ * the hash stays stable across activation/expiry mid-flight): always for crab shots, skipped for
+ * boss shots while `bossImmuneToSlowdown`. A shot above the field but still moving down (a
+ * meteor-shower drop spawned at y -200) is never pruned for being off the top edge — only for
+ * having left through the bottom, left or right.
+ *
+ * While a campaign wave is arriving (`s.arrival > 0`, spec §14 amendment) existing shots still move
+ * and get pruned as usual, but nothing new fires.
  */
 export function updateEnemyShots(s: GameState): void {
   const kept: Bullet[] = [];
@@ -195,7 +212,7 @@ export function updateEnemyShots(s: GameState): void {
     } else if (b.kind === 'explosive') {
       b.data -= 1;
     }
-    const bossShot = b.kind !== 'crab';
+    const bossShot = b.kind !== 'crab' && b.kind !== 'heavy' && b.kind !== 'fast';
     const slow = !bossShot || !bossImmuneToSlowdown(s);
     b.x += slow ? chilled(s, tamed(s, b.vx), bossShot) : b.vx;
     b.y += slow ? chilled(s, tamed(s, b.vy), bossShot) : b.vy;
@@ -208,22 +225,26 @@ export function updateEnemyShots(s: GameState): void {
     if (b.x + r > 0 && b.x - r < FIELD_W && (!aboveTop || b.vy > 0) && b.y - r < FIELD_H) kept.push(b);
   }
   s.enemyShots = kept;
+  if (s.arrival > 0) return; // wave arriving: shots still fly, nothing new fires
   if (s.crabs.length === 0) return;
   if (s.rngFire.nextInt(1000) >= fireChance(s.wave, s.run.level?.fireOffset ?? 0)) return;
   const crab = s.crabs[s.rngFire.nextInt(s.crabs.length)]!;
+  const entry = CRAB_SHOTS[crab.type];
+  if (entry === null) return; // diver: chosen to fire, but fires nothing this tick
   const y = crab.y + HALF;
   const dx = s.ship.x - crab.x;
   const dy = s.ship.y - y;
   const len = isqrt(dx * dx + dy * dy);
-  const vx = len === 0 ? 0 : idiv(dx * ENEMY_SHOT.speed, len);
-  const vy = len === 0 ? ENEMY_SHOT.speed : idiv(dy * ENEMY_SHOT.speed, len);
-  if (crab.type === 'fanner') {
+  const speed = entry.speed;
+  const vx = len === 0 ? 0 : idiv(dx * speed, len);
+  const vy = len === 0 ? speed : idiv(dy * speed, len);
+  if (entry.count === 3) {
     for (const a of [-FANNER_SPREAD, 0, FANNER_SPREAD]) {
       const rvx = idiv(vx * icos(a) - vy * isin(a), 1000);
       const rvy = idiv(vx * isin(a) + vy * icos(a), 1000);
-      s.enemyShots.push({ x: crab.x, y, vx: rvx, vy: rvy, kind: 'crab', data: 0 });
+      s.enemyShots.push({ x: crab.x, y, vx: rvx, vy: rvy, kind: entry.kind, data: 0 });
     }
     return;
   }
-  s.enemyShots.push({ x: crab.x, y, vx, vy, kind: 'crab', data: 0 });
+  s.enemyShots.push({ x: crab.x, y, vx, vy, kind: entry.kind, data: 0 });
 }
