@@ -2,6 +2,7 @@ import { BOOSTS, DROP, FIELD_H, RARITY_LISTS, SHIP } from '../config';
 import { idiv } from '../fixed';
 import type { ActiveBoost, BoostType, Drop, GameState } from '../types';
 import { applyEffect, removeEffect } from './boostEffects';
+import { pullTowardsWell } from './crabs';
 
 const DROP_HALF = idiv(DROP.size, 2);
 
@@ -22,8 +23,10 @@ export function rollDrop(s: GameState, x: number, y: number): void {
 }
 
 /**
- * Advances every drop (fall, ttl, pickup by the ship) and every active boost timer, in that order.
- * Called once per tick after `hitShip` (spec §5.1-5.2).
+ * Advances every drop (fall, ttl, pickup by the ship) and every active boost timer, then applies
+ * GRAVITY_WELL's pull for the tick, in that order. Called once per tick after `hitShip`
+ * (spec §5.1-5.2). A GRAVITY_WELL pickup sets `boosts.well` to the drop's position, overriding the
+ * ship-position default that `activateBoost` sets for a direct activation (tests, RANDOM_CHAOS).
  */
 export function updateBoosts(s: GameState): void {
   const kept: Drop[] = [];
@@ -34,6 +37,7 @@ export function updateBoosts(s: GameState): void {
     const reach = DROP_HALF + SHIP.hitRadius;
     if (Math.abs(d.x - s.ship.x) < reach && Math.abs(d.y - s.ship.y) < reach) {
       activateBoost(s, d.boost);
+      if (d.boost === 'GRAVITY_WELL') s.boosts.well = { x: d.x, y: d.y };
       s.events.push({ tick: s.tick, type: 'boost_pickup', boost: d.boost });
       continue;
     }
@@ -54,13 +58,17 @@ export function updateBoosts(s: GameState): void {
     active.push(a);
   }
   s.boosts.active = active;
+
+  if (s.boosts.well) pullTowardsWell(s, s.boosts.well);
 }
 
 /**
  * Activates or refreshes a boost. Instants (`duration 0`) apply once and are never tracked in
  * `active`. `-1`-duration boosts are tracked once (no timer) and re-apply their effect on every
  * activation (SPEED_TAMER's stack). Timed boosts set or reset `ticksLeft` to the full duration,
- * resetting an already-active one instead of stacking a second entry.
+ * resetting an already-active one instead of stacking a second entry. GRAVITY_WELL additionally
+ * (re)captures its well at the ship's current position; a drop pickup in `updateBoosts` overrides
+ * this with the drop's own position right after this call returns.
  */
 export function activateBoost(s: GameState, type: BoostType): void {
   const cfg = BOOSTS[type];
@@ -73,6 +81,7 @@ export function activateBoost(s: GameState, type: BoostType): void {
     applyEffect(s, type);
     return;
   }
+  if (type === 'GRAVITY_WELL') s.boosts.well = { x: s.ship.x, y: s.ship.y };
   const existing = s.boosts.active.find((a) => a.type === type);
   if (existing) existing.ticksLeft = cfg.duration;
   else s.boosts.active.push({ type, ticksLeft: cfg.duration });

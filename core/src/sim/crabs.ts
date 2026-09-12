@@ -10,6 +10,38 @@ const HALF = idiv(CRAB.size, 2);
 /** A crab whose bottom edge reaches this line has invaded the reef. */
 export const INVASION_Y = FIELD_H - 300;
 
+/** GRAVITY_WELL's per-tick pull (spec §5.2): crabs move slower than enemy shots towards the well. */
+const WELL_CRAB_PULL = 6;
+const WELL_SHOT_PULL = 12;
+
+/**
+ * GRAVITY_WELL's per-tick pull (spec §5.2), called from `updateBoosts` once a well is active, after
+ * boost timers have ticked: every formation crab (`dive === 0`) and every enemy shot moves towards
+ * `well` along the integer-normalised vector (`isqrt`). This only ever changes positions, never
+ * stored velocities, so the hash stays stable across the well's activation/expiry mid-flight. A
+ * crab's `y` is clamped so the pull itself can never carry it across the invasion line; its
+ * formation slot (`homeX`/`homeY`) is untouched, and a diving crab is unaffected.
+ */
+export function pullTowardsWell(s: GameState, well: { x: number; y: number }): void {
+  for (const c of s.crabs) {
+    if (c.dive !== 0) continue;
+    const dx = well.x - c.x;
+    const dy = well.y - c.y;
+    const len = isqrt(dx * dx + dy * dy);
+    if (len === 0) continue;
+    c.x += idiv(dx * WELL_CRAB_PULL, len);
+    c.y = Math.min(c.y + idiv(dy * WELL_CRAB_PULL, len), INVASION_Y - HALF - 1);
+  }
+  for (const b of s.enemyShots) {
+    const dx = well.x - b.x;
+    const dy = well.y - b.y;
+    const len = isqrt(dx * dx + dy * dy);
+    if (len === 0) continue;
+    b.x += idiv(dx * WELL_SHOT_PULL, len);
+    b.y += idiv(dy * WELL_SHOT_PULL, len);
+  }
+}
+
 /** Horizontal speed per tick: faster in later waves, as the formation thins out, by the level's reef, and slowed by SPEED_TAMER's stacks. */
 export function crabSpeed(s: GameState): number {
   const killed = s.waveTotal - s.crabs.length;

@@ -48,15 +48,30 @@ export function moveShip(s: GameState, input: Input): void {
  * Moves player shots, drops those that left the field, steers survivors while AUTO_TARGET is
  * active, then fires when the cooldown runs out. RAPID_FIRE shortens the cooldown; MULTI_SHOT
  * fires three shots (-15/0/+15 degrees) instead of one; PIERCING_BULLETS tags every new shot's
- * `data` with bit 0 so `hitCrabs` lets it keep flying. AUTO_TARGET steers every existing shot's
- * `vx` towards the nearest crab (or the boss with none) by up to `AUTO_TARGET_TURN` per tick,
- * capped at `AUTO_TARGET_MAX_VX`; `vy` is untouched, and a shot fired this same tick is not yet
- * steered (it starts steering from the following tick).
+ * `data` with bit 1 so `hitCrabs` lets it keep flying, and RICOCHET tags bit 2 (a bounce credit).
+ * AUTO_TARGET steers every existing shot's `vx` towards the nearest crab (or the boss with none) by
+ * up to `AUTO_TARGET_TURN` per tick, capped at `AUTO_TARGET_MAX_VX`; `vy` is untouched, and a shot
+ * fired this same tick is not yet steered (it starts steering from the following tick). A shot
+ * carrying the ricochet credit is the only kind whose `x` moves by `vx` here (every other shot
+ * keeps today's vertical-only flight): once it leaves `[0, FIELD_W]` it is reflected back inside,
+ * `vx` flips sign and the credit is spent, so a second wall contact never reflects again.
  */
 export function updateShots(s: GameState): void {
   const kept: Bullet[] = [];
   for (const b of s.shots) {
     b.y += b.vy;
+    if (b.data & 2) {
+      b.x += b.vx;
+      if (b.x < 0) {
+        b.x = -b.x;
+        b.vx = -b.vx;
+        b.data &= ~2;
+      } else if (b.x > FIELD_W) {
+        b.x = 2 * FIELD_W - b.x;
+        b.vx = -b.vx;
+        b.data &= ~2;
+      }
+    }
     if (b.y + idiv(SHOT.h, 2) > 0) kept.push(b);
   }
   s.shots = kept;
@@ -71,15 +86,19 @@ export function updateShots(s: GameState): void {
   if (s.ship.cooldown <= 0) {
     const x = s.ship.x;
     const y = s.ship.y - HALF;
-    const data = isActive(s, 'PIERCING_BULLETS') ? 1 : 0;
+    const ricochet = isActive(s, 'RICOCHET');
+    const ricochetVx = s.tick % 2 === 0 ? 60 : -60;
+    const data = (isActive(s, 'PIERCING_BULLETS') ? 1 : 0) | (ricochet ? 2 : 0);
     if (isActive(s, 'MULTI_SHOT')) {
       for (const a of [-MULTI_SHOT_SPREAD, 0, MULTI_SHOT_SPREAD]) {
-        const vx = idiv(SHOT.speed * isin(a), 1000);
+        let vx = idiv(SHOT.speed * isin(a), 1000);
         const vy = -idiv(SHOT.speed * icos(a), 1000);
+        if (ricochet && vx === 0) vx = ricochetVx;
         s.shots.push({ x, y, vx, vy, kind: 'straight', data });
       }
     } else {
-      s.shots.push({ x, y, vx: 0, vy: -SHOT.speed, kind: 'straight', data });
+      const vx = ricochet ? ricochetVx : 0;
+      s.shots.push({ x, y, vx, vy: -SHOT.speed, kind: 'straight', data });
     }
     s.ship.cooldown = isActive(s, 'RAPID_FIRE') ? RAPID_FIRE_INTERVAL : SHIP.fireInterval;
   }

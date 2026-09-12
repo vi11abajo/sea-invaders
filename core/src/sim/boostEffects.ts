@@ -6,13 +6,14 @@ import { damageBoss, scoreMultiplier } from './boss';
 
 /**
  * Applies an instant boost's one-shot effect, or a `-1`-duration boost's activation effect
- * (SHIELD_BARRIER's `shield = 3`, SPEED_TAMER's stack, WAVE_BLAST's board wipe). Tasks 14-15 add
- * cases here, each one removed from the throw below as it lands. Timed boosts (duration > 0) are
- * never routed through here: the sim reads them via `isActive`. RAPID_FIRE, MULTI_SHOT,
- * PIERCING_BULLETS, INVINCIBILITY, SCORE_MULTIPLIER, ICE_FREEZE, POINTS_FREEZE and AUTO_TARGET are
- * timed and never reach this switch via `activateBoost`, but keep an explicit no-op case each so
- * the `default` throw stays a guard for the boosts of Tasks 14-15 (RICOCHET, GRAVITY_WELL,
- * RANDOM_CHAOS).
+ * (SHIELD_BARRIER's `shield = 3`, SPEED_TAMER's stack, WAVE_BLAST's board wipe). Task 15 adds a
+ * case here, removed from the throw below as it lands. Timed boosts (duration > 0) are never
+ * routed through here: the sim reads them via `isActive` (RICOCHET, GRAVITY_WELL) or `s.boosts.well`
+ * (GRAVITY_WELL's pickup, captured in `updateBoosts`/`activateBoost`). RAPID_FIRE, MULTI_SHOT,
+ * PIERCING_BULLETS, INVINCIBILITY, SCORE_MULTIPLIER, ICE_FREEZE, POINTS_FREEZE, AUTO_TARGET,
+ * RICOCHET and GRAVITY_WELL are timed and never reach this switch via `activateBoost`, but keep an
+ * explicit no-op case each so the `default` throw stays a guard for the boost of Task 15
+ * (RANDOM_CHAOS).
  */
 export function applyEffect(s: GameState, type: BoostType): void {
   switch (type) {
@@ -46,6 +47,8 @@ export function applyEffect(s: GameState, type: BoostType): void {
     case 'ICE_FREEZE':
     case 'POINTS_FREEZE':
     case 'AUTO_TARGET':
+    case 'RICOCHET':
+    case 'GRAVITY_WELL':
       return;
     default:
       throw new Error('boost not implemented: ' + type);
@@ -55,6 +58,9 @@ export function applyEffect(s: GameState, type: BoostType): void {
 /** Cleanup for a boost that needs it when its timer expires or it is otherwise removed. */
 export function removeEffect(s: GameState, type: BoostType): void {
   switch (type) {
+    case 'GRAVITY_WELL':
+      s.boosts.well = null;
+      return;
     default:
       return;
   }
