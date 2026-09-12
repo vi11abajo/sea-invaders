@@ -19,6 +19,8 @@ export interface TodayInfo {
   recordedBest: number;
   /** Null when the on-chain Config account cannot be read. */
   ticketPriceSkr: number | null;
+  /** Attempts one ticket buys (on-chain Config); null when the Config account cannot be read. */
+  attemptsPerTicket: number | null;
   poolSkr: number;
   weekTotal: number;
   weekRank: number | null;

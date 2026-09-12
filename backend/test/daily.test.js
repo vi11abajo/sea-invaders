@@ -64,7 +64,7 @@ describe('/api/daily', () => {
   it('reports the on-chain fields on today for anonymous and ticket-holding callers', async () => {
     const anon = await request(app).get('/api/daily/today');
     expect(anon.body).toMatchObject({
-      attemptsBought: 0, freeAttempts: 2, hasPlayerAccount: false, ticketPriceSkr: 10, poolSkr: 0,
+      attemptsBought: 0, freeAttempts: 2, hasPlayerAccount: false, ticketPriceSkr: 10, attemptsPerTicket: 3, poolSkr: 0,
       weekTotal: 0, weekRank: null, skrBalance: 0, cluster: 'devnet', recordedBest: 0,
     });
 

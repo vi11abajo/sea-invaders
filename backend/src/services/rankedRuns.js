@@ -94,6 +94,7 @@ export async function todayInfo({ userId, wallet, now }) {
     hasPlayerAccount: Boolean(player),
     recordedBest: inCurrentWeek ? player.dayBests[weekday] : 0,
     ticketPriceSkr: config ? Number(config.ticketPrice) / 1e6 : null,
+    attemptsPerTicket: config ? config.attemptsPerTicket : null,
     poolSkr: Number(vaultBalance) / 1e6,
     weekTotal: inCurrentWeek ? player.dayBests.reduce((sum, score) => sum + score, 0) : 0,
     weekRank,

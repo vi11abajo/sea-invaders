@@ -42,12 +42,17 @@ export function DailyRunCard({ ranked, now, onPlay, onBuyTicket, onFaucet, onRec
   }
 
   const left = ranked.attemptsLeft;
+  // Attempts are counted within the current ticket: with 5 left of two tickets the card says
+  // "2 of 3", and the tickets bought today sit in the label, so every player reads "N of 3".
+  const per = ranked.attemptsPerTicket;
+  const inTicket = left > 0 ? ((left - 1) % per) + 1 : 0;
+  const tickets = ranked.ticketsToday;
   return (
     <View style={styles.card}>
       <View style={styles.head}>
         <View>
-          <Txt variant="label" tone="secondary">{`Daily Run · Seed #${ranked.seed}`}</Txt>
-          <Txt variant="headline" style={styles.headline}>{left > 0 ? `${left} of ${ranked.attemptsTotal} attempts` : 'No attempts left'}</Txt>
+          <Txt variant="label" tone="secondary">{`Daily Run · Seed #${ranked.seed}${tickets > 0 ? ` · ${tickets} ${tickets === 1 ? 'ticket' : 'tickets'} today` : ''}`}</Txt>
+          <Txt variant="headline" style={styles.headline}>{left > 0 ? `${inTicket} of ${per} attempts` : 'No attempts left'}</Txt>
         </View>
         <View style={styles.seed}>
           <Txt variant="secondary" tone="tertiary" style={styles.small}>New seed</Txt>
