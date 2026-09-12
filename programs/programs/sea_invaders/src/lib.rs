@@ -38,4 +38,8 @@ pub mod sea_invaders {
     pub fn create_week_pool(ctx: Context<CreateWeekPool>, week: u32) -> Result<()> {
         instructions::week_pool::create_week_pool(ctx, week)
     }
+
+    pub fn buy_ticket(ctx: Context<BuyTicket>) -> Result<()> {
+        instructions::ticket::buy_ticket(ctx)
+    }
 }
