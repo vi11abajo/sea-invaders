@@ -1,4 +1,22 @@
+import { BOSS } from '../config';
 import { BOOST_INDEX, KIND_INDEX, TYPE_INDEX, type GameState } from '../types';
+
+export interface BossFrame {
+  kind: number;
+  hp: number;
+  maxHp: number;
+  phase: number;
+  maxPhases: number;
+  shieldHp: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  transition: 0 | 1;
+  rage: 0 | 1;
+  /** Ticks of Void's temporal freeze remaining, 0 when not in effect. */
+  freeze: number;
+}
 
 /** Plain-number copy of what the renderer needs; safe to hand to the UI thread every frame. */
 export interface Frame {
@@ -11,8 +29,7 @@ export interface Frame {
   shots: number[];
   /** x, y, kindIndex triples. */
   enemyShots: number[];
-  /** Filled in Task 5. */
-  boss: null;
+  boss: BossFrame | null;
   /** x, y, typeIndex triples. */
   drops: number[];
   /** typeIndex, ticksLeft pairs. */
@@ -37,6 +54,26 @@ export const EMPTY_FRAME: Frame = {
   well: null,
 };
 
+function bossFrame(s: GameState): BossFrame | null {
+  const b = s.boss;
+  if (!b) return null;
+  return {
+    kind: b.kind,
+    hp: b.hp,
+    maxHp: b.maxHp,
+    phase: b.phase,
+    maxPhases: b.maxPhases,
+    shieldHp: b.shieldHp,
+    x: b.x,
+    y: b.y,
+    w: BOSS.width,
+    h: BOSS.height,
+    transition: b.state === 'transition' ? 1 : 0,
+    rage: b.kind === 4 && b.effectTicks > 0 ? 1 : 0,
+    freeze: b.kind === 5 ? b.effectTicks : 0,
+  };
+}
+
 export function snapshot(s: GameState): Frame {
   const crabs: number[] = [];
   for (const c of s.crabs) crabs.push(c.x, c.y, c.kind, TYPE_INDEX[c.type], c.hp);
@@ -55,7 +92,7 @@ export function snapshot(s: GameState): Frame {
     crabs,
     shots,
     enemyShots,
-    boss: null,
+    boss: bossFrame(s),
     drops,
     boosts,
     shield: s.boosts.shield,

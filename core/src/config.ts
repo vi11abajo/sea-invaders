@@ -99,3 +99,23 @@ export const BOOSTS: Record<BoostType, { rarity: BoostRarity; duration: number }
 
 /** Drop spawn and lifecycle constants (spec §5.1; legacy `SPAWN`). */
 export const DROP = { chance: 7, fall: 60, size: 600, ttl: 600 } as const;
+
+/** Common boss model: spec §4.1. */
+export const BOSS = {
+  /** 66% of FIELD_W. */
+  width: 3700,
+  /** width * 0.8. */
+  height: 2960,
+  top: 700,
+  speed: 15,
+  baseHp: 50,
+  hpStep: 25,
+  transitionTicks: 120,
+  attackBase: 120,
+  attackJitter: 61,
+  scoreBase: 10000,
+  decayEvery: 150,
+} as const;
+
+/** Boss bullets: same base speed as crab shots, radius scaled from legacy BULLET_SIZE 10px. */
+export const BOSS_SHOT = { speed: 110, radius: 96 } as const;

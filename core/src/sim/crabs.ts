@@ -2,6 +2,7 @@ import { CRAB, DIVER, ENEMY_SHOT, FANNER_SPREAD, FIELD_H, FIELD_W } from '../con
 import { idiv, isqrt } from '../fixed';
 import { icos, isin } from '../trig';
 import type { Bullet, Crab, GameState } from '../types';
+import { shotRadius } from './collide';
 
 const HALF = idiv(CRAB.size, 2);
 
@@ -95,13 +96,22 @@ export function fireChance(wave: number, offset = 0): number {
   return Math.min(ENEMY_SHOT.perMille + offset + (wave - 1) * 4, 60);
 }
 
-/** Moves enemy shots and drops those off the field, then maybe fires from a random crab: one aimed shot, or three fanned out for a `fanner`. */
+/**
+ * Moves enemy shots (a `zigzag` boss shot flips `vx` every 20 ticks via `data`) and drops those
+ * off the field, then maybe fires from a random crab: one aimed shot, or three fanned out for a
+ * `fanner`. Crab shots (`kind: 'crab'`) are untouched by the zigzag branch and keep the same
+ * collision radius as before, so this stays bit-for-bit compatible with the v2 goldens.
+ */
 export function updateEnemyShots(s: GameState): void {
-  const r = ENEMY_SHOT.radius;
   const kept: Bullet[] = [];
   for (const b of s.enemyShots) {
+    if (b.kind === 'zigzag') {
+      b.data -= 1;
+      if (b.data <= 0) { b.vx = -b.vx; b.data = 20; }
+    }
     b.x += b.vx;
     b.y += b.vy;
+    const r = shotRadius(b);
     if (b.x + r > 0 && b.x - r < FIELD_W && b.y + r > 0 && b.y - r < FIELD_H) kept.push(b);
   }
   s.enemyShots = kept;

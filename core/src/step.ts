@@ -20,5 +20,5 @@ export function step(s: GameState, input: Input): void {
   hitCrabs(s);
   hitShip(s);
   updateBoosts(s);
-  if (!s.over && s.crabs.length === 0 && s.boss === null) nextWave(s);
+  if (!s.over && !s.cleared && s.crabs.length === 0 && s.boss === null) nextWave(s);
 }
