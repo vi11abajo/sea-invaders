@@ -95,24 +95,37 @@ export class PollTimeout extends Error {
   }
 }
 
+/** A `pollUntilConfirmed` call was stopped early by `isCancelled` (typically: the caller unmounted). */
+export class PollCancelled extends Error {
+  constructor() {
+    super('Polling cancelled');
+    this.name = 'PollCancelled';
+  }
+}
+
 interface PollOptions {
   intervalMs?: number;
   timeoutMs?: number;
+  /** Checked before calling `fn` and again before scheduling the next tick; throws `PollCancelled` when true, so the timer chain does not outlive a caller that has gone away (e.g. an unmounted component). */
+  isCancelled?: () => boolean;
 }
 
 /**
  * Calls `fn` every `intervalMs` until it resolves a result with `confirmed: true`, `fn` rejects
- * (a definitive failure, e.g. the transaction failed on chain — left to the caller to handle), or
- * `timeoutMs` elapses (rejects with `PollTimeout`).
+ * (a definitive failure, e.g. the transaction failed on chain — left to the caller to handle),
+ * `timeoutMs` elapses (rejects with `PollTimeout`), or `isCancelled` reports true (rejects with
+ * `PollCancelled`).
  */
 export async function pollUntilConfirmed<T extends { confirmed: boolean }>(
   fn: () => Promise<T>,
-  { intervalMs = 2000, timeoutMs = 60000 }: PollOptions = {},
+  { intervalMs = 2000, timeoutMs = 60000, isCancelled }: PollOptions = {},
 ): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
+    if (isCancelled?.()) throw new PollCancelled();
     const result = await fn();
     if (result.confirmed) return result;
+    if (isCancelled?.()) throw new PollCancelled();
     if (Date.now() >= deadline) throw new PollTimeout();
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }

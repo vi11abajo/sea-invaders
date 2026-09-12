@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { pollUntilConfirmed, sendWithBlockhashRetry, useSignAndSend, PollTimeout, WalletDeclined } from '../api/chain';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { pollUntilConfirmed, sendWithBlockhashRetry, useSignAndSend, PollCancelled, PollTimeout, WalletDeclined } from '../api/chain';
 import { ApiError } from '../api/client';
 import { confirmRecord, requestRecord } from '../api/daily';
 
@@ -45,6 +45,19 @@ export function useRecordScore(onRecorded: (signature: string) => void): { phase
   const [phase, setPhase] = useState<RecordPhase>({ kind: 'idle' });
   const signAndSend = useSignAndSend();
 
+  // RecordScore lives in leaf components (the result screen, the Home card) that can unmount
+  // mid-flight — e.g. the back arrow, or navigating Home away — while the up-to-60s confirmation
+  // poll is still running. `alive` guards every `setPhase` so we never touch state of a component
+  // that no longer exists; `isCancelled` (below) additionally stops `pollUntilConfirmed` from
+  // scheduling further ticks once we're gone, so the timer chain doesn't outlive the component.
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
+
   const record = useCallback(
     (day: number) => {
       setPhase({ kind: 'signing' });
@@ -54,24 +67,31 @@ export function useRecordScore(onRecorded: (signature: string) => void): { phase
           ({ signature } = await sendWithBlockhashRetry(() => requestRecord(day), signAndSend));
         } catch (error) {
           if (error instanceof WalletDeclined) {
-            setPhase({ kind: 'idle', message: 'Not recorded' });
+            if (alive.current) setPhase({ kind: 'idle', message: 'Not recorded' });
             return;
           }
           if (error instanceof ApiError && error.code === 'already_recorded') {
-            setPhase({ kind: 'done' });
+            if (alive.current) setPhase({ kind: 'done' });
+            // The record is already on chain regardless of whether this component still exists —
+            // still tell the caller so Home refreshes, but never touch this component's state above.
             onRecorded('');
             return;
           }
-          setPhase({ kind: 'error', ...describeRecordError(error) });
+          if (alive.current) setPhase({ kind: 'error', ...describeRecordError(error) });
           return;
         }
-        setPhase({ kind: 'confirming' });
+        if (alive.current) setPhase({ kind: 'confirming' });
         try {
-          await pollUntilConfirmed(() => confirmRecord(signature, day));
-          setPhase({ kind: 'done' });
+          await pollUntilConfirmed(() => confirmRecord(signature, day), { isCancelled: () => !alive.current });
+          if (alive.current) setPhase({ kind: 'done' });
+          // Same reasoning as the `already_recorded` branch above: the transaction did confirm, so
+          // Home should still refresh even if nothing is listening to `phase` any more.
           onRecorded(signature);
         } catch (error) {
-          setPhase({ kind: 'error', ...describeRecordError(error) });
+          // Cancelled means we unmounted before confirmation was observed — there is nothing
+          // confirmed to report yet, so unlike the branches above, `onRecorded` does not fire here.
+          if (error instanceof PollCancelled) return;
+          if (alive.current) setPhase({ kind: 'error', ...describeRecordError(error) });
         }
       })();
     },
