@@ -1,36 +1,71 @@
-import { PaintStyle, Skia } from '@shopify/react-native-skia';
+import { BlendMode, ClipOp, PaintStyle, Skia, type SkColorFilter } from '@shopify/react-native-skia';
 import { CRAB, ENEMY_SHOT, SHIP, type Frame, type Layout } from '@sea-invaders/core';
+import type { Sprites } from './sprites';
 
 type Recorder = ReturnType<typeof Skia.PictureRecorder>;
 type Paint = ReturnType<typeof Skia.Paint>;
 
-/** Crab colours by kind: the reef-life palette. The rings stand in for the owner's crab art. */
-const CRAB_COLORS = ['#CFF15E', '#55E9AB', '#CA9FF5', '#F48252', '#FFC526'];
+/** Read once on the JS thread; the worklet below closes over this value rather than the global. */
+declare const __DEV__: boolean;
+const DEV_HITBOX = __DEV__;
+
 /**
- * Crab colours by type, overriding the kind palette above: index matches TYPE_INDEX
- * (normal, armored, swift, fanner, diver). `normal` keeps the kind colour (null here).
- * Task 4 replaces this whole ring-and-disc drawing with sprites.
+ * Crab tint by `typeIndex` (normal, armored, swift, fanner, diver): `null` keeps the sprite's own
+ * colours (kind picks the crab's base sprite); the rest modulate/lighten the sprite to read the type
+ * at a glance without a second sprite set.
  */
-const TYPE_COLORS: (string | null)[] = [null, '#7A7F8C', '#E8FFF6', '#FFD166', '#FF5C5C'];
+const TYPE_FILTERS: (SkColorFilter | null)[] = [
+  null,
+  Skia.ColorFilter.MakeBlend(Skia.Color('#8A8F9C'), BlendMode.Modulate),
+  Skia.ColorFilter.MakeBlend(Skia.Color('#FFFFFF'), BlendMode.Screen),
+  Skia.ColorFilter.MakeBlend(Skia.Color('#FFD166'), BlendMode.Modulate),
+  Skia.ColorFilter.MakeBlend(Skia.Color('#FF5C5C'), BlendMode.Modulate),
+];
+
 const SHOT_COLOR = '#19FB9B';
 const ENEMY_SHOT_COLOR = '#F48252';
 const FIELD_EDGE = 'rgba(236,228,253,0.12)';
 /** Visible player shot in milli-units: 3 x 18 dp on a 400 dp wide field. The hitbox stays SHOT's. */
 const SHOT_LOOK = { w: 42, h: 253 };
 const FILL = PaintStyle.Fill;
-const STROKE = PaintStyle.Stroke;
 
 /**
  * Records one frame on a transparent canvas; the world backdrop is drawn behind it.
  * It runs on the UI thread inside useDerivedValue, so it must stay a worklet.
+ * `facing`: -1 left, 0 front, 1 right — picks the Octopi sprite.
  */
-export function drawFrame(recorder: Recorder, paint: Paint, f: Frame, l: Layout, w: number, h: number) {
+export function drawFrame(recorder: Recorder, paint: Paint, f: Frame, l: Layout, w: number, h: number, sprites: Sprites, facing: number) {
   'worklet';
   const canvas = recorder.beginRecording(Skia.XYWHRect(0, 0, w, h));
   const k = l.scale;
   const px = (mu: number) => l.offsetX + mu * k;
   const py = (mu: number) => l.offsetY + mu * k;
   paint.setStyle(FILL);
+  paint.setColorFilter(null);
+  paint.setAlphaf(1);
+
+  // Reef backdrop: aspect-fill bg1 to the field rectangle, clipped so it never bleeds past the sides.
+  const fieldRect = { x: l.offsetX, y: l.offsetY, width: l.width, height: l.height };
+  canvas.save();
+  canvas.clipRect(fieldRect, ClipOp.Intersect, false);
+  const bg = sprites.bg;
+  const bgW = bg.width();
+  const bgH = bg.height();
+  const fieldAspect = l.width / l.height;
+  const bgAspect = bgW / bgH;
+  let bsx = 0;
+  let bsy = 0;
+  let bsw = bgW;
+  let bsh = bgH;
+  if (bgAspect > fieldAspect) {
+    bsw = bgH * fieldAspect;
+    bsx = (bgW - bsw) / 2;
+  } else {
+    bsh = bgW / fieldAspect;
+    bsy = (bgH - bsh) / 2;
+  }
+  canvas.drawImageRect(bg, { x: bsx, y: bsy, width: bsw, height: bsh }, fieldRect, paint);
+  canvas.restore();
 
   // On screens wider than the field, faint lines mark its sides.
   if (l.offsetX > 0.5) {
@@ -39,22 +74,23 @@ export function drawFrame(recorder: Recorder, paint: Paint, f: Frame, l: Layout,
     canvas.drawRect({ x: l.offsetX + l.width, y: 0, width: 1, height: h }, paint);
   }
 
-  // Crabs: a faint disc inside a ring of the kind's reef colour.
-  const crabR = (CRAB.size / 2) * k;
+  // Crabs: the sprite for the crab's kind (colour), tinted by its type.
+  const crabSize = CRAB.size * k;
   for (let i = 0; i < f.crabs.length; i += 5) {
     const cx = px(f.crabs[i]!);
     const cy = py(f.crabs[i + 1]!);
-    const color = TYPE_COLORS[f.crabs[i + 3]!] ?? CRAB_COLORS[f.crabs[i + 2]!] ?? '#FFFFFF';
-    paint.setColor(Skia.Color(color));
-    paint.setStyle(FILL);
-    paint.setAlphaf(0.14);
-    canvas.drawCircle(cx, cy, crabR, paint);
-    paint.setStyle(STROKE);
-    paint.setStrokeWidth(1.5);
-    paint.setAlphaf(0.9);
-    canvas.drawCircle(cx, cy, crabR - 0.75, paint);
+    const kind = f.crabs[i + 2]!;
+    const typeIndex = f.crabs[i + 3]!;
+    const image = sprites.crabs[kind]!;
+    paint.setColorFilter(TYPE_FILTERS[typeIndex]!);
+    canvas.drawImageRect(
+      image,
+      { x: 0, y: 0, width: image.width(), height: image.height() },
+      { x: cx - crabSize / 2, y: cy - crabSize / 2, width: crabSize, height: crabSize },
+      paint,
+    );
   }
-  paint.setStyle(FILL);
+  paint.setColorFilter(null);
 
   // Player shots: a bright core over a soft glow.
   const sw = SHOT_LOOK.w * k;
@@ -80,24 +116,27 @@ export function drawFrame(recorder: Recorder, paint: Paint, f: Frame, l: Layout,
     paint.setAlphaf(1);
     canvas.drawCircle(x, y, er, paint);
   }
+  paint.setAlphaf(1);
 
-  // Ship: a ring standing in for Octopi, and its much smaller hitbox. It blinks while invulnerable.
+  // Ship: the Octopi sprite by movement direction. It blinks while invulnerable.
   if (f.ship.invuln === 0 || Math.floor(f.ship.invuln / 6) % 2 === 0) {
     const sx = px(f.ship.x);
     const sy = py(f.ship.y);
-    const shipR = (SHIP.size / 2) * k;
-    paint.setColor(Skia.Color('#000000'));
-    paint.setAlphaf(0.15);
-    canvas.drawCircle(sx, sy, shipR, paint);
-    paint.setColor(Skia.Color('#FFFFFF'));
-    paint.setStyle(STROKE);
-    paint.setStrokeWidth(1.5);
-    paint.setAlphaf(0.7);
-    canvas.drawCircle(sx, sy, shipR - 0.75, paint);
-    paint.setStyle(FILL);
-    paint.setColor(Skia.Color(SHOT_COLOR));
-    paint.setAlphaf(0.6);
-    canvas.drawCircle(sx, sy, SHIP.hitRadius * k, paint);
+    const image = facing < 0 ? sprites.ship.left : facing > 0 ? sprites.ship.right : sprites.ship.front;
+    const shipW = SHIP.size * k;
+    const shipH = shipW * (image.height() / image.width());
+    canvas.drawImageRect(
+      image,
+      { x: 0, y: 0, width: image.width(), height: image.height() },
+      { x: sx - shipW / 2, y: sy - shipH / 2, width: shipW, height: shipH },
+      paint,
+    );
+    if (DEV_HITBOX) {
+      paint.setColor(Skia.Color(SHOT_COLOR));
+      paint.setAlphaf(0.6);
+      canvas.drawCircle(sx, sy, SHIP.hitRadius * k, paint);
+      paint.setAlphaf(1);
+    }
   }
   return recorder.finishRecordingAsPicture();
 }

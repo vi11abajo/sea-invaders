@@ -7,11 +7,13 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import { Backdrop } from '../ui/Backdrop';
+import { Txt } from '../ui/Txt';
 import { COLORS, FONTS } from '../ui/tokens';
 import { GameHud } from './GameHud';
 import { PauseSheet } from './PauseSheet';
 import { ResultView } from './ResultView';
 import { drawFrame } from './draw';
+import { useSprites } from './sprites';
 
 /** Milli-units between the finger and the ship centre, so the finger never covers the ship. */
 const FINGER_LIFT = 600;
@@ -59,7 +61,10 @@ interface GameScreenProps {
 export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode = 'PRACTICE', note = 'Practice · unranked', onRunOver, renderResult }: GameScreenProps) {
   const { width, height } = useWindowDimensions();
   const layout = useMemo(() => fitField(width, height), [width, height]);
+  const sprites = useSprites();
   const frame = useSharedValue<Frame>(EMPTY_FRAME);
+  /** -1 left, 0 front, 1 right; the sign of the ship's last movement. */
+  const facing = useSharedValue<number>(0);
   const input = useRef<Input>(INITIAL_INPUT);
   const paused = useRef(false);
   const quit = useRef(false);
@@ -71,6 +76,8 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   onRunOverRef.current = onRunOver;
 
   useEffect(() => {
+    // Sprites load once on mount; hold the loop until they are ready (see the loading branch below).
+    if (sprites === null) return;
     // Practice seed: the app may use the clock; only the core must not.
     const runSeed = seed ?? `practice-${run}-${Date.now()}`;
     const state = createGame(runSeed, mode === REPLAY_MODE.daily ? DAILY_RUN : PRACTICE_RUN);
@@ -79,6 +86,8 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     input.current = INITIAL_INPUT;
     paused.current = false;
     quit.current = false;
+    facing.value = 0;
+    let prevShipX = state.ship.x;
     let shown = START_HUD;
     let reported = false;
     let frames = 0;
@@ -100,6 +109,9 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       }
       // Nothing consumes events yet; drop whatever this frame's ticks produced.
       state.events.length = 0;
+      const dx = state.ship.x - prevShipX;
+      facing.value = dx > 20 ? 1 : dx < -20 ? -1 : 0;
+      prevShipX = state.ship.x;
       frame.value = snapshot(state);
       frames += 1;
       if (now - fpsSince >= 1000) {
@@ -126,13 +138,17 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     };
     handle = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(handle);
-  }, [run, frame, seed, mode]);
+  }, [run, frame, facing, seed, mode, sprites]);
 
   const recorder = useMemo(() => Skia.PictureRecorder(), []);
   const paint = useMemo(() => Skia.Paint(), []);
   const picture = useDerivedValue(() => {
     'worklet';
-    return drawFrame(recorder, paint, frame.value, layout, width, height);
+    if (sprites === null) {
+      recorder.beginRecording(Skia.XYWHRect(0, 0, width, height));
+      return recorder.finishRecordingAsPicture();
+    }
+    return drawFrame(recorder, paint, frame.value, layout, width, height, sprites, facing.value);
   });
 
   const onTouch = (e: GestureResponderEvent) => {
@@ -172,7 +188,11 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   return (
     <View style={styles.root}>
       <Backdrop variant={hud.over ? 'menu' : 'play'} />
-      {hud.over && outcome ? (
+      {sprites === null ? (
+        <View style={styles.loading} pointerEvents="none">
+          <Txt variant="headline">Loading…</Txt>
+        </View>
+      ) : hud.over && outcome ? (
         renderResult ? renderResult(outcome, playAgain) : (
           <ResultView
             title="Run over"
@@ -212,5 +232,6 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.app },
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  loading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   fps: { position: 'absolute', left: 16, bottom: 64, fontFamily: FONTS.mono, fontSize: 10, color: COLORS.textTertiary },
 });
