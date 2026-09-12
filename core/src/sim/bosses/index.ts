@@ -2,6 +2,7 @@ import type { Rng } from '../../rng';
 import type { BossState, GameState } from '../../types';
 import { castStraight, muzzle } from '../boss';
 import { AZURE_HOOKS } from './azure';
+import { CRIMSON_HOOKS } from './crimson';
 import { EMERALD_HOOKS } from './emerald';
 import { SOLAR_HOOKS } from './solar';
 
@@ -42,11 +43,11 @@ function defaultHooks(): BossHooks {
   };
 }
 
-/** Per-kind boss hooks. Tasks 9-10 replace the remaining defaults with the real attacks/abilities. */
+/** Per-kind boss hooks. Task 10 replaces the remaining default (kind 5) with its real attacks/ability. */
 export const BOSS_HOOKS: Record<1 | 2 | 3 | 4 | 5, BossHooks> = {
   1: EMERALD_HOOKS,
   2: AZURE_HOOKS,
   3: SOLAR_HOOKS,
-  4: defaultHooks(),
+  4: CRIMSON_HOOKS,
   5: defaultHooks(),
 };

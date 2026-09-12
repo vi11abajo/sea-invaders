@@ -55,20 +55,36 @@ export function castMeteor(s: GameState, x: number, y: number, mult1000: number)
   s.enemyShots.push({ x, y, vx: 0, vy: idiv(BOSS_SHOT.speed * mult1000, 1000), kind: 'meteor', data: 0 });
 }
 
+/**
+ * 12 shots evenly spread around a full circle (spec §4.1 `berserk` row), each at its own random
+ * speed in [1.0, 1.5]x `BOSS_SHOT.speed`, further scaled by `mult1000` (Crimson's rage). Exported
+ * here (rather than kept local to Crimson) because Task 10's Void chaos attack reuses it.
+ */
+export function castBerserk(s: GameState, x: number, y: number, mult1000: number): void {
+  for (let i = 0; i < 12; i++) {
+    const deg = idiv(i * 360, 12);
+    const speedMult = 1000 + s.rngBoss.nextInt(501);
+    const m = idiv(speedMult * mult1000, 1000);
+    const vx = idiv(BOSS_SHOT.speed * icos(deg) * m, 1_000_000);
+    const vy = idiv(BOSS_SHOT.speed * isin(deg) * m, 1_000_000);
+    s.enemyShots.push({ x, y, vx, vy, kind: 'berserk', data: 0 });
+  }
+}
+
 /** Doubles `v` while SCORE_MULTIPLIER is active (spec §5.2), passed through unchanged otherwise. */
 export function scoreMultiplier(s: GameState, v: number): number {
   return isActive(s, 'SCORE_MULTIPLIER') ? v * 2 : v;
 }
 
-/** Identity until Task 9: Crimson (kind 4) under rage will scale speeds ×1.55 while `effectTicks > 0`. */
+/** Scales `v` ×1.55 while Crimson (kind 4) is raging (`effectTicks > 0`, spec §4.2 row 4), unchanged otherwise. */
 export function rageMult(b: BossState, v: number): number {
-  if (b.kind === 4 && b.effectTicks > 0) return v;
+  if (b.kind === 4 && b.effectTicks > 0) return idiv(v * 155, 100);
   return v;
 }
 
-/** Identity until Task 9: Crimson (kind 4) under rage will shrink delays while `effectTicks > 0`. */
+/** Shrinks a delay `d` to match rage's ×1.55 attack frequency while Crimson is raging, unchanged otherwise. */
 export function rageDelay(b: BossState, d: number): number {
-  if (b.kind === 4 && b.effectTicks > 0) return d;
+  if (b.kind === 4 && b.effectTicks > 0) return idiv(d * 100, 155);
   return d;
 }
 
