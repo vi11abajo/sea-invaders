@@ -2,7 +2,7 @@ import { CORE_VERSION } from '@sea-invaders/core';
 import express from 'express';
 import * as db from '../db/rankedRuns.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
-import { scoreSubmitLimiter, sessionLimiter } from '../middleware/rateLimit.js';
+import { confirmLimiter, scoreSubmitLimiter, sessionLimiter } from '../middleware/rateLimit.js';
 import { dailySeed, dayOf, isSeedPublic, weekOf } from '../services/dailySeed.js';
 import { RankedRunError, finishRun, startRun, todayInfo } from '../services/rankedRuns.js';
 import { confirmRecord, issueRecord, issueTicket, weekView } from '../services/records.js';
@@ -65,7 +65,7 @@ router.post('/ticket', authenticateToken, sessionLimiter, async (req, res, next)
   }
 });
 
-router.post('/ticket/confirm', authenticateToken, sessionLimiter, async (req, res, next) => {
+router.post('/ticket/confirm', authenticateToken, confirmLimiter, async (req, res, next) => {
   try {
     const signature = typeof req.body?.signature === 'string' ? req.body.signature : '';
     if (!signature) return res.status(400).json({ error: 'BadRequest', message: 'signature is required' });
@@ -86,7 +86,7 @@ router.post('/records', authenticateToken, sessionLimiter, async (req, res, next
   }
 });
 
-router.post('/records/confirm', authenticateToken, sessionLimiter, async (req, res, next) => {
+router.post('/records/confirm', authenticateToken, confirmLimiter, async (req, res, next) => {
   try {
     const day = Number.parseInt(req.body?.day, 10);
     const signature = typeof req.body?.signature === 'string' ? req.body.signature : '';

@@ -99,6 +99,19 @@ export const sessionLimiter = rateLimit({
   keyGenerator: getUserKey, // Per-user limiting
 });
 
+// Limiter for confirmation polls (read-only chain lookups; the mobile client polls every
+// 2s for up to 60s, i.e. up to 30 requests per confirmation flow) — kept separate from
+// sessionLimiter so a confirm poll never eats into the budget for creating new sessions.
+export const confirmLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // maximum 60 confirmation polls per minute
+  message: {
+    error: 'TooManySessions',
+    message: 'Too many game sessions created. Please wait.'
+  },
+  keyGenerator: getUserKey, // Per-user limiting
+});
+
 // Soft limiter for leaderboard (for tournaments with frequent updates)
 export const leaderboardLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -117,5 +130,6 @@ export default {
   authLimiter,
   scoreSubmitLimiter,
   sessionLimiter,
+  confirmLimiter,
   leaderboardLimiter
 };

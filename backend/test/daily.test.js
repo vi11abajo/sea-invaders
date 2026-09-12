@@ -4,7 +4,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dailySeed, dayOf, dayStart, GRACE_SECONDS, weekOf, weekdayOf } from '../src/services/dailySeed.js';
 import { tokenFor } from './helpers/jwt.js';
-import { sessionLimiter } from '../src/middleware/rateLimit.js';
+import { confirmLimiter, sessionLimiter } from '../src/middleware/rateLimit.js';
 import * as fakeChain from './helpers/fakeChain.js';
 import * as memory from './helpers/memoryRankedRuns.js';
 import * as memoryRecords from './helpers/memoryRecords.js';
@@ -46,6 +46,7 @@ describe('/api/daily', () => {
     fakeChain.reset();
     clearPlayerCache();
     sessionLimiter.resetKey(`user:${user.id}`);
+    confirmLimiter.resetKey(`user:${user.id}`);
     app = createApp();
   });
 
@@ -184,6 +185,17 @@ describe('/api/daily', () => {
       const res = await request(app).post('/api/daily/ticket/confirm').set(auth).send({ signature: 'ticket-failed' });
       expect(res.status).toBe(409);
       expect(res.body).toEqual({ error: 'RankedRun', code: 'ticket_failed', message: 'The ticket transaction failed on chain' });
+    });
+
+    // The mobile client polls /ticket/confirm every 2s for up to 60s, i.e. up to 30 requests
+    // per confirmation flow (mobile/src/api/chain.ts). confirmLimiter allows 60/min per user —
+    // well above that — so a full poll run must never see a 429, unlike sessionLimiter's 10/min
+    // (shared with /runs and /ticket), which this exact burst would trip.
+    it('does not trip the confirm limiter across a full 31-call mobile poll burst', async () => {
+      for (let i = 0; i < 31; i++) {
+        const res = await request(app).post('/api/daily/ticket/confirm').set(auth).send({ signature: 'ticket-missing' });
+        expect(res.status).toBe(202);
+      }
     });
   });
 
