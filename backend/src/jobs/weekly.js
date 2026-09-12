@@ -6,7 +6,9 @@ import { runWeekly } from '../services/weekly.js';
 async function main() {
   try {
     const result = await runWeekly({ now: Math.floor(Date.now() / 1000) });
-    console.log('Weekly crank finished:', result);
+    console.log(
+      `Weekly crank finished: created pools [${result.createdPools.join(', ')}], settled weeks [${result.settled.join(', ')}]`
+    );
     process.exit(0);
   } catch (error) {
     console.error('Weekly crank failed:', error);
