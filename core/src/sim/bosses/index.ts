@@ -3,6 +3,7 @@ import type { BossState, GameState } from '../../types';
 import { castStraight, muzzle } from '../boss';
 import { AZURE_HOOKS } from './azure';
 import { EMERALD_HOOKS } from './emerald';
+import { SOLAR_HOOKS } from './solar';
 
 /**
  * Per-boss behaviour, looked up by `BOSS_HOOKS[b.kind]`. `attack` and `ability` are mandatory;
@@ -41,11 +42,11 @@ function defaultHooks(): BossHooks {
   };
 }
 
-/** Per-kind boss hooks. Tasks 8-10 replace the remaining defaults with the real attacks/abilities. */
+/** Per-kind boss hooks. Tasks 9-10 replace the remaining defaults with the real attacks/abilities. */
 export const BOSS_HOOKS: Record<1 | 2 | 3 | 4 | 5, BossHooks> = {
   1: EMERALD_HOOKS,
   2: AZURE_HOOKS,
-  3: defaultHooks(),
+  3: SOLAR_HOOKS,
   4: defaultHooks(),
   5: defaultHooks(),
 };

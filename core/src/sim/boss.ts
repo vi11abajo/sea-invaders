@@ -35,6 +35,26 @@ export function castRing(s: GameState, x: number, y: number, count: number, mult
   }
 }
 
+/**
+ * `count` shots aimed downward at a random angle in [0, 180] degrees and a random speed in
+ * [0.5, 1.0]x, fuse `data` set to 45 ticks; `updateEnemyShots` replaces each with 4 `fragment`
+ * shots once the fuse reaches 0 or the shot passes two thirds of the field (spec §4.1 `explosive`).
+ */
+export function castExplosive(s: GameState, x: number, y: number, count: number): void {
+  for (let i = 0; i < count; i++) {
+    const deg = s.rngBoss.nextInt(181);
+    const mult = 500 + s.rngBoss.nextInt(501);
+    const vx = idiv(BOSS_SHOT.speed * icos(deg) * mult, 1_000_000);
+    const vy = Math.abs(idiv(BOSS_SHOT.speed * isin(deg) * mult, 1_000_000));
+    s.enemyShots.push({ x, y, vx, vy, kind: 'explosive', data: 45 });
+  }
+}
+
+/** A straight-falling shot with collision radius 173 (`shotRadius`), speed scaled by `mult1000`. */
+export function castMeteor(s: GameState, x: number, y: number, mult1000: number): void {
+  s.enemyShots.push({ x, y, vx: 0, vy: idiv(BOSS_SHOT.speed * mult1000, 1000), kind: 'meteor', data: 0 });
+}
+
 /** Doubles `v` while SCORE_MULTIPLIER is active (spec §5.2), passed through unchanged otherwise. */
 export function scoreMultiplier(s: GameState, v: number): number {
   return isActive(s, 'SCORE_MULTIPLIER') ? v * 2 : v;

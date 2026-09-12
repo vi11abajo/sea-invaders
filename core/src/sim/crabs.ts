@@ -104,14 +104,27 @@ export function fireChance(wave: number, offset = 0): number {
   return Math.min(ENEMY_SHOT.perMille + offset + (wave - 1) * 4, 60);
 }
 
+/** An `explosive` shot below this line splits into fragments immediately, fuse or not (spec §4.1 `explosive`). */
+const EXPLOSIVE_SPLIT_Y = idiv(FIELD_H * 2, 3);
+
+/** The four cardinal directions an `explosive` shot's fragments fly off in, speed 73 (spec §4.1 `explosive`). */
+const FRAGMENT_VECTORS: ReadonlyArray<readonly [number, number]> = [
+  [73, 0],
+  [0, 73],
+  [-73, 0],
+  [0, -73],
+];
+
 /**
- * Moves enemy shots (a `zigzag` boss shot flips `vx` every 20 ticks via `data`) and drops those
- * off the field, then maybe fires from a random crab: one aimed shot, or three fanned out for a
- * `fanner`. Crab shots (`kind: 'crab'`) are untouched by the zigzag branch and keep the same
- * collision radius as before, so this stays bit-for-bit compatible with the v2 goldens.
- * SPEED_TAMER and ICE_FREEZE both scale the per-tick displacement (never the stored `vx`/`vy`, so
- * the hash stays stable across activation/expiry mid-flight): always for crab shots, skipped for
- * boss shots while `bossImmuneToSlowdown`.
+ * Moves enemy shots (a `zigzag` boss shot flips `vx` every 20 ticks via `data`; an `explosive`
+ * shot's `data` counts down its fuse) and drops those off the field, then maybe fires from a
+ * random crab: one aimed shot, or three fanned out for a `fanner`. Crab shots (`kind: 'crab'`) are
+ * untouched by the zigzag/explosive branches and keep the same collision radius as before, so this
+ * stays bit-for-bit compatible with the v2 goldens. SPEED_TAMER and ICE_FREEZE both scale the
+ * per-tick displacement (never the stored `vx`/`vy`, so the hash stays stable across activation/
+ * expiry mid-flight): always for crab shots, skipped for boss shots while `bossImmuneToSlowdown`.
+ * A shot above the field but still moving down (a meteor-shower drop spawned at y -200) is never
+ * pruned for being off the top edge — only for having left through the bottom, left or right.
  */
 export function updateEnemyShots(s: GameState): void {
   const kept: Bullet[] = [];
@@ -119,13 +132,20 @@ export function updateEnemyShots(s: GameState): void {
     if (b.kind === 'zigzag') {
       b.data -= 1;
       if (b.data <= 0) { b.vx = -b.vx; b.data = 20; }
+    } else if (b.kind === 'explosive') {
+      b.data -= 1;
     }
     const bossShot = b.kind !== 'crab';
     const slow = !bossShot || !bossImmuneToSlowdown(s);
     b.x += slow ? chilled(s, tamed(s, b.vx), bossShot) : b.vx;
     b.y += slow ? chilled(s, tamed(s, b.vy), bossShot) : b.vy;
+    if (b.kind === 'explosive' && (b.data <= 0 || b.y > EXPLOSIVE_SPLIT_Y)) {
+      for (const [vx, vy] of FRAGMENT_VECTORS) kept.push({ x: b.x, y: b.y, vx, vy, kind: 'fragment', data: 0 });
+      continue;
+    }
     const r = shotRadius(b);
-    if (b.x + r > 0 && b.x - r < FIELD_W && b.y + r > 0 && b.y - r < FIELD_H) kept.push(b);
+    const aboveTop = b.y + r <= 0;
+    if (b.x + r > 0 && b.x - r < FIELD_W && (!aboveTop || b.vy > 0) && b.y - r < FIELD_H) kept.push(b);
   }
   s.enemyShots = kept;
   if (s.crabs.length === 0) return;
