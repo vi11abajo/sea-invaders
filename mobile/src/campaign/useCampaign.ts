@@ -39,12 +39,12 @@ export function useCampaign() {
   );
 
   const finishLevel = useCallback(
-    async (result: FinishLevelInput): Promise<Outcome> => {
+    async (result: FinishLevelInput): Promise<{ outcome: Outcome; next: CampaignProgress }> => {
       if (!progress) throw new Error('campaign progress not loaded yet');
       const { next, outcome } = applyLevelResult(progress, { ...result, now: Date.now() });
       await saveProgress(next);
       setProgress(next);
-      return outcome;
+      return { outcome, next };
     },
     [progress],
   );

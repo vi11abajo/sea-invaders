@@ -13,9 +13,6 @@ import { COLORS, RADIUS, REEF_PROGRESS } from '../ui/tokens';
 /** Reef 1..5 display names: spec §7. Shared with LevelIntro and BossIntro. */
 export const REEF_NAMES = ['Kelp Shallows', 'Coral Ridge', 'Sunlit Trench', 'Crimson Deep', 'The Void'] as const;
 
-/** Boss 1..5 display names: spec §4.2. Shared with LevelIntro and BossIntro. */
-export const BOSS_NAMES = ['Emerald Warlord', 'Azure Leviathan', 'Solar Kraken', 'Crimson Behemoth', 'Void Sovereign'] as const;
-
 const NODE_SIZE = 48;
 const BOSS_NODE_SIZE = 72;
 

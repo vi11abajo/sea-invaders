@@ -25,8 +25,15 @@ const HINT = 'Drag anywhere — ship follows above your finger. Auto-fire.';
 const BANNER_FRAMES = 60;
 const TOAST_FRAMES = 60;
 
-/** `BoostType` for each `BOOST_INDEX` slot, in index order (0..15). */
-const BOOST_BY_INDEX = Object.keys(BOOST_INDEX) as BoostType[];
+/**
+ * `BoostType` for each `BOOST_INDEX` slot. Placed by value rather than by relying on the object
+ * literal's key declaration order, so a future reordering of `BOOST_INDEX` cannot silently mislabel
+ * a slot.
+ */
+const BOOST_BY_INDEX = Object.entries(BOOST_INDEX).reduce<BoostType[]>((arr, [type, index]) => {
+  arr[index] = type as BoostType;
+  return arr;
+}, []);
 
 /** Chip colour by rarity: spec Task 19 decisions. */
 const RARITY_COLOR: Record<string, string> = {

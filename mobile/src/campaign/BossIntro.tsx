@@ -4,7 +4,7 @@ import { Pressable, StyleSheet } from 'react-native';
 import { useSprites } from '../game/sprites';
 import { ArtSlot } from '../ui/ArtSlot';
 import { Txt } from '../ui/Txt';
-import { BOSS_NAMES } from './CampaignScreen';
+import { BOSS_NAMES } from '../game/bossNames';
 
 /** Spec §7: 90 ticks at 60/s. */
 const AUTO_ADVANCE_MS = 1500;

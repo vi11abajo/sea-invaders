@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hearts } from '../ui/Hearts';
 import { GradientFill } from '../ui/GradientFill';
 import { COLORS, FONTS, RADIUS } from '../ui/tokens';
+import { BOSS_NAMES } from './bossNames';
 
 export interface HudBoost {
   name: string;
@@ -13,12 +14,6 @@ export interface HudBoost {
 
 /** Boss HP-bar tint per kind (1..5): spec §4.2 palette. */
 const BOSS_COLOR = ['#33cc66', '#3366ff', '#ffdd33', '#ff3333', '#9966ff'];
-
-/**
- * Boss display names (1..5): spec §4.2. Kept local rather than imported from
- * `campaign/CampaignScreen` so the game package does not depend on the campaign package.
- */
-const BOSS_NAME = ['Emerald Warlord', 'Azure Leviathan', 'Solar Kraken', 'Crimson Behemoth', 'Void Sovereign'];
 
 interface GameHudProps {
   /** Mode label, e.g. "PRACTICE" or "DAILY · SEED #214". */
@@ -109,7 +104,7 @@ function ComboPill({ combo }: { combo: number }) {
 /** Name, HP bar with phase notches, shield pips and status tags: spec §4.3. */
 function BossBar({ boss }: { boss: BossFrame }) {
   const color = BOSS_COLOR[boss.kind - 1] ?? COLORS.text;
-  const name = BOSS_NAME[boss.kind - 1] ?? `Boss ${boss.kind}`;
+  const name = BOSS_NAMES[boss.kind - 1] ?? `Boss ${boss.kind}`;
   const pct = boss.maxHp > 0 ? Math.max(0, Math.min(1, boss.hp / boss.maxHp)) : 0;
   const notchCount = Math.max(0, boss.maxPhases - 1);
   const notches = Array.from({ length: notchCount }, (_, i) => ((i + 1) / boss.maxPhases) * 100);
