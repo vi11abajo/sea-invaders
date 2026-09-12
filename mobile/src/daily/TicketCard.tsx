@@ -24,7 +24,7 @@ export function TicketCard({ priceSkr, skrBalance, cluster, onBuy, onFaucet, bus
     <View style={styles.root}>
       <Txt variant="secondary" tone="tertiary">{`Balance: ${skrBalance} SKR`}</Txt>
       <PillButton label={busy ? 'Buying…' : `Buy ticket — ${priceSkr} SKR`} onPress={onBuy} disabled={buyDisabled} />
-      {cluster === 'devnet' && <PillButton kind="glass" label="Get 100 test SKR" onPress={onFaucet} disabled={busy} />}
+      {cluster === 'devnet' && short && <PillButton kind="glass" label="Get 100 test SKR" onPress={onFaucet} disabled={busy} />}
     </View>
   );
 }

@@ -134,6 +134,47 @@ describe('/api/daily', () => {
     expect(again.body.createsPlayer).toBe(false);
   });
 
+  describe('ticket confirm', () => {
+    it('confirms a ticket purchase, clearing the cached player so attempts update immediately', async () => {
+      const day = dayOf(nowSeconds());
+      // Prime the 5s player cache with the pre-purchase (no player) state, like a Home refresh would.
+      const before = await request(app).get('/api/daily/today').set(auth);
+      expect(before.body.attemptsLeft).toBe(2);
+
+      fakeChain.setPlayer(user.wallet_address, { ticketDay: day, attemptsBought: 3 });
+
+      const pending = await request(app).post('/api/daily/ticket/confirm').set(auth).send({ signature: 'ticket-sig-1' });
+      expect(pending.status).toBe(202);
+      expect(pending.body).toEqual({ confirmed: false });
+
+      fakeChain.setTxStatus('ticket-sig-1', true);
+      const confirmed = await request(app).post('/api/daily/ticket/confirm').set(auth).send({ signature: 'ticket-sig-1' });
+      expect(confirmed.status).toBe(200);
+      expect(confirmed.body).toEqual({ confirmed: true, attemptsLeft: 5 });
+
+      // Without clearing the cache this would still report the pre-purchase attemptsLeft (2).
+      const after = await request(app).get('/api/daily/today').set(auth);
+      expect(after.body.attemptsLeft).toBe(5);
+    });
+
+    it('requires a token and a signature', async () => {
+      expect((await request(app).post('/api/daily/ticket/confirm')).status).toBe(401);
+      const res = await request(app).post('/api/daily/ticket/confirm').set(auth).send({});
+      expect(res.status).toBe(400);
+    });
+
+    it('treats a missing ticket transaction as pending (202) and a failed one as terminal (409)', async () => {
+      const pending = await request(app).post('/api/daily/ticket/confirm').set(auth).send({ signature: 'ticket-missing' });
+      expect(pending.status).toBe(202);
+      expect(pending.body).toEqual({ confirmed: false });
+
+      fakeChain.setTxStatus('ticket-failed', false);
+      const res = await request(app).post('/api/daily/ticket/confirm').set(auth).send({ signature: 'ticket-failed' });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ error: 'RankedRun', code: 'ticket_failed', message: 'The ticket transaction failed on chain' });
+    });
+  });
+
   describe('records', () => {
     it('refuses to record a day with no verified run', async () => {
       const today = dayOf(nowSeconds());

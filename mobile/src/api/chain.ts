@@ -68,3 +68,52 @@ export function useSignAndSend(): (prepared: PreparedTx) => Promise<string> {
     [signAndSendTransactions],
   );
 }
+
+/**
+ * Signs and sends a freshly-`request()`-ed transaction; on `BlockhashExpired` re-requests once
+ * (a new blockhash) and retries, since that is the only case worth retrying automatically.
+ */
+export async function sendWithBlockhashRetry<T extends PreparedTx>(
+  request: () => Promise<T>,
+  signAndSend: (prepared: PreparedTx) => Promise<string>,
+): Promise<{ signature: string; prepared: T }> {
+  let prepared = await request();
+  try {
+    return { signature: await signAndSend(prepared), prepared };
+  } catch (error) {
+    if (!(error instanceof BlockhashExpired)) throw error;
+    prepared = await request();
+    return { signature: await signAndSend(prepared), prepared };
+  }
+}
+
+/** A `pollUntilConfirmed` call gave up after `timeoutMs` without `fn` reporting `confirmed: true`. */
+export class PollTimeout extends Error {
+  constructor() {
+    super('Purchase not confirmed yet — pull to refresh in a moment');
+    this.name = 'PollTimeout';
+  }
+}
+
+interface PollOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+}
+
+/**
+ * Calls `fn` every `intervalMs` until it resolves a result with `confirmed: true`, `fn` rejects
+ * (a definitive failure, e.g. the transaction failed on chain — left to the caller to handle), or
+ * `timeoutMs` elapses (rejects with `PollTimeout`).
+ */
+export async function pollUntilConfirmed<T extends { confirmed: boolean }>(
+  fn: () => Promise<T>,
+  { intervalMs = 2000, timeoutMs = 60000 }: PollOptions = {},
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const result = await fn();
+    if (result.confirmed) return result;
+    if (Date.now() >= deadline) throw new PollTimeout();
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}

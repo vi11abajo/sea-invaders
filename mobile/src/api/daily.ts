@@ -77,3 +77,18 @@ export function requestTicket(): Promise<PreparedTx & { createsPlayer: boolean }
 export function requestFaucet(): Promise<{ signature: string; amountSkr: number }> {
   return apiFetch('/api/devnet/faucet', { method: 'POST', auth: true });
 }
+
+export interface ConfirmTicketResult {
+  confirmed: boolean;
+  /** Present once `confirmed` is true. */
+  attemptsLeft?: number;
+}
+
+/**
+ * Polls whether a ticket purchase landed. Resolves `{ confirmed: false }` (202) while the
+ * transaction is not yet visible on-chain, `{ confirmed: true, attemptsLeft }` (200) once it
+ * lands, or rejects with `ApiError` (code `ticket_failed`, 409) if it landed but errored.
+ */
+export function confirmTicket(signature: string): Promise<ConfirmTicketResult> {
+  return apiFetch('/api/daily/ticket/confirm', { method: 'POST', auth: true, body: { signature } });
+}

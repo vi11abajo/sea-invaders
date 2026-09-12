@@ -6,6 +6,7 @@ import { scoreSubmitLimiter, sessionLimiter } from '../middleware/rateLimit.js';
 import { dailySeed, dayOf, isSeedPublic, weekOf } from '../services/dailySeed.js';
 import { RankedRunError, finishRun, startRun, todayInfo } from '../services/rankedRuns.js';
 import { confirmRecord, issueRecord, issueTicket, weekView } from '../services/records.js';
+import { confirmTicket } from '../services/tickets.js';
 
 const router = express.Router();
 const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -59,6 +60,17 @@ router.get('/seed/:day', (req, res) => {
 router.post('/ticket', authenticateToken, sessionLimiter, async (req, res, next) => {
   try {
     res.status(201).json(await issueTicket({ wallet: req.user.walletAddress, now: nowSeconds() }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/ticket/confirm', authenticateToken, sessionLimiter, async (req, res, next) => {
+  try {
+    const signature = typeof req.body?.signature === 'string' ? req.body.signature : '';
+    if (!signature) return res.status(400).json({ error: 'BadRequest', message: 'signature is required' });
+    const result = await confirmTicket({ userId: req.user.userId, wallet: req.user.walletAddress, signature, now: nowSeconds() });
+    res.status(result.confirmed ? 200 : 202).json(result);
   } catch (error) {
     next(error);
   }

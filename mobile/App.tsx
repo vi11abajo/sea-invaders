@@ -2,9 +2,9 @@ import { MobileWalletProvider } from '@wallet-ui/react-native-web3js';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { Linking } from 'react-native';
-import { BlockhashExpired, WalletDeclined, useSignAndSend } from './src/api/chain';
+import { WalletDeclined, pollUntilConfirmed, sendWithBlockhashRetry, useSignAndSend } from './src/api/chain';
 import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
-import { requestFaucet, requestTicket } from './src/api/daily';
+import { confirmTicket, requestFaucet, requestTicket } from './src/api/daily';
 import { useSession } from './src/api/useSession';
 import { DailyRunScreen } from './src/daily/DailyRunScreen';
 import { LeaderboardScreen } from './src/daily/LeaderboardScreen';
@@ -40,19 +40,16 @@ function Shell() {
     refresh();
   };
 
-  // Buys a ranked ticket: prepare, sign and send; a stale blockhash gets one fresh prepare-and-retry.
-  // A decline leaves the caller on the same screen with no message (spec §8).
+  // Buys a ranked ticket: prepare, sign and send (a stale blockhash gets one fresh
+  // prepare-and-retry), then poll the backend until the tx is confirmed on-chain before
+  // refreshing — the backend only clears its 5s player cache once it sees the confirmation, so
+  // refreshing any earlier can still show the pre-purchase attempt count. A decline leaves the
+  // caller on the same screen with no message (spec §8).
   const buyTicket = useCallback(async (): Promise<boolean> => {
     setTicketBusy(true);
     try {
-      let prepared = await requestTicket();
-      try {
-        await signAndSend(prepared);
-      } catch (e) {
-        if (!(e instanceof BlockhashExpired)) throw e;
-        prepared = await requestTicket();
-        await signAndSend(prepared);
-      }
+      const { signature } = await sendWithBlockhashRetry(requestTicket, signAndSend);
+      await pollUntilConfirmed(() => confirmTicket(signature));
       setTicketMessage('Ticket bought');
       refresh();
       return true;
