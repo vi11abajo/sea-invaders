@@ -468,6 +468,22 @@
           "name": "skr_mint"
         },
         {
+          "name": "program",
+          "docs": [
+            "The program's own account; used only to resolve and pin `program_data` below."
+          ],
+          "address": "G1vEN2CY1KfjPia3hD7MALBwseSRUfrcBivxfKKGqset"
+        },
+        {
+          "name": "program_data",
+          "docs": [
+            "Must belong to `program` and its `upgrade_authority_address` must be `admin` — the",
+            "standard Anchor pattern for restricting an instruction to a program's upgrade",
+            "authority. This closes the window between `anchor deploy` and running the init",
+            "script where anyone could otherwise claim the singleton `config` PDA."
+          ]
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
@@ -909,6 +925,11 @@
       "code": 6011,
       "name": "Overflow",
       "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6012,
+      "name": "NotUpgradeAuthority",
+      "msg": "Only the program's upgrade authority may initialize the config"
     }
   ],
   "types": [

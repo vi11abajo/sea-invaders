@@ -26,4 +26,6 @@ pub enum SeaError {
     WinnerMismatch,
     #[msg("Arithmetic overflow")]
     Overflow,
+    #[msg("Only the program's upgrade authority may initialize the config")]
+    NotUpgradeAuthority,
 }

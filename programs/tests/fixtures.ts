@@ -9,6 +9,22 @@ import { configPda, Ctx } from "./helpers";
 // it too without fixtures.ts and helpers.ts importing each other both ways.
 export { configPda };
 
+// The BPF Upgradeable Loader's well-known program id - not exported by this
+// version of @solana/web3.js, so it is hardcoded here the same way Anchor
+// itself does internally.
+const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
+  "BPFLoaderUpgradeab1e11111111111111111111111"
+);
+
+/** The `ProgramData` account for `programId` under the BPF Upgradeable Loader - holds
+ * `upgrade_authority_address`, which `init_config` now requires the signer to match. */
+export function programDataPda(programId: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [programId.toBuffer()],
+    BPF_LOADER_UPGRADEABLE_PROGRAM_ID
+  )[0];
+}
+
 // @anchor-lang/core's borsh coder (unlike @coral-xyz/anchor) only accepts
 // BN.js instances for u64 fields, not native bigint - the brief's literal
 // `BigInt(s) * 1_000_000n` values throw "src.toArrayLike is not a
@@ -63,9 +79,16 @@ export async function initConfig(ctx: Ctx) {
     }
     return;
   }
+  // `program` is not passed: its address is fixed in the IDL (it's the program's own
+  // account, resolvable at compile time since `Id::id()` returns the constant declared
+  // by `declare_id!`), so Anchor's client resolves it automatically.
   const ix = await ctx.program.methods
     .initConfig(configArgs(ctx))
-    .accounts({ admin: ctx.admin.publicKey, skrMint: ctx.mint })
+    .accountsPartial({
+      admin: ctx.admin.publicKey,
+      skrMint: ctx.mint,
+      programData: programDataPda(ctx.programId),
+    })
     .instruction();
   await ctx.send([ix], [ctx.admin]);
 }

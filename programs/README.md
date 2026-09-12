@@ -31,3 +31,27 @@ test` invocation. `anchor test` also needs a wallet keypair at the path in
 `[provider] wallet` (`~/.config/solana/id.json`); `solana-keygen new` if
 none exists yet - it only funds itself from the local validator's faucet
 and is unrelated to any real signing key.
+
+## `init_config` requires the program's upgrade authority
+
+`init_config` (`src/instructions/admin.rs`) constrains its `admin` signer to
+match the program's own `ProgramData.upgrade_authority_address` - the
+standard Anchor upgrade-authority pattern - so the singleton `config` PDA
+can only ever be claimed by whoever controls the deployed program, closing
+the window between `anchor deploy` and running the init script. On devnet
+this is `admin.json` under `/mnt/d/dev/keys` (verified: `solana program
+show <PROGRAM_ID> --url devnet` prints `Authority:
+AVHHLGsaChQLKMJSthVhhrQ3rn2hSgeQUBRkmobUQBNm`).
+
+This requires `anchor test`'s local validator to load the workspace program
+as upgradeable with `[provider].wallet` as the authority, instead of the
+default immutable genesis load. **`Anchor.toml` sets `[test] upgradeable =
+true` for exactly this reason - without it, `solana-test-validator` boots
+the program via `--bpf-program` (upgrades disabled, `ProgramData` account
+present but with no real authority) and every `init_config` call, including
+the test harness's own, fails with `NotUpgradeAuthority`.** Verified by
+running with the key removed: all `config`/`ticket`/`record`/`settle`/
+`harness` tests fail that way; restoring it returns to 23 passing.
+`tests/helpers.ts`'s `setup()` therefore makes `admin` the provider wallet
+keypair (read from the `ANCHOR_WALLET` env var `anchor test` sets), not a
+random one.

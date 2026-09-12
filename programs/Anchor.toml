@@ -15,6 +15,14 @@ sea_invaders = "G1vEN2CY1KfjPia3hD7MALBwseSRUfrcBivxfKKGqset"
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
+# Deploys the workspace program during `anchor test` with `--upgradeable-program`
+# (upgrade authority = [provider].wallet) instead of `--bpf-program` (upgrades
+# disabled). Required so `init_config`'s upgrade-authority check (see
+# programs/sea_invaders/src/instructions/admin.rs) can be exercised on the
+# local validator - see programs/README.md.
+[test]
+upgradeable = true
+
 [scripts]
 test = "npx ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
 

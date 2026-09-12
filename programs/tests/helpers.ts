@@ -95,7 +95,22 @@ export async function setup(): Promise<Ctx> {
   const connection = provider.connection;
 
   if (!sharedAdmin) {
-    sharedAdmin = Keypair.generate();
+    // `anchor test` deploys the program with the provider wallet as the
+    // upgrade authority, and `init_config` now requires the signer to BE
+    // that upgrade authority (see admin.rs's `InitConfig` - Fix F2). So
+    // `admin` must be the provider wallet keypair itself, not a random
+    // one, or the first `initConfig()` call in the suite fails with
+    // `NotUpgradeAuthority`. `anchor test`/`ts-mocha` runs with
+    // `ANCHOR_WALLET` set to the configured wallet path (`Anchor.toml`'s
+    // `[provider].wallet`, default `~/.config/solana/id.json`).
+    const walletPath = process.env.ANCHOR_WALLET;
+    if (!walletPath) {
+      throw new Error(
+        "ANCHOR_WALLET is not set - tests must run under `anchor test` (or with ANCHOR_WALLET pointed at the provider wallet) so `admin` can be the program's upgrade authority"
+      );
+    }
+    const secret = JSON.parse(fs.readFileSync(walletPath, "utf8"));
+    sharedAdmin = Keypair.fromSecretKey(Uint8Array.from(secret));
   }
   if (!sharedServer) {
     sharedServer = Keypair.generate();

@@ -47,6 +47,15 @@ pub struct InitConfig<'info> {
     )]
     pub config: Account<'info, Config>,
     pub skr_mint: InterfaceAccount<'info, Mint>,
+    /// The program's own account; used only to resolve and pin `program_data` below.
+    #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
+    pub program: Program<'info, crate::program::SeaInvaders>,
+    /// Must belong to `program` and its `upgrade_authority_address` must be `admin` — the
+    /// standard Anchor pattern for restricting an instruction to a program's upgrade
+    /// authority. This closes the window between `anchor deploy` and running the init
+    /// script where anyone could otherwise claim the singleton `config` PDA.
+    #[account(constraint = program_data.upgrade_authority_address == Some(admin.key()) @ SeaError::NotUpgradeAuthority)]
+    pub program_data: Account<'info, ProgramData>,
     pub system_program: Program<'info, System>,
 }
 

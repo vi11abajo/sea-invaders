@@ -61,6 +61,19 @@ function configPda(programId: PublicKey): PublicKey {
   )[0];
 }
 
+// The BPF Upgradeable Loader's well-known program id - see `tests/fixtures.ts`'s
+// `programDataPda` for why this is hardcoded rather than imported.
+const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
+  "BPFLoaderUpgradeab1e11111111111111111111111"
+);
+
+function programDataPda(programId: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [programId.toBuffer()],
+    BPF_LOADER_UPGRADEABLE_PROGRAM_ID
+  )[0];
+}
+
 function printPublicValues(
   programId: PublicKey,
   skrMint: PublicKey,
@@ -143,9 +156,15 @@ async function main() {
     graceSeconds: 900,
     payoutBps: PAYOUT,
   };
+  // `program` is not passed: its address is fixed in the IDL (it's the program's own
+  // account), so Anchor's client resolves it automatically - passing it is a type error.
   const sig = await program.methods
     .initConfig(args)
-    .accounts({ admin: admin.publicKey, skrMint: mint })
+    .accounts({
+      admin: admin.publicKey,
+      skrMint: mint,
+      programData: programDataPda(programId),
+    })
     .signers([admin])
     .rpc();
   console.log(`initConfig tx: ${sig}`);

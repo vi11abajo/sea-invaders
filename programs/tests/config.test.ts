@@ -1,5 +1,6 @@
 import { expect } from "chai";
-import { Ctx, setup, warpTo } from "./helpers";
+import { Keypair } from "@solana/web3.js";
+import { airdrop, Ctx, setup, warpTo } from "./helpers";
 import {
   configArgs,
   configPda,
@@ -7,6 +8,7 @@ import {
   createWeekPool,
   initConfig,
   playerPda,
+  programDataPda,
   PAYOUT,
   weekPda,
 } from "./fixtures";
@@ -19,6 +21,40 @@ describe("config and accounts", () => {
 
   before(async () => {
     ctx = await setup();
+  });
+
+  // Must run before any `initConfig(ctx)` call in this file (or any file
+  // that could run before it) actually creates the `config` PDA - a rogue
+  // `init_config` against an *existing* config fails a different way
+  // (the `init` constraint's account-creation CPI errors "already in
+  // use" before ever reaching the upgrade-authority constraint), which
+  // this test tolerates since it isn't the behaviour under test either
+  // way: a random keypair must never succeed at becoming admin.
+  it("init_config can only be signed by the program's upgrade authority", async () => {
+    const rogue = Keypair.generate();
+    await airdrop(ctx.connection, rogue.publicKey, 1_000_000_000);
+    let err = "";
+    try {
+      await ctx.send(
+        [
+          await ctx.program.methods
+            .initConfig(configArgs(ctx))
+            .accountsPartial({
+              admin: rogue.publicKey,
+              skrMint: ctx.mint,
+              programData: programDataPda(ctx.programId),
+            })
+            .instruction(),
+        ],
+        [rogue]
+      );
+    } catch (e: any) {
+      err = e.message;
+    }
+    expect(err).to.satisfy(
+      (m: string) => m.includes("NotUpgradeAuthority") || m.includes("already in use"),
+      `expected NotUpgradeAuthority or "already in use", got: ${err}`
+    );
   });
 
   it("rejects payout shares that do not sum to 10000 bps and pool shares over 10000", async () => {
