@@ -60,7 +60,11 @@ export function optionalAuth(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, jwtConfig.secret);
+    const decoded = jwt.verify(token, jwtConfig.secret, {
+      algorithms: [jwtConfig.algorithm],
+      issuer: jwtConfig.issuer,
+      audience: jwtConfig.audience
+    });
     req.user = decoded;
   } catch (error) {
     req.user = null;
