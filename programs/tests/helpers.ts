@@ -33,7 +33,7 @@ export interface Ctx {
   server: Keypair;
   alice: Keypair;
   bob: Keypair; // all funded with 10 SOL
-  mint: PublicKey; // 6-decimal test token, mint authority = admin
+  mint: PublicKey; // 6-decimal test token; mint authority = admin here, but on devnet it is the server authority (see scripts/devnet-init.ts)
   treasury: PublicKey; // admin's ATA for the mint
   ata(owner: PublicKey): PublicKey; // derived ATA address
   mintTo(owner: PublicKey, amount: bigint): Promise<void>; // creates the ATA if needed, mints amount base units
