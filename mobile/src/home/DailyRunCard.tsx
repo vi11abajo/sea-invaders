@@ -47,7 +47,7 @@ export function DailyRunCard({ ranked, now, onPlay, onBuyTicket, onFaucet, onRec
       <View style={styles.head}>
         <View>
           <Txt variant="label" tone="secondary">{`Daily Run · Seed #${ranked.seed}`}</Txt>
-          <Txt variant="headline" style={styles.headline}>{left > 0 ? `${left} of 3 attempts` : 'No attempts left'}</Txt>
+          <Txt variant="headline" style={styles.headline}>{left > 0 ? `${left} of ${ranked.attemptsTotal} attempts` : 'No attempts left'}</Txt>
         </View>
         <View style={styles.seed}>
           <Txt variant="secondary" tone="tertiary" style={styles.small}>New seed</Txt>

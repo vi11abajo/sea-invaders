@@ -10,6 +10,7 @@ function rankedFrom(today: TodayInfo, fetchedAt: number): RankedInfo {
   return {
     seed: today.day,
     attemptsLeft: today.attemptsLeft,
+    attemptsTotal: today.freeAttempts + today.attemptsBought,
     newSeedAt: fetchedAt + today.secondsToNextDay * 1000,
     todayBest: today.todayBest ?? 0,
     recordedBest: today.recordedBest,

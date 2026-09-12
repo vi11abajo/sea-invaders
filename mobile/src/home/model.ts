@@ -17,6 +17,8 @@ export interface WalletInfo {
 export interface RankedInfo {
   seed: number;
   attemptsLeft: number;
+  /** Today's allowance: the free attempts plus the ones bought on-chain today. */
+  attemptsTotal: number;
   /** Start of the next daily seed, epoch milliseconds. */
   newSeedAt: number;
   todayBest: number;
@@ -44,6 +46,7 @@ export function demoHomeModel(now: number): HomeModel {
     ranked: {
       seed: 214,
       attemptsLeft: 2,
+      attemptsTotal: 3,
       newSeedAt: now + 18764 * 1000,
       todayBest: 18920,
       recordedBest: 15200,
