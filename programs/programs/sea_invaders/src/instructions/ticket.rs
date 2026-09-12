@@ -37,7 +37,8 @@ pub fn split(amount: u64, pool_bps: u16) -> Result<(u64, u64)> {
     let pool = (amount as u128)
         .checked_mul(pool_bps as u128)
         .ok_or(SeaError::Overflow)?
-        / 10_000;
+        .checked_div(10_000)
+        .ok_or(SeaError::Overflow)?;
     let pool = pool as u64;
     Ok((pool, amount.checked_sub(pool).ok_or(SeaError::Overflow)?))
 }

@@ -38,7 +38,11 @@ export interface Ctx {
   ata(owner: PublicKey): PublicKey; // derived ATA address
   mintTo(owner: PublicKey, amount: bigint): Promise<void>; // creates the ATA if needed, mints amount base units
   tokenBalance(owner: PublicKey): Promise<bigint>; // 0n when the ATA does not exist
-  send(ixs: TransactionInstruction[], signers: Keypair[]): Promise<string>; // throws Error with the program log on failure
+  send(
+    ixs: TransactionInstruction[],
+    signers: Keypair[],
+    opts?: { skipPreflight?: boolean }
+  ): Promise<string>; // throws Error with the program log on failure; skipPreflight defaults to false
   now(): Promise<number>; // current unix time (the program's clock override, or the validator's real clock)
 }
 
@@ -137,14 +141,29 @@ export async function setup(): Promise<Ctx> {
     getAssociatedTokenAddressSync(mint, owner, true);
 
   const mintToFn = async (owner: PublicKey, amount: bigint): Promise<void> => {
+    // Both confirmed explicitly at "confirmed" (the same commitment `send`
+    // below simulates and sends at) - otherwise these default to their own,
+    // unspecified commitment, and a `send` immediately after `mintTo` can
+    // simulate against a snapshot that predates the ATA creation/mint.
     const account = await getOrCreateAssociatedTokenAccount(
       connection,
       admin,
       mint,
       owner,
-      true
+      true,
+      "confirmed",
+      { commitment: "confirmed" }
     );
-    await splMintTo(connection, admin, mint, account.address, admin, amount);
+    await splMintTo(
+      connection,
+      admin,
+      mint,
+      account.address,
+      admin,
+      amount,
+      [],
+      { commitment: "confirmed" }
+    );
   };
 
   const tokenBalance = async (owner: PublicKey): Promise<bigint> => {
@@ -159,15 +178,17 @@ export async function setup(): Promise<Ctx> {
 
   const send = async (
     ixs: TransactionInstruction[],
-    signers: Keypair[]
+    signers: Keypair[],
+    opts?: { skipPreflight?: boolean }
   ): Promise<string> => {
     const tx = new Transaction();
     tx.add(...ixs);
     tx.feePayer = signers[0]?.publicKey;
+    const skipPreflight = opts?.skipPreflight ?? false;
     try {
       return await sendAndConfirmTransaction(connection, tx, signers, {
         commitment: "confirmed",
-        skipPreflight: false,
+        skipPreflight,
       });
     } catch (err) {
       let logs: string[] | undefined;
@@ -176,6 +197,28 @@ export async function setup(): Promise<Ctx> {
         if (!logs) {
           try {
             logs = await err.getLogs(connection);
+          } catch {
+            // fall through to the fallbacks below
+          }
+        }
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      if (!logs) {
+        // With `skipPreflight: true`, a transaction that fails during
+        // actual execution (rather than at the simulate step preflight
+        // would have caught) surfaces as a plain confirmation error -
+        // "Transaction <signature> failed ..." - with no attached logs,
+        // unlike a `SendTransactionError`. The signature is still in that
+        // message, so fetch the now-confirmed (failed) transaction to
+        // recover its logs.
+        const sigMatch = message.match(/[1-9A-HJ-NP-Za-km-z]{64,}/);
+        if (sigMatch) {
+          try {
+            const confirmed = await connection.getTransaction(sigMatch[0], {
+              commitment: "confirmed",
+              maxSupportedTransactionVersion: 0,
+            });
+            logs = confirmed?.meta?.logMessages ?? undefined;
           } catch {
             // fall through to the simulate-based fallback below
           }
@@ -186,11 +229,10 @@ export async function setup(): Promise<Ctx> {
           const sim = await connection.simulateTransaction(tx);
           logs = sim.value.logs ?? undefined;
         } catch {
-          // no logs available from either path; the raw error message is
+          // no logs available from any path; the raw error message is
           // still surfaced below
         }
       }
-      const message = err instanceof Error ? err.message : String(err);
       throw new Error(`${message}\n${(logs ?? []).join("\n")}`);
     }
   };

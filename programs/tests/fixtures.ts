@@ -1,11 +1,4 @@
-import {
-  PublicKey,
-  Keypair,
-  Transaction,
-  TransactionInstruction,
-  SendTransactionError,
-  sendAndConfirmTransaction,
-} from "@solana/web3.js";
+import { PublicKey, Keypair } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { BN } from "@anchor-lang/core";
 import { configPda, Ctx } from "./helpers";
@@ -107,73 +100,6 @@ export async function createWeekPool(
   return weekPda(ctx.programId, week);
 }
 
-// `ctx.send` (helpers.ts) always sends with `skipPreflight: false`. On this
-// local validator that preflight simulation can - observed only for a
-// `buyTicket` sent immediately after the `mintTo`/`getOrCreateAssociated-
-// TokenAccount` transactions that fund `wallet_token` - simulate against a
-// stale, pre-mint (zero) balance and fail with the SPL "insufficient
-// funds" error, even though a plain `getAccountInfo` at the very same
-// "confirmed" commitment already shows the minted balance (verified by
-// dumping the raw account bytes at the point of failure); one more
-// confirmed transaction in between is enough real time for the stale view
-// to catch up. The actual bank a transaction executes against (as opposed
-// to the RPC's simulate snapshot) always reflects every previously
-// confirmed write on a single-node validator, so sending `buyTicket` with
-// `skipPreflight: true` sidesteps the race entirely rather than papering
-// over it with a delay. This mirrors `ctx.send`'s own error handling
-// (helpers.ts) so failures still carry the on-chain logs/program error
-// text (`WrongWeekPool`, "insufficient funds", `Paused`) the tests assert
-// on.
-async function sendSkippingPreflight(
-  ctx: Ctx,
-  ixs: TransactionInstruction[],
-  signers: Keypair[]
-): Promise<string> {
-  const tx = new Transaction();
-  tx.add(...ixs);
-  tx.feePayer = signers[0]?.publicKey;
-  try {
-    return await sendAndConfirmTransaction(ctx.connection, tx, signers, {
-      commitment: "confirmed",
-      skipPreflight: true,
-    });
-  } catch (err) {
-    let logs: string[] | undefined;
-    if (err instanceof SendTransactionError) {
-      logs = err.logs ?? undefined;
-      if (!logs) {
-        try {
-          logs = await err.getLogs(ctx.connection);
-        } catch {
-          // no logs available; the raw error message is still surfaced
-        }
-      }
-    }
-    const message = err instanceof Error ? err.message : String(err);
-    if (!logs) {
-      // With `skipPreflight: true` a transaction that fails during actual
-      // execution (rather than at the simulate step `ctx.send` would have
-      // caught) surfaces as a plain confirmation error - "Transaction
-      // <signature> failed ..." - with no attached logs, unlike a
-      // `SendTransactionError`. The signature is still in that message, so
-      // fetch the now-confirmed (failed) transaction to recover its logs.
-      const sigMatch = message.match(/[1-9A-HJ-NP-Za-km-z]{64,}/);
-      if (sigMatch) {
-        try {
-          const tx = await ctx.connection.getTransaction(sigMatch[0], {
-            commitment: "confirmed",
-            maxSupportedTransactionVersion: 0,
-          });
-          logs = tx?.meta?.logMessages ?? undefined;
-        } catch {
-          // no logs available; the raw error message is still surfaced
-        }
-      }
-    }
-    throw new Error(`${message}\n${(logs ?? []).join("\n")}`);
-  }
-}
-
 // `vault` and `treasury` are plain (non-PDA-seeded, non-`associated_token`
 // constrained) `InterfaceAccount<TokenAccount>`s in `BuyTicket`, and
 // `weekPool`'s own seeds read the account's `week` field rather than an
@@ -195,7 +121,7 @@ export async function buyTicket(ctx: Ctx, who: Keypair, week: number) {
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .instruction();
-  await sendSkippingPreflight(ctx, [ix], [who]);
+  await ctx.send([ix], [who]);
 }
 
 export async function fetchPlayer(ctx: Ctx, who: Keypair) {
