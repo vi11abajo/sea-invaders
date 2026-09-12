@@ -6,10 +6,10 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-sea_invaders = "CHioj4MAKzwE5G8D79QyV7DLVAywAzekHntaD3p5e1WL"
+sea_invaders = "G1vEN2CY1KfjPia3hD7MALBwseSRUfrcBivxfKKGqset"
 
 [programs.localnet]
-sea_invaders = "CHioj4MAKzwE5G8D79QyV7DLVAywAzekHntaD3p5e1WL"
+sea_invaders = "G1vEN2CY1KfjPia3hD7MALBwseSRUfrcBivxfKKGqset"
 
 [provider]
 cluster = "localnet"

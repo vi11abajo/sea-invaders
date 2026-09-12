@@ -8,7 +8,7 @@ use anchor_lang::prelude::*;
 use instructions::*;
 use state::ConfigArgs;
 
-declare_id!("CHioj4MAKzwE5G8D79QyV7DLVAywAzekHntaD3p5e1WL");
+declare_id!("G1vEN2CY1KfjPia3hD7MALBwseSRUfrcBivxfKKGqset");
 
 #[program]
 pub mod sea_invaders {
