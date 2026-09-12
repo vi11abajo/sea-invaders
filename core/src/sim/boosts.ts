@@ -94,3 +94,13 @@ export function tamed(s: GameState, v: number): number {
   for (let i = 0; i < s.boosts.tamerStacks; i++) r = idiv(r * 9, 10);
   return r;
 }
+
+/**
+ * Applies ICE_FREEZE's ×0.5 slowdown to a per-tick displacement `v` (spec §5.2), alongside `tamed`
+ * (never on a stored velocity, so the hash stays stable across activation/expiry mid-flight).
+ * `bossShot` skips the halving while `bossImmuneToSlowdown` (Crimson's rage), same guard as `tamed`.
+ */
+export function chilled(s: GameState, v: number, bossShot: boolean): number {
+  if (bossShot && bossImmuneToSlowdown(s)) return v;
+  return isActive(s, 'ICE_FREEZE') ? idiv(v, 2) : v;
+}

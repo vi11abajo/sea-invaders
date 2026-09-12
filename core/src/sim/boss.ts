@@ -92,11 +92,11 @@ export function spawnBoss(s: GameState, kind: 1 | 2 | 3 | 4 | 5): void {
   s.events.push({ tick: s.tick, type: 'boss_spawn' });
 }
 
-/** Advances the boss by one tick: movement, phase transitions, attack/secondary/ability timers, pending casts. */
+/** Advances the boss by one tick: movement, phase transitions, attack/secondary/ability timers, pending casts. `fightTicks` (which drives the score decay) pauses while POINTS_FREEZE is active (spec §5.2). */
 export function updateBoss(s: GameState): void {
   const b = s.boss;
   if (!b) return;
-  b.fightTicks += 1;
+  if (!isActive(s, 'POINTS_FREEZE')) b.fightTicks += 1;
   // movement
   const half = idiv(BOSS.width, 2);
   const speed = rageMult(b, BOSS.speed);

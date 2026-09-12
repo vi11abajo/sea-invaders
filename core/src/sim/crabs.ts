@@ -2,7 +2,7 @@ import { CRAB, DIVER, ENEMY_SHOT, FANNER_SPREAD, FIELD_H, FIELD_W } from '../con
 import { idiv, isqrt } from '../fixed';
 import { icos, isin } from '../trig';
 import type { Bullet, Crab, GameState } from '../types';
-import { bossImmuneToSlowdown, tamed } from './boosts';
+import { bossImmuneToSlowdown, chilled, tamed } from './boosts';
 import { shotRadius } from './collide';
 
 const HALF = idiv(CRAB.size, 2);
@@ -21,6 +21,11 @@ export function crabSpeed(s: GameState): number {
 export function crabSpeedFor(s: GameState, c: Crab): number {
   const v = crabSpeed(s) * s.dir;
   return c.type === 'swift' ? v + idiv(v, 2) : v;
+}
+
+/** This crab's actual per-tick march displacement: `crabSpeedFor` halved by ICE_FREEZE (spec §5.2), used consistently by the wall check and the step itself so the two never disagree. */
+function crabStep(s: GameState, c: Crab): number {
+  return chilled(s, crabSpeedFor(s, c), false);
 }
 
 /** Every DIVER.interval ticks, sends one diver-type crab still in formation on a dive. */
@@ -45,8 +50,9 @@ function advanceDivers(s: GameState): void {
     const dy = s.ship.y - c.y;
     const len = isqrt(dx * dx + dy * dy);
     if (len > 0) {
-      c.x += idiv(dx * DIVER.speed, len);
-      c.y += idiv(dy * DIVER.speed, len);
+      const speed = chilled(s, DIVER.speed, false);
+      c.x += idiv(dx * speed, len);
+      c.y += idiv(dy * speed, len);
     }
     c.dive -= 1;
   }
@@ -65,7 +71,7 @@ export function marchCrabs(s: GameState): void {
   let hitsWall = false;
   for (const c of s.crabs) {
     const slotX = c.dive === 0 ? c.x : c.homeX;
-    const nx = slotX + crabSpeedFor(s, c);
+    const nx = slotX + crabStep(s, c);
     if (nx + HALF > FIELD_W || nx - HALF < 0) {
       hitsWall = true;
       break;
@@ -79,8 +85,8 @@ export function marchCrabs(s: GameState): void {
     }
   } else {
     for (const c of s.crabs) {
-      if (c.dive === 0) c.x += crabSpeedFor(s, c);
-      else c.homeX += crabSpeedFor(s, c);
+      if (c.dive === 0) c.x += crabStep(s, c);
+      else c.homeX += crabStep(s, c);
     }
   }
   advanceDivers(s);
@@ -103,9 +109,9 @@ export function fireChance(wave: number, offset = 0): number {
  * off the field, then maybe fires from a random crab: one aimed shot, or three fanned out for a
  * `fanner`. Crab shots (`kind: 'crab'`) are untouched by the zigzag branch and keep the same
  * collision radius as before, so this stays bit-for-bit compatible with the v2 goldens.
- * SPEED_TAMER scales the per-tick displacement (never the stored `vx`/`vy`, so the hash stays
- * stable across stack changes mid-flight): always for crab shots, skipped for boss shots while
- * `bossImmuneToSlowdown`.
+ * SPEED_TAMER and ICE_FREEZE both scale the per-tick displacement (never the stored `vx`/`vy`, so
+ * the hash stays stable across activation/expiry mid-flight): always for crab shots, skipped for
+ * boss shots while `bossImmuneToSlowdown`.
  */
 export function updateEnemyShots(s: GameState): void {
   const kept: Bullet[] = [];
@@ -114,9 +120,10 @@ export function updateEnemyShots(s: GameState): void {
       b.data -= 1;
       if (b.data <= 0) { b.vx = -b.vx; b.data = 20; }
     }
-    const slow = b.kind === 'crab' || !bossImmuneToSlowdown(s);
-    b.x += slow ? tamed(s, b.vx) : b.vx;
-    b.y += slow ? tamed(s, b.vy) : b.vy;
+    const bossShot = b.kind !== 'crab';
+    const slow = !bossShot || !bossImmuneToSlowdown(s);
+    b.x += slow ? chilled(s, tamed(s, b.vx), bossShot) : b.vx;
+    b.y += slow ? chilled(s, tamed(s, b.vy), bossShot) : b.vy;
     const r = shotRadius(b);
     if (b.x + r > 0 && b.x - r < FIELD_W && b.y + r > 0 && b.y - r < FIELD_H) kept.push(b);
   }

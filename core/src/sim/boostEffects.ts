@@ -1,13 +1,18 @@
+import { CRAB_TYPES } from '../config';
 import { idiv } from '../fixed';
 import type { BoostType, GameState } from '../types';
+import { rollDrop } from './boosts';
+import { damageBoss, scoreMultiplier } from './boss';
 
 /**
  * Applies an instant boost's one-shot effect, or a `-1`-duration boost's activation effect
- * (SHIELD_BARRIER's `shield = 3`, SPEED_TAMER's stack). Tasks 12-15 add cases here, each one
- * removed from the throw below as it lands. Timed boosts (duration > 0) are never routed through
- * here: the sim reads them via `isActive`. RAPID_FIRE, MULTI_SHOT, PIERCING_BULLETS, INVINCIBILITY
- * and SCORE_MULTIPLIER are timed and never reach this switch via `activateBoost`, but keep an
- * explicit no-op case each so the `default` throw stays a guard for the boosts of Tasks 13-15.
+ * (SHIELD_BARRIER's `shield = 3`, SPEED_TAMER's stack, WAVE_BLAST's board wipe). Tasks 14-15 add
+ * cases here, each one removed from the throw below as it lands. Timed boosts (duration > 0) are
+ * never routed through here: the sim reads them via `isActive`. RAPID_FIRE, MULTI_SHOT,
+ * PIERCING_BULLETS, INVINCIBILITY, SCORE_MULTIPLIER, ICE_FREEZE, POINTS_FREEZE and AUTO_TARGET are
+ * timed and never reach this switch via `activateBoost`, but keep an explicit no-op case each so
+ * the `default` throw stays a guard for the boosts of Tasks 14-15 (RICOCHET, GRAVITY_WELL,
+ * RANDOM_CHAOS).
  */
 export function applyEffect(s: GameState, type: BoostType): void {
   switch (type) {
@@ -23,11 +28,24 @@ export function applyEffect(s: GameState, type: BoostType): void {
     case 'SPEED_TAMER':
       s.boosts.tamerStacks = Math.min(10, s.boosts.tamerStacks + 1);
       return;
+    case 'WAVE_BLAST':
+      for (const c of s.crabs) {
+        rollDrop(s, c.x, c.y);
+        s.score += scoreMultiplier(s, CRAB_TYPES[c.type].points * s.wave);
+        s.kills += 1;
+      }
+      s.crabs = [];
+      if (s.boss) damageBoss(s, 10);
+      s.enemyShots = [];
+      return;
     case 'RAPID_FIRE':
     case 'MULTI_SHOT':
     case 'PIERCING_BULLETS':
     case 'INVINCIBILITY':
     case 'SCORE_MULTIPLIER':
+    case 'ICE_FREEZE':
+    case 'POINTS_FREEZE':
+    case 'AUTO_TARGET':
       return;
     default:
       throw new Error('boost not implemented: ' + type);
