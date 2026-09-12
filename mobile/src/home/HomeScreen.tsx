@@ -13,6 +13,11 @@ import type { HomeModel, RankedInfo } from './model';
 
 const FEATURE_NAMES: Record<Feature, string> = { campaign: 'Campaign', shop: 'Shop', ranks: 'Leaderboard', profile: 'Profile' };
 
+/** Fractional SKR (the pool balance) renders with one decimal; `formatInt` is for whole scores. */
+function formatSkr(value: number): string {
+  return value.toFixed(1);
+}
+
 interface HomeScreenProps {
   model: HomeModel;
   onPractice: () => void;
@@ -102,7 +107,7 @@ function useNow(ticking: boolean): number {
 
 function tickerItems(r: RankedInfo, now: number): TickerItem[] {
   const items: TickerItem[] = [];
-  if (r.poolSkr > 0) items.push({ text: 'Weekly pool ', highlight: `${formatInt(r.poolSkr)} SKR` });
+  if (r.poolSkr > 0) items.push({ text: 'Weekly pool ', highlight: `${formatSkr(r.poolSkr)} SKR` });
   items.push({ text: `Seed #${r.seed} · new in `, highlight: formatCountdown((r.newSeedAt - now) / 1000) });
   if (r.weekRank !== null) items.push({ text: "You're ", highlight: `#${r.weekRank}` });
   items.push({ text: 'Top 10 paid after ', highlight: 'Mon 00:00 UTC' });

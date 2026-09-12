@@ -8,6 +8,11 @@ import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS } from '../ui/tokens';
 import type { RankedInfo } from './model';
 
+/** Fractional SKR (the pool balance) renders with one decimal; `formatInt` is for whole scores. */
+function formatSkr(value: number): string {
+  return value.toFixed(1);
+}
+
 interface DailyRunCardProps {
   /** Null while ranked play is not live: the card explains it and the button stays disabled. */
   ranked: RankedInfo | null;
@@ -54,7 +59,7 @@ export function DailyRunCard({ ranked, now, onPlay, onBuyTicket, onFaucet, onRec
         <Stat label={ranked.weekRank === null ? 'Week' : `Week · #${ranked.weekRank}`} value={formatInt(ranked.weekTotal)} />
         <View style={styles.stat}>
           <Txt variant="secondary" tone="tertiary" style={styles.small}>Pool</Txt>
-          <GradientText text={`${formatInt(ranked.poolSkr)} SKR`} size={13} />
+          <GradientText text={`${formatSkr(ranked.poolSkr)} SKR`} size={13} />
         </View>
       </View>
       <RecordScore

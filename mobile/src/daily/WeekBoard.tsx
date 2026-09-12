@@ -8,6 +8,11 @@ import { boardStyles } from './boardStyles';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+/** Fractional SKR (pool balances, forecasts) renders with one decimal; `formatInt` is for whole scores. */
+function formatSkr(value: number): string {
+  return value.toFixed(1);
+}
+
 /** "Mon 12,400 · Tue — · Wed 9,800 …", `—` standing in for a day with no record. */
 function dayLine(days: number[]): string {
   return days.map((total, i) => `${DAY_LABELS[i]} ${total === 0 ? '—' : formatInt(total)}`).join(' · ');
@@ -30,7 +35,7 @@ export function WeekBoard({ data, error, mine }: WeekBoardProps) {
   return (
     <View style={styles.root}>
       <View style={styles.head}>
-        <Txt variant="body" tone="secondary">{`${formatInt(data.poolSkr)} SKR in the pool`}</Txt>
+        <Txt variant="body" tone="secondary">{`${formatSkr(data.poolSkr)} SKR in the pool`}</Txt>
         <Txt variant="secondary" tone="tertiary">{data.settled ? 'Settled' : 'Paid after Mon 00:00 UTC'}</Txt>
       </View>
       {data.entries.length === 0 ? (
