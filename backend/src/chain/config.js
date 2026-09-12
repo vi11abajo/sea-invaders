@@ -7,6 +7,14 @@ import bs58 from 'bs58';
 
 const CLUSTERS = new Set(['devnet', 'mainnet']);
 
+/** The single default for `SOLANA_CLUSTER` when it is unset — shared by every reader. */
+export const DEFAULT_CLUSTER = 'devnet';
+
+/** Resolves `SOLANA_CLUSTER` with the shared default, without validating the rest of the chain config. */
+export function currentCluster() {
+  return process.env.SOLANA_CLUSTER || DEFAULT_CLUSTER;
+}
+
 function requirePublicKey(value, name) {
   if (!value) {
     throw new Error(`${name} is not configured`);
@@ -45,7 +53,7 @@ function requireServerAuthority(secret) {
  * Throws on any missing or invalid value.
  */
 export function chainConfig() {
-  const cluster = process.env.SOLANA_CLUSTER || 'devnet';
+  const cluster = currentCluster();
   if (!CLUSTERS.has(cluster)) {
     throw new Error(`SOLANA_CLUSTER must be "devnet" or "mainnet", got "${cluster}"`);
   }
