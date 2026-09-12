@@ -1,11 +1,10 @@
 // Devnet-only helpers. `createApp.js` mounts this router only when `SOLANA_CLUSTER=devnet`.
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { mintTestTokens } from '../chain/txs.js';
+import { FaucetUnavailableError, claimFaucet } from '../services/faucet.js';
 
 const router = express.Router();
 
-const FAUCET_AMOUNT = 100_000_000; // 100 test SKR (6 decimals)
 const FAUCET_COOLDOWN_MS = 10 * 60 * 1000;
 const lastFaucetAt = new Map(); // wallet -> ms timestamp
 
@@ -17,10 +16,13 @@ router.post('/faucet', authenticateToken, async (req, res, next) => {
     if (last !== undefined && now - last < FAUCET_COOLDOWN_MS) {
       return res.status(429).json({ error: 'TooManyRequests', message: 'The faucet can only be used once every 10 minutes' });
     }
-    const { signature } = await mintTestTokens(wallet, FAUCET_AMOUNT);
+    const { signature } = await claimFaucet(wallet);
     lastFaucetAt.set(wallet, now);
     res.json({ signature, amountSkr: 100 });
   } catch (error) {
+    if (error instanceof FaucetUnavailableError) {
+      return res.status(503).json({ error: 'FaucetUnavailable', message: error.message });
+    }
     next(error);
   }
 });

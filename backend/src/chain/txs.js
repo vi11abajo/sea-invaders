@@ -205,8 +205,12 @@ export async function buildSettleWeekTx(week, winners, { connection = defaultCon
 export async function mintTestTokens(wallet, amount, { connection = defaultConnection() } = {}) {
   const walletKey = toPublicKey(wallet);
   const { skrMint, serverAuthority } = chainConfig();
-  // Read back at 'confirmed': spl-token re-fetches the ATA right after creating it, and the connection's
-  // default (finalized) commitment does not see the new account yet (TokenAccountNotFoundError).
+  // getOrCreateAssociatedTokenAccount swallows any failure of its own create transaction (an
+  // unfunded server key, an RPC error, ...) and then throws TokenAccountNotFoundError on the
+  // re-read that follows it - that error means the create transaction never landed, not that
+  // it landed but isn't visible yet. 'confirmed' here only avoids a separate, unrelated race:
+  // the re-read would otherwise run at the connection's default (finalized) commitment, which
+  // can lag behind a create transaction that DID land.
   const destination = await getOrCreateAssociatedTokenAccount(
     connection, serverAuthority, skrMint, walletKey, true, 'confirmed', { commitment: 'confirmed' },
   );

@@ -395,6 +395,13 @@ receives no SOL automatically). Check its balance with:
 solana balance <SERVER_AUTHORITY pubkey> --url <cluster>
 ```
 
+The devnet faucet route (`POST /api/devnet/faucet`, `backend/src/services/faucet.js`)
+checks this balance before every mint and refuses with `503 FaucetUnavailable` below
+**0.01 SOL (10,000,000 lamports)** rather than attempting a transaction that cannot pay
+its own fees; it also returns `503 FaucetUnavailable` if the mint transaction itself
+does not land (e.g. an RPC error). Either response names the fix: fund the server
+authority, or check the RPC.
+
 ---
 
 ## GitHub Secrets

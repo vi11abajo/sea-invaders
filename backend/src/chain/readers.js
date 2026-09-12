@@ -1,5 +1,6 @@
 // Account readers. Amounts come back from the coder as `BN` - converted to
 // `bigint`/`number` here so nothing outside `chain/` ever sees a `BN`.
+import { PublicKey } from '@solana/web3.js';
 import { getAccount, TokenAccountNotFoundError } from '@solana/spl-token';
 import { program as buildProgram } from './program.js';
 import { connection as defaultConnection } from './connection.js';
@@ -81,6 +82,13 @@ export async function getTokenBalance(owner, connection = defaultConnection()) {
     if (err instanceof TokenAccountNotFoundError) return 0n;
     throw err;
   }
+}
+
+/** SOL balance (lamports) of `pubkey` (a `PublicKey` or base58 string). */
+export async function getSolBalance(pubkey, connection = defaultConnection()) {
+  const key = pubkey instanceof PublicKey ? pubkey : new PublicKey(pubkey);
+  const lamports = await connection.getBalance(key);
+  return BigInt(lamports);
 }
 
 /** `'confirmed'` once the transaction landed successfully, `'failed'` once it landed but errored, `'missing'` while it is not yet visible to the RPC node (the caller retries). */

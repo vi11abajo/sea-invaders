@@ -61,6 +61,8 @@ export const state = {
   calls: { createWeekPool: [], settleWeek: [] },
   sentTxs: [],
   sendSignedError: null,
+  solBalance: 1_000_000_000n, // 1 SOL - plenty, so the faucet's balance check passes by default
+  mintTestTokensError: null,
 };
 
 /** Resets all fake chain state between tests. */
@@ -73,6 +75,8 @@ export function reset() {
   state.calls = { createWeekPool: [], settleWeek: [] };
   state.sentTxs = [];
   state.sendSignedError = null;
+  state.solBalance = 1_000_000_000n;
+  state.mintTestTokensError = null;
 }
 
 /** Merges `patch` into the current config (or clears it with `null`). */
@@ -109,6 +113,16 @@ export function setSendSignedError(error) {
   state.sendSignedError = error;
 }
 
+/** Sets what `getSolBalance` reports for any pubkey (lamports). */
+export function setSolBalance(lamports) {
+  state.solBalance = BigInt(lamports);
+}
+
+/** Makes the next `mintTestTokens` call throw `error` instead of "minting". */
+export function setMintTestTokensError(error) {
+  state.mintTestTokensError = error;
+}
+
 // ---- readers.js ----
 
 export async function getConfig() {
@@ -137,6 +151,10 @@ export async function getTransactionStatus(signature) {
   const tx = state.txs.get(signature);
   if (!tx) return 'missing';
   return tx.ok ? 'confirmed' : 'failed';
+}
+
+export async function getSolBalance() {
+  return state.solBalance;
 }
 
 // ---- txs.js ----
@@ -175,6 +193,7 @@ export async function sendSigned(prepared) {
 }
 
 export async function mintTestTokens(wallet, amount) {
+  if (state.mintTestTokensError) throw state.mintTestTokensError;
   const key = keyOf(wallet);
   state.balances.set(key, (state.balances.get(key) ?? 0n) + BigInt(amount));
   return { signature: 'FakeMintSignature111111111111111111111111' };

@@ -1,3 +1,5 @@
+import { Keypair } from '@solana/web3.js';
+import bs58 from 'bs58';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dailySeed, dayOf, dayStart, GRACE_SECONDS, weekOf, weekdayOf } from '../src/services/dailySeed.js';
@@ -19,8 +21,18 @@ const SECRET = 'd'.repeat(40);
 process.env.DAILY_SEED_SECRET = SECRET;
 process.env.DAILY_FREE_ATTEMPTS = '2';
 
+// chainConfig() itself is not mocked (only chain/readers.js and chain/txs.js are); the faucet
+// route (via services/faucet.js) calls it directly to find the server authority's own pubkey
+// for the balance check. Its value is never inspected by the fakes below, so any valid shape works.
+process.env.SOLANA_CLUSTER = process.env.SOLANA_CLUSTER || 'devnet';
+process.env.SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+process.env.PROGRAM_ID = process.env.PROGRAM_ID || Keypair.generate().publicKey.toBase58();
+process.env.SKR_MINT = process.env.SKR_MINT || Keypair.generate().publicKey.toBase58();
+process.env.SERVER_AUTHORITY_SECRET = process.env.SERVER_AUTHORITY_SECRET || bs58.encode(Keypair.generate().secretKey);
+
 const { createApp } = await import('../src/createApp.js');
 const { clearPlayerCache } = await import('../src/services/rankedRuns.js');
+const { resetFaucetCooldown } = await import('../src/routes/devnet.js');
 const user = memory.TEST_USER;
 const auth = { Authorization: `Bearer ${tokenFor(user)}` };
 const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -273,6 +285,10 @@ describe('/api/daily', () => {
   });
 
   describe('devnet faucet', () => {
+    beforeEach(() => {
+      resetFaucetCooldown();
+    });
+
     it('does not exist on mainnet', async () => {
       const original = process.env.SOLANA_CLUSTER;
       process.env.SOLANA_CLUSTER = 'mainnet';
@@ -292,6 +308,28 @@ describe('/api/daily', () => {
 
       const again = await request(devnetApp).post('/api/devnet/faucet').set(auth);
       expect(again.status).toBe(429);
+      process.env.SOLANA_CLUSTER = original;
+    });
+
+    it('returns 503 FaucetUnavailable when the server authority has no SOL for fees', async () => {
+      const original = process.env.SOLANA_CLUSTER;
+      process.env.SOLANA_CLUSTER = 'devnet';
+      fakeChain.setSolBalance(1_000_000n); // well below the 0.01 SOL threshold
+      const devnetApp = createApp();
+      const res = await request(devnetApp).post('/api/devnet/faucet').set(auth);
+      expect(res.status).toBe(503);
+      expect(res.body).toEqual({ error: 'FaucetUnavailable', message: 'The faucet key has no SOL for fees; fund the server authority' });
+      process.env.SOLANA_CLUSTER = original;
+    });
+
+    it('returns 503 FaucetUnavailable when the mint transaction does not land', async () => {
+      const original = process.env.SOLANA_CLUSTER;
+      process.env.SOLANA_CLUSTER = 'devnet';
+      fakeChain.setMintTestTokensError(new Error('TokenAccountNotFoundError'));
+      const devnetApp = createApp();
+      const res = await request(devnetApp).post('/api/devnet/faucet').set(auth);
+      expect(res.status).toBe(503);
+      expect(res.body).toEqual({ error: 'FaucetUnavailable', message: 'The faucet transaction did not land; check the server authority balance and the RPC' });
       process.env.SOLANA_CLUSTER = original;
     });
   });
