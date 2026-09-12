@@ -8,10 +8,20 @@ const router = express.Router();
 const FAUCET_COOLDOWN_MS = 10 * 60 * 1000;
 const lastFaucetAt = new Map(); // wallet -> ms timestamp
 
+/** Drops entries whose cooldown has already elapsed, so the map cannot grow without bound. */
+function pruneExpiredCooldowns(now) {
+  for (const [wallet, ts] of lastFaucetAt) {
+    if (now - ts >= FAUCET_COOLDOWN_MS) {
+      lastFaucetAt.delete(wallet);
+    }
+  }
+}
+
 router.post('/faucet', authenticateToken, async (req, res, next) => {
   try {
     const wallet = req.user.walletAddress;
     const now = Date.now();
+    pruneExpiredCooldowns(now);
     const last = lastFaucetAt.get(wallet);
     if (last !== undefined && now - last < FAUCET_COOLDOWN_MS) {
       return res.status(429).json({ error: 'TooManyRequests', message: 'The faucet can only be used once every 10 minutes' });
