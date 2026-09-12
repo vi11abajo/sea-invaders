@@ -114,10 +114,9 @@ describe('confirmRecord', () => {
     expect(result).toEqual({ confirmed: false });
   });
 
-  it('returns confirmed:false for a failed transaction', async () => {
+  it('throws record_failed (terminal) for a failed transaction instead of confirmed:false', async () => {
     fakeChain.setTxStatus('failed-sig', false);
-    const result = await confirmRecord({ userId: user.id, wallet: WALLET, day: DAY, signature: 'failed-sig' });
-    expect(result).toEqual({ confirmed: false });
+    await expect(confirmRecord({ userId: user.id, wallet: WALLET, day: DAY, signature: 'failed-sig' })).rejects.toMatchObject({ code: 'record_failed', status: 409 });
   });
 
   it('returns confirmed:false when the on-chain best has not caught up to the server best yet', async () => {
@@ -142,19 +141,57 @@ describe('confirmRecord', () => {
     expect(stored).toMatchObject({ userId: user.id, day: DAY, score: 500, signature: 'sig' });
   });
 
-  it('upserts on a second confirm for the same (user, day)', async () => {
-    await seedVerifiedRun(500);
+  it('upserts on a second confirm for the same (user, day) when the score improves', async () => {
+    await memory.insertRun({ id: 'run-1', userId: user.id, day: DAY });
+    await memory.finishRun('run-1', { score: 500, finishedAt: NOON + 10, stateHash: 'abcdef0123456789', status: 'verified' });
     fakeChain.setTxStatus('sig-a', true);
     const dayBests = [0, 0, 0, 0, 0, 0, 0];
     dayBests[WEEKDAY] = 500;
     fakeChain.setPlayer(WALLET, { week: WEEK, dayBests });
     await confirmRecord({ userId: user.id, wallet: WALLET, day: DAY, signature: 'sig-a' });
 
+    // A later, better run for the same day raises both the server best and the on-chain record.
+    await memory.insertRun({ id: 'run-2', userId: user.id, day: DAY });
+    await memory.finishRun('run-2', { score: 700, finishedAt: NOON + 20, stateHash: 'fedcba9876543210', status: 'verified' });
+    const higherBests = [0, 0, 0, 0, 0, 0, 0];
+    higherBests[WEEKDAY] = 700;
+    fakeChain.setPlayer(WALLET, { week: WEEK, dayBests: higherBests });
     fakeChain.setTxStatus('sig-b', true);
     const result = await confirmRecord({ userId: user.id, wallet: WALLET, day: DAY, signature: 'sig-b' });
-    expect(result).toEqual({ confirmed: true, score: 500 });
+    expect(result).toEqual({ confirmed: true, score: 700 });
     const stored = await memoryRecords.getRecord(user.id, DAY);
-    expect(stored.signature).toBe('sig-b');
+    expect(stored).toMatchObject({ score: 700, signature: 'sig-b' });
+  });
+
+  it('never lowers the mirrored record: a later confirm reporting a lower score leaves the higher one in place', async () => {
+    await seedVerifiedRun(500);
+    fakeChain.setTxStatus('sig-high', true);
+    const highBests = [0, 0, 0, 0, 0, 0, 0];
+    highBests[WEEKDAY] = 500;
+    fakeChain.setPlayer(WALLET, { week: WEEK, dayBests: highBests });
+    const first = await confirmRecord({ userId: user.id, wallet: WALLET, day: DAY, signature: 'sig-high' });
+    expect(first).toEqual({ confirmed: true, score: 500 });
+
+    // Simulate the server's verified best for the day being corrected down after the fact (e.g. an
+    // anti-cheat review) with a matching lower on-chain record - the mirror must not follow it down.
+    await memory.finishRun('run-1', { score: 300 });
+    fakeChain.setTxStatus('sig-low', true);
+    const lowBests = [0, 0, 0, 0, 0, 0, 0];
+    lowBests[WEEKDAY] = 300;
+    fakeChain.setPlayer(WALLET, { week: WEEK, dayBests: lowBests });
+
+    const second = await confirmRecord({ userId: user.id, wallet: WALLET, day: DAY, signature: 'sig-low' });
+    expect(second).toEqual({ confirmed: true, score: 500 });
+
+    const stored = await memoryRecords.getRecord(user.id, DAY);
+    expect(stored).toMatchObject({ score: 500, signature: 'sig-high' });
+  });
+
+  it("the db mirror (memoryRecords) itself never lowers an existing record's score or signature", async () => {
+    await memoryRecords.upsertRecord({ userId: user.id, day: DAY, score: 500, signature: 'sig-high' });
+    await memoryRecords.upsertRecord({ userId: user.id, day: DAY, score: 300, signature: 'sig-low' });
+    const stored = await memoryRecords.getRecord(user.id, DAY);
+    expect(stored).toMatchObject({ score: 500, signature: 'sig-high' });
   });
 });
 
@@ -200,5 +237,6 @@ describe('weekView', () => {
     expect(new RankedRunError('already_recorded', 'x')).toMatchObject({ status: 409 });
     expect(new RankedRunError('no_ticket', 'x')).toMatchObject({ status: 409 });
     expect(new RankedRunError('no_player_account', 'x')).toMatchObject({ status: 404 });
+    expect(new RankedRunError('record_failed', 'x')).toMatchObject({ status: 409 });
   });
 });

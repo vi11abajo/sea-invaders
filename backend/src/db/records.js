@@ -1,11 +1,12 @@
 import pool from '../config/database.js';
 
-/** Upserts the confirmed on-chain record for `(userId, day)`. */
+/** Upserts the confirmed on-chain record for `(userId, day)`. Never lowers an already-stored score. */
 export async function upsertRecord({ userId, day, score, signature }) {
   await pool.query(
     `INSERT INTO ranked_records (user_id, day, score, signature, confirmed_at)
      VALUES ($1, $2, $3, $4, NOW())
-     ON CONFLICT (user_id, day) DO UPDATE SET score = EXCLUDED.score, signature = EXCLUDED.signature, confirmed_at = NOW()`,
+     ON CONFLICT (user_id, day) DO UPDATE SET score = EXCLUDED.score, signature = EXCLUDED.signature, confirmed_at = NOW()
+     WHERE EXCLUDED.score > ranked_records.score`,
     [userId, day, score, signature],
   );
 }

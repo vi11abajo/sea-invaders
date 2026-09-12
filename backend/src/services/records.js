@@ -55,6 +55,7 @@ export async function issueRecord({ userId, wallet, day, now }) {
 /** Confirms a submitted `submit_daily_best` tx and mirrors it into `ranked_records`. */
 export async function confirmRecord({ userId, wallet, day, signature }) {
   const status = await getTransactionStatus(signature);
+  if (status === 'failed') throw new RankedRunError('record_failed', 'The record transaction failed on chain');
   if (status !== 'confirmed') return { confirmed: false };
 
   const player = await getPlayer(wallet);
@@ -66,7 +67,8 @@ export async function confirmRecord({ userId, wallet, day, signature }) {
   if (!player || onChainBest < serverBest) return { confirmed: false };
 
   await recordsDb.upsertRecord({ userId, day, score: onChainBest, signature });
-  return { confirmed: true, score: onChainBest };
+  const stored = await recordsDb.getRecord(userId, day);
+  return { confirmed: true, score: stored ? stored.score : onChainBest };
 }
 
 /** The current week's leaderboard: `WeekPool.top` annotated with usernames, day-by-day scores and the payout forecast. */

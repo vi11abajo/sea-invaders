@@ -6,7 +6,7 @@ import { dailySeed, dayOf, isDayOpen, secondsToNextDay, weekOf, weekdayOf } from
 
 const STATUS = {
   no_attempts: 403, run_not_found: 404, run_finished: 409, update_required: 426, bad_replay: 400, seed_mismatch: 400, too_fast: 400, day_closed: 400,
-  no_verified_run: 404, already_recorded: 409, no_ticket: 409, no_player_account: 404,
+  no_verified_run: 404, already_recorded: 409, no_ticket: 409, no_player_account: 404, record_failed: 409,
 };
 
 /** Seconds of slack between replay length and wall-clock time, for latency and frame stalls. */

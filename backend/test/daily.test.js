@@ -2,6 +2,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dailySeed, dayOf, dayStart, GRACE_SECONDS, weekOf, weekdayOf } from '../src/services/dailySeed.js';
 import { tokenFor } from './helpers/jwt.js';
+import { sessionLimiter } from '../src/middleware/rateLimit.js';
 import * as fakeChain from './helpers/fakeChain.js';
 import * as memory from './helpers/memoryRankedRuns.js';
 import * as memoryRecords from './helpers/memoryRecords.js';
@@ -32,6 +33,7 @@ describe('/api/daily', () => {
     memoryUsers.reset();
     fakeChain.reset();
     clearPlayerCache();
+    sessionLimiter.resetKey(`user:${user.id}`);
     app = createApp();
   });
 
@@ -185,11 +187,15 @@ describe('/api/daily', () => {
       expect(already.body).toMatchObject({ code: 'already_recorded' });
     });
 
-    it('reports a failed transaction as not confirmed', async () => {
+    it('treats a missing transaction as pending (202) and a failed one as terminal (409)', async () => {
+      const pending = await request(app).post('/api/daily/records/confirm').set(auth).send({ day: 100, signature: 'sig-missing' });
+      expect(pending.status).toBe(202);
+      expect(pending.body).toEqual({ confirmed: false });
+
       fakeChain.setTxStatus('sig-failed', false);
       const res = await request(app).post('/api/daily/records/confirm').set(auth).send({ day: 100, signature: 'sig-failed' });
-      expect(res.status).toBe(202);
-      expect(res.body).toEqual({ confirmed: false });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ error: 'RankedRun', code: 'record_failed', message: 'The record transaction failed on chain' });
     });
   });
 

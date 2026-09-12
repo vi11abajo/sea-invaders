@@ -56,7 +56,7 @@ router.get('/seed/:day', (req, res) => {
   res.json({ day, seed: dailySeed(process.env.DAILY_SEED_SECRET, day) });
 });
 
-router.post('/ticket', authenticateToken, async (req, res, next) => {
+router.post('/ticket', authenticateToken, sessionLimiter, async (req, res, next) => {
   try {
     res.status(201).json(await issueTicket({ wallet: req.user.walletAddress, now: nowSeconds() }));
   } catch (error) {
@@ -64,7 +64,7 @@ router.post('/ticket', authenticateToken, async (req, res, next) => {
   }
 });
 
-router.post('/records', authenticateToken, async (req, res, next) => {
+router.post('/records', authenticateToken, sessionLimiter, async (req, res, next) => {
   try {
     const day = Number.parseInt(req.body?.day, 10);
     if (!Number.isInteger(day) || day < 0) return res.status(400).json({ error: 'BadRequest', message: 'day must be a non-negative integer' });
@@ -74,7 +74,7 @@ router.post('/records', authenticateToken, async (req, res, next) => {
   }
 });
 
-router.post('/records/confirm', authenticateToken, async (req, res, next) => {
+router.post('/records/confirm', authenticateToken, sessionLimiter, async (req, res, next) => {
   try {
     const day = Number.parseInt(req.body?.day, 10);
     const signature = typeof req.body?.signature === 'string' ? req.body.signature : '';
