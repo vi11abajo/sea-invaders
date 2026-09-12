@@ -2,7 +2,10 @@
   "license": "ISC",
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
-    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
+    "devnet:init": "ts-node scripts/devnet-init.ts",
+    "devnet:pools": "ts-node scripts/create-week-pools.ts",
+    "devnet:smoke": "ts-node scripts/smoke-test.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "^1.2.0",
