@@ -377,6 +377,24 @@ commit or print the real `backend/.env`).
 | `SKR_MINT` | Yes | — | The SKR token mint used for tickets and payouts. |
 | `SERVER_AUTHORITY_SECRET` | Yes | — | Base58 of the server authority's 64-byte Ed25519 secret key; co-signs `submit_daily_best`. Never print or commit this value. |
 
+### Server authority funding
+
+The server authority is the fee payer (and, where accounts are created, the rent
+payer) for every backend-initiated transaction, not just a co-signer: it pays for
+`create_week_pool` (the weekly crank), the winners' token accounts created inside
+`settle_week`, the faucet's `getOrCreateAssociatedTokenAccount` + `mintTo` on devnet
+(`backend/src/chain/txs.js`), and its own transaction fees throughout. If its SOL
+balance runs out, the crank, settlement, and faucet all start failing even though
+`SERVER_AUTHORITY_SECRET` itself is still valid.
+
+Keep at least **~1 SOL** on the server authority's address at all times. On devnet,
+top it up by transferring from the admin keypair; on mainnet, fund it explicitly (it
+receives no SOL automatically). Check its balance with:
+
+```bash
+solana balance <SERVER_AUTHORITY pubkey> --url <cluster>
+```
+
 ---
 
 ## GitHub Secrets
