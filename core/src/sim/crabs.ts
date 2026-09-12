@@ -2,6 +2,7 @@ import { CRAB, DIVER, ENEMY_SHOT, FANNER_SPREAD, FIELD_H, FIELD_W } from '../con
 import { idiv, isqrt } from '../fixed';
 import { icos, isin } from '../trig';
 import type { Bullet, Crab, GameState } from '../types';
+import { bossImmuneToSlowdown, tamed } from './boosts';
 import { shotRadius } from './collide';
 
 const HALF = idiv(CRAB.size, 2);
@@ -9,10 +10,11 @@ const HALF = idiv(CRAB.size, 2);
 /** A crab whose bottom edge reaches this line has invaded the reef. */
 export const INVASION_Y = FIELD_H - 300;
 
-/** Horizontal speed per tick: faster in later waves, as the formation thins out, and by the level's reef. */
+/** Horizontal speed per tick: faster in later waves, as the formation thins out, by the level's reef, and slowed by SPEED_TAMER's stacks. */
 export function crabSpeed(s: GameState): number {
   const killed = s.waveTotal - s.crabs.length;
-  return CRAB.baseSpeed + (s.wave - 1) + idiv(killed * 8, s.waveTotal) + (s.run.level?.speedOffset ?? 0);
+  const v = CRAB.baseSpeed + (s.wave - 1) + idiv(killed * 8, s.waveTotal) + (s.run.level?.speedOffset ?? 0);
+  return tamed(s, v);
 }
 
 /** This crab's own signed horizontal step: swift crabs move 1.5x the shared formation speed. */
@@ -101,6 +103,9 @@ export function fireChance(wave: number, offset = 0): number {
  * off the field, then maybe fires from a random crab: one aimed shot, or three fanned out for a
  * `fanner`. Crab shots (`kind: 'crab'`) are untouched by the zigzag branch and keep the same
  * collision radius as before, so this stays bit-for-bit compatible with the v2 goldens.
+ * SPEED_TAMER scales the per-tick displacement (never the stored `vx`/`vy`, so the hash stays
+ * stable across stack changes mid-flight): always for crab shots, skipped for boss shots while
+ * `bossImmuneToSlowdown`.
  */
 export function updateEnemyShots(s: GameState): void {
   const kept: Bullet[] = [];
@@ -109,8 +114,9 @@ export function updateEnemyShots(s: GameState): void {
       b.data -= 1;
       if (b.data <= 0) { b.vx = -b.vx; b.data = 20; }
     }
-    b.x += b.vx;
-    b.y += b.vy;
+    const slow = b.kind === 'crab' || !bossImmuneToSlowdown(s);
+    b.x += slow ? tamed(s, b.vx) : b.vx;
+    b.y += slow ? tamed(s, b.vy) : b.vy;
     const r = shotRadius(b);
     if (b.x + r > 0 && b.x - r < FIELD_W && b.y + r > 0 && b.y - r < FIELD_H) kept.push(b);
   }

@@ -87,3 +87,10 @@ export function isActive(s: GameState, type: BoostType): boolean {
 export function bossImmuneToSlowdown(s: GameState): boolean {
   return s.boss !== null && s.boss.kind === 4 && s.boss.effectTicks > 0;
 }
+
+/** Applies SPEED_TAMER's ×0.9-per-stack slowdown to `v` (spec §5.2); a no-op with no stacks. */
+export function tamed(s: GameState, v: number): number {
+  let r = v;
+  for (let i = 0; i < s.boosts.tamerStacks; i++) r = idiv(r * 9, 10);
+  return r;
+}

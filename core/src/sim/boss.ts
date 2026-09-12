@@ -2,6 +2,7 @@ import { BOSS, BOSS_SHOT, FIELD_W } from '../config';
 import { idiv } from '../fixed';
 import { icos, isin } from '../trig';
 import type { BossState, GameState } from '../types';
+import { isActive } from './boosts';
 import { BOSS_HOOKS, type BossHooks } from './bosses';
 
 /** The point boss shots are fired from: the bottom-centre of the boss box. */
@@ -34,9 +35,9 @@ export function castRing(s: GameState, x: number, y: number, count: number, mult
   }
 }
 
-/** Amount scored is passed through unchanged; Task 12 doubles it while SCORE_MULTIPLIER is active. */
-export function scoreMultiplier(_s: GameState, v: number): number {
-  return v;
+/** Doubles `v` while SCORE_MULTIPLIER is active (spec §5.2), passed through unchanged otherwise. */
+export function scoreMultiplier(s: GameState, v: number): number {
+  return isActive(s, 'SCORE_MULTIPLIER') ? v * 2 : v;
 }
 
 /** Identity until Task 9: Crimson (kind 4) under rage will scale speeds ×1.55 while `effectTicks > 0`. */
