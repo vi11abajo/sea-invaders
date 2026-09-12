@@ -135,3 +135,4 @@ next-env.d.ts
 incident-report-*.md
 server-security-audit-guide.md
 free-llm-api-options.md
+.claude/worktrees/
