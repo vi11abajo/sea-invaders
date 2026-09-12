@@ -22,6 +22,16 @@ export function weekdayOf(day) {
   return (day + 3) % 7;
 }
 
+/** The first day of `week` — the inverse of `weekOf`. */
+export function weekFirstDay(week) {
+  return week * 7 - 3;
+}
+
+/** The instant a week closes: the start of the first day of the following week. Settlement happens at `weekEnd(week) + GRACE_SECONDS`. */
+export function weekEnd(week) {
+  return dayStart(weekFirstDay(week + 1));
+}
+
 /** A run for `day` is accepted during the day and for GRACE_SECONDS after it. */
 export function isDayOpen(day, unixSeconds) {
   return unixSeconds >= dayStart(day) && unixSeconds < dayStart(day + 1) + GRACE_SECONDS;

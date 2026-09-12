@@ -3,8 +3,9 @@ import express from 'express';
 import * as db from '../db/rankedRuns.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { scoreSubmitLimiter, sessionLimiter } from '../middleware/rateLimit.js';
-import { dailySeed, dayOf, isSeedPublic } from '../services/dailySeed.js';
+import { dailySeed, dayOf, isSeedPublic, weekOf } from '../services/dailySeed.js';
 import { RankedRunError, finishRun, startRun, todayInfo } from '../services/rankedRuns.js';
+import { confirmRecord, issueRecord, issueTicket, weekView } from '../services/records.js';
 
 const router = express.Router();
 const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -12,7 +13,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 router.get('/today', optionalAuth, async (req, res, next) => {
   try {
-    const info = await todayInfo({ userId: req.user?.userId ?? null, now: nowSeconds() });
+    const info = await todayInfo({ userId: req.user?.userId ?? null, wallet: req.user?.walletAddress ?? null, now: nowSeconds() });
     res.json({ ...info, coreVersion: CORE_VERSION });
   } catch (error) {
     next(error);
@@ -21,7 +22,7 @@ router.get('/today', optionalAuth, async (req, res, next) => {
 
 router.post('/runs', authenticateToken, sessionLimiter, async (req, res, next) => {
   try {
-    res.status(201).json(await startRun({ userId: req.user.userId, now: nowSeconds() }));
+    res.status(201).json(await startRun({ userId: req.user.userId, wallet: req.user.walletAddress, now: nowSeconds() }));
   } catch (error) {
     next(error);
   }
@@ -55,10 +56,52 @@ router.get('/seed/:day', (req, res) => {
   res.json({ day, seed: dailySeed(process.env.DAILY_SEED_SECRET, day) });
 });
 
+router.post('/ticket', authenticateToken, async (req, res, next) => {
+  try {
+    res.status(201).json(await issueTicket({ wallet: req.user.walletAddress, now: nowSeconds() }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/records', authenticateToken, async (req, res, next) => {
+  try {
+    const day = Number.parseInt(req.body?.day, 10);
+    if (!Number.isInteger(day) || day < 0) return res.status(400).json({ error: 'BadRequest', message: 'day must be a non-negative integer' });
+    res.status(201).json(await issueRecord({ userId: req.user.userId, wallet: req.user.walletAddress, day, now: nowSeconds() }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/records/confirm', authenticateToken, async (req, res, next) => {
+  try {
+    const day = Number.parseInt(req.body?.day, 10);
+    const signature = typeof req.body?.signature === 'string' ? req.body.signature : '';
+    if (!Number.isInteger(day) || day < 0 || !signature) {
+      return res.status(400).json({ error: 'BadRequest', message: 'signature and day are required' });
+    }
+    const result = await confirmRecord({ userId: req.user.userId, wallet: req.user.walletAddress, day, signature });
+    res.status(result.confirmed ? 200 : 202).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/week', async (req, res, next) => {
+  try {
+    const week = req.query.week === undefined ? weekOf(dayOf(nowSeconds())) : Number.parseInt(String(req.query.week), 10);
+    if (!Number.isInteger(week) || week < 0) return res.status(400).json({ error: 'BadRequest', message: 'week must be a non-negative integer' });
+    res.json(await weekView({ week, now: nowSeconds() }));
+  } catch (error) {
+    next(error);
+  }
+});
+
 /** Maps RankedRunError to its HTTP status; everything else falls through to the app's error handler. */
 router.use((err, req, res, next) => {
   if (err instanceof RankedRunError) {
-    return res.status(err.status).json({ error: 'RankedRun', code: err.code, message: err.message });
+    return res.status(err.status).json({ error: 'RankedRun', code: err.code, message: err.message, ...err.extra });
   }
   next(err);
 });

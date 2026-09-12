@@ -26,7 +26,8 @@ async function runMigrations() {
       '001_initial_schema.sql',
       '002_performance_optimization.sql',
       '004_farcaster_migration.sql',
-      '005_solana_ranked_runs.sql'
+      '005_solana_ranked_runs.sql',
+      '006_chain_records.sql'
     ];
 
     // Execute each migration

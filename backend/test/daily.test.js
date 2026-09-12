@@ -1,24 +1,37 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { dailySeed, dayOf, dayStart, GRACE_SECONDS } from '../src/services/dailySeed.js';
+import { dailySeed, dayOf, dayStart, GRACE_SECONDS, weekOf, weekdayOf } from '../src/services/dailySeed.js';
 import { tokenFor } from './helpers/jwt.js';
+import * as fakeChain from './helpers/fakeChain.js';
 import * as memory from './helpers/memoryRankedRuns.js';
+import * as memoryRecords from './helpers/memoryRecords.js';
+import * as memoryUsers from './helpers/memoryUsers.js';
 import { playReplay } from './helpers/play.js';
 
 vi.mock('../src/db/rankedRuns.js', () => import('./helpers/memoryRankedRuns.js'));
+vi.mock('../src/db/records.js', () => import('./helpers/memoryRecords.js'));
+vi.mock('../src/db/users.js', () => import('./helpers/memoryUsers.js'));
+vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
+vi.mock('../src/chain/txs.js', () => import('./helpers/fakeChain.js'));
 
 const SECRET = 'd'.repeat(40);
 process.env.DAILY_SEED_SECRET = SECRET;
 process.env.DAILY_FREE_ATTEMPTS = '2';
 
 const { createApp } = await import('../src/createApp.js');
+const { clearPlayerCache } = await import('../src/services/rankedRuns.js');
 const user = memory.TEST_USER;
 const auth = { Authorization: `Bearer ${tokenFor(user)}` };
+const nowSeconds = () => Math.floor(Date.now() / 1000);
 
 describe('/api/daily', () => {
   let app;
   beforeEach(() => {
     memory.reset();
+    memoryRecords.reset();
+    memoryUsers.reset();
+    fakeChain.reset();
+    clearPlayerCache();
     app = createApp();
   });
 
@@ -29,6 +42,29 @@ describe('/api/daily', () => {
     expect(anon.body.secondsToNextDay).toBeGreaterThan(0);
     const mine = await request(app).get('/api/daily/today').set(auth);
     expect(mine.body.attemptsLeft).toBe(2);
+  });
+
+  it('reports the on-chain fields on today for anonymous and ticket-holding callers', async () => {
+    const anon = await request(app).get('/api/daily/today');
+    expect(anon.body).toMatchObject({
+      attemptsBought: 0, freeAttempts: 2, hasPlayerAccount: false, ticketPriceSkr: 10, poolSkr: 0,
+      weekTotal: 0, weekRank: null, skrBalance: 0, cluster: 'devnet', recordedBest: 0,
+    });
+
+    const today = dayOf(Date.now() / 1000);
+    const week = weekOf(today);
+    const weekday = weekdayOf(today);
+    const dayBests = [0, 0, 0, 0, 0, 0, 0];
+    dayBests[weekday] = 42;
+    fakeChain.setPlayer(user.wallet_address, { week, ticketDay: today, attemptsBought: 3, dayBests });
+    fakeChain.setBalance(user.wallet_address, 25_000_000n);
+    fakeChain.setWeekPool(week, { vault: `Vault${week}`, top: [{ player: user.wallet_address, total: 42, updatedAt: today }], settled: false });
+
+    const mine = await request(app).get('/api/daily/today').set(auth);
+    expect(mine.body).toMatchObject({
+      attemptsBought: 3, freeAttempts: 2, hasPlayerAccount: true, attemptsLeft: 5,
+      weekTotal: 42, weekRank: 1, skrBalance: 25, recordedBest: 42,
+    });
   });
 
   it('requires a token to start a run', async () => {
@@ -78,5 +114,138 @@ describe('/api/daily', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ day: old, seed: dailySeed(SECRET, old) });
     expect((await request(app).get('/api/daily/seed/abc')).status).toBe(400);
+  });
+
+  it('requires a token to buy a ticket', async () => {
+    expect((await request(app).post('/api/daily/ticket')).status).toBe(401);
+  });
+
+  it('issues a ticket tx, flagging whether it also creates the player', async () => {
+    const res = await request(app).post('/api/daily/ticket').set(auth);
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      transaction: expect.any(String), blockhash: expect.any(String), lastValidBlockHeight: expect.any(Number), minContextSlot: 1234, createsPlayer: true,
+    });
+
+    fakeChain.setPlayer(user.wallet_address, {});
+    const again = await request(app).post('/api/daily/ticket').set(auth);
+    expect(again.body.createsPlayer).toBe(false);
+  });
+
+  describe('records', () => {
+    it('refuses to record a day with no verified run', async () => {
+      const today = dayOf(nowSeconds());
+      const res = await request(app).post('/api/daily/records').set(auth).send({ day: today });
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ error: 'RankedRun', code: 'no_verified_run' });
+    });
+
+    it('refuses to record once the day window has closed', async () => {
+      const oldDay = dayOf(nowSeconds()) - 5;
+      const res = await request(app).post('/api/daily/records').set(auth).send({ day: oldDay });
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ error: 'RankedRun', code: 'day_closed' });
+    });
+
+    it('refuses to record without a player account, then without a ticket, then records and confirms', async () => {
+      const started = await request(app).post('/api/daily/runs').set(auth);
+      const { runId, seed, day } = started.body;
+      const played = playReplay(seed, 300);
+      await request(app).post(`/api/daily/runs/${runId}/finish`).set(auth).send({ replay: played.base64 });
+
+      const noAccount = await request(app).post('/api/daily/records').set(auth).send({ day });
+      expect(noAccount.status).toBe(404);
+      expect(noAccount.body).toMatchObject({ code: 'no_player_account' });
+
+      fakeChain.setPlayer(user.wallet_address, { ticketDay: day - 5, prevTicketDay: day - 6 });
+      const noTicket = await request(app).post('/api/daily/records').set(auth).send({ day });
+      expect(noTicket.status).toBe(409);
+      expect(noTicket.body).toMatchObject({ code: 'no_ticket' });
+
+      fakeChain.setPlayer(user.wallet_address, { ticketDay: day, prevTicketDay: day - 1 });
+      const issued = await request(app).post('/api/daily/records').set(auth).send({ day });
+      expect(issued.status).toBe(201);
+      expect(issued.body).toMatchObject({ day, score: played.score, transaction: expect.any(String), minContextSlot: 1234 });
+
+      const pending = await request(app).post('/api/daily/records/confirm').set(auth).send({ day, signature: 'sig-1' });
+      expect(pending.status).toBe(202);
+      expect(pending.body).toEqual({ confirmed: false });
+
+      fakeChain.setTxStatus('sig-1', true);
+      const dayBests = [0, 0, 0, 0, 0, 0, 0];
+      dayBests[weekdayOf(day)] = played.score;
+      fakeChain.setPlayer(user.wallet_address, { week: weekOf(day), dayBests });
+
+      const confirmed = await request(app).post('/api/daily/records/confirm').set(auth).send({ day, signature: 'sig-1' });
+      expect(confirmed.status).toBe(200);
+      expect(confirmed.body).toEqual({ confirmed: true, score: played.score });
+
+      const already = await request(app).post('/api/daily/records').set(auth).send({ day });
+      expect(already.status).toBe(409);
+      expect(already.body).toMatchObject({ code: 'already_recorded' });
+    });
+
+    it('reports a failed transaction as not confirmed', async () => {
+      fakeChain.setTxStatus('sig-failed', false);
+      const res = await request(app).post('/api/daily/records/confirm').set(auth).send({ day: 100, signature: 'sig-failed' });
+      expect(res.status).toBe(202);
+      expect(res.body).toEqual({ confirmed: false });
+    });
+  });
+
+  it('renders the week view from WeekPool.top', async () => {
+    const now = nowSeconds();
+    const week = weekOf(dayOf(now));
+    fakeChain.setConfig({ payoutBps: [5000, 3000, 2000] });
+    fakeChain.setWeekPool(week, { vault: 'VaultX', top: [{ player: user.wallet_address, total: 500, updatedAt: now }], settled: false });
+    fakeChain.setBalance('VaultX', 10_000_000n);
+    fakeChain.setPlayer(user.wallet_address, { week, dayBests: [10, 20, 30, 40, 50, 60, 70] });
+
+    const res = await request(app).get('/api/daily/week');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      week,
+      poolSkr: 10,
+      settled: false,
+      entries: [{ rank: 1, walletAddress: user.wallet_address, username: user.username, total: 500, days: [10, 20, 30, 40, 50, 60, 70], forecastSkr: 5 }],
+    });
+    expect(res.body.endsAt).toBeGreaterThan(now);
+  });
+
+  it('renders an empty week view before the pool exists', async () => {
+    const res = await request(app).get('/api/daily/week?week=999999');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ week: 999999, endsAt: expect.any(Number), poolSkr: 0, entries: [], settled: false });
+  });
+
+  it('defaults the week view to the current week when no week is given', async () => {
+    const currentWeek = weekOf(dayOf(nowSeconds()));
+    const res = await request(app).get('/api/daily/week');
+    expect(res.status).toBe(200);
+    expect(res.body.week).toBe(currentWeek);
+  });
+
+  describe('devnet faucet', () => {
+    it('does not exist on mainnet', async () => {
+      const original = process.env.SOLANA_CLUSTER;
+      process.env.SOLANA_CLUSTER = 'mainnet';
+      const mainnetApp = createApp();
+      const res = await request(mainnetApp).post('/api/devnet/faucet').set(auth);
+      expect(res.status).toBe(404);
+      process.env.SOLANA_CLUSTER = original;
+    });
+
+    it('mints 100 test SKR on devnet, then rate-limits a second call', async () => {
+      const original = process.env.SOLANA_CLUSTER;
+      process.env.SOLANA_CLUSTER = 'devnet';
+      const devnetApp = createApp();
+      const res = await request(devnetApp).post('/api/devnet/faucet').set(auth);
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ signature: expect.any(String), amountSkr: 100 });
+
+      const again = await request(devnetApp).post('/api/devnet/faucet').set(auth);
+      expect(again.status).toBe(429);
+      process.env.SOLANA_CLUSTER = original;
+    });
   });
 });

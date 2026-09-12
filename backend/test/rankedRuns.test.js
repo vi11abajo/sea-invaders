@@ -1,22 +1,25 @@
 import { CORE_VERSION, REPLAY_MODE } from '@sea-invaders/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dailySeed, dayOf, dayStart, GRACE_SECONDS } from '../src/services/dailySeed.js';
+import * as fakeChain from './helpers/fakeChain.js';
 import * as memory from './helpers/memoryRankedRuns.js';
 import { playReplay } from './helpers/play.js';
 
 vi.mock('../src/db/rankedRuns.js', () => import('./helpers/memoryRankedRuns.js'));
+vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
+vi.mock('../src/chain/txs.js', () => import('./helpers/fakeChain.js'));
 
 const SECRET = 's'.repeat(40);
 process.env.DAILY_SEED_SECRET = SECRET;
 process.env.DAILY_FREE_ATTEMPTS = '3';
 
-const { startRun, finishRun, todayInfo, RankedRunError } = await import('../src/services/rankedRuns.js');
+const { startRun, finishRun, todayInfo, clearPlayerCache, RankedRunError } = await import('../src/services/rankedRuns.js');
 
 const NOON = Date.UTC(2026, 8, 11, 12) / 1000;
 const DAY = dayOf(NOON);
 
 describe('startRun', () => {
-  beforeEach(() => memory.reset());
+  beforeEach(() => { memory.reset(); fakeChain.reset(); clearPlayerCache(); });
 
   it('returns the daily seed, the day and the attempts left', async () => {
     const run = await startRun({ userId: 7, now: NOON });
@@ -36,7 +39,7 @@ describe('startRun', () => {
 });
 
 describe('finishRun', () => {
-  beforeEach(() => memory.reset());
+  beforeEach(() => { memory.reset(); fakeChain.reset(); clearPlayerCache(); });
 
   it('verifies a genuine replay and reports the day best', async () => {
     const { runId, seed } = await startRun({ userId: 7, now: NOON });
@@ -120,7 +123,7 @@ describe('finishRun', () => {
 });
 
 describe('leaderboardForDay tie-break', () => {
-  beforeEach(() => memory.reset());
+  beforeEach(() => { memory.reset(); fakeChain.reset(); clearPlayerCache(); });
 
   it("picks the user's earlier-finished run when two verified runs tie on score", async () => {
     await memory.insertRun({ id: 'run-a', userId: 7, day: DAY });
@@ -130,5 +133,54 @@ describe('leaderboardForDay tie-break', () => {
     await memory.finishRun('run-b', { score: 100, finishedAt: NOON + 10, status: 'verified' });
     const [entry] = await memory.leaderboardForDay(DAY, 50);
     expect(entry.runId).toBe('run-b');
+  });
+});
+
+describe('attemptsAllowed from on-chain tickets', () => {
+  beforeEach(() => { memory.reset(); fakeChain.reset(); clearPlayerCache(); });
+
+  it('grants zero attempts when freeAttempts is 0 and there is no ticket', async () => {
+    process.env.DAILY_FREE_ATTEMPTS = '0';
+    try {
+      await expect(startRun({ userId: 7, wallet: 'Wallet1', now: NOON })).rejects.toMatchObject({ code: 'no_attempts', status: 403, extra: { attemptsLeft: 0 } });
+      expect((await todayInfo({ userId: 7, wallet: 'Wallet1', now: NOON })).attemptsLeft).toBe(0);
+    } finally {
+      process.env.DAILY_FREE_ATTEMPTS = '3';
+    }
+  });
+
+  it("grants attemptsBought when the player's ticket_day is today", async () => {
+    process.env.DAILY_FREE_ATTEMPTS = '0';
+    try {
+      fakeChain.setPlayer('Wallet2', { ticketDay: DAY, attemptsBought: 3 });
+      const run = await startRun({ userId: 7, wallet: 'Wallet2', now: NOON });
+      expect(run.attemptsLeft).toBe(2);
+      const info = await todayInfo({ userId: 7, wallet: 'Wallet2', now: NOON + 1 });
+      expect(info).toMatchObject({ attemptsBought: 3, hasPlayerAccount: true, attemptsLeft: 2 });
+    } finally {
+      process.env.DAILY_FREE_ATTEMPTS = '3';
+    }
+  });
+
+  it("ignores attemptsBought when the player's ticket_day is from a previous day", async () => {
+    process.env.DAILY_FREE_ATTEMPTS = '0';
+    try {
+      fakeChain.setPlayer('Wallet3', { ticketDay: DAY - 1, attemptsBought: 3 });
+      await expect(startRun({ userId: 7, wallet: 'Wallet3', now: NOON })).rejects.toMatchObject({ code: 'no_attempts' });
+      expect((await todayInfo({ userId: 7, wallet: 'Wallet3', now: NOON })).attemptsBought).toBe(0);
+    } finally {
+      process.env.DAILY_FREE_ATTEMPTS = '3';
+    }
+  });
+
+  it('adds freeAttempts and attemptsBought together', async () => {
+    process.env.DAILY_FREE_ATTEMPTS = '1';
+    try {
+      fakeChain.setPlayer('Wallet4', { ticketDay: DAY, attemptsBought: 2 });
+      const run = await startRun({ userId: 7, wallet: 'Wallet4', now: NOON });
+      expect(run.attemptsLeft).toBe(2); // 1 free + 2 bought - 1 just used
+    } finally {
+      process.env.DAILY_FREE_ATTEMPTS = '3';
+    }
   });
 });

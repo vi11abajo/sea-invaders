@@ -82,3 +82,10 @@ export async function getTokenBalance(owner, connection = defaultConnection()) {
     throw err;
   }
 }
+
+/** `'confirmed'` once the transaction landed successfully, `'failed'` once it landed but errored, `'missing'` while it is not yet visible to the RPC node (the caller retries). */
+export async function getTransactionStatus(signature, connection = defaultConnection()) {
+  const tx = await connection.getTransaction(signature, { maxSupportedTransactionVersion: 0, commitment: 'confirmed' });
+  if (!tx) return 'missing';
+  return tx.meta?.err ? 'failed' : 'confirmed';
+}

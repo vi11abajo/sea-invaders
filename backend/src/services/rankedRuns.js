@@ -1,26 +1,31 @@
 import { CORE_VERSION, MAX_REPLAY_TICKS, REPLAY_MODE, TICKS_PER_SECOND, decodeReplay, runReplay } from '@sea-invaders/core';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../db/rankedRuns.js';
-import { dailySeed, dayOf, isDayOpen, secondsToNextDay } from './dailySeed.js';
+import { getConfig, getPlayer, getTokenBalance, getVaultBalance, getWeekPool } from '../chain/readers.js';
+import { dailySeed, dayOf, isDayOpen, secondsToNextDay, weekOf, weekdayOf } from './dailySeed.js';
 
-const STATUS = { no_attempts: 403, run_not_found: 404, run_finished: 409, update_required: 426, bad_replay: 400, seed_mismatch: 400, too_fast: 400, day_closed: 400 };
+const STATUS = {
+  no_attempts: 403, run_not_found: 404, run_finished: 409, update_required: 426, bad_replay: 400, seed_mismatch: 400, too_fast: 400, day_closed: 400,
+  no_verified_run: 404, already_recorded: 409, no_ticket: 409, no_player_account: 404,
+};
 
 /** Seconds of slack between replay length and wall-clock time, for latency and frame stalls. */
 const CLOCK_SLACK_SECONDS = 5;
 
 export class RankedRunError extends Error {
-  constructor(code, message) {
+  constructor(code, message, extra = {}) {
     super(message);
     this.name = 'RankedRunError';
     this.code = code;
     this.status = STATUS[code];
+    this.extra = extra;
   }
 }
 
-/** Temporary stand-in for on-chain tickets (Phase 2B): free attempts per UTC day. */
-export function attemptsPerDay() {
-  const n = Number.parseInt(process.env.DAILY_FREE_ATTEMPTS ?? '3', 10);
-  return Number.isInteger(n) && n > 0 ? n : 3;
+/** Free ranked attempts per UTC day, granted regardless of on-chain tickets (default 0 now that tickets exist). */
+export function freeAttempts() {
+  const n = Number.parseInt(process.env.DAILY_FREE_ATTEMPTS ?? '0', 10);
+  return Number.isInteger(n) && n >= 0 ? n : 0;
 }
 
 function seedSecret() {
@@ -29,20 +34,82 @@ function seedSecret() {
   return secret;
 }
 
-export async function todayInfo({ userId, now }) {
-  const day = dayOf(now);
-  const used = userId ? await db.countRunsForDay(userId, day) : 0;
-  const best = userId ? await db.bestForDay(userId, day) : null;
-  return { day, secondsToNextDay: secondsToNextDay(now), attemptsLeft: Math.max(0, attemptsPerDay() - used), todayBest: best ? best.score : null };
+const PLAYER_CACHE_TTL_MS = 5000;
+const playerCache = new Map(); // wallet -> { value, expiresAt }
+
+/** `getPlayer`, cached for 5 s per wallet so repeated Home refreshes don't each hit the RPC. */
+export async function getCachedPlayer(wallet) {
+  if (!wallet) return null;
+  const cached = playerCache.get(wallet);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) return cached.value;
+  const value = await getPlayer(wallet);
+  playerCache.set(wallet, { value, expiresAt: now + PLAYER_CACHE_TTL_MS });
+  return value;
 }
 
-export async function startRun({ userId, now }) {
+/** Clears the `getPlayer` cache for one wallet, or all wallets when called with no argument. */
+export function clearPlayerCache(wallet) {
+  if (wallet) playerCache.delete(wallet);
+  else playerCache.clear();
+}
+
+/** Attempts bought today via an on-chain ticket: only valid while `ticketDay` still matches today. */
+function attemptsBoughtToday(player, day) {
+  return player && player.ticketDay === day ? player.attemptsBought : 0;
+}
+
+export async function todayInfo({ userId, wallet, now }) {
+  const day = dayOf(now);
+  const week = weekOf(day);
+  const weekday = weekdayOf(day);
+
+  const used = userId ? await db.countRunsForDay(userId, day) : 0;
+  const best = userId ? await db.bestForDay(userId, day) : null;
+
+  const [config, player, weekPool, vaultBalance, skrBalance] = await Promise.all([
+    getConfig(),
+    wallet ? getCachedPlayer(wallet) : null,
+    getWeekPool(week),
+    getVaultBalance(week),
+    wallet ? getTokenBalance(wallet) : 0n,
+  ]);
+
+  const boughtToday = attemptsBoughtToday(player, day);
+  const attemptsAllowed = freeAttempts() + boughtToday;
+  const inCurrentWeek = player && player.week === week;
+  const weekRank = weekPool && wallet ? (() => {
+    const idx = weekPool.top.findIndex((entry) => entry.player === wallet);
+    return idx === -1 ? null : idx + 1;
+  })() : null;
+
+  return {
+    day,
+    secondsToNextDay: secondsToNextDay(now),
+    attemptsLeft: Math.max(0, attemptsAllowed - used),
+    todayBest: best ? best.score : null,
+    attemptsBought: boughtToday,
+    freeAttempts: freeAttempts(),
+    hasPlayerAccount: Boolean(player),
+    recordedBest: inCurrentWeek ? player.dayBests[weekday] : 0,
+    ticketPriceSkr: config ? Number(config.ticketPrice) / 1e6 : null,
+    poolSkr: Number(vaultBalance) / 1e6,
+    weekTotal: inCurrentWeek ? player.dayBests.reduce((sum, score) => sum + score, 0) : 0,
+    weekRank,
+    skrBalance: Number(skrBalance) / 1e6,
+    cluster: process.env.SOLANA_CLUSTER || 'devnet',
+  };
+}
+
+export async function startRun({ userId, wallet, now }) {
   const day = dayOf(now);
   const used = await db.countRunsForDay(userId, day);
-  if (used >= attemptsPerDay()) throw new RankedRunError('no_attempts', 'No ranked attempts left today');
+  const player = wallet ? await getCachedPlayer(wallet) : null;
+  const attemptsAllowed = freeAttempts() + attemptsBoughtToday(player, day);
+  if (used >= attemptsAllowed) throw new RankedRunError('no_attempts', 'No ranked attempts left today', { attemptsLeft: 0 });
   const run = { id: uuidv4(), userId, day, seed: dailySeed(seedSecret(), day), coreVersion: CORE_VERSION, startedAt: now };
   await db.insertRun(run);
-  return { runId: run.id, day, seed: run.seed, coreVersion: CORE_VERSION, attemptsLeft: attemptsPerDay() - used - 1 };
+  return { runId: run.id, day, seed: run.seed, coreVersion: CORE_VERSION, attemptsLeft: attemptsAllowed - used - 1 };
 }
 
 function decode(replayBase64) {

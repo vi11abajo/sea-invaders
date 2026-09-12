@@ -11,3 +11,10 @@ export async function findOrCreateWalletUser(walletAddress) {
   );
   return inserted.rows[0];
 }
+
+/** Batch-looks-up users by wallet address, for annotating a list of on-chain wallets with usernames. */
+export async function findUsersByWallets(addresses) {
+  if (!addresses || addresses.length === 0) return [];
+  const result = await pool.query('SELECT id, wallet_address, username FROM users WHERE wallet_address = ANY($1)', [addresses]);
+  return result.rows;
+}

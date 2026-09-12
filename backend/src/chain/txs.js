@@ -14,7 +14,7 @@
 //    instructions with no player wallet involved: fee payer is the server
 //    authority, which fully signs before the caller sends it.
 import { PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getOrCreateAssociatedTokenAccount, mintTo } from '@solana/spl-token';
 import { program as buildProgram } from './program.js';
 import { connection as defaultConnection } from './connection.js';
 import { chainConfig } from './config.js';
@@ -48,24 +48,22 @@ function finalize(envelope) {
 /** `create_player`: initializes the caller's `Player` account. Unsigned; fee payer = wallet. */
 export async function buildCreatePlayerTx(wallet, { connection = defaultConnection() } = {}) {
   const walletKey = toPublicKey(wallet);
-  const ix = await buildProgram(connection)
-    .methods.createPlayer()
-    .accountsPartial({
-      wallet: walletKey,
-      player: playerPda(walletKey),
-      systemProgram: SystemProgram.programId,
-    })
-    .instruction();
+  const ix = await createPlayerInstruction(connection, walletKey);
   return finalize(await buildEnvelope(connection, walletKey, [ix]));
 }
 
 /** `buy_ticket`. Unsigned; fee payer = wallet. `treasury` may be passed in to skip the `getConfig` round trip. */
 export async function buildBuyTicketTx(wallet, { week, treasury, connection = defaultConnection() } = {}) {
   const walletKey = toPublicKey(wallet);
+  const ix = await buyTicketInstruction(connection, walletKey, { week, treasury });
+  return finalize(await buildEnvelope(connection, walletKey, [ix]));
+}
+
+async function buyTicketInstruction(connection, walletKey, { week, treasury }) {
   const { skrMint } = chainConfig();
   const treasuryKey = treasury ? toPublicKey(treasury) : toPublicKey((await getConfig(connection)).treasury);
   const weekPoolKey = weekPda(week);
-  const ix = await buildProgram(connection)
+  return buildProgram(connection)
     .methods.buyTicket()
     .accountsPartial({
       wallet: walletKey,
@@ -79,7 +77,29 @@ export async function buildBuyTicketTx(wallet, { week, treasury, connection = de
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .instruction();
-  return finalize(await buildEnvelope(connection, walletKey, [ix]));
+}
+
+async function createPlayerInstruction(connection, walletKey) {
+  return buildProgram(connection)
+    .methods.createPlayer()
+    .accountsPartial({
+      wallet: walletKey,
+      player: playerPda(walletKey),
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+}
+
+/**
+ * `create_player` (when `createPlayer` is true) + `buy_ticket`, composed into one v0 tx so a
+ * first-time buyer only signs once. Unsigned; fee payer = wallet.
+ */
+export async function buildTicketTx(wallet, { createPlayer, week, treasury, connection = defaultConnection() } = {}) {
+  const walletKey = toPublicKey(wallet);
+  const instructions = [];
+  if (createPlayer) instructions.push(await createPlayerInstruction(connection, walletKey));
+  instructions.push(await buyTicketInstruction(connection, walletKey, { week, treasury }));
+  return finalize(await buildEnvelope(connection, walletKey, instructions));
 }
 
 /** `submit_daily_best`. Dual-signed: the server partial-signs here; the wallet's own signature is left for the app. */
@@ -161,4 +181,16 @@ export async function buildSettleWeekTx(week, winners, { connection = defaultCon
   const envelope = await buildEnvelope(connection, serverAuthority.publicKey, [ix]);
   envelope.transaction.sign([serverAuthority]);
   return finalize(envelope);
+}
+
+/**
+ * Devnet-only faucet: mints `amount` base units of the test SKR mint to `wallet`'s ATA, creating
+ * it if needed. The test mint's mint authority is the server authority, so this needs no admin key.
+ */
+export async function mintTestTokens(wallet, amount, { connection = defaultConnection() } = {}) {
+  const walletKey = toPublicKey(wallet);
+  const { skrMint, serverAuthority } = chainConfig();
+  const destination = await getOrCreateAssociatedTokenAccount(connection, serverAuthority, skrMint, walletKey, true);
+  const signature = await mintTo(connection, serverAuthority, skrMint, destination.address, serverAuthority, amount);
+  return { signature };
 }
