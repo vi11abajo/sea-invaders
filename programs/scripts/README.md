@@ -21,6 +21,9 @@ exist, and `smoke-test.ts` needs the current week's pool to exist.
   scripts). Never commit this directory or print its contents.
 - `ANCHOR_PROVIDER_URL` - default `https://api.devnet.solana.com`.
 
+All three scripts share their bootstrap (`loadKeypair`, `configPda`,
+`weekPda`, `loadProgram`) via `common.ts`; it is not run directly.
+
 ## What each script does
 
 - **`devnet-init.ts`** - creates the devnet test SKR mint (6 decimals,

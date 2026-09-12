@@ -18,59 +18,13 @@
  *   KEYS_DIR             default /mnt/d/dev/keys - reads admin.json.
  *   ANCHOR_PROVIDER_URL  default https://api.devnet.solana.com
  */
-import * as fs from "fs";
-import * as path from "path";
-import { AnchorProvider, Program, Wallet } from "@anchor-lang/core";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { SeaInvaders } from "../target/types/sea_invaders";
-
-const KEYS_DIR = process.env.KEYS_DIR ?? "/mnt/d/dev/keys";
-const RPC_URL =
-  process.env.ANCHOR_PROVIDER_URL ?? "https://api.devnet.solana.com";
-
-function loadKeypair(filename: string): Keypair {
-  const raw = JSON.parse(
-    fs.readFileSync(path.join(KEYS_DIR, filename), "utf8")
-  );
-  return Keypair.fromSecretKey(Uint8Array.from(raw));
-}
-
-function configPda(programId: PublicKey): PublicKey {
-  return PublicKey.findProgramAddressSync(
-    [Buffer.from("config")],
-    programId
-  )[0];
-}
-
-function weekPda(programId: PublicKey, week: number): PublicKey {
-  const buf = Buffer.alloc(4);
-  buf.writeUInt32LE(week);
-  return PublicKey.findProgramAddressSync(
-    [Buffer.from("week"), buf],
-    programId
-  )[0];
-}
+import { PublicKey } from "@solana/web3.js";
+import { configPda, loadKeypair, loadProgram, weekPda } from "./common";
 
 async function main() {
   const admin = loadKeypair("admin.json");
-  const connection = new Connection(RPC_URL, "confirmed");
-  const provider = new AnchorProvider(
-    connection,
-    new Wallet(admin),
-    AnchorProvider.defaultOptions()
-  );
-
-  const idlPath = path.join(
-    __dirname,
-    "..",
-    "target",
-    "idl",
-    "sea_invaders.json"
-  );
-  const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
-  const programId = new PublicKey(idl.address);
-  const program = new Program<SeaInvaders>(idl, provider);
+  const { connection, program, programId } = loadProgram(admin);
 
   const config = await program.account.config.fetchNullable(
     configPda(programId)

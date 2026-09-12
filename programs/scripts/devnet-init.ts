@@ -22,15 +22,13 @@
  *                        printed).
  *   ANCHOR_PROVIDER_URL  default https://api.devnet.solana.com
  */
-import * as fs from "fs";
-import * as path from "path";
-import { AnchorProvider, BN, Program, Wallet } from "@anchor-lang/core";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { BN } from "@anchor-lang/core";
+import { PublicKey } from "@solana/web3.js";
 import {
   createMint,
   getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
-import { SeaInvaders } from "../target/types/sea_invaders";
+import { configPda, loadKeypair, loadProgram } from "./common";
 
 // Copied verbatim from `tests/fixtures.ts` (`LADDER`/`PAYOUT`) rather than
 // imported - importing that file here drags its `createWeekPool` helper
@@ -42,24 +40,6 @@ const LADDER = [25, 30, 40, 50, 60, 75, 95, 120].map((s) =>
   new BN(s).mul(new BN(1_000_000))
 );
 const PAYOUT = [3000, 2000, 1200, 800, 600, 480, 480, 480, 480, 480];
-
-const KEYS_DIR = process.env.KEYS_DIR ?? "/mnt/d/dev/keys";
-const RPC_URL =
-  process.env.ANCHOR_PROVIDER_URL ?? "https://api.devnet.solana.com";
-
-function loadKeypair(filename: string): Keypair {
-  const raw = JSON.parse(
-    fs.readFileSync(path.join(KEYS_DIR, filename), "utf8")
-  );
-  return Keypair.fromSecretKey(Uint8Array.from(raw));
-}
-
-function configPda(programId: PublicKey): PublicKey {
-  return PublicKey.findProgramAddressSync(
-    [Buffer.from("config")],
-    programId
-  )[0];
-}
 
 // The BPF Upgradeable Loader's well-known program id - see `tests/fixtures.ts`'s
 // `programDataPda` for why this is hardcoded rather than imported.
@@ -90,23 +70,7 @@ async function main() {
   const admin = loadKeypair("admin.json");
   const serverAuthority = loadKeypair("server-authority.json");
 
-  const connection = new Connection(RPC_URL, "confirmed");
-  const provider = new AnchorProvider(
-    connection,
-    new Wallet(admin),
-    AnchorProvider.defaultOptions()
-  );
-
-  const idlPath = path.join(
-    __dirname,
-    "..",
-    "target",
-    "idl",
-    "sea_invaders.json"
-  );
-  const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
-  const programId = new PublicKey(idl.address);
-  const program = new Program<SeaInvaders>(idl, provider);
+  const { connection, program, programId } = loadProgram(admin);
 
   const pda = configPda(programId);
   const existing = await program.account.config.fetchNullable(pda);
