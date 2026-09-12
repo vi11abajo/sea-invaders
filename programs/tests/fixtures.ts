@@ -1,5 +1,5 @@
-import { PublicKey, Keypair } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { AccountMeta, PublicKey, Keypair } from "@solana/web3.js";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { BN } from "@anchor-lang/core";
 import { configPda, Ctx } from "./helpers";
 
@@ -171,4 +171,61 @@ export async function submit(
 ) {
   const ix = await submitIx(ctx, who, day, score, replayHash);
   await ctx.send([ix], [who, ctx.server]);
+}
+
+// Anyone can top up a week's vault directly - `week_pool`'s seeds read its
+// own `week` field (see `settle.rs`), so it is derived and passed
+// explicitly the same way `buyTicket`'s is above.
+export async function fundPool(
+  ctx: Ctx,
+  funder: Keypair,
+  amount: number | bigint,
+  week: number
+) {
+  const weekPool = weekPda(ctx.programId, week);
+  const ix = await ctx.program.methods
+    .fundPool(new BN(amount.toString()))
+    .accountsPartial({
+      funder: funder.publicKey,
+      weekPool,
+      vault: ctx.ata(weekPool),
+      funderToken: ctx.ata(funder.publicKey),
+      skrMint: ctx.mint,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .instruction();
+  await ctx.send([ix], [funder]);
+}
+
+// `remaining_accounts` carries `(wallet, ata)` pairs in the pool's own
+// `top` order (see `settle.rs`) - the ATA is writable (it receives the
+// payout and may need creating), the wallet is neither writable nor a
+// signer (settle_week is permissionless: only `caller` signs).
+export async function settleWeek(
+  ctx: Ctx,
+  caller: Keypair,
+  week: number,
+  winners: PublicKey[]
+) {
+  const weekPool = weekPda(ctx.programId, week);
+  const nextWeekPool = weekPda(ctx.programId, week + 1);
+  const remainingAccounts: AccountMeta[] = winners.flatMap((wallet) => [
+    { pubkey: wallet, isWritable: false, isSigner: false },
+    { pubkey: ctx.ata(wallet), isWritable: true, isSigner: false },
+  ]);
+  const ix = await ctx.program.methods
+    .settleWeek(week)
+    .accountsPartial({
+      caller: caller.publicKey,
+      weekPool,
+      vault: ctx.ata(weekPool),
+      nextWeekPool,
+      nextVault: ctx.ata(nextWeekPool),
+      skrMint: ctx.mint,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    })
+    .remainingAccounts(remainingAccounts)
+    .instruction();
+  return ctx.send([ix], [caller]);
 }

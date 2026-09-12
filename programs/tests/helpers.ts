@@ -46,7 +46,11 @@ export interface Ctx {
   now(): Promise<number>; // current unix time (the program's clock override, or the validator's real clock)
 }
 
-async function airdrop(
+// Exported so other test files that need extra actors beyond alice/bob
+// (e.g. settle.test.ts's winners, record.test.ts's top-10 fixture) can
+// fund them without each duplicating this - see record.test.ts's former
+// `fundActor`, folded into a direct call of this instead.
+export async function airdrop(
   connection: Connection,
   pubkey: PublicKey,
   lamports: number

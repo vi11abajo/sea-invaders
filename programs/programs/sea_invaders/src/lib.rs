@@ -51,4 +51,15 @@ pub mod sea_invaders {
     ) -> Result<()> {
         instructions::record::submit_daily_best(ctx, day, score, replay_hash)
     }
+
+    pub fn fund_pool(ctx: Context<FundPool>, amount: u64) -> Result<()> {
+        instructions::settle::fund_pool(ctx, amount)
+    }
+
+    pub fn settle_week<'info>(
+        ctx: Context<'info, SettleWeek<'info>>,
+        week: u32,
+    ) -> Result<()> {
+        instructions::settle::settle_week(ctx, week)
+    }
 }

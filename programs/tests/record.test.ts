@@ -1,6 +1,6 @@
 import { expect } from "chai";
-import { Keypair, PublicKey } from "@solana/web3.js";
-import { Ctx, setup, warpTo } from "./helpers";
+import { Keypair } from "@solana/web3.js";
+import { airdrop, Ctx, setup, warpTo } from "./helpers";
 import {
   buyTicket,
   createPlayer,
@@ -29,22 +29,6 @@ const ZERO_HASH = new Array(32).fill(0);
 // (week_of(T0)) or ticket.test.ts's (week_of(T0) + 1..3), and every warp
 // below only moves further forward from here - never backward.
 const BASE = 1_788_739_200 + 6 * WEEK;
-
-async function fundActor(ctx: Ctx, pubkey: PublicKey) {
-  // Copied from helpers.ts's module-private `airdrop` - that one is not
-  // exported, and the 11 extra actors the top-10 test needs are not part
-  // of the shared `Ctx` (unlike alice/bob), so this file funds them itself.
-  const signature = await ctx.connection.requestAirdrop(
-    pubkey,
-    10 * LAMPORTS_PER_SOL
-  );
-  const { blockhash, lastValidBlockHeight } =
-    await ctx.connection.getLatestBlockhash();
-  await ctx.connection.confirmTransaction(
-    { signature, blockhash, lastValidBlockHeight },
-    "confirmed"
-  );
-}
 
 describe("submit_daily_best", () => {
   let ctx: Ctx;
@@ -198,7 +182,7 @@ describe("submit_daily_best", () => {
 
     const players = Array.from({ length: 11 }, () => Keypair.generate());
     for (const kp of players) {
-      await fundActor(ctx, kp.publicKey);
+      await airdrop(ctx.connection, kp.publicKey, 10 * LAMPORTS_PER_SOL);
     }
     for (const kp of players) {
       await createPlayer(ctx, kp);
