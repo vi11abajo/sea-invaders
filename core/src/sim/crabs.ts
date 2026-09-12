@@ -42,6 +42,34 @@ export function pullTowardsWell(s: GameState, well: { x: number; y: number }): v
   }
 }
 
+/** Void's `gravity` shots (spec §4.1 `gravity` row) pull player shots within this many units. */
+const GRAVITY_SHOT_RANGE = 800;
+/** Void's `gravity` shots pull player shots towards themselves by this many units/tick. */
+const GRAVITY_SHOT_PULL = 10;
+
+/**
+ * Void Sovereign's gravity wave (spec §4.2 row 5): every `gravity` enemy shot pulls every player
+ * shot within `GRAVITY_SHOT_RANGE` units towards itself by `GRAVITY_SHOT_PULL` units/tick, along
+ * the same integer-normalised vector as `pullTowardsWell` (positions only, `vx`/`vy` untouched).
+ * Called from `step` right after `updateEnemyShots` so it sees this tick's freshly moved gravity
+ * shots, leaving `updateEnemyShots`'s own crab-shot firing and motion path untouched.
+ */
+export function pullShotsTowardGravity(s: GameState): void {
+  for (const g of s.enemyShots) {
+    if (g.kind !== 'gravity') continue;
+    for (const p of s.shots) {
+      const dx = g.x - p.x;
+      const dy = g.y - p.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq === 0) continue;
+      const len = isqrt(distSq);
+      if (len > GRAVITY_SHOT_RANGE) continue;
+      p.x += idiv(dx * GRAVITY_SHOT_PULL, len);
+      p.y += idiv(dy * GRAVITY_SHOT_PULL, len);
+    }
+  }
+}
+
 /** Horizontal speed per tick: faster in later waves, as the formation thins out, by the level's reef, and slowed by SPEED_TAMER's stacks. */
 export function crabSpeed(s: GameState): number {
   const killed = s.waveTotal - s.crabs.length;

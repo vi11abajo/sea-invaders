@@ -2,7 +2,7 @@ import { nextWave } from './game';
 import { updateBoosts } from './sim/boosts';
 import { updateBoss } from './sim/boss';
 import { hitCrabs, hitShip } from './sim/collide';
-import { marchCrabs, updateEnemyShots } from './sim/crabs';
+import { marchCrabs, pullShotsTowardGravity, updateEnemyShots } from './sim/crabs';
 import { moveShip, updateShots } from './sim/ship';
 import type { GameState, Input } from './types';
 
@@ -16,6 +16,7 @@ export function step(s: GameState, input: Input): void {
   marchCrabs(s);
   if (s.over) return;
   updateEnemyShots(s);
+  pullShotsTowardGravity(s);
   updateBoss(s);
   hitCrabs(s);
   hitShip(s);

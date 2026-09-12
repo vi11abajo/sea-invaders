@@ -55,21 +55,27 @@ export function moveShip(s: GameState, input: Input): void {
  * carrying the ricochet credit is the only kind whose `x` moves by `vx` here (every other shot
  * keeps today's vertical-only flight): once it leaves `[0, FIELD_W]` it is reflected back inside,
  * `vx` flips sign and the credit is spent, so a second wall contact never reflects again.
+ * While Void Sovereign's temporal freeze is active (`s.boss.kind === 5 && effectTicks > 0`, spec
+ * §4.2 row 5), shots already in flight skip this motion entirely — `vx`/`vy` stay untouched, so
+ * they resume exactly where they left off once `effectTicks` reaches 0 — but new shots still fire.
  */
 export function updateShots(s: GameState): void {
   const kept: Bullet[] = [];
+  const frozen = s.boss?.kind === 5 && s.boss.effectTicks > 0;
   for (const b of s.shots) {
-    b.y += b.vy;
-    if (b.data & 2) {
-      b.x += b.vx;
-      if (b.x < 0) {
-        b.x = -b.x;
-        b.vx = -b.vx;
-        b.data &= ~2;
-      } else if (b.x > FIELD_W) {
-        b.x = 2 * FIELD_W - b.x;
-        b.vx = -b.vx;
-        b.data &= ~2;
+    if (!frozen) {
+      b.y += b.vy;
+      if (b.data & 2) {
+        b.x += b.vx;
+        if (b.x < 0) {
+          b.x = -b.x;
+          b.vx = -b.vx;
+          b.data &= ~2;
+        } else if (b.x > FIELD_W) {
+          b.x = 2 * FIELD_W - b.x;
+          b.vx = -b.vx;
+          b.data &= ~2;
+        }
       }
     }
     if (b.y + idiv(SHOT.h, 2) > 0) kept.push(b);

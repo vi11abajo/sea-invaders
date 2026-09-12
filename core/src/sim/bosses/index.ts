@@ -1,10 +1,10 @@
 import type { Rng } from '../../rng';
 import type { BossState, GameState } from '../../types';
-import { castStraight, muzzle } from '../boss';
 import { AZURE_HOOKS } from './azure';
 import { CRIMSON_HOOKS } from './crimson';
 import { EMERALD_HOOKS } from './emerald';
 import { SOLAR_HOOKS } from './solar';
+import { VOID_HOOKS } from './void';
 
 /**
  * Per-boss behaviour, looked up by `BOSS_HOOKS[b.kind]`. `attack` and `ability` are mandatory;
@@ -23,31 +23,11 @@ export interface BossHooks {
   tick?(s: GameState, b: BossState): void;
 }
 
-/** Ability timer shared by every boss until Tasks 6-10 give each kind its own (spec §4.1: 5-9 s). */
-function defaultAbilityTimer(rng: Rng): number {
-  return 300 + rng.nextInt(241);
-}
-
-/** Placeholder hook used by every kind so the engine is fully testable before Tasks 6-10 register the real ones. */
-function defaultHooks(): BossHooks {
-  return {
-    attack(s, b) {
-      const m = muzzle(b);
-      castStraight(s, m.x, m.y);
-    },
-    ability() {
-      /* no-op until the owning task registers this kind's ability. */
-    },
-    initialAbilityTimer: defaultAbilityTimer,
-    nextAbilityTimer: defaultAbilityTimer,
-  };
-}
-
-/** Per-kind boss hooks. Task 10 replaces the remaining default (kind 5) with its real attacks/ability. */
+/** Per-kind boss hooks, one real implementation per boss kind. */
 export const BOSS_HOOKS: Record<1 | 2 | 3 | 4 | 5, BossHooks> = {
   1: EMERALD_HOOKS,
   2: AZURE_HOOKS,
   3: SOLAR_HOOKS,
   4: CRIMSON_HOOKS,
-  5: defaultHooks(),
+  5: VOID_HOOKS,
 };
