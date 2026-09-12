@@ -21,7 +21,13 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
       - name: Anchor 1.2.0
         run: |
-          cargo install --git https://github.com/otter-sec/anchor avm --force
+          # --locked: build avm from the Cargo.lock committed in the otter-sec repo
+          # instead of resolving every dependency to its newest release. Without it a
+          # freshly published transitive crate can break this step with no change on
+          # our side (jiff 0.2.36, published 2026-09-12, failed to compile and took
+          # two runs down). `avm install 1.2.0` itself downloads a prebuilt anchor-cli
+          # binary for a released version, so only the avm build needs the pin.
+          cargo install --locked --git https://github.com/otter-sec/anchor avm --force
           avm install 1.2.0 && avm use 1.2.0
       - name: Cache cargo
         uses: actions/cache@v4
