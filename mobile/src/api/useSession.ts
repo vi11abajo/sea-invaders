@@ -38,6 +38,8 @@ export function useSession() {
       await forgetWalletAuthorization();
       setSession(await signInWithWallet(walletSignIn));
     } catch (e) {
+      // Release builds have no debugger: keep the stack in logcat so a failure on a device is diagnosable.
+      console.error('[auth] wallet sign-in failed', e instanceof Error ? (e.stack ?? e.message) : e);
       setError(e instanceof ApiError ? e.message : `Wallet sign-in failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setLoading(false);
