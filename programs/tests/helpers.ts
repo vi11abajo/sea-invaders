@@ -59,16 +59,28 @@ async function airdrop(
 // `config` (seeds = [b"config"]) is a singleton PDA on the single
 // `solana-test-validator` this harness now shares across every test file in
 // the mocha run (unlike the Task 1 LiteSVM harness, where each file got its
-// own isolated in-memory VM and could freely `init_config` on its own). Only
-// one admin keypair can ever own that PDA for the life of the process, so
-// `admin` is cached at module scope and reused by every `setup()` call
-// (across files), while every other actor (server/alice/bob) and the mint
-// stay fresh per call so per-file PDAs (player, week pool) and token
-// balances remain collision-free. `config.test.ts` performs the one real
-// `init_config` (mocha loads `tests/**/*.ts` alphabetically, so it always
-// runs before `smoke.test.ts`); `smoke.test.ts`'s clock test only calls the
-// already-gated `set_test_clock`, which requires that `admin` to match.
+// own isolated in-memory VM and could freely `init_config` on its own), and
+// it stores `skr_mint`/`treasury`/`server_authority` (`has_one` constraints
+// check these on later instructions, e.g. `create_week_pool`). So `admin`,
+// `server`, `mint` and `treasury` are all cached at module scope and reused
+// by every `setup()` call across every file - only `alice`/`bob` stay fresh
+// per call, since they only ever appear in per-wallet PDAs (`player`) that
+// must NOT collide between files. `initConfig` (`tests/fixtures.ts`) is
+// idempotent, so whichever file's `setup()`/`initConfig()` runs first does
+// the one real `init_config`; every other file's call just verifies the
+// existing config matches and returns.
 let sharedAdmin: Keypair | undefined;
+let sharedServer: Keypair | undefined;
+let sharedMint: PublicKey | undefined;
+let sharedTreasury: PublicKey | undefined;
+
+/** The `config` PDA (seeds = [b"config"]) - a singleton per program. */
+export function configPda(programId: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    programId
+  )[0];
+}
 
 export async function setup(): Promise<Ctx> {
   const provider = AnchorProvider.env();
@@ -77,28 +89,38 @@ export async function setup(): Promise<Ctx> {
   if (!sharedAdmin) {
     sharedAdmin = Keypair.generate();
   }
+  if (!sharedServer) {
+    sharedServer = Keypair.generate();
+  }
   const admin = sharedAdmin;
-  const server = Keypair.generate();
+  const server = sharedServer;
   const alice = Keypair.generate();
   const bob = Keypair.generate();
   for (const kp of [admin, server, alice, bob]) {
     await airdrop(connection, kp.publicKey, FUNDING_LAMPORTS);
   }
 
-  const mint = await createMint(
-    connection,
-    admin,
-    admin.publicKey,
-    null,
-    MINT_DECIMALS
-  );
-  const treasuryAccount = await getOrCreateAssociatedTokenAccount(
-    connection,
-    admin,
-    mint,
-    admin.publicKey
-  );
-  const treasury = treasuryAccount.address;
+  if (!sharedMint) {
+    sharedMint = await createMint(
+      connection,
+      admin,
+      admin.publicKey,
+      null,
+      MINT_DECIMALS
+    );
+  }
+  const mint = sharedMint;
+
+  if (!sharedTreasury) {
+    const treasuryAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      admin,
+      mint,
+      admin.publicKey
+    );
+    sharedTreasury = treasuryAccount.address;
+  }
+  const treasury = sharedTreasury;
 
   const idlPath = path.join(
     __dirname,
@@ -173,13 +195,8 @@ export async function setup(): Promise<Ctx> {
     }
   };
 
-  const configPda = PublicKey.findProgramAddressSync(
-    [Buffer.from("config")],
-    programId
-  )[0];
-
   const now = async (): Promise<number> => {
-    const config = await program.account.config.fetch(configPda);
+    const config = await program.account.config.fetch(configPda(programId));
     const override = Number(config.clockOverride);
     if (override !== 0) return override;
     return await connection.getBlockTime(await connection.getSlot());

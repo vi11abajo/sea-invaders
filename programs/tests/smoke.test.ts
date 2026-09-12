@@ -1,19 +1,23 @@
 import { expect } from "chai";
 import { PublicKey } from "@solana/web3.js";
 import { Ctx, setup, warpTo } from "./helpers";
+import { initConfig } from "./fixtures";
 
 describe("harness", () => {
-  // One `ctx` for the whole file (fresh actors/mint, but `ctx.admin` is the
-  // process-wide shared admin - see helpers.ts). `config.test.ts` runs
-  // first (mocha loads `tests/**/*.ts` alphabetically) and performs the one
-  // real `init_config`, so by the time this file's tests run, `config`
-  // already exists and is owned by that same shared admin, which is what
-  // lets `warpTo` below (an admin-gated on-chain instruction, unlike the
-  // Task 1 LiteSVM harness's direct VM-clock write) succeed.
+  // One `ctx` for the whole file - `admin`/`server`/`mint`/`treasury` are
+  // the process-wide shared values (see helpers.ts), only `alice`/`bob` are
+  // fresh. `initConfig` is idempotent (see fixtures.ts), so calling it here
+  // makes this file order-independent: it performs the real `init_config`
+  // if no other file has yet, or just confirms the existing config matches
+  // this `ctx` otherwise. Either way, `config` exists and is owned by
+  // `ctx.admin` by the time `warpTo` below (an admin-gated on-chain
+  // instruction, unlike the Task 1 LiteSVM harness's direct VM-clock write)
+  // runs.
   let ctx: Ctx;
 
   before(async () => {
     ctx = await setup();
+    await initConfig(ctx);
   });
 
   it("funds actors, mints the test token and controls the clock", async () => {

@@ -22,9 +22,16 @@ describe("config and accounts", () => {
   });
 
   it("rejects payout shares that do not sum to 10000 bps and pool shares over 10000", async () => {
-    // Must run before `init_config` succeeds anywhere in this file: the
-    // config PDA has no per-admin seed, so a later attempt to init it again
-    // would fail with "already in use" instead of exercising validation.
+    // `config` is a singleton PDA shared with every other test file on the
+    // validator (see helpers.ts), so it may already exist by the time this
+    // runs (e.g. if `smoke.test.ts` ran first) - a bad `init_config` would
+    // then fail with "already in use" instead of exercising validation.
+    // `update_config` runs the same `validate()` and only needs `config` to
+    // already exist, so `initConfig` (idempotent: a real init with valid
+    // args on the first call in this process, a no-op otherwise) guarantees
+    // that regardless of file order, and `validate()` rejects the bad args
+    // before `update_config` would apply them.
+    await initConfig(ctx);
     const bad = {
       ...configArgs(ctx),
       payoutBps: [3000, 2000, 1200, 800, 600, 480, 480, 480, 480, 481],
@@ -34,8 +41,8 @@ describe("config and accounts", () => {
       await ctx.send(
         [
           await ctx.program.methods
-            .initConfig(bad)
-            .accounts({ admin: ctx.admin.publicKey, skrMint: ctx.mint })
+            .updateConfig(bad)
+            .accounts({ admin: ctx.admin.publicKey })
             .instruction(),
         ],
         [ctx.admin]

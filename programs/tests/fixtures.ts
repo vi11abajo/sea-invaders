@@ -1,7 +1,13 @@
 import { PublicKey, Keypair } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { BN } from "@anchor-lang/core";
-import { Ctx } from "./helpers";
+import { configPda, Ctx } from "./helpers";
+
+// Re-exported so existing imports of `configPda` from "./fixtures" (e.g.
+// config.test.ts) keep working - the PDA derivation itself lives in
+// helpers.ts (see the comment above `sharedAdmin` there) so `now()` can use
+// it too without fixtures.ts and helpers.ts importing each other both ways.
+export { configPda };
 
 // @anchor-lang/core's borsh coder (unlike @coral-xyz/anchor) only accepts
 // BN.js instances for u64 fields, not native bigint - the brief's literal
@@ -27,11 +33,11 @@ export function configArgs(ctx: Ctx) {
   };
 }
 
-export const configPda = (pid: PublicKey) =>
-  PublicKey.findProgramAddressSync([Buffer.from("config")], pid)[0];
-
 export const playerPda = (pid: PublicKey, wallet: PublicKey) =>
-  PublicKey.findProgramAddressSync([Buffer.from("player"), wallet.toBuffer()], pid)[0];
+  PublicKey.findProgramAddressSync(
+    [Buffer.from("player"), wallet.toBuffer()],
+    pid
+  )[0];
 
 export const weekPda = (pid: PublicKey, week: number) => {
   const b = Buffer.alloc(4);
@@ -39,7 +45,24 @@ export const weekPda = (pid: PublicKey, week: number) => {
   return PublicKey.findProgramAddressSync([Buffer.from("week"), b], pid)[0];
 };
 
+// Idempotent: `config` is a singleton PDA shared by every test file on the
+// one validator `anchor test` starts (see helpers.ts), so whichever file's
+// `before()` calls this first performs the real `init_config`; every other
+// caller (any file, any order) just confirms the existing config matches
+// this `ctx` (same shared mint - see helpers.ts's `sharedMint`/`sharedAdmin`
+// etc.) and returns without sending a transaction.
 export async function initConfig(ctx: Ctx) {
+  const pda = configPda(ctx.programId);
+  const existing = await ctx.program.account.config.fetchNullable(pda);
+  if (existing) {
+    if (!existing.skrMint.equals(ctx.mint)) {
+      throw new Error(
+        `config already initialized with a different skr_mint (${existing.skrMint.toBase58()} != ${ctx.mint.toBase58()}) - ` +
+          `every test file must share the same mint (see helpers.ts's sharedMint)`
+      );
+    }
+    return;
+  }
   const ix = await ctx.program.methods
     .initConfig(configArgs(ctx))
     .accounts({ admin: ctx.admin.publicKey, skrMint: ctx.mint })
@@ -56,14 +79,22 @@ export async function createPlayer(ctx: Ctx, who: Keypair) {
   return playerPda(ctx.programId, who.publicKey);
 }
 
-export async function createWeekPool(ctx: Ctx, week: number, payer: Keypair = ctx.server) {
+export async function createWeekPool(
+  ctx: Ctx,
+  week: number,
+  payer: Keypair = ctx.server
+) {
   // `token_program` is an `Interface<TokenInterface>` in the program (it
   // could be the classic Token program or Token-2022), so Anchor's client
   // cannot auto-resolve it the way it does a fixed-address `Program` - it
   // must be supplied explicitly.
   const ix = await ctx.program.methods
     .createWeekPool(week)
-    .accounts({ payer: payer.publicKey, skrMint: ctx.mint, tokenProgram: TOKEN_PROGRAM_ID })
+    .accounts({
+      payer: payer.publicKey,
+      skrMint: ctx.mint,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
     .instruction();
   await ctx.send([ix], [payer]);
   return weekPda(ctx.programId, week);
