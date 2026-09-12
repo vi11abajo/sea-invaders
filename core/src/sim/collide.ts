@@ -1,10 +1,10 @@
-import { CRAB, ENEMY_SHOT, SHIP, SHOT } from '../config';
+import { CRAB, CRAB_TYPES, ENEMY_SHOT, SHIP, SHOT } from '../config';
 import { clamp, idiv } from '../fixed';
 import type { Bullet, GameState } from '../types';
 
 const CRAB_HALF = idiv(CRAB.size, 2);
 
-/** Each player shot destroys the first crab it overlaps; every kill scores CRAB.points × wave. */
+/** Each player shot hits the first crab it overlaps; a kill (hp reaches 0) scores the type's points × wave. */
 export function hitCrabs(s: GameState): void {
   const kept: Bullet[] = [];
   for (const b of s.shots) {
@@ -15,9 +15,13 @@ export function hitCrabs(s: GameState): void {
       kept.push(b);
       continue;
     }
-    s.crabs.splice(i, 1);
-    s.score += CRAB.points * s.wave;
-    s.kills += 1;
+    const c = s.crabs[i]!;
+    c.hp -= 1;
+    if (c.hp <= 0) {
+      s.crabs.splice(i, 1);
+      s.score += CRAB_TYPES[c.type].points * s.wave;
+      s.kills += 1;
+    }
   }
   s.shots = kept;
 }

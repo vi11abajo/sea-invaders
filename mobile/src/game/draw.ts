@@ -6,6 +6,12 @@ type Paint = ReturnType<typeof Skia.Paint>;
 
 /** Crab colours by kind: the reef-life palette. The rings stand in for the owner's crab art. */
 const CRAB_COLORS = ['#CFF15E', '#55E9AB', '#CA9FF5', '#F48252', '#FFC526'];
+/**
+ * Crab colours by type, overriding the kind palette above: index matches TYPE_INDEX
+ * (normal, armored, swift, fanner, diver). `normal` keeps the kind colour (null here).
+ * Task 4 replaces this whole ring-and-disc drawing with sprites.
+ */
+const TYPE_COLORS: (string | null)[] = [null, '#7A7F8C', '#E8FFF6', '#FFD166', '#FF5C5C'];
 const SHOT_COLOR = '#19FB9B';
 const ENEMY_SHOT_COLOR = '#F48252';
 const FIELD_EDGE = 'rgba(236,228,253,0.12)';
@@ -38,7 +44,8 @@ export function drawFrame(recorder: Recorder, paint: Paint, f: Frame, l: Layout,
   for (let i = 0; i < f.crabs.length; i += 5) {
     const cx = px(f.crabs[i]!);
     const cy = py(f.crabs[i + 1]!);
-    paint.setColor(Skia.Color(CRAB_COLORS[f.crabs[i + 2]!] ?? '#FFFFFF'));
+    const color = TYPE_COLORS[f.crabs[i + 3]!] ?? CRAB_COLORS[f.crabs[i + 2]!] ?? '#FFFFFF';
+    paint.setColor(Skia.Color(color));
     paint.setStyle(FILL);
     paint.setAlphaf(0.14);
     canvas.drawCircle(cx, cy, crabR, paint);

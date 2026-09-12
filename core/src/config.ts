@@ -42,3 +42,18 @@ export const CRAB = {
   stepDown: 250,
   points: 10,
 } as const;
+
+/** Hit points and score per crab type. `normal` matches CRAB.points/1 hp, unchanged from wave-mode behaviour. */
+export const CRAB_TYPES = {
+  normal: { hp: 1, points: 10 },
+  armored: { hp: 2, points: 25 },
+  swift: { hp: 1, points: 15 },
+  fanner: { hp: 1, points: 20 },
+  diver: { hp: 1, points: 30 },
+} as const;
+
+/** A `diver`-type crab leaves formation every `interval` ticks for `ticks` ticks, closing at `speed` units/tick. */
+export const DIVER = { interval: 360, ticks: 90, speed: 220 } as const;
+
+/** Half-angle in degrees between a fanner's outer shots and its straight aim. */
+export const FANNER_SPREAD = 20;

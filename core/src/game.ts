@@ -1,5 +1,7 @@
-import { CRAB, FIELD_W, SHIP } from './config';
+import { CRAB, CRAB_TYPES, FIELD_W, SHIP } from './config';
 import { idiv } from './fixed';
+import { formationPositions } from './formations';
+import type { CrabType, Formation } from './levels';
 import { Rng } from './rng';
 import type { RunConfig } from './run';
 import type { GameState, Input } from './types';
@@ -49,6 +51,45 @@ export function spawnWave(s: GameState, wave: number): void {
       s.crabs.push({ x, y, kind, type: 'normal', hp: 1, dive: 0, homeX: x, homeY: y });
     }
   }
+  s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
+  s.waveTotal = s.crabs.length;
+}
+
+/**
+ * Replaces the crabs with a named formation of mixed crab kinds (the campaign's spawn path).
+ * Types cycle through `kinds` over the positions sorted by y descending then x ascending (an
+ * explicit tie-break), so a pool that ends in 'swift' places swift crabs on the rows closest to
+ * the player. The colour `kind` is drawn once per row, top row first, in the same order and from
+ * the same rngWaves stream spawnWave uses, so the two spawners stay consistent.
+ */
+export function spawnFormation(
+  s: GameState,
+  spec: { formation: Formation; rows: number; cols: number; kinds: CrabType[] },
+): void {
+  const { formation, rows, cols, kinds } = spec;
+  const positions = formationPositions(formation, rows, cols);
+
+  const typeOrder = [...positions].sort((a, b) => (b.y - a.y) || (a.x - b.x));
+  const typeByPos = new Map<string, CrabType>();
+  typeOrder.forEach((p, i) => typeByPos.set(`${p.x},${p.y}`, kinds[i % kinds.length]!));
+
+  const rowYs = [...new Set(positions.map((p) => p.y))].sort((a, b) => a - b);
+  const colourByY = new Map<number, number>();
+  for (const y of rowYs) colourByY.set(y, s.rngWaves.nextInt(CRAB.kinds));
+
+  s.crabs = positions.map((p) => {
+    const type = typeByPos.get(`${p.x},${p.y}`)!;
+    return {
+      x: p.x,
+      y: p.y,
+      kind: colourByY.get(p.y)!,
+      type,
+      hp: CRAB_TYPES[type].hp,
+      dive: 0,
+      homeX: p.x,
+      homeY: p.y,
+    };
+  });
   s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
   s.waveTotal = s.crabs.length;
 }

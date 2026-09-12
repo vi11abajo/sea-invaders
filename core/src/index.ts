@@ -1,5 +1,6 @@
 export * from './config';
 export * from './fixed';
+export * from './formations';
 export * from './game';
 export * from './golden';
 export * from './hash';
@@ -14,6 +15,7 @@ export * from './sim/crabs';
 export * from './sim/ship';
 export * from './state-hash';
 export * from './step';
+export * from './trig';
 export * from './types';
 export * from './view/format';
 export * from './view/frame';
