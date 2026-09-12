@@ -1,3 +1,5 @@
+import type { BoostType } from './types';
+
 /**
  * Gameplay constants in milli-units and ticks. The playfield is fixed and
  * identical on every device so that ranked runs are comparable.
@@ -57,3 +59,43 @@ export const DIVER = { interval: 360, ticks: 90, speed: 220 } as const;
 
 /** Half-angle in degrees between a fanner's outer shots and its straight aim. */
 export const FANNER_SPREAD = 20;
+
+export type BoostRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+/** Rarity roll order, common to legendary (spec §5.2). */
+export const RARITY_ORDER: BoostRarity[] = ['common', 'rare', 'epic', 'legendary'];
+
+/** One boost type per rarity, in the legacy `DISTRIBUTION` order (`boosts/boost-constants.js`). */
+export const RARITY_LISTS: Record<BoostRarity, BoostType[]> = {
+  common: ['RAPID_FIRE', 'ICE_FREEZE', 'HEALTH_BOOST', 'POINTS_FREEZE'],
+  rare: ['SHIELD_BARRIER', 'AUTO_TARGET', 'INVINCIBILITY', 'MULTI_SHOT', 'SCORE_MULTIPLIER', 'RICOCHET'],
+  epic: ['WAVE_BLAST', 'COIN_SHOWER', 'GRAVITY_WELL', 'PIERCING_BULLETS'],
+  legendary: ['RANDOM_CHAOS', 'SPEED_TAMER'],
+};
+
+/**
+ * Rarity and duration (ticks; 0 instant, -1 until consumed) per boost type (spec §5.2).
+ * RANDOM_CHAOS's actual roll (600-900 ticks) is Task 15's; this base value is only a placeholder
+ * for the table shape until then.
+ */
+export const BOOSTS: Record<BoostType, { rarity: BoostRarity; duration: number }> = {
+  RAPID_FIRE: { rarity: 'common', duration: 600 },
+  ICE_FREEZE: { rarity: 'common', duration: 600 },
+  HEALTH_BOOST: { rarity: 'common', duration: 0 },
+  POINTS_FREEZE: { rarity: 'common', duration: 600 },
+  SHIELD_BARRIER: { rarity: 'rare', duration: -1 },
+  AUTO_TARGET: { rarity: 'rare', duration: 466 },
+  INVINCIBILITY: { rarity: 'rare', duration: 600 },
+  MULTI_SHOT: { rarity: 'rare', duration: 600 },
+  SCORE_MULTIPLIER: { rarity: 'rare', duration: 600 },
+  RICOCHET: { rarity: 'rare', duration: 600 },
+  WAVE_BLAST: { rarity: 'epic', duration: 0 },
+  COIN_SHOWER: { rarity: 'epic', duration: 0 },
+  GRAVITY_WELL: { rarity: 'epic', duration: 600 },
+  PIERCING_BULLETS: { rarity: 'epic', duration: 600 },
+  RANDOM_CHAOS: { rarity: 'legendary', duration: 600 },
+  SPEED_TAMER: { rarity: 'legendary', duration: -1 },
+};
+
+/** Drop spawn and lifecycle constants (spec §5.1; legacy `SPAWN`). */
+export const DROP = { chance: 7, fall: 60, size: 600, ttl: 600 } as const;

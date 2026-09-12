@@ -8,6 +8,7 @@ export * from './levels';
 export * from './replay';
 export * from './rng';
 export * from './run';
+export * from './sim/boostEffects';
 export * from './sim/boosts';
 export * from './sim/boss';
 export * from './sim/collide';

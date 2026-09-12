@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
   CORE_VERSION, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder, checkGoldens, createGame, hashState, step, type Golden,
 } from '../src';
@@ -31,9 +31,16 @@ function play(name: string): Golden {
   };
 }
 
-const fresh = Object.keys(GOLDEN_SCRIPTS).map(play);
+// Computed lazily in `beforeAll` (not at module load) because `describe.skip` still evaluates
+// this file's top level: PRACTICE_RUN has boosts on, and these long scripted plays would
+// otherwise trip the boost effects that Tasks 12-15 haven't implemented yet.
+let fresh: Golden[];
 
 describe.skip('golden replays (re-enabled in Task 15 with golden-v3.json)', () => {
+  beforeAll(() => {
+    fresh = Object.keys(GOLDEN_SCRIPTS).map(play);
+  });
+
   it('replaying live play reproduces its result', () => {
     for (const check of checkGoldens(fresh)) expect(check.actual).toEqual(check.expected);
   });

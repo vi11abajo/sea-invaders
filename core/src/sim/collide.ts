@@ -1,6 +1,7 @@
 import { CRAB, CRAB_TYPES, ENEMY_SHOT, SHIP, SHOT } from '../config';
 import { clamp, idiv } from '../fixed';
 import type { Bullet, GameState } from '../types';
+import { rollDrop } from './boosts';
 
 const CRAB_HALF = idiv(CRAB.size, 2);
 
@@ -19,6 +20,7 @@ export function hitCrabs(s: GameState): void {
     c.hp -= 1;
     if (c.hp <= 0) {
       s.crabs.splice(i, 1);
+      rollDrop(s, c.x, c.y);
       s.score += CRAB_TYPES[c.type].points * s.wave;
       s.kills += 1;
     }
