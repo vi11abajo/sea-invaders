@@ -18,6 +18,16 @@ An arcade shooter set under the sea: you play as Octopi and defend the reef from
 | Game engine | Framework-free JavaScript on HTML5 Canvas 2D |
 | Backend | Node.js, Express, PostgreSQL, JWT, Sign-In With Solana |
 
+## On-chain
+
+Ranked-run tickets, daily best records, and the weekly prize pool are backed by an
+Anchor program (`programs/`), not just the database: buying a ticket, submitting a
+verified daily best (co-signed by the server), and paying out a settled week's pool
+are all on-chain instructions. Devnet, used throughout this phase, runs against a
+test SKR token mint rather than the real one. See `programs/README.md` for building
+and testing the program, and `programs/scripts/README.md` for the one-time devnet
+setup scripts (config init, week-pool creation, smoke test).
+
 ## Project structure
 
 ```

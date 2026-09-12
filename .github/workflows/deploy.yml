@@ -43,6 +43,11 @@ jobs:
           AUTH_DOMAIN=${{ secrets.AUTH_DOMAIN }}
           AUTH_URI=${{ secrets.AUTH_URI }}
           JUPITER_API_KEY=${{ secrets.JUPITER_API_KEY }}
+          SOLANA_CLUSTER=${{ secrets.SOLANA_CLUSTER }}
+          SOLANA_RPC_URL=${{ secrets.SOLANA_RPC_URL }}
+          PROGRAM_ID=${{ secrets.PROGRAM_ID }}
+          SKR_MINT=${{ secrets.SKR_MINT }}
+          SERVER_AUTHORITY_SECRET=${{ secrets.SERVER_AUTHORITY_SECRET }}
           EOF
 
       - name: Setup SSH
