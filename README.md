@@ -31,15 +31,19 @@ setup scripts (config init, week-pool creation, smoke test).
 ## Project structure
 
 ```
-app/            Next.js routes (game, leaderboard, wiki) and API routes
-components/     React components (game canvas, HUD, navigation)
-game/           Game engine: core loop, physics, rendering, game modes
-boss-system/    Boss logic, attacks, abilities and rendering
-boosts/         Power-up system
-themes/         Theme config, images and sounds
-public/         Static assets and scripts loaded by the web client
-backend/        Express API: auth, game sessions, scores, leaderboards
-lib/            Shared server helpers (auth, database)
+mobile/         Expo/React Native app - the primary client (wallet sign-in, daily run, tickets)
+core/           @sea-invaders/core: deterministic game engine shared by mobile and the backend
+backend/        Express API: auth, game sessions, scores, leaderboards, on-chain reads/writes
+programs/       Anchor program (tickets, daily records, weekly pool) and its devnet scripts
+app/            Legacy web client: Next.js routes (game, leaderboard, wiki) and API routes
+components/     Legacy web client: React components (game canvas, HUD, navigation)
+game/           Legacy web client: game engine - core loop, physics, rendering, game modes
+boss-system/    Legacy web client: boss logic, attacks, abilities and rendering
+boosts/         Legacy web client: power-up system
+themes/         Legacy web client: theme config, images and sounds
+public/         Legacy web client: static assets and scripts
+lib/            Legacy web client: shared server helpers (auth, database)
+scripts/        One-off maintenance scripts (database init)
 ```
 
 ## Getting started
