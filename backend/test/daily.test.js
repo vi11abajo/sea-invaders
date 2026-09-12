@@ -1,3 +1,4 @@
+import { CORE_VERSION } from '@sea-invaders/core';
 import { Keypair } from '@solana/web3.js';
 import bs58 from 'bs58';
 import request from 'supertest';
@@ -55,7 +56,7 @@ describe('/api/daily', () => {
   it('describes today for anonymous and signed-in callers', async () => {
     const anon = await request(app).get('/api/daily/today');
     expect(anon.status).toBe(200);
-    expect(anon.body).toMatchObject({ day: dayOf(Date.now() / 1000), attemptsLeft: 2, coreVersion: 2 });
+    expect(anon.body).toMatchObject({ day: dayOf(Date.now() / 1000), attemptsLeft: 2, coreVersion: CORE_VERSION });
     expect(anon.body.secondsToNextDay).toBeGreaterThan(0);
     const mine = await request(app).get('/api/daily/today').set(auth);
     expect(mine.body.attemptsLeft).toBe(2);

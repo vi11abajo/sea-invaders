@@ -1,7 +1,7 @@
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
-  EMPTY_FRAME, FixedStepper, INITIAL_INPUT, REPLAY_MODE, ReplayRecorder, createGame, fitField, formatInt, snapshot, step,
-  touchToInput, type Frame, type Input, type Replay, type ReplayMode,
+  DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder, SHIP, createGame,
+  fitField, formatInt, snapshot, step, touchToInput, type Frame, type Input, type Replay, type ReplayMode,
 } from '@sea-invaders/core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
@@ -73,8 +73,8 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   useEffect(() => {
     // Practice seed: the app may use the clock; only the core must not.
     const runSeed = seed ?? `practice-${run}-${Date.now()}`;
-    const state = createGame(runSeed);
-    const recorder = new ReplayRecorder(runSeed, mode);
+    const state = createGame(runSeed, mode === REPLAY_MODE.daily ? DAILY_RUN : PRACTICE_RUN);
+    const recorder = new ReplayRecorder(runSeed, mode, 0, SHIP.lives);
     const stepper = new FixedStepper();
     input.current = INITIAL_INPUT;
     paused.current = false;
@@ -98,6 +98,8 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           step(state, input.current);
         }
       }
+      // Nothing consumes events yet; drop whatever this frame's ticks produced.
+      state.events.length = 0;
       frame.value = snapshot(state);
       frames += 1;
       if (now - fpsSince >= 1000) {

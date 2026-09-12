@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FixedStepper, createGame, fitField, snapshot, touchToInput } from '../src';
+import { FixedStepper, KIND_INDEX, PRACTICE_RUN, createGame, fitField, snapshot, touchToInput } from '../src';
 
 describe('FixedStepper', () => {
   it('only starts the clock on the first frame', () => {
@@ -56,19 +56,20 @@ describe('touchToInput', () => {
 
 describe('snapshot', () => {
   it('copies positions into flat arrays', () => {
-    const s = createGame('f');
-    s.shots = [{ x: 1, y: 2, vx: 0, vy: -240 }];
-    s.enemyShots = [{ x: 3, y: 4, vx: 5, vy: 6 }];
+    const s = createGame('f', PRACTICE_RUN);
+    s.shots = [{ x: 1, y: 2, vx: 0, vy: -240, kind: 'straight', data: 0 }];
+    s.enemyShots = [{ x: 3, y: 4, vx: 5, vy: 6, kind: 'crab', data: 0 }];
     const f = snapshot(s);
     expect(f.ship).toEqual({ x: 2812, y: 9650, invuln: 0 });
-    expect(f.crabs).toHaveLength(18 * 3);
+    expect(f.lives).toBe(3);
+    expect(f.crabs).toHaveLength(18 * 5);
     expect(f.crabs.slice(0, 2)).toEqual([812, 1500]);
     expect(f.shots).toEqual([1, 2]);
-    expect(f.enemyShots).toEqual([3, 4]);
+    expect(f.enemyShots).toEqual([3, 4, KIND_INDEX.crab]);
   });
 
   it('does not share arrays with the game state', () => {
-    const s = createGame('f');
+    const s = createGame('f', PRACTICE_RUN);
     const f = snapshot(s);
     s.crabs[0]!.x = -1;
     expect(f.crabs[0]).toBe(812);

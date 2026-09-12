@@ -35,7 +35,7 @@ export function drawFrame(recorder: Recorder, paint: Paint, f: Frame, l: Layout,
 
   // Crabs: a faint disc inside a ring of the kind's reef colour.
   const crabR = (CRAB.size / 2) * k;
-  for (let i = 0; i < f.crabs.length; i += 3) {
+  for (let i = 0; i < f.crabs.length; i += 5) {
     const cx = px(f.crabs[i]!);
     const cy = py(f.crabs[i + 1]!);
     paint.setColor(Skia.Color(CRAB_COLORS[f.crabs[i + 2]!] ?? '#FFFFFF'));
@@ -65,7 +65,7 @@ export function drawFrame(recorder: Recorder, paint: Paint, f: Frame, l: Layout,
   // Enemy shots: orange, with the same kind of glow.
   const er = ENEMY_SHOT.radius * k;
   paint.setColor(Skia.Color(ENEMY_SHOT_COLOR));
-  for (let i = 0; i < f.enemyShots.length; i += 2) {
+  for (let i = 0; i < f.enemyShots.length; i += 3) {
     const x = px(f.enemyShots[i]!);
     const y = py(f.enemyShots[i + 1]!);
     paint.setAlphaf(0.25);

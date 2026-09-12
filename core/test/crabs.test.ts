@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ENEMY_SHOT, INVASION_Y, createGame, crabSpeed, fireChance, marchCrabs, spawnWave, updateEnemyShots } from '../src';
+import {
+  ENEMY_SHOT, INVASION_Y, PRACTICE_RUN, createGame, crabSpeed, fireChance, marchCrabs, spawnWave, updateEnemyShots,
+} from '../src';
 
 describe('crabSpeed', () => {
   it('speeds up by wave and as crabs die', () => {
-    const s = createGame('t');
+    const s = createGame('t', PRACTICE_RUN);
     expect(crabSpeed(s)).toBe(6);
     s.crabs = s.crabs.slice(0, 9); // half of 18 killed → +4
     expect(crabSpeed(s)).toBe(10);
@@ -14,7 +16,7 @@ describe('crabSpeed', () => {
 
 describe('marchCrabs', () => {
   it('moves sideways, then reverses and steps down at the wall', () => {
-    const s = createGame('t');
+    const s = createGame('t', PRACTICE_RUN);
     s.dir = 1;
     const x0 = s.crabs[0]!.x;
     const y0 = s.crabs[0]!.y;
@@ -29,8 +31,9 @@ describe('marchCrabs', () => {
   });
 
   it('ends the run when a crab reaches the invasion line', () => {
-    const s = createGame('t');
-    s.crabs = [{ x: 2800, y: INVASION_Y - 265 - 1, kind: 0 }];
+    const s = createGame('t', PRACTICE_RUN);
+    const y = INVASION_Y - 265 - 1;
+    s.crabs = [{ x: 2800, y, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 2800, homeY: y }];
     s.waveTotal = 1;
     marchCrabs(s);
     expect(s.over).toBe(false);
@@ -54,22 +57,26 @@ describe('updateEnemyShots', () => {
     return s.enemyShots[0];
   }
 
-  it('aims straight down at a ship below the crab', () => {
-    const s = createGame('aim');
-    s.crabs = [{ x: s.ship.x, y: 2000, kind: 0 }];
-    expect(firstShot(s)).toEqual({ x: s.ship.x, y: 2265, vx: 0, vy: ENEMY_SHOT.speed });
+  it('aims straight down at a ship below the crab, tagged as a crab shot', () => {
+    const s = createGame('aim', PRACTICE_RUN);
+    s.crabs = [{ x: s.ship.x, y: 2000, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: s.ship.x, homeY: 2000 }];
+    expect(firstShot(s)).toEqual({
+      x: s.ship.x, y: 2265, vx: 0, vy: ENEMY_SHOT.speed, kind: 'crab', data: 0,
+    });
   });
 
   it('aims diagonally with integer velocity', () => {
-    const s = createGame('aim');
+    const s = createGame('aim', PRACTICE_RUN);
     // Shot origin (crab bottom edge) is 3000 left and 4000 above the ship: a 3-4-5 triangle.
-    s.crabs = [{ x: s.ship.x - 3000, y: s.ship.y - 4000 - 265, kind: 0 }];
+    const x = s.ship.x - 3000;
+    const y = s.ship.y - 4000 - 265;
+    s.crabs = [{ x, y, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: x, homeY: y }];
     expect(firstShot(s)).toMatchObject({ vx: 66, vy: 88 });
   });
 
   it('fires on about 2% of wave-1 ticks', () => {
-    const s = createGame('rate');
-    s.crabs = [{ x: 2812, y: 2000, kind: 0 }];
+    const s = createGame('rate', PRACTICE_RUN);
+    s.crabs = [{ x: 2812, y: 2000, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 2812, homeY: 2000 }];
     let fired = 0;
     for (let i = 0; i < 20_000; i++) {
       updateEnemyShots(s);
@@ -81,9 +88,9 @@ describe('updateEnemyShots', () => {
   });
 
   it('drops shots that leave the field', () => {
-    const s = createGame('t');
+    const s = createGame('t', PRACTICE_RUN);
     s.crabs = [];
-    s.enemyShots = [{ x: 100, y: 11250 + 96 - 110, vx: 0, vy: 110 }];
+    s.enemyShots = [{ x: 100, y: 11250 + 96 - 110, vx: 0, vy: 110, kind: 'crab', data: 0 }];
     updateEnemyShots(s);
     expect(s.enemyShots).toHaveLength(0);
   });

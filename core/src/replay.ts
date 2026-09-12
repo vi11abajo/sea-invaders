@@ -1,10 +1,12 @@
 import { createGame, INITIAL_INPUT } from './game';
+import { LEVELS } from './levels';
+import type { RunConfig, RunMode } from './run';
 import { hashState } from './state-hash';
 import { step } from './step';
 import type { Input } from './types';
 
 /** Bumped whenever simulation behaviour changes; replays only run on the version that recorded them. */
-export const CORE_VERSION = 2;
+export const CORE_VERSION = 3;
 
 /** 15 minutes at 60 Hz: an upper bound on how long a single replay may run or claim to run. */
 export const MAX_REPLAY_TICKS = 54_000;
@@ -17,6 +19,10 @@ export const REPLAY_MODE = { practice: 0, daily: 1, campaign: 2 } as const;
 export interface Replay {
   version: number;
   mode: ReplayMode;
+  /** Campaign level id, or 0 outside the campaign. */
+  levelId: number;
+  /** Lives the ship started the run with. */
+  lives: number;
   seed: string;
   /** Number of ticks the recording client simulated. */
   ticks: number;
@@ -36,7 +42,12 @@ export class ReplayRecorder {
   private lastX = INITIAL_INPUT.x;
   private lastY = INITIAL_INPUT.y;
 
-  constructor(private readonly seed: string, private readonly mode: ReplayMode) {}
+  constructor(
+    private readonly seed: string,
+    private readonly mode: ReplayMode,
+    private readonly levelId: number,
+    private readonly lives: number,
+  ) {}
 
   /** Call right before the step() that produces `tick`, with the input that step will use. */
   record(tick: number, input: Input): void {
@@ -47,15 +58,28 @@ export class ReplayRecorder {
   }
 
   finish(ticks: number): Replay {
-    return { version: CORE_VERSION, mode: this.mode, seed: this.seed, ticks, inputs: this.inputs.slice() };
+    return {
+      version: CORE_VERSION, mode: this.mode, levelId: this.levelId, lives: this.lives, seed: this.seed, ticks,
+      inputs: this.inputs.slice(),
+    };
   }
 }
 
+const MODE_NAME: Record<ReplayMode, RunMode> = { 0: 'practice', 1: 'daily', 2: 'campaign' };
+
+/** Rebuilds the RunConfig a replay was recorded under, resolving its level id against LEVELS. */
+export function runFromReplay(r: Replay): RunConfig {
+  const level = r.levelId === 0 ? undefined : LEVELS.find((l) => l.id === r.levelId);
+  if (r.levelId !== 0 && !level) throw new Error(`replay level ${r.levelId} unknown`);
+  return { mode: MODE_NAME[r.mode], level, lives: r.lives, features: { boosts: true } };
+}
+
 /**
- * Replays `replay` and returns its outcome. When `expected` is given, the replay's own seed/mode
- * must match it first — a cheap check before spending time simulating a mismatched run.
+ * Replays `replay` and returns its outcome. When `expected` is given, the replay's own
+ * seed/mode/levelId must match it first — a cheap check before spending time simulating a
+ * mismatched run.
  */
-export function runReplay(replay: Replay, expected?: { seed?: string; mode?: ReplayMode }): ReplayResult {
+export function runReplay(replay: Replay, expected?: { seed?: string; mode?: ReplayMode; levelId?: number }): ReplayResult {
   if (replay.version !== CORE_VERSION) {
     throw new Error(`replay core version ${replay.version} does not match ${CORE_VERSION}`);
   }
@@ -65,9 +89,13 @@ export function runReplay(replay: Replay, expected?: { seed?: string; mode?: Rep
   if (expected?.mode !== undefined && expected.mode !== replay.mode) {
     throw new Error('replay mode mismatch');
   }
+  if (expected?.levelId !== undefined && expected.levelId !== replay.levelId) {
+    throw new Error('replay level mismatch');
+  }
   if (replay.ticks > MAX_REPLAY_TICKS) throw new Error('replay ticks exceed maximum');
   if (replay.inputs.length / 3 > MAX_REPLAY_INPUTS) throw new Error('replay input count exceeds maximum');
-  const s = createGame(replay.seed);
+  const run = runFromReplay(replay);
+  const s = createGame(replay.seed, run);
   const { inputs } = replay;
   let x = INITIAL_INPUT.x;
   let y = INITIAL_INPUT.y;
@@ -102,6 +130,8 @@ export function encodeReplay(r: Replay): Uint8Array {
   const out: number[] = [];
   pushVarint(out, r.version);
   pushVarint(out, r.mode);
+  pushVarint(out, r.levelId);
+  pushVarint(out, r.lives);
   pushVarint(out, r.ticks);
   pushVarint(out, r.seed.length);
   for (let i = 0; i < r.seed.length; i++) {
@@ -147,6 +177,10 @@ export function decodeReplay(bytes: Uint8Array): Replay {
   if (version < 1 || version > 255) throw new Error('replay version out of range');
   const mode = read();
   if (mode !== 0 && mode !== 1 && mode !== 2) throw new Error('replay mode invalid');
+  const levelId = read();
+  if (levelId > 30) throw new Error('replay level out of range');
+  const lives = read();
+  if (lives > 255) throw new Error('replay lives out of range');
   const ticks = read();
   if (ticks > MAX_REPLAY_TICKS) throw new Error('replay ticks exceed maximum');
   const seedLength = read();
@@ -177,5 +211,5 @@ export function decodeReplay(bytes: Uint8Array): Replay {
     inputs.push(t, x, y);
   }
   if (pos !== bytes.length) throw new Error('trailing bytes in replay');
-  return { version, mode, seed, ticks, inputs };
+  return { version, mode, levelId, lives, seed, ticks, inputs };
 }

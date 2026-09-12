@@ -64,5 +64,7 @@ export function updateEnemyShots(s: GameState): void {
     y,
     vx: len === 0 ? 0 : idiv(dx * ENEMY_SHOT.speed, len),
     vy: len === 0 ? ENEMY_SHOT.speed : idiv(dy * ENEMY_SHOT.speed, len),
+    kind: 'crab',
+    data: 0,
   });
 }

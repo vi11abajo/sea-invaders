@@ -22,7 +22,7 @@ export function updateShots(s: GameState): void {
   s.shots = kept;
   s.ship.cooldown -= 1;
   if (s.ship.cooldown <= 0) {
-    s.shots.push({ x: s.ship.x, y: s.ship.y - HALF, vx: 0, vy: -SHOT.speed });
+    s.shots.push({ x: s.ship.x, y: s.ship.y - HALF, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 });
     s.ship.cooldown = SHIP.fireInterval;
   }
 }
