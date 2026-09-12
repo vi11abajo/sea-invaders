@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Keypair, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { ComputeBudgetProgram, Keypair, PublicKey, VersionedTransaction } from '@solana/web3.js';
 import { AccountLayout, ACCOUNT_SIZE, AccountState, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { BN } from '@anchor-lang/core';
 import bs58 from 'bs58';
@@ -193,13 +193,25 @@ describe('buildSettleWeekTx', () => {
     const result = await buildSettleWeekTx(7, winners, { connection });
     const tx = decode(result.transaction);
     expect(tx.message.staticAccountKeys[0].toBase58()).toBe(serverAuthority.publicKey.toBase58());
-    const ix = onlyInstruction(tx);
+    // F4: the first instruction must be the compute-budget one - up to 10 ATA creations + 10
+    // transfer_checked CPIs + 1 rollover transfer can exceed the default 200_000 CU budget.
+    expect(tx.message.compiledInstructions).toHaveLength(2);
+    const [budgetIx, ix] = tx.message.compiledInstructions;
+    expect(tx.message.staticAccountKeys[budgetIx.programIdIndex].toBase58()).toBe(ComputeBudgetProgram.programId.toBase58());
     expect(Buffer.from(ix.data.subarray(0, 8))).toEqual(discriminatorOf('settle_week'));
     // 2 winners * (wallet + ata) = 4 remaining accounts, appended after the instruction's own fixed accounts.
     expect(ix.accountKeyIndexes.length).toBeGreaterThanOrEqual(4);
-    const lastFour = ix.accountKeyIndexes.slice(-4).map((i) => tx.message.staticAccountKeys[i].toBase58());
-    expect(lastFour[0]).toBe(winners[0].toBase58());
-    expect(lastFour[2]).toBe(winners[1].toBase58());
+    const lastFour = ix.accountKeyIndexes.slice(-4);
+    const lastFourKeys = lastFour.map((i) => tx.message.staticAccountKeys[i].toBase58());
+    expect(lastFourKeys[0]).toBe(winners[0].toBase58());
+    expect(lastFourKeys[2]).toBe(winners[1].toBase58());
+    // Task 7 deferred minor: each winner's ATA (index 1 and 3 of the pairs) must be writable so
+    // the payout/creation CPI can touch it; each wallet (index 0 and 2) must not be, since
+    // settle_week is permissionless - only `caller` (the server authority) signs.
+    expect(tx.message.isAccountWritable(lastFour[0])).toBe(false); // wallet
+    expect(tx.message.isAccountWritable(lastFour[1])).toBe(true); // ata
+    expect(tx.message.isAccountWritable(lastFour[2])).toBe(false); // wallet
+    expect(tx.message.isAccountWritable(lastFour[3])).toBe(true); // ata
     const verified = nacl.sign.detached.verify(tx.message.serialize(), tx.signatures[0], serverAuthority.publicKey.toBytes());
     expect(verified).toBe(true);
   });

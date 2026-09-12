@@ -1,4 +1,4 @@
-import { AccountMeta, PublicKey, Keypair } from "@solana/web3.js";
+import { AccountMeta, ComputeBudgetProgram, PublicKey, Keypair } from "@solana/web3.js";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { BN } from "@anchor-lang/core";
 import { configPda, Ctx } from "./helpers";
@@ -228,7 +228,14 @@ export async function settleWeek(
   ctx: Ctx,
   caller: Keypair,
   week: number,
-  winners: PublicKey[]
+  winners: PublicKey[],
+  // Mirrors `backend/src/chain/txs.js`'s `buildSettleWeekTx`, which prepends
+  // this same instruction (600_000 units) for exactly the reason a large
+  // top-10 settle needs it: up to 10 ATA creations + 10 transfer_checked
+  // CPIs + 1 rollover transfer can exceed the default 200_000 CU budget.
+  // Left undefined by default so the many small-winner-count tests above
+  // keep their original (budget-instruction-free) transaction shape.
+  computeUnitLimit?: number
 ) {
   const weekPool = weekPda(ctx.programId, week);
   const nextWeekPool = weekPda(ctx.programId, week + 1);
@@ -250,5 +257,9 @@ export async function settleWeek(
     })
     .remainingAccounts(remainingAccounts)
     .instruction();
-  return ctx.send([ix], [caller]);
+  const ixs =
+    computeUnitLimit === undefined
+      ? [ix]
+      : [ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnitLimit }), ix];
+  return ctx.send(ixs, [caller]);
 }

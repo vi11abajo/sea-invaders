@@ -271,4 +271,90 @@ describe("fund_pool / settle_week", () => {
       await ctx.tokenBalance(weekPda(ctx.programId, week3 + 1))
     ).to.equal(6_650_001n);
   });
+
+  // I4: the settle path had never run against the real program with a full
+  // top-10 payout, and `buildSettleWeekTx` added no compute-budget headroom
+  // - up to 10 ATA creations + 10 transfer_checked CPIs + 1 rollover
+  // transfer can plausibly exceed the default 200_000 CU budget. This
+  // exercises exactly that: ten winners, all with closed (missing) ATAs,
+  // settled in one transaction, and prints the measured compute units.
+  it("settles a week with ten winners whose ATAs do not exist, in one transaction", async () => {
+    const week4 = W + 6;
+    await createWeekPool(ctx, week4);
+    await createWeekPool(ctx, week4 + 1);
+
+    const actors = Array.from({ length: 10 }, () => Keypair.generate());
+    for (const actor of actors) {
+      await airdrop(ctx.connection, actor.publicKey, 10 * LAMPORTS_PER_SOL);
+      await createPlayer(ctx, actor);
+      await ctx.mintTo(actor.publicKey, 10_000_000n); // exactly one ticket's price
+    }
+
+    const day4 = weekFirstDay(week4);
+    await warpTo(ctx, dayStart(day4) + 3600);
+    // Distinct, strictly descending scores so `top`'s order is unambiguous
+    // (no tie-break needed) and matches `actors`' own order below.
+    const scores = [1000, 900, 800, 700, 600, 500, 400, 300, 200, 100];
+    for (let i = 0; i < actors.length; i++) {
+      await buyTicket(ctx, actors[i], week4); // spends the actor's whole 10_000_000 balance
+      await submit(ctx, actors[i], day4, scores[i]);
+      // The ATA now holds exactly 0 (the ticket spent it all) - close it so
+      // it is fully absent (not just empty) by settlement time, the same
+      // pattern used for carol above.
+      await closeAccount(
+        ctx.connection,
+        actors[i],
+        ctx.ata(actors[i].publicKey),
+        actors[i].publicKey,
+        actors[i]
+      );
+    }
+
+    const vaultBefore = await ctx.tokenBalance(weekPda(ctx.programId, week4));
+    expect(vaultBefore).to.equal(95_000_000n); // 10 tickets * 9_500_000 pool share
+
+    await warpTo(ctx, weekEnd(week4) + 900);
+    const winners = actors.map((a) => a.publicKey);
+    // Without a compute-budget bump this fails on-chain under the default
+    // 200_000 CU limit - verified: removing the 600_000 argument here
+    // reproduces exactly I4's predicted failure ("exceeded CUs meter").
+    const sig = await settleWeek(ctx, ctx.server, week4, winners, 600_000);
+
+    // floor(95_000_000 * bps / 10_000) for [3000,2000,1200,800,600,480x5] -
+    // 95_000_000 / 10_000 = 9_500 divides every bps in the table exactly,
+    // so there is no rounding dust and the rollover is exactly 0.
+    const expectedShares = [
+      28_500_000n, 19_000_000n, 11_400_000n, 7_600_000n, 5_700_000n,
+      4_560_000n, 4_560_000n, 4_560_000n, 4_560_000n, 4_560_000n,
+    ];
+    for (let i = 0; i < actors.length; i++) {
+      expect(await ctx.tokenBalance(actors[i].publicKey)).to.equal(
+        expectedShares[i],
+        `winner ${i}`
+      );
+      const ataInfo = await ctx.connection.getAccountInfo(
+        ctx.ata(actors[i].publicKey)
+      );
+      expect(ataInfo).to.not.equal(null); // settle_week recreated it
+    }
+    expect(await ctx.tokenBalance(weekPda(ctx.programId, week4))).to.equal(
+      0n
+    );
+    expect(
+      await ctx.tokenBalance(weekPda(ctx.programId, week4 + 1))
+    ).to.equal(0n); // no rounding dust to roll over
+
+    const confirmed = await ctx.connection.getTransaction(sig, {
+      commitment: "confirmed",
+      maxSupportedTransactionVersion: 0,
+    });
+    const consumed = confirmed?.meta?.computeUnitsConsumed;
+    console.log(`    ten-winner settle_week consumed compute units: ${consumed}`);
+    expect(consumed).to.be.a("number");
+    if (consumed !== undefined && consumed > 500_000) {
+      console.log(
+        `    !!! WARNING: ten-winner settle_week consumed ${consumed} CU, over the 500_000 budget headroom !!!`
+      );
+    }
+  });
 });

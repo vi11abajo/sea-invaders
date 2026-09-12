@@ -13,7 +13,7 @@
 //  - `buildCreateWeekPoolTx` and `buildSettleWeekTx` are backend-maintenance
 //    instructions with no player wallet involved: fee payer is the server
 //    authority, which fully signs before the caller sends it.
-import { PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
+import { ComputeBudgetProgram, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getOrCreateAssociatedTokenAccount, mintTo } from '@solana/spl-token';
 import { program as buildProgram } from './program.js';
 import { connection as defaultConnection } from './connection.js';
@@ -193,7 +193,12 @@ export async function buildSettleWeekTx(week, winners, { connection = defaultCon
     })
     .remainingAccounts(remainingAccounts)
     .instruction();
-  const envelope = await buildEnvelope(connection, serverAuthority.publicKey, [ix]);
+  // Up to 10 ATA creations + 10 transfer_checked CPIs + 1 rollover transfer can exceed the
+  // default 200_000 CU budget - see the ten-winner test in programs/tests/settle.test.ts for
+  // the measured cost. Cheap insurance either way: it only raises the ceiling, it does not
+  // spend more than the transaction actually consumes.
+  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 600_000 });
+  const envelope = await buildEnvelope(connection, serverAuthority.publicKey, [computeBudgetIx, ix]);
   envelope.transaction.sign([serverAuthority]);
   return finalize(envelope);
 }
