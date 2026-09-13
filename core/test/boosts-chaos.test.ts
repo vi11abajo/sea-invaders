@@ -109,6 +109,19 @@ describe('RANDOM_CHAOS', () => {
       expect(s.boosts.tamerStacks).toBe(1); // only the timed stack expired
       expect(s.boosts.active).toEqual([{ type: 'SPEED_TAMER', ticksLeft: -1 }]);
     });
+
+    it('at the stack cap adds no timed entry, so nothing is left to remove after it would have expired', () => {
+      const s = createGame('chaos-tamer-cap', PRACTICE_RUN);
+      for (let i = 0; i < 10; i++) activateBoost(s, 'SPEED_TAMER'); // reach the cap via direct pickups
+      expect(s.boosts.tamerStacks).toBe(10);
+      stubNextInt(s.rngBoosts, [13, 0]); // index 13 -> SPEED_TAMER, chaos ticksLeft 600
+      activateBoost(s, 'RANDOM_CHAOS');
+      expect(s.boosts.tamerStacks).toBe(10); // applyEffect was a no-op at the cap
+      expect(s.boosts.active).toEqual([{ type: 'SPEED_TAMER', ticksLeft: -1 }]); // no timed entry pushed
+      for (let i = 0; i < 600; i++) updateBoosts(s); // past the would-be chaos duration
+      expect(s.boosts.tamerStacks).toBe(10); // nothing to remove: no timed entry ever existed
+      expect(s.boosts.active).toEqual([{ type: 'SPEED_TAMER', ticksLeft: -1 }]);
+    });
   });
 
   describe('GRAVITY_WELL via chaos', () => {
