@@ -59,7 +59,6 @@ export function useSprites(): Sprites | null {
   const invincibility = useImage(require('../../assets/sprites/boosts/invincibility.png'));
   const multiShot = useImage(require('../../assets/sprites/boosts/multiShot.png'));
   const scoreMultiplier = useImage(require('../../assets/sprites/boosts/scoreMultiplier.png'));
-  const ricochet = useImage(require('../../assets/sprites/boosts/ricochet.png'));
   const waveBlast = useImage(require('../../assets/sprites/boosts/waveBlast.png'));
   const coinShower = useImage(require('../../assets/sprites/boosts/coinShower.png'));
   const gravityWell = useImage(require('../../assets/sprites/boosts/gravityWell.png'));
@@ -76,7 +75,7 @@ export function useSprites(): Sprites | null {
       bossViolet0 === null || bossViolet1 === null ||
       rapidFire === null || iceFreeze === null || healthBoost === null || pointsFreeze === null ||
       shieldBarrier === null || autoTarget === null || invincibility === null || multiShot === null ||
-      scoreMultiplier === null || ricochet === null || waveBlast === null || coinShower === null ||
+      scoreMultiplier === null || waveBlast === null || coinShower === null ||
       gravityWell === null || piercingBullets === null || randomChaos === null || speedTamer === null
     ) {
       return null;
@@ -93,7 +92,7 @@ export function useSprites(): Sprites | null {
       ],
       boosts: [
         rapidFire, iceFreeze, healthBoost, pointsFreeze,
-        shieldBarrier, autoTarget, invincibility, multiShot, scoreMultiplier, ricochet,
+        shieldBarrier, autoTarget, invincibility, multiShot, scoreMultiplier,
         waveBlast, coinShower, gravityWell, piercingBullets,
         randomChaos, speedTamer,
       ],
@@ -103,7 +102,7 @@ export function useSprites(): Sprites | null {
     crabGreen, crabBlue, crabViolet, crabRed, crabYellow,
     bossGreen0, bossGreen1, bossBlue0, bossBlue1, bossYellow0, bossYellow1, bossRed0, bossRed1, bossViolet0, bossViolet1,
     rapidFire, iceFreeze, healthBoost, pointsFreeze, shieldBarrier, autoTarget, invincibility, multiShot,
-    scoreMultiplier, ricochet, waveBlast, coinShower, gravityWell, piercingBullets, randomChaos, speedTamer,
+    scoreMultiplier, waveBlast, coinShower, gravityWell, piercingBullets, randomChaos, speedTamer,
   ]);
 }
 

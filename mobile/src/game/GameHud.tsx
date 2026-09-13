@@ -16,7 +16,6 @@ const BOOST_ICON: Record<BoostType, ImageSourcePropType> = {
   INVINCIBILITY: require('../../assets/sprites/boosts/invincibility.png'),
   MULTI_SHOT: require('../../assets/sprites/boosts/multiShot.png'),
   SCORE_MULTIPLIER: require('../../assets/sprites/boosts/scoreMultiplier.png'),
-  RICOCHET: require('../../assets/sprites/boosts/ricochet.png'),
   WAVE_BLAST: require('../../assets/sprites/boosts/waveBlast.png'),
   COIN_SHOWER: require('../../assets/sprites/boosts/coinShower.png'),
   GRAVITY_WELL: require('../../assets/sprites/boosts/gravityWell.png'),
