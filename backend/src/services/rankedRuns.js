@@ -1,4 +1,4 @@
-import { CORE_VERSION, MAX_REPLAY_TICKS, REPLAY_MODE, TICKS_PER_SECOND, decodeReplay, runReplay } from '@sea-invaders/core';
+import { CORE_VERSION, MAX_REPLAY_TICKS, REPLAY_MODE, SHIP, TICKS_PER_SECOND, decodeReplay, runReplay } from '@sea-invaders/core';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../db/rankedRuns.js';
 import { getConfig, getPlayer, getTokenBalance, getVaultBalance, getWeekPool } from '../chain/readers.js';
@@ -156,7 +156,7 @@ export async function finishRun({ userId, runId, replayBase64, now }) {
 
   let result;
   try {
-    result = runReplay(replay, { seed: run.seed, mode: REPLAY_MODE.daily });
+    result = runReplay(replay, { seed: run.seed, mode: REPLAY_MODE.daily, levelId: 0, lives: SHIP.lives });
   } catch (error) {
     await reject('seed_mismatch', error.message);
   }

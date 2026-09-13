@@ -1,7 +1,7 @@
 import express from 'express';
 import * as db from '../db/campaign.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { isValidProgress, mergeProgress } from '../services/campaign.js';
+import { isValidProgress, mergeProgress } from '@sea-invaders/core';
 
 const router = express.Router();
 

@@ -1,4 +1,4 @@
-import { CORE_VERSION, REPLAY_MODE } from '@sea-invaders/core';
+import { CORE_VERSION, REPLAY_MODE, decodeReplay, encodeReplay } from '@sea-invaders/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dailySeed, dayOf, dayStart, GRACE_SECONDS } from '../src/services/dailySeed.js';
 import * as fakeChain from './helpers/fakeChain.js';
@@ -17,6 +17,12 @@ const { startRun, finishRun, todayInfo, clearPlayerCache, RankedRunError } = awa
 
 const NOON = Date.UTC(2026, 8, 11, 12) / 1000;
 const DAY = dayOf(NOON);
+
+/** Decodes a replay, applies `overrides` to its header and re-encodes it, as a crafted client would. */
+function tamperReplay(base64, overrides) {
+  const replay = decodeReplay(new Uint8Array(Buffer.from(base64, 'base64')));
+  return Buffer.from(encodeReplay({ ...replay, ...overrides })).toString('base64');
+}
 
 describe('startRun', () => {
   beforeEach(() => { memory.reset(); fakeChain.reset(); clearPlayerCache(); });
@@ -50,6 +56,22 @@ describe('finishRun', () => {
     expect((await memory.getRun(runId)).status).toBe('verified');
     expect((await todayInfo({ userId: 7, now: NOON + 31 })).todayBest).toBe(played.score);
     expect((await todayInfo({ userId: null, now: NOON + 31 })).todayBest).toBeNull();
+  });
+
+  it('rejects a daily replay whose header claims extra lives', async () => {
+    const { runId, seed } = await startRun({ userId: 7, now: NOON });
+    const played = playReplay(seed, 600);
+    const tampered = tamperReplay(played.base64, { lives: 99 });
+    await expect(finishRun({ userId: 7, runId, replayBase64: tampered, now: NOON + 20 })).rejects.toMatchObject({ code: 'seed_mismatch', status: 400 });
+    expect((await memory.getRun(runId)).status).toBe('rejected');
+  });
+
+  it('rejects a daily replay whose header claims a campaign level id', async () => {
+    const { runId, seed } = await startRun({ userId: 7, now: NOON });
+    const played = playReplay(seed, 600);
+    const tampered = tamperReplay(played.base64, { levelId: 30 });
+    await expect(finishRun({ userId: 7, runId, replayBase64: tampered, now: NOON + 20 })).rejects.toMatchObject({ code: 'seed_mismatch', status: 400 });
+    expect((await memory.getRun(runId)).status).toBe('rejected');
   });
 
   it('rejects a replay recorded on another seed', async () => {
