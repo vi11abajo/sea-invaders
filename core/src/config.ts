@@ -91,7 +91,7 @@ export type BoostRarity = 'common' | 'rare' | 'epic' | 'legendary';
 /** Rarity roll order, common to legendary (spec §5.2). */
 export const RARITY_ORDER: BoostRarity[] = ['common', 'rare', 'epic', 'legendary'];
 
-/** One boost type per rarity, in the legacy `DISTRIBUTION` order (`boosts/boost-constants.js`). */
+/** One boost type per rarity, in the legacy web engine's `DISTRIBUTION` order. */
 export const RARITY_LISTS: Record<BoostRarity, BoostType[]> = {
   common: ['RAPID_FIRE', 'ICE_FREEZE', 'HEALTH_BOOST', 'POINTS_FREEZE'],
   rare: ['SHIELD_BARRIER', 'AUTO_TARGET', 'INVINCIBILITY', 'MULTI_SHOT', 'SCORE_MULTIPLIER', 'RICOCHET'],

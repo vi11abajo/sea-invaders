@@ -40,8 +40,6 @@ mobile/         Expo/React Native app: the primary client (wallet sign-in, daily
 core/           @sea-invaders/core: deterministic game engine shared by the app and the backend
 backend/        Express API: auth, daily runs and replay verification, on-chain reads and transaction building
 programs/       Anchor program (tickets, daily records, weekly pool) and its devnet scripts
-boss-system/    Reference for the campaign bosses being ported into core/ (legacy web engine, read-only)
-boosts/         Reference for the power-ups being ported into core/ (legacy web engine, read-only)
 ```
 
 The original web client (Next.js, Canvas 2D) was removed from the tree on 2026-09-13; it stays in the git history before that date.

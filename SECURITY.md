@@ -18,9 +18,10 @@ You can expect an initial response within a few days. Please give us a reasonabl
 
 In scope:
 
-- The game client and its anti-cheat logic (`game/`, `boosts/`, `boss-system/`)
-- The Next.js application and its API routes (`app/`, `lib/`)
-- The Express backend: authentication, score submission, leaderboard (`backend/`)
+- The mobile app: wallet sign-in, replay recording and run submission (`mobile/`)
+- The deterministic game core and its replay verification (`core/`)
+- The Express backend: authentication, run verification, on-chain transaction building (`backend/`)
+- The Anchor program: tickets, daily records, weekly pool settlement (`programs/`)
 
 Out of scope:
 
