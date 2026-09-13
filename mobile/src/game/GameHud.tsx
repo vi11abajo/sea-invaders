@@ -33,12 +33,21 @@ export interface HudBoost {
   count?: number;
 }
 
+/** A small tag beside the mode label, e.g. the campaign octopi a run is played with. */
+export interface HudBadge {
+  text: string;
+  /** The tag's fill. */
+  color: string;
+}
+
 /** Boss HP-bar tint per kind (1..5): spec §4.2 palette. */
 const BOSS_COLOR = ['#33cc66', '#3366ff', '#ffdd33', '#ff3333', '#9966ff'];
 
 interface GameHudProps {
   /** Mode label, e.g. "PRACTICE" or "DAILY · SEED #214". */
   mode: string;
+  /** A tag beside the mode label (`LEVEL 8` then `HARPOON`); none when omitted. */
+  badge?: HudBadge;
   score: number;
   lives: number;
   /** Shown only when the core reports a combo. */
@@ -56,7 +65,7 @@ interface GameHudProps {
 }
 
 /** The in-run HUD over the world. Only the pause button takes touches. */
-export function GameHud({ mode, score, lives, combo, boosts, shield = 0, boss, toast, hint, onPause }: GameHudProps) {
+export function GameHud({ mode, badge, score, lives, combo, boosts, shield = 0, boss, toast, hint, onPause }: GameHudProps) {
   // SHIELD_BARRIER is shown only by the dedicated "Shield ×N" chip below, never as its own "∞" entry.
   const timedBoosts = boosts?.filter((b) => b.type !== 'SHIELD_BARRIER') ?? [];
   const showBoosts = timedBoosts.length > 0;
@@ -64,7 +73,16 @@ export function GameHud({ mode, score, lives, combo, boosts, shield = 0, boss, t
     <View style={styles.root} pointerEvents="box-none">
       <View style={styles.top} pointerEvents="none">
         <View style={[styles.glass, styles.scoreCard]}>
-          <Text style={styles.mode}>{mode}</Text>
+          {badge !== undefined ? (
+            <View style={styles.modeRow} accessible accessibilityLabel={`${mode} · ${badge.text}`}>
+              <Text style={styles.mode}>{mode}</Text>
+              <View style={[styles.tag, { backgroundColor: badge.color }]}>
+                <Text style={styles.tagText}>{badge.text}</Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.mode}>{mode}</Text>
+          )}
           <Text style={styles.score}>{formatInt(score)}</Text>
         </View>
         <View style={styles.right}>
@@ -139,13 +157,13 @@ function BossBar({ boss }: { boss: BossFrame }) {
         </Text>
         <View style={styles.bossTags}>
           {boss.rage === 1 && (
-            <View style={[styles.bossTag, styles.rageTag]}>
-              <Text style={styles.bossTagText}>RAGE</Text>
+            <View style={[styles.tag, styles.rageTag]}>
+              <Text style={styles.tagText}>RAGE</Text>
             </View>
           )}
           {boss.freeze > 0 && (
-            <View style={[styles.bossTag, styles.freezeTag]}>
-              <Text style={styles.bossTagText}>FROZEN</Text>
+            <View style={[styles.tag, styles.freezeTag]}>
+              <Text style={styles.tagText}>FROZEN</Text>
             </View>
           )}
         </View>
@@ -173,6 +191,7 @@ const styles = StyleSheet.create({
   glass: { backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder },
   scoreCard: { borderRadius: RADIUS.hudCard, paddingHorizontal: 14, paddingVertical: 10 },
   mode: { fontFamily: FONTS.medium, fontSize: 10, letterSpacing: 0.4, color: COLORS.textSecondary },
+  modeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   score: { fontFamily: FONTS.mono, fontSize: 26, lineHeight: 30, letterSpacing: -0.52, color: COLORS.text },
   right: { alignItems: 'flex-end', gap: 6 },
   pill: { borderRadius: RADIUS.pill, overflow: 'hidden' },
@@ -185,8 +204,9 @@ const styles = StyleSheet.create({
   bossHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   bossName: { flex: 1, fontFamily: FONTS.medium, fontSize: 13, color: COLORS.text },
   bossTags: { flexDirection: 'row', gap: 4 },
-  bossTag: { borderRadius: RADIUS.pill, paddingHorizontal: 8, paddingVertical: 2 },
-  bossTagText: { fontFamily: FONTS.medium, fontSize: 9, letterSpacing: 0.4, color: COLORS.text },
+  /** The HUD's small pill tags: the boss's RAGE / FROZEN and the octopi badge. */
+  tag: { borderRadius: RADIUS.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  tagText: { fontFamily: FONTS.medium, fontSize: 9, letterSpacing: 0.4, color: COLORS.text },
   rageTag: { backgroundColor: 'rgba(255,51,51,0.35)' },
   freezeTag: { backgroundColor: 'rgba(51,153,255,0.35)' },
   bossBarTrack: { height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden' },

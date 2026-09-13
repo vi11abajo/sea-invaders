@@ -1,10 +1,12 @@
 import {
-  applyLevelResult, currentLevelId, formatInt, levelById, levelSeed, LEVELS_PER_REEF, REPLAY_MODE,
-  type CampaignProgress, type RunConfig,
+  applyLevelResult, bonusLivesFor, currentLevelId, formatInt, levelById, levelSeed, LEVELS_PER_REEF, REPLAY_MODE,
+  type CampaignProgress, type OctopiVariant, type RunConfig,
 } from '@sea-invaders/core';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { GameScreen, type RunOutcome } from '../game/GameScreen';
+import { VARIANT_OCTOPI } from '../loadout/items';
+import type { LoadoutApi } from '../loadout/useLoadout';
 import { ReefBackdrop } from './ReefBackdrop';
 import { ResultView } from '../game/ResultView';
 import { PillButton } from '../ui/PillButton';
@@ -16,7 +18,8 @@ import type { FinishLevelInput } from './useCampaign';
 /** The level-result kind `finishLevel` reports, from the core's progress rules (spec §6.1). */
 type Outcome = ReturnType<typeof applyLevelResult>['outcome'];
 
-type Phase = 'intro' | 'boss-intro' | 'playing';
+/** The Level start screen, then (with the run built when Start was pressed) the boss reveal and the run. */
+type Phase = { kind: 'intro' } | { kind: 'boss-intro' | 'playing'; run: RunConfig };
 
 /** The result screen's state: a real outcome carries the post-result progress, `error` does not. */
 type LevelResult =
@@ -45,8 +48,20 @@ interface CampaignLevelScreenProps {
    * used instead, which is correct regardless of render timing.
    */
   progress: CampaignProgress;
-  startLevel: (id: number, practice: boolean) => RunConfig;
+  startLevel: (id: number, practice: boolean, octopi: OctopiVariant) => RunConfig;
   finishLevel: (result: FinishLevelInput) => Promise<{ outcome: Outcome; next: CampaignProgress }>;
+  /** The loadout: the Level start picker equips its variant, and the run is played with it. */
+  loadout: LoadoutApi;
+  /** False when signed out: only the base Octopi can be picked. */
+  signedIn: boolean;
+  /** True while a wallet sign-in is in flight. */
+  connecting: boolean;
+  /** A failed sign-in's message. */
+  signInError: string | null;
+  /** Starts the wallet sign-in, from the Level start's Connect sheet. */
+  onConnect: () => void;
+  /** Opens the Shop, from a locked octopi tile. */
+  onOpenShop: () => void;
   /** Opens a level id (always non-practice) — "Next level", "Retry level" or "Retry reef". */
   onNext: (id: number) => void;
   /** Called once the player leaves the result screen. */
@@ -54,21 +69,29 @@ interface CampaignLevelScreenProps {
   onExit: () => void;
 }
 
-/** One campaign level: the intro card, the boss reveal on boss rows, then the run and its result. */
-export function CampaignLevelScreen({ levelId, practice, startLevel, finishLevel, onNext, onDone, onExit }: CampaignLevelScreenProps) {
+/** One campaign level: the Level start screen, the boss reveal on boss rows, then the run and its result. */
+export function CampaignLevelScreen({
+  levelId, practice, startLevel, finishLevel, loadout, signedIn, connecting, signInError, onConnect, onOpenShop,
+  onNext, onDone, onExit,
+}: CampaignLevelScreenProps) {
   const level = useMemo(() => levelById(levelId), [levelId]);
-  // Computed once per screen instance: a fresh RunConfig/seed each time the player re-enters this
-  // level, but stable across this screen's own re-renders so the game loop is not restarted.
-  const [run] = useState<RunConfig>(() => startLevel(levelId, practice));
+  // A fresh seed each time the player re-enters this level, stable across this screen's re-renders.
   const [seed] = useState<string>(() => levelSeed(`campaign-${Date.now()}`, levelId));
-  const [phase, setPhase] = useState<Phase>('intro');
+  const [phase, setPhase] = useState<Phase>({ kind: 'intro' });
+  /** The octopi picked on the Level start screen: the loadout's variant, 'base' when signed out. */
+  const octopi = VARIANT_OCTOPI[loadout.loadout.activeVariant];
   // 'error' covers a rejected finishLevel — e.g. the QA deep link opening a level that is not
   // the current level, which `applyLevelResult` refuses for a non-practice result. Non-error
   // results carry `next`, the post-result progress `applyLevelResult` computed, so the result
   // screen's targets and stats never depend on this component's own (pre-result) `progress` prop.
   const [result, setResult] = useState<LevelResult | null>(null);
 
-  const beginPlay = () => setPhase(level.boss !== undefined ? 'boss-intro' : 'playing');
+  // The RunConfig is built when Start is pressed, so it carries the octopi picked just before; kept
+  // in the phase from then on, so it stays the same object and the game loop is not restarted.
+  const beginPlay = () => {
+    const run = startLevel(levelId, practice, octopi);
+    setPhase({ kind: level.boss !== undefined ? 'boss-intro' : 'playing', run });
+  };
 
   const handleRunOver = (outcome: RunOutcome) => {
     finishLevel({ levelId, practice, cleared: outcome.cleared, livesLeft: outcome.livesLeft, score: outcome.score })
@@ -76,14 +99,32 @@ export function CampaignLevelScreen({ levelId, practice, startLevel, finishLevel
       .catch(() => setResult({ outcome, kind: 'error' }));
   };
 
-  if (phase === 'intro') {
-    return <LevelIntro level={level} practice={practice} lives={run.lives} onPlay={beginPlay} onBack={onExit} />;
+  if (phase.kind === 'intro') {
+    // The lives the run will start with: the level's entry lives plus the picked octopi's (Anchor's
+    // extra life is added by the core's createGame; the reef lives in the progress are untouched).
+    const preview = startLevel(levelId, practice, octopi);
+    return (
+      <LevelIntro
+        level={level}
+        practice={practice}
+        lives={preview.lives + bonusLivesFor(preview.octopi)}
+        loadout={loadout}
+        signedIn={signedIn}
+        connecting={connecting}
+        signInError={signInError}
+        onConnect={onConnect}
+        onOpenShop={onOpenShop}
+        onPlay={beginPlay}
+        onBack={onExit}
+      />
+    );
   }
-  if (phase === 'boss-intro' && level.boss !== undefined) {
+  const { run } = phase;
+  if (phase.kind === 'boss-intro' && level.boss !== undefined) {
     return (
       <View style={StyleSheet.absoluteFill}>
         <ReefBackdrop reef={level.reef} />
-        <BossIntro kind={level.boss} onDone={() => setPhase('playing')} />
+        <BossIntro kind={level.boss} onDone={() => setPhase({ kind: 'playing', run })} />
       </View>
     );
   }

@@ -16,7 +16,7 @@ export interface Loadout {
   /** Catalogue item ids the wallet owns, ascending. */
   owned: readonly number[];
   activeSkin: SkinIndex;
-  /** Stored for the campaign's variant picker; runs do not read it yet. */
+  /** The campaign octopi: the Level start picker equips it, and campaign runs play with it. */
   activeVariant: VariantIndex;
 }
 

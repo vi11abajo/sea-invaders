@@ -39,7 +39,7 @@ interface ResultViewProps {
   extra?: ReactNode;
 }
 
-/** End of a run: the score in the signature gradient, Octopi's pose (in the active skin) and a sheet of stats and actions. */
+/** End of a run: the score in the signature gradient, Octopi's pose (in the run's look) and a sheet of stats and actions. */
 export function ResultView({ title, score, stats, note, primaryLabel = 'Play again', onPlayAgain, secondary, onBack, extra }: ResultViewProps) {
   return (
     <View style={styles.root}>

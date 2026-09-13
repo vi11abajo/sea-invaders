@@ -1,6 +1,7 @@
 import { Skia, type SkColorFilter } from '@shopify/react-native-skia';
+import type { OctopiVariant } from '@sea-invaders/core';
 import { createContext, useContext } from 'react';
-import { ITEM_NAMES, SKIN_ITEM_IDS, type SkinIndex } from '../loadout/items';
+import { ITEM_NAMES, SKIN_ITEM_IDS, itemOfOctopi, type SkinIndex } from '../loadout/items';
 import { ITEM_TINT, tintMatrix } from '../shop/tints';
 
 /**
@@ -13,11 +14,35 @@ import { ITEM_TINT, tintMatrix } from '../shop/tints';
 /** Each skin's colour by selector (0..4); null = Octopi's own colours. */
 export const SKIN_TINTS: readonly (string | null)[] = SKIN_ITEM_IDS.map((id) => (id === null ? null : (ITEM_TINT[id] ?? null)));
 
-/** Each skin's 4x5 colour matrix (`tintMatrix`) by selector; null for the base colours. */
-export const SKIN_MATRICES: readonly (number[] | null)[] = SKIN_TINTS.map((hex) => (hex === null ? null : tintMatrix(hex)));
+/**
+ * The colour Octopi is drawn in, null for its own colours: the one rule every Octopi on screen
+ * follows (owner ruling 2026-09-14). The equipped skin wins, being the cosmetic choice; without one,
+ * a campaign octopi shows in its Shop colour (`ITEM_TINT`, the tint of its Shop and Profile thumbs);
+ * otherwise Octopi keeps its own colours. Daily runs and practice from Home play the base Octopi, so
+ * they show the skin or Octopi's own colours.
+ */
+export function octopiTint(skin: SkinIndex, octopi: OctopiVariant): string | null {
+  const skinTint = SKIN_TINTS[skin] ?? null;
+  if (skinTint !== null) return skinTint;
+  const itemId = itemOfOctopi(octopi);
+  return itemId === null ? null : (ITEM_TINT[itemId] ?? null);
+}
 
-/** The same matrices as Skia colour filters, built once at load: the in-game sprites are pre-tinted through them. */
-export const SKIN_FILTERS: readonly (SkColorFilter | null)[] = SKIN_MATRICES.map((m) => (m === null ? null : Skia.ColorFilter.MakeMatrix(m)));
+const TINT_FILTERS = new Map<string, SkColorFilter>();
+
+/**
+ * The Skia colour filter that recolours Octopi to `tint` (`tintMatrix`), built once per colour and
+ * reused: the in-game poses and the UI snapshots are pre-tinted through it. Null for Octopi's own colours.
+ */
+export function tintFilter(tint: string | null): SkColorFilter | null {
+  if (tint === null) return null;
+  let filter = TINT_FILTERS.get(tint);
+  if (filter === undefined) {
+    filter = Skia.ColorFilter.MakeMatrix(tintMatrix(tint));
+    TINT_FILTERS.set(tint, filter);
+  }
+  return filter;
+}
 
 /** "Lime" for skin 1; null for the base colours. */
 export function skinName(skin: SkinIndex): string | null {
@@ -34,4 +59,17 @@ export const SkinContext = createContext<SkinIndex>(0);
 /** The active skin selector, for every place that draws Octopi. */
 export function useActiveSkin(): SkinIndex {
   return useContext(SkinContext);
+}
+
+/**
+ * The octopi variant of the run on screen. `GameScreen` provides its run's (the base Octopi for daily
+ * runs and practice), so the result pose it shows takes the run's look; outside a run it is the base.
+ */
+export const RunOctopiContext = createContext<OctopiVariant>('base');
+
+/** The colour this Octopi is drawn in (`octopiTint`): the active skin, else `octopi` (by default the run's variant). */
+export function useOctopiTint(octopi?: OctopiVariant): string | null {
+  const skin = useActiveSkin();
+  const fromRun = useContext(RunOctopiContext);
+  return octopiTint(skin, octopi ?? fromRun);
 }

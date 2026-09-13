@@ -2,9 +2,7 @@ import { FilterMode, MipmapMode, Skia, loadData, useImage, type SkColorFilter, t
 import { BOSS, CRAB, DROP, OCTOPI, type Layout } from '@sea-invaders/core';
 import { useEffect, useMemo, useState } from 'react';
 import { PixelRatio } from 'react-native';
-import type { SkinIndex } from '../loadout/items';
-import { tintMatrix } from '../shop/tints';
-import { SKIN_FILTERS } from './skins';
+import { tintFilter } from './skins';
 
 /**
  * Read once on the JS thread; `draw.ts`'s worklet closes over this value rather than calling into
@@ -158,14 +156,14 @@ export interface PreparedSprite {
   dest: Rect;
   /**
    * The colour filter the `scaled === false` fallback must draw `image` through: an Octopi pose's
-   * skin tint when its tinted snapshot failed and `image` is the untinted original. Null when the
+   * tint when its tinted snapshot failed and `image` is the untinted original. Null when the
    * snapshot already carries the tint, and for every sprite that has none.
    */
   filter: SkColorFilter | null;
 }
 
 export interface PreparedSprites {
-  /** Octopi's two poses in the active skin, tinted into their snapshots (`prepareOctopi`). */
+  /** Octopi's two poses in the run's look (`octopiTint`), tinted into their snapshots (`prepareOctopi`). */
   octopi: { front: PreparedSprite; hit: PreparedSprite };
   crabs: PreparedSprite[];
   /**
@@ -188,7 +186,7 @@ export interface PreparedSprites {
  * `FilterMode.Linear`/`MipmapMode.Linear` does that downsample; cropping `src` first (for an
  * aspect-fill) still works the same as before. Snapshots the result and converts it to a
  * non-texture image `drawSpriteAt` (draw.ts) draws back down to dp size at draw time. A `filter`
- * (an Octopi skin's `ColorMatrix`) recolours the pixels in the same draw, so a tinted snapshot costs
+ * (an Octopi tint's `ColorMatrix`) recolours the pixels in the same draw, so a tinted snapshot costs
  * nothing more than a plain one. Returns null if the surface, its snapshot, or the conversion is
  * unavailable on this device/driver, or if any of it throws.
  */
@@ -253,12 +251,13 @@ type PreparedOctopi = Pick<PreparedSprites, 'octopi'>;
 type PreparedWorld = Omit<PreparedSprites, 'octopi'>;
 
 /**
- * Octopi's front and hit poses in `skin`, pre-scaled like every other sprite with the skin's
- * `ColorMatrix` applied in the same offscreen draw (both poses share the body colour `#1C6DC6` the
- * matrix is calibrated on). The base skin draws untouched.
+ * Octopi's front and hit poses recoloured to `tint` (`octopiTint`: the skin, else the campaign
+ * octopi's colour), pre-scaled like every other sprite with the tint's `ColorMatrix` applied in the
+ * same offscreen draw (both poses share the body colour `#1C6DC6` the matrix is calibrated on).
+ * Null draws Octopi's own colours untouched.
  */
-export function prepareOctopi(sprites: Sprites, layout: Layout, skin: SkinIndex): PreparedOctopi {
-  const filter = SKIN_FILTERS[skin] ?? null;
+export function prepareOctopi(sprites: Sprites, layout: Layout, tint: string | null): PreparedOctopi {
+  const filter = tintFilter(tint);
   const octopiW = OCTOPI.size * layout.scale;
   const front = preparedFrom(sprites.octopi.front, octopiW, octopiW * (sprites.octopi.front.height() / sprites.octopi.front.width()), undefined, filter);
   const hit = preparedFrom(sprites.octopi.hit, octopiW, octopiW * (sprites.octopi.hit.height() / sprites.octopi.hit.width()), undefined, filter);
@@ -298,11 +297,11 @@ function prepareWorld(sprites: Sprites, layout: Layout): PreparedWorld {
  * filtering (Task 4's FPS ruling, plus the crushed-sprite fix): the UI-thread worklet then draws
  * each with a single `canvas.drawImageOptions` call, no per-frame resampling. Memoized in two parts
  * for `GameScreen`: the world sprites (`prepareWorld`) rebuild only when `sprites`/`layout` change,
- * Octopi's two poses in `skin` (`prepareOctopi`) also when the active skin changes.
+ * Octopi's two poses in `tint` (`prepareOctopi`) also when Octopi's colour changes.
  */
-export function usePreparedSprites(sprites: Sprites | null, layout: Layout, skin: SkinIndex): PreparedSprites | null {
+export function usePreparedSprites(sprites: Sprites | null, layout: Layout, tint: string | null): PreparedSprites | null {
   const world = useMemo(() => (sprites === null ? null : prepareWorld(sprites, layout)), [sprites, layout]);
-  const octopi = useMemo(() => (sprites === null ? null : prepareOctopi(sprites, layout, skin)), [sprites, layout, skin]);
+  const octopi = useMemo(() => (sprites === null ? null : prepareOctopi(sprites, layout, tint)), [sprites, layout, tint]);
   return useMemo(() => (world === null || octopi === null ? null : { ...world, ...octopi }), [world, octopi]);
 }
 
@@ -342,7 +341,7 @@ function rememberArt(key: string, image: SkImage): void {
  */
 function renderArt(source: SkImage, tint: string | null, px: number): SkImage | null {
   const { w, h } = containSize(source, px / PIXEL_RATIO);
-  const filter = tint === null ? null : Skia.ColorFilter.MakeMatrix(tintMatrix(tint));
+  const filter = tintFilter(tint);
   return (
     renderScaled(source, w, h, undefined, filter) ??
     renderScaled(source, w, h, undefined, filter, (width, height) => Skia.Surface.Make(width, height))

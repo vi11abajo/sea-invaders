@@ -88,13 +88,24 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
   const signAndSend = useSignAndSend();
   const [ticketBusy, setTicketBusy] = useState(false);
   const [ticketMessage, setTicketMessage] = useState<string | null>(null);
+  // Where the Shop's Back returns: Home (null), or the Level start screen whose locked octopi tile
+  // opened it, so a purchase made there can be picked at once.
+  const [shopReturn, setShopReturn] = useState<Screen | null>(null);
   const home = () => {
     setScreen('home');
     refresh();
   };
+  const openShop = (from: Screen | null) => {
+    setShopReturn(from);
+    setScreen('shop');
+  };
+  const leaveShop = () => {
+    if (shopReturn === null) home();
+    else setScreen(shopReturn);
+  };
 
-  // The Shop needs a session (Home only opens it signed in); if the session goes away while it is
-  // open, return Home instead of leaving a stale 'shop' to reappear on the next sign-in.
+  // The Shop needs a session (Home and the Level start only open it signed in); if the session goes
+  // away while it is open, return Home instead of leaving a stale 'shop' to reappear on the next sign-in.
   useEffect(() => {
     if (screen === 'shop' && session === null && !restoring) setScreen('home');
   }, [screen, session, restoring]);
@@ -171,6 +182,12 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
         progress={campaign.progress}
         startLevel={campaign.startLevel}
         finishLevel={campaign.finishLevel}
+        loadout={loadout}
+        signedIn={session !== null}
+        connecting={signingIn}
+        signInError={error}
+        onConnect={() => void signIn()}
+        onOpenShop={() => openShop(screen)}
         onNext={(id) => {
           setLevelAttempt((n) => n + 1);
           setScreen({ kind: 'level', id, practice: false });
@@ -204,7 +221,7 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
     case 'leaderboard':
       return <LeaderboardScreen onBack={home} />;
     case 'shop':
-      if (session !== null) return <ShopScreen walletAddress={session.walletAddress} onBack={home} />;
+      if (session !== null) return <ShopScreen walletAddress={session.walletAddress} onBack={leaveShop} />;
       return <Backdrop />;
     case 'profile':
       return (
@@ -228,7 +245,7 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
           onDaily={() => setScreen('daily')}
           onCampaign={() => setScreen({ kind: 'campaign' })}
           onLeaderboard={() => setScreen('leaderboard')}
-          onShop={() => setScreen('shop')}
+          onShop={() => openShop(null)}
           onProfile={() => setScreen('profile')}
           onWallet={() => void signIn()}
           onBuyTicket={buyTicket}

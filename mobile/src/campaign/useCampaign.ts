@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { applyLevelResult, levelById, livesForEntry, reviveReef, type CampaignProgress, type RunConfig } from '@sea-invaders/core';
+import {
+  applyLevelResult, levelById, livesForEntry, reviveReef, type CampaignProgress, type OctopiVariant, type RunConfig,
+} from '@sea-invaders/core';
 import { loadProgress, saveProgress } from './store';
 
 type LevelResult = Parameters<typeof applyLevelResult>[1];
@@ -25,15 +27,19 @@ export function useCampaign() {
     };
   }, []);
 
+  /**
+   * The run config for level `id`, played with the variant `octopi` (design doc §4–5: every campaign
+   * run, practice replays of cleared levels included; the core adds Anchor's extra life itself).
+   */
   const startLevel = useCallback(
-    (id: number, practice: boolean): RunConfig => {
+    (id: number, practice: boolean, octopi: OctopiVariant): RunConfig => {
       if (!progress) throw new Error('campaign progress not loaded yet');
       return {
         mode: practice ? 'practice' : 'campaign',
         level: levelById(id),
         lives: practice ? 3 : livesForEntry(progress),
         features: { boosts: true },
-        octopi: 'base',
+        octopi,
       };
     },
     [progress],

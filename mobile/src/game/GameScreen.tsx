@@ -2,25 +2,30 @@ import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
   BOOST_INDEX, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
   OCTOPI, createGame, fitField, formatInt, snapshot, step, touchToInput,
-  type BoostType, type BossFrame, type Frame, type Input, type Replay, type ReplayMode, type RunConfig,
+  type BoostType, type BossFrame, type Frame, type Input, type OctopiVariant, type Replay, type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
+import { ITEM_NAMES, itemOfOctopi } from '../loadout/items';
+import { ITEM_TINT, tintWithAlpha } from '../shop/tints';
 import { Backdrop } from '../ui/Backdrop';
 import { Txt } from '../ui/Txt';
 import { COLORS, FONTS } from '../ui/tokens';
-import { GameHud, type HudBoost } from './GameHud';
+import { GameHud, type HudBadge, type HudBoost } from './GameHud';
 import { PauseSheet } from './PauseSheet';
 import { RESULT_POSE_SIZE, ResultView } from './ResultView';
 import { drawFrame, type WaveBlast } from './draw';
-import { SKIN_TINTS, useActiveSkin } from './skins';
+import { RunOctopiContext, octopiTint, useActiveSkin } from './skins';
 import { primeOctopiArt, usePreparedSprites, useSprites } from './sprites';
 
 /** Milli-units between the finger and Octopi's centre, so the finger never covers Octopi. */
 const FINGER_LIFT = 600;
 
 const HINT = 'Drag anywhere — Octopi follows above your finger. Auto-fire.';
+
+/** The octopi badge's fill: the item's Shop colour at the alpha of the HUD's other tags (RAGE, FROZEN). */
+const BADGE_ALPHA = 0.35;
 
 /** How long the wave/phase banner and the pickup toast stay up, in rendered frames. */
 const BANNER_FRAMES = 60;
@@ -58,6 +63,16 @@ function boostsFromFrame(flat: number[], tamerStacks: number): HudBoost[] {
     list.push({ type, name: titleCase(type), seconds, count });
   }
   return list;
+}
+
+/** The HUD badge of a run played with a campaign octopi (`HARPOON` in Harpoon's colour); none for the base Octopi. */
+function octopiBadge(octopi: OctopiVariant): HudBadge | undefined {
+  const itemId = itemOfOctopi(octopi);
+  if (itemId === null) return undefined;
+  const name = ITEM_NAMES[itemId];
+  const tint = ITEM_TINT[itemId];
+  if (name === undefined || tint === undefined) return undefined;
+  return { text: name.toUpperCase(), color: tintWithAlpha(tint, BADGE_ALPHA) };
 }
 
 function sameBoss(a: BossFrame | null, b: BossFrame | null): boolean {
@@ -122,7 +137,10 @@ interface GameScreenProps {
   hudMode?: string;
   /** Small line under the default result's button. */
   note?: string;
-  /** Campaign level config; used verbatim for `createGame` and the replay's level id/lives. Daily/practice runs omit it. */
+  /**
+   * Campaign level config; used verbatim for `createGame` and the replay's level id/lives/octopi, and
+   * its octopi is badged in the HUD. Daily/practice runs omit it (the base Octopi).
+   */
   run?: RunConfig;
   /** Called once when the run ends (game over or quit), with the finished replay. */
   onRunOver?: (outcome: RunOutcome) => void;
@@ -142,8 +160,12 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const layout = useMemo(() => fitField(width, height), [width, height]);
   const fieldRect = useMemo(() => ({ x: layout.offsetX, y: layout.offsetY, width: layout.width, height: layout.height }), [layout]);
   const sprites = useSprites();
-  const skin = useActiveSkin();
-  const prepared = usePreparedSprites(sprites, layout, skin);
+  // Daily and practice runs play the base Octopi (their configs are base), so they show the skin or
+  // Octopi's own colours; a campaign octopi shows in its colour unless a skin is equipped.
+  const octopi = run?.octopi ?? 'base';
+  const tint = octopiTint(useActiveSkin(), octopi);
+  const prepared = usePreparedSprites(sprites, layout, tint);
+  const badge = useMemo(() => octopiBadge(octopi), [octopi]);
   const frame = useSharedValue<Frame>(EMPTY_FRAME);
   /** The last WAVE_BLAST of this run, for its shock rings (view only, never fed back to the sim). */
   const blast = useSharedValue<WaveBlast | null>(null);
@@ -164,15 +186,15 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   // The result screen's Octopi, made now from the sprite this run already decoded, so the pose is
   // there the moment the run ends instead of decoding the asset again at that point.
   useEffect(() => {
-    if (sprites !== null) primeOctopiArt(sprites.octopi.front, SKIN_TINTS[skin] ?? null, RESULT_POSE_SIZE);
-  }, [sprites, skin]);
+    if (sprites !== null) primeOctopiArt(sprites.octopi.front, tint, RESULT_POSE_SIZE);
+  }, [sprites, tint]);
 
   useEffect(() => {
     // Practice seed: the app may use the clock; only the core must not.
     const runSeed = seed ?? `practice-${runIndex}-${Date.now()}`;
     const config = run ?? (mode === REPLAY_MODE.daily ? DAILY_RUN : PRACTICE_RUN);
     const state = createGame(runSeed, config);
-    const recorder = new ReplayRecorder(runSeed, mode, run?.level?.id ?? 0, run?.lives ?? OCTOPI.lives);
+    const recorder = new ReplayRecorder(runSeed, mode, run?.level?.id ?? 0, run?.lives ?? OCTOPI.lives, config.octopi);
     const stepper = new FixedStepper();
     input.current = INITIAL_INPUT;
     paused.current = false;
@@ -328,19 +350,22 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           <Txt variant="headline">Loading…</Txt>
         </View>
       ) : hud.over && outcome ? (
-        renderResult ? renderResult(outcome, playAgain) : (
-          <ResultView
-            title="Run over"
-            score={outcome.score}
-            stats={[
-              { label: 'Crabs', value: formatInt(outcome.kills) },
-              { label: 'Wave', value: String(outcome.wave) },
-            ]}
-            note={note}
-            onPlayAgain={playAgain}
-            onBack={onExit}
-          />
-        )
+        // The result pose (`ActiveOctopi` in `ResultView`) takes the run's look through the context.
+        <RunOctopiContext.Provider value={octopi}>
+          {renderResult ? renderResult(outcome, playAgain) : (
+            <ResultView
+              title="Run over"
+              score={outcome.score}
+              stats={[
+                { label: 'Crabs', value: formatInt(outcome.kills) },
+                { label: 'Wave', value: String(outcome.wave) },
+              ]}
+              note={note}
+              onPlayAgain={playAgain}
+              onBack={onExit}
+            />
+          )}
+        </RunOctopiContext.Provider>
       ) : (
         <>
           <Canvas style={styles.fill}>
@@ -355,6 +380,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           />
           <GameHud
             mode={hudMode}
+            badge={badge}
             score={hud.score}
             lives={hud.lives}
             boss={hud.boss}

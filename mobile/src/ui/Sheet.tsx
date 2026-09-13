@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { COLORS, MOTION, RADIUS } from './tokens';
 
@@ -9,10 +9,12 @@ interface SheetProps {
   kind?: 'world' | 'modal';
   /** Modal only: called when the backdrop outside the sheet is tapped. Omit to only swallow the tap. */
   onDismiss?: () => void;
+  /** The sheet panel's layout, e.g. for a world screen that keeps its art clear of the sheet. */
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
 /** A bottom sheet that rises in. */
-export function Sheet({ children, kind = 'world', onDismiss }: SheetProps) {
+export function Sheet({ children, kind = 'world', onDismiss, onLayout }: SheetProps) {
   const { height } = useWindowDimensions();
   const shown = useSharedValue(0);
   useEffect(() => {
@@ -29,11 +31,11 @@ export function Sheet({ children, kind = 'world', onDismiss }: SheetProps) {
     return (
       <View style={styles.scrim}>
         <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={onDismiss} />
-        <Animated.View style={[styles.modal, { maxHeight: height * 0.82 }, rise]}>{children}</Animated.View>
+        <Animated.View style={[styles.modal, { maxHeight: height * 0.82 }, rise]} onLayout={onLayout}>{children}</Animated.View>
       </View>
     );
   }
-  return <Animated.View style={[styles.world, rise]}>{children}</Animated.View>;
+  return <Animated.View style={[styles.world, rise]} onLayout={onLayout}>{children}</Animated.View>;
 }
 
 const styles = StyleSheet.create({
