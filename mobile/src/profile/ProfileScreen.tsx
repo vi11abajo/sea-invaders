@@ -57,11 +57,11 @@ interface Tile {
 }
 
 /**
- * The base Octopi first (always owned: it is the no-variant choice), then the owned campaign
- * octopi, then the owned skins, in catalogue order. One variant and one skin are equipped at a
- * time; tapping the equipped one takes it off, back to the base.
+ * The campaign octopi group: the base Octopi first (always owned: it is the no-variant choice), then
+ * the owned variants in catalogue order. Exactly one is equipped; tapping the equipped variant takes
+ * it off, back to the base Octopi.
  */
-function inventoryTiles(loadout: LoadoutState): Tile[] {
+function variantTiles(loadout: LoadoutState): Tile[] {
   const baseEquipped = loadout.activeVariant === 0;
   const tiles: Tile[] = [
     { key: 'base', itemId: null, name: BASE_OCTOPI_NAME, equipped: baseEquipped, change: baseEquipped ? null : { activeVariant: 0 } },
@@ -72,6 +72,12 @@ function inventoryTiles(loadout: LoadoutState): Tile[] {
     const equipped = loadout.activeVariant === variant;
     tiles.push({ key: `item-${id}`, itemId: id, name: ITEM_NAMES[id] ?? `Item ${id}`, equipped, change: { activeVariant: equipped ? 0 : variant } });
   }
+  return tiles;
+}
+
+/** The skins group: the owned skins in catalogue order; at most one equipped, tapping it goes back to Octopi's own colours. */
+function skinTiles(loadout: LoadoutState): Tile[] {
+  const tiles: Tile[] = [];
   for (const id of loadout.owned) {
     const skin = skinOfItem(id);
     if (skin === null) continue;
@@ -79,6 +85,13 @@ function inventoryTiles(loadout: LoadoutState): Tile[] {
     tiles.push({ key: `item-${id}`, itemId: id, name: ITEM_NAMES[id] ?? `Item ${id}`, equipped, change: { activeSkin: equipped ? 0 : skin } });
   }
   return tiles;
+}
+
+/** `tiles` in rows of `TILE_COLUMNS`. */
+function tileRows(tiles: Tile[]): Tile[][] {
+  const rows: Tile[][] = [];
+  for (let i = 0; i < tiles.length; i += TILE_COLUMNS) rows.push(tiles.slice(i, i + TILE_COLUMNS));
+  return rows;
 }
 
 interface ProfileScreenProps {
@@ -214,9 +227,10 @@ export function ProfileScreen({
   }));
 
   const signedIn = walletAddress !== null;
-  const tiles = inventoryTiles(loadout);
-  const rows: Tile[][] = [];
-  for (let i = 0; i < tiles.length; i += TILE_COLUMNS) rows.push(tiles.slice(i, i + TILE_COLUMNS));
+  const variants = variantTiles(loadout);
+  const skins = skinTiles(loadout);
+  const tileDisabled = !signedIn || equipping;
+  const onTile = (change: LoadoutChange) => void equip(change);
 
   return (
     <View style={styles.root}>
@@ -275,18 +289,14 @@ export function ProfileScreen({
             </View>
           )}
           <Txt variant="secondary" tone="secondary" style={styles.section}>INVENTORY</Txt>
-          <View style={styles.grid}>
-            {rows.map((row) => (
-              <View key={row[0].key} style={styles.gridRow}>
-                {row.map((tile) => (
-                  <InventoryTile key={tile.key} tile={tile} disabled={!signedIn || equipping} onPress={(change) => void equip(change)} />
-                ))}
-                {Array.from({ length: TILE_COLUMNS - row.length }, (_, i) => (
-                  <View key={`spacer-${i}`} style={styles.tileSpacer} />
-                ))}
-              </View>
-            ))}
-          </View>
+          <Txt variant="label" tone="tertiary">CAMPAIGN OCTOPI</Txt>
+          <TileGrid tiles={variants} disabled={tileDisabled} onPress={onTile} />
+          <Txt variant="label" tone="tertiary" style={styles.group}>SKINS · COSMETIC</Txt>
+          {skins.length > 0 ? (
+            <TileGrid tiles={skins} disabled={tileDisabled} onPress={onTile} />
+          ) : (
+            <Txt variant="secondary" tone="tertiary">No skins yet. Skins are in the Shop.</Txt>
+          )}
           {signedIn && loadout.source !== 'server' && (
             loadout.error !== null ? (
               <Txt variant="secondary" tone="tertiary" style={styles.note}>{`${loadout.error.replace(/\.$/, '')}. Pull down to try again.`}</Txt>
@@ -326,6 +336,24 @@ function Balance({ label, value }: { label: string; value: string }) {
     <View style={styles.balance}>
       <Txt variant="secondary" tone="tertiary" style={styles.balanceLabel}>{label}</Txt>
       <Txt style={styles.balanceValue} numberOfLines={1}>{value}</Txt>
+    </View>
+  );
+}
+
+/** One inventory group as a 4-column grid, the last row padded with spacers so tiles keep their width. */
+function TileGrid({ tiles, disabled, onPress }: { tiles: Tile[]; disabled: boolean; onPress: (change: LoadoutChange) => void }) {
+  return (
+    <View style={styles.grid}>
+      {tileRows(tiles).map((row) => (
+        <View key={row[0]!.key} style={styles.gridRow}>
+          {row.map((tile) => (
+            <InventoryTile key={tile.key} tile={tile} disabled={disabled} onPress={onPress} />
+          ))}
+          {Array.from({ length: TILE_COLUMNS - row.length }, (_, i) => (
+            <View key={`spacer-${i}`} style={styles.tileSpacer} />
+          ))}
+        </View>
+      ))}
     </View>
   );
 }
@@ -390,6 +418,7 @@ const styles = StyleSheet.create({
   noWalletTitle: { fontFamily: FONTS.medium, fontSize: 20, letterSpacing: -0.6, color: COLORS.text },
   copy: { lineHeight: 19 },
   section: { marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.48 },
+  group: { marginTop: 8 },
   grid: { gap: 8 },
   gridRow: { flexDirection: 'row', gap: 8 },
   tile: {
