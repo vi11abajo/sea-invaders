@@ -296,16 +296,9 @@ function prepareWorld(sprites: Sprites, layout: Layout): PreparedWorld {
 /**
  * Pre-scales every sprite to its exact on-screen size once, at physical-pixel resolution with mip
  * filtering (Task 4's FPS ruling, plus the crushed-sprite fix): the UI-thread worklet then draws
- * each with a single `canvas.drawImageOptions` call, no per-frame resampling. Octopi comes out in
- * `skin` (`prepareOctopi`).
- */
-export function prepareSprites(sprites: Sprites, layout: Layout, skin: SkinIndex): PreparedSprites {
-  return { ...prepareWorld(sprites, layout), ...prepareOctopi(sprites, layout, skin) };
-}
-
-/**
- * `prepareSprites` for `GameScreen`, memoized in two parts: the world sprites rebuild only when
- * `sprites`/`layout` change, Octopi's two tinted poses also when the active skin changes.
+ * each with a single `canvas.drawImageOptions` call, no per-frame resampling. Memoized in two parts
+ * for `GameScreen`: the world sprites (`prepareWorld`) rebuild only when `sprites`/`layout` change,
+ * Octopi's two poses in `skin` (`prepareOctopi`) also when the active skin changes.
  */
 export function usePreparedSprites(sprites: Sprites | null, layout: Layout, skin: SkinIndex): PreparedSprites | null {
   const world = useMemo(() => (sprites === null ? null : prepareWorld(sprites, layout)), [sprites, layout]);
