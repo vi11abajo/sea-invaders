@@ -1,23 +1,109 @@
-import { LEVELS_PER_REEF, type CampaignProgress } from '@sea-invaders/core';
+import { LEVELS_PER_REEF, type CampaignProgress, type CrabType } from '@sea-invaders/core';
 
-/** Reef 1..5 display names: spec §7. Shared by the campaign list, the reef screen, LevelIntro and BossIntro. */
+/** Reef 1..5 display names: spec §7. Shared by the campaign map, LevelIntro and BossIntro. */
 export const REEF_NAMES = ['Kelp Shallows', 'Coral Ridge', 'Sunlit Trench', 'Crimson Deep', 'The Void'] as const;
 
-/** Two-line lore legend per reef (owner copy, 2026-09-13), shown on the reef card and again atop its reef screen. */
-export const REEF_LEGENDS = [
-  "The invasion began in the kelp. Emerald Warlord's scouts probe the reef's edge, and only Octopi is awake to answer.",
-  'Azure Leviathan claimed the coral for its armored legions. Every ridge you clear is a home given back.',
-  'Sunlight still reaches the trench, and Solar Kraken turns it into a rain of fire. Its fast swimmers guard the light.',
-  "Red water, no sun. Crimson Behemoth feeds its rage on the reef's fear, and its crabs fan out in every direction.",
-  'Beyond the last light waits Void Sovereign, who tears the sea itself. Win here, and the ocean is free.',
-] as const;
+/**
+ * Campaign-map accent colour per reef (owner design 2026-09-13, `CampaignMap.dc.html`'s `REEFS`
+ * table). Deliberately distinct from `REEF_PROGRESS` in `ui/tokens.ts`, which other screens
+ * (result, HUD) keep using unchanged.
+ */
+export const REEF_ACCENT = ['#5497D5', '#43B4CA', '#FFC526', '#F48252', '#9945FF'] as const;
+
+/** The crab kind each reef introduces, with the capitalised display name shown in stat tiles. */
+export const REEF_NEW_KIND: readonly { kind: CrabType; name: string }[] = [
+  { kind: 'normal', name: 'Normal' },
+  { kind: 'armored', name: 'Armored' },
+  { kind: 'swift', name: 'Swift' },
+  { kind: 'fanner', name: 'Fanner' },
+  { kind: 'diver', name: 'Diver' },
+];
+
+/**
+ * "New enemy this reef" copy for the level sheet (owner copy, 2026-09-13): reef 1 is just "Crab"
+ * since it has no prior reef to contrast with; every later reef reads "<Name> crab".
+ */
+export function reefNewEnemyCopy(reef: number): string {
+  const kind = REEF_NEW_KIND[reef - 1]!;
+  return reef === 1 ? 'Crab' : `${kind.name} crab`;
+}
+
+/**
+ * Boss ability per reef, shown on the boss sheet (owner ruling, 2026-09-13): the mock's "Meteor"
+ * is rendered as "Sunfire" to respect the ocean lore (no meteors underwater).
+ */
+export const BOSS_ABILITY = ['Regen', 'Shield', 'Sunfire', 'Rage', 'Freeze'] as const;
+
+/** A vertical (or horizontal, for `glow`) colour ramp: colours in order with matching stops (0..1). */
+interface Gradient {
+  colors: readonly string[];
+  positions: readonly number[];
+}
+
+export interface ReefWorld {
+  /** Full-screen background water gradient, top -> bottom. */
+  bg: Gradient;
+  /** The top water-light glow band, left -> right (three colours, per `CampaignMap.dc.html`). */
+  glow: readonly string[];
+  /** The two skewed light rays, each already carrying its own alpha. */
+  ray: string;
+  ray2: string;
+  /** Seabed dome fill gradient, top -> bottom. */
+  floor: Gradient;
+  /** Every third flora bar (index 0, 3, 6) uses this accent; the rest use `REEF_ACCENT`. */
+  floraAccent: string;
+}
+
+/** Per-reef map world, transcribed from `CampaignMap.dc.html`'s `REEFS` table (reefs 1..5 only — reef 6 is not built). */
+export const REEF_WORLD: readonly ReefWorld[] = [
+  {
+    bg: { colors: ['#123E4A', '#0B2733', '#06141B'], positions: [0, 0.45, 1] },
+    glow: ['#43B4CA', '#28E0B9', '#5497D5'],
+    ray: 'rgba(255,255,255,0.26)',
+    ray2: 'rgba(40,224,185,0.3)',
+    floor: { colors: ['#1E5C7A', '#06141B', '#06141B'], positions: [0, 0.75, 1] },
+    floraAccent: '#55E9AB',
+  },
+  {
+    bg: { colors: ['#0E2F55', '#0A2039', '#05101C'], positions: [0, 0.5, 1] },
+    glow: ['#5497D5', '#43B4CA', '#8752F3'],
+    ray: 'rgba(84,151,213,0.34)',
+    ray2: 'rgba(255,255,255,0.2)',
+    floor: { colors: ['#1B4A6E', '#05101C', '#05101C'], positions: [0, 0.75, 1] },
+    floraAccent: '#CA9FF5',
+  },
+  {
+    bg: { colors: ['#2A5E63', '#123A42', '#07171C'], positions: [0, 0.45, 1] },
+    glow: ['#FFC526', '#CFF15E', '#28E0B9'],
+    ray: 'rgba(255,197,38,0.34)',
+    ray2: 'rgba(207,241,94,0.3)',
+    floor: { colors: ['#2E6B62', '#07171C', '#07171C'], positions: [0, 0.75, 1] },
+    floraAccent: '#CFF15E',
+  },
+  {
+    bg: { colors: ['#3A0F16', '#1C0710', '#0A0206'], positions: [0, 0.5, 1] },
+    glow: ['#F48252', '#9945FF', '#F48252'],
+    ray: 'rgba(244,130,82,0.34)',
+    ray2: 'rgba(153,69,255,0.26)',
+    floor: { colors: ['#5A1620', '#0A0206', '#0A0206'], positions: [0, 0.75, 1] },
+    floraAccent: '#F48252',
+  },
+  {
+    bg: { colors: ['#14001D', '#07010C', '#000000'], positions: [0, 0.55, 1] },
+    glow: ['#9945FF', '#8752F3', '#5497D5'],
+    ray: 'rgba(153,69,255,0.4)',
+    ray2: 'rgba(40,224,185,0.22)',
+    floor: { colors: ['#241036', '#000000', '#000000'], positions: [0, 0.75, 1] },
+    floraAccent: '#CA9FF5',
+  },
+];
 
 export interface ReefProgress {
   /** Levels cleared within this reef, 0..6, counted straight from the `cleared` array. */
   cleared: number;
   /** All 6 of this reef's levels are cleared. */
   reefCleared: boolean;
-  /** A reef past the one currently being played: its levels show locked on the reef screen. */
+  /** A reef past the one currently being played: its levels show locked on the map. */
   locked: boolean;
   /** The reef currently being played, and not yet fully cleared. */
   current: boolean;

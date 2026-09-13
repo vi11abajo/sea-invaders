@@ -8,7 +8,6 @@ import { confirmTicket, requestFaucet, requestTicket } from './src/api/daily';
 import { useSession } from './src/api/useSession';
 import { CampaignLevelScreen } from './src/campaign/CampaignLevelScreen';
 import { CampaignScreen } from './src/campaign/CampaignScreen';
-import { ReefScreen } from './src/campaign/ReefScreen';
 import { useCampaignSync } from './src/campaign/sync';
 import { useCampaign } from './src/campaign/useCampaign';
 import { DailyRunScreen } from './src/daily/DailyRunScreen';
@@ -23,8 +22,8 @@ import { UiGallery } from './src/ui/gallery/UiGallery';
 
 type Route = 'app' | 'selftest' | 'ui' | { kind: 'level'; id: number };
 type Screen =
-  | 'home' | 'practice' | 'daily' | 'leaderboard' | 'campaign'
-  | { kind: 'reef'; reef: number }
+  | 'home' | 'practice' | 'daily' | 'leaderboard'
+  | { kind: 'campaign'; initialReef?: number }
   | { kind: 'level'; id: number; practice: boolean };
 
 /** The reef (1..5) that level `id` (1..30) belongs to. */
@@ -59,7 +58,8 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
   const [levelAttempt, setLevelAttempt] = useState(0);
   const { session, restoring, signIn, error } = useSession();
   const campaign = useCampaign();
-  const { synced } = useCampaignSync(session, campaign.progress, campaign.replaceProgress);
+  // The campaign map's new design has no sync indicator; the sync itself still needs to run.
+  useCampaignSync(session, campaign.progress, campaign.replaceProgress);
   const { model, refresh, error: homeError } = useHomeModel(session, campaign.progress);
   const signAndSend = useSignAndSend();
   const [ticketBusy, setTicketBusy] = useState(false);
@@ -121,13 +121,14 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
   // reach them before AsyncStorage resolves, so they briefly show the backdrop only.
   if (typeof screen === 'object') {
     if (campaign.progress === null) return <Backdrop />;
-    if (screen.kind === 'reef') {
+    if (screen.kind === 'campaign') {
       return (
-        <ReefScreen
-          reef={screen.reef}
+        <CampaignScreen
+          key={screen.initialReef ?? 'auto'}
           progress={campaign.progress}
+          initialReef={screen.initialReef}
           onPlay={(id, practice) => setScreen({ kind: 'level', id, practice })}
-          onBack={() => setScreen('campaign')}
+          onBack={home}
         />
       );
     }
@@ -143,8 +144,8 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
           setLevelAttempt((n) => n + 1);
           setScreen({ kind: 'level', id, practice: false });
         }}
-        onDone={() => setScreen({ kind: 'reef', reef: reefOf(screen.id) })}
-        onExit={() => setScreen({ kind: 'reef', reef: reefOf(screen.id) })}
+        onDone={() => setScreen({ kind: 'campaign', initialReef: reefOf(screen.id) })}
+        onExit={() => setScreen({ kind: 'campaign', initialReef: reefOf(screen.id) })}
       />
     );
   }
@@ -152,16 +153,6 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
   switch (screen) {
     case 'practice':
       return <GameScreen onExit={home} />;
-    case 'campaign':
-      if (campaign.progress === null) return <Backdrop />;
-      return (
-        <CampaignScreen
-          progress={campaign.progress}
-          onOpenReef={(reef) => setScreen({ kind: 'reef', reef })}
-          onBack={home}
-          synced={session === null || synced}
-        />
-      );
     case 'daily':
       return (
         <DailyRunScreen
@@ -187,7 +178,7 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
           model={model}
           onPractice={() => setScreen('practice')}
           onDaily={() => setScreen('daily')}
-          onCampaign={() => setScreen('campaign')}
+          onCampaign={() => setScreen({ kind: 'campaign' })}
           onLeaderboard={() => setScreen('leaderboard')}
           onWallet={() => void signIn()}
           onBuyTicket={buyTicket}
