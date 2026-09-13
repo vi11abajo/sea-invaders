@@ -8,20 +8,22 @@ dependency via `ts-mocha`):
 npx ts-node scripts/devnet-init.ts        # or: npm run devnet:init
 npx ts-node scripts/create-week-pools.ts  # or: npm run devnet:pools
 npx ts-node scripts/smoke-test.ts         # or: npm run devnet:smoke
+npx ts-node scripts/init-catalog.ts       # or: npm run devnet:catalog
 ```
 
 Run in that order: `devnet-init.ts` creates `Config` (and the test SKR
 mint + treasury ATA it needs), `create-week-pools.ts` needs `Config` to
 exist, and `smoke-test.ts` needs the current week's pool to exist.
+`init-catalog.ts` only needs `Config` (its admin signs the catalog).
 
 ## Env vars
 
 - `KEYS_DIR` - default `/mnt/d/dev/keys`. Directory holding
-  `admin.json`, `server-authority.json` (both read by all three
-  scripts). Never commit this directory or print its contents.
+  `admin.json` and `server-authority.json` (`init-catalog.ts` reads
+  only `admin.json`). Never commit this directory or print its contents.
 - `ANCHOR_PROVIDER_URL` - default `https://api.devnet.solana.com`.
 
-All three scripts share their bootstrap (`loadKeypair`, `configPda`,
+All four scripts share their bootstrap (`loadKeypair`, `configPda`,
 `weekPda`, `loadProgram`) via `common.ts`; it is not run directly.
 
 ## What each script does
@@ -46,6 +48,14 @@ All three scripts share their bootstrap (`loadKeypair`, `configPda`,
   that the vault balance increased by exactly `9_500_000` (a delta, not
   an absolute value, since the vault is a shared pool - running this
   script more than once in the same week keeps adding to it).
+- **`init-catalog.ts`** - creates the `Catalog` PDA with the seven shop
+  items (ids 0-2 the campaign octopi Harpoon 40, Anchor 60, Trident 90
+  SKR; ids 3-6 the skins Lime 25, Lilac 25, Ember 35, Abyss 50 SKR) and
+  reads it back. Idempotent: an up-to-date catalog is printed and left
+  alone; a different one is reported (exit 1) unless the script runs with
+  `--update`, which calls `setCatalog` - the way to change prices later.
+  `setCatalog` replaces the whole list, so the script always sends all
+  seven items.
 
 ## Deployed devnet addresses
 
@@ -56,6 +66,7 @@ All three scripts share their bootstrap (`loadKeypair`, `configPda`,
 | `TREASURY_ATA` | `5uFynZKJc7KbZo7JeKuQTREJnszYvFJicmN81sow5ZQK` |
 | `SERVER_AUTHORITY` | `nNQn5MZY799P8PcjwrGMxXEjaSquuifYmhcSYJYK7wH` |
 | `ADMIN` (upgrade authority) | `AVHHLGsaChQLKMJSthVhhrQ3rn2hSgeQUBRkmobUQBNm` |
+| `CATALOG` (PDA `["catalog"]`) | `HeJYiaXojsC4beTYqnoPH6Fkyu9afHuVbC5MMTh27kUx` |
 
 Secret keys for `ADMIN` and `SERVER_AUTHORITY` live only under
 `/mnt/d/dev/keys/` (`admin.json`, `server-authority.json`,
