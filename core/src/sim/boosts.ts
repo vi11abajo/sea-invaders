@@ -143,9 +143,11 @@ function setActive(s: GameState, type: BoostType, ticksLeft: number): void {
  *   `activateBoost`, so a chaos roll landing on SHIELD_BARRIER is subject to it exactly like a
  *   direct pickup); otherwise `shield = 3` and its active entry's `ticksLeft` is the chaos roll when
  *   picked by chaos (a genuinely timed shield, spec C8) or `-1` (until broken) for a direct pickup.
- * - SPEED_TAMER: always adds a stack; a chaos pick additionally pushes its own timed active entry
- *   (so multiple chaos-granted stacks can expire independently, each removing exactly one stack) —
- *   a direct pickup instead (re)sets the single permanent (`-1`) entry, which never expires.
+ * - SPEED_TAMER: always adds a stack, capped at 10; a chaos pick additionally pushes its own timed
+ *   active entry (so multiple chaos-granted stacks can expire independently, each removing exactly
+ *   one stack) — but only when a stack was actually added: at the cap `applyEffect` is a no-op, and
+ *   a chaos pick that granted nothing must not later remove a stack on expiry either (fix round 1).
+ *   A direct pickup instead (re)sets the single permanent (`-1`) entry, which never expires.
  * - GRAVITY_WELL: rolls a fresh centre (`rollWellCentre`) every time it activates, direct or chaos.
  * Returns whether the pickup should be consumed (only WAVE_BLAST with no crabs is not, spec C4).
  */
@@ -160,9 +162,15 @@ function activatePicked(s: GameState, picked: BoostType, chaosTicks: number | nu
     return true;
   }
   if (picked === 'SPEED_TAMER') {
+    const before = s.boosts.tamerStacks;
     applyEffect(s, picked); // tamerStacks += 1 (capped at 10)
-    if (chaosTicks !== null) s.boosts.active.push({ type: picked, ticksLeft: chaosTicks });
-    else setActive(s, picked, -1);
+    if (chaosTicks !== null) {
+      // Only push a timed entry when a stack was actually added: at the cap (10) applyEffect is a
+      // no-op, so a chaos pick that grants nothing must not later remove a stack on expiry either.
+      if (s.boosts.tamerStacks > before) s.boosts.active.push({ type: picked, ticksLeft: chaosTicks });
+    } else {
+      setActive(s, picked, -1);
+    }
     return true;
   }
   if (picked === 'GRAVITY_WELL') {

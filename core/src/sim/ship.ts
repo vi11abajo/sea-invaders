@@ -47,27 +47,33 @@ export function moveShip(s: GameState, input: Input): void {
 }
 
 /**
- * Moves player shots, drops those that left the field, steers survivors while AUTO_TARGET is
- * active, then fires when the cooldown runs out. RAPID_FIRE shortens the cooldown; MULTI_SHOT fires
- * three shots (-15/0/+15 degrees) instead of one; PIERCING_BULLETS tags every new shot's `data` with
- * bit 1 so `hitCrabs` lets it keep flying (RICOCHET was removed from the game entirely — owner
- * decision, Phase 3A.1 lane C — so bit 2 and the old field-edge wall-bounce it drove are gone too;
- * only bit 1 remains meaningful). AUTO_TARGET fully recomputes every surviving shot's `vx`/`vy`
- * every tick (spec C3: the legacy's fixed 30%-toward/70%-up blend, not an incremental turn) towards
- * the nearest crab or the boss; a shot fired this same tick is not yet steered (it starts steering
- * from the following tick), and a shot with no target keeps its current velocity.
+ * Moves player shots along both `vx` and `vy` (controller ruling, Phase 3A.1 lane C fix round 1:
+ * every player shot moves on both axes now, not `vy` only — this makes MULTI_SHOT's ±15° shots and
+ * AUTO_TARGET's steering actually change a shot's path for the first time), drops those that left
+ * the field — off the top exactly as before, or now off either side (`x` outside `[0, FIELD_W]`) —
+ * steers survivors while AUTO_TARGET is active, then fires when the cooldown runs out. RAPID_FIRE
+ * shortens the cooldown; MULTI_SHOT fires three shots (-15/0/+15 degrees) instead of one;
+ * PIERCING_BULLETS tags every new shot's `data` with bit 1 so `hitCrabs` lets it keep flying
+ * (RICOCHET was removed from the game entirely — owner decision, Phase 3A.1 lane C — so bit 2 and
+ * the old field-edge wall-bounce it drove are gone too; only bit 1 remains meaningful). AUTO_TARGET
+ * fully recomputes every surviving shot's `vx`/`vy` every tick (spec C3: the legacy's fixed
+ * 30%-toward/70%-up blend, not an incremental turn) towards the nearest crab or the boss; a shot
+ * fired this same tick is not yet steered (it starts steering from the following tick), and a shot
+ * with no target keeps its current velocity.
  * While Void Sovereign's temporal freeze is active (`s.boss.kind === 5 && effectTicks > 0`, spec
  * §4.2 row 5), shots already in flight skip this motion AND AUTO_TARGET's steering entirely —
  * `vx`/`vy` stay untouched, so they resume exactly where they left off once `effectTicks` reaches
- * 0 — but new shots still fire. Player shots only ever move vertically (`vy`); `vx` is stored and
- * hashed but never applied to `x` here — true for MULTI_SHOT's angled shots too, unchanged from
- * before this task.
+ * 0 — but new shots still fire.
  */
 export function updateShots(s: GameState): void {
   const kept: Bullet[] = [];
   const frozen = s.boss?.kind === 5 && s.boss.effectTicks > 0;
   for (const b of s.shots) {
-    if (!frozen) b.y += b.vy;
+    if (!frozen) {
+      b.x += b.vx;
+      b.y += b.vy;
+    }
+    if (b.x < 0 || b.x > FIELD_W) continue; // left the field horizontally
     if (b.y + idiv(SHOT.h, 2) > 0) kept.push(b);
   }
   s.shots = kept;

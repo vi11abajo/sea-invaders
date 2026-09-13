@@ -3,9 +3,16 @@ import {
   BOSS,
   PRACTICE_RUN,
   activateBoost,
+  advanceScoreDecay,
   createGame,
+  hitCrabs,
+  isActive,
+  levelById,
   marchCrabs,
+  scoreDecayPct,
   spawnBoss,
+  spawnWave,
+  startLevelWave,
   updateBoosts,
   updateBoss,
   updateEnemyShots,
@@ -40,6 +47,78 @@ describe('POINTS_FREEZE', () => {
     activateBoost(s, 'POINTS_FREEZE');
     for (let i = 0; i < 10; i++) updateBoss(s);
     expect(s.boss!.fightTicks).toBe(0);
+  });
+});
+
+describe('score decay (spec C7)', () => {
+  it('is 100% at tick 0, 99% after 102 ticks, 98% after 204 ticks', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    expect(scoreDecayPct(s)).toBe(100);
+    for (let i = 0; i < 102; i++) advanceScoreDecay(s);
+    expect(s.scoreDecay).toBe(102);
+    expect(scoreDecayPct(s)).toBe(99);
+    for (let i = 0; i < 102; i++) advanceScoreDecay(s);
+    expect(s.scoreDecay).toBe(204);
+    expect(scoreDecayPct(s)).toBe(98);
+  });
+
+  it('does not advance while POINTS_FREEZE is active, and resumes once it expires', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    activateBoost(s, 'POINTS_FREEZE');
+    for (let i = 0; i < 200; i++) advanceScoreDecay(s);
+    expect(s.scoreDecay).toBe(0);
+    expect(scoreDecayPct(s)).toBe(100);
+
+    const active = s.boosts.active.find((a) => a.type === 'POINTS_FREEZE')!;
+    active.ticksLeft = 1;
+    updateBoosts(s); // expires it
+    expect(isActive(s, 'POINTS_FREEZE')).toBe(false);
+
+    for (let i = 0; i < 102; i++) advanceScoreDecay(s);
+    expect(scoreDecayPct(s)).toBe(99); // resumed after the freeze ended
+  });
+
+  it('resets to 0 (100%) at the next wave start, in daily/practice and in the campaign', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    for (let i = 0; i < 300; i++) advanceScoreDecay(s);
+    expect(s.scoreDecay).toBeGreaterThan(0);
+    spawnWave(s, s.wave + 1);
+    expect(s.scoreDecay).toBe(0);
+    expect(scoreDecayPct(s)).toBe(100);
+
+    const level = levelById(1)!; // a level with crab waves before its boss (waves > 0), unlike level 6
+    const c = createGame('t2', { mode: 'campaign', level, lives: 5, features: { boosts: true } });
+    for (let i = 0; i < 300; i++) advanceScoreDecay(c);
+    expect(c.scoreDecay).toBeGreaterThan(0);
+    startLevelWave(c, c.wave + 1);
+    expect(c.scoreDecay).toBe(0);
+  });
+
+  it('does not advance during a boss fight (the boss keeps its own fightTicks decay instead)', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    s.crabs = [];
+    spawnBoss(s, 1);
+    for (let i = 0; i < 300; i++) advanceScoreDecay(s);
+    expect(s.scoreDecay).toBe(0);
+  });
+
+  it("scales a crab kill's points by the current decay percentage before SCORE_MULTIPLIER doubles it", () => {
+    const s = createGame('t', PRACTICE_RUN);
+    for (let i = 0; i < 204; i++) advanceScoreDecay(s); // 98%
+    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 1000, homeY: 1000 }];
+    s.shots = [{ x: 1000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
+    hitCrabs(s);
+    // CRAB_TYPES.normal.points(10) * wave(1) = 10, decayed: idiv(10*98, 100) = 9.
+    expect(s.score).toBe(9);
+
+    const t = createGame('t3', PRACTICE_RUN);
+    for (let i = 0; i < 204; i++) advanceScoreDecay(t); // 98%
+    activateBoost(t, 'SCORE_MULTIPLIER');
+    t.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 1000, homeY: 1000 }];
+    t.shots = [{ x: 1000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
+    hitCrabs(t);
+    // Same decayed base (9), doubled by SCORE_MULTIPLIER: 18.
+    expect(t.score).toBe(18);
   });
 });
 
@@ -86,12 +165,26 @@ describe('AUTO_TARGET', () => {
     s.crabs = [{ x: 4000, y: 760, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 4000, homeY: 760 }];
     s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
     updateShots(s);
-    // After moving to y=4760, offset to the crab is (3000, -4000), a 3-4-5 triangle (len 5000):
-    // vx = idiv(3000*72, 5000) = 43; vy = idiv(-4000*72, 5000) - 168 = -57 - 168 = -225.
-    expect(s.shots[0]!.x).toBe(1000); // player shots never drift in x (unchanged precedent)
+    // The very first tick's move used the shot's original vx (0, before any steering), so x hasn't
+    // moved yet. After moving to y=4760, offset to the crab is (3000, -4000), a 3-4-5 triangle
+    // (len 5000): vx = idiv(3000*72, 5000) = 43; vy = idiv(-4000*72, 5000) - 168 = -57 - 168 = -225.
+    expect(s.shots[0]!.x).toBe(1000);
     expect(s.shots[0]!.y).toBe(4760);
     expect(s.shots[0]!.vx).toBe(43);
     expect(s.shots[0]!.vy).toBe(-225);
+  });
+
+  it("moves a shot's x toward its target using the steered vx from the previous tick (fix round 1: player shots now move on both axes)", () => {
+    const s = createGame('t', PRACTICE_RUN);
+    activateBoost(s, 'AUTO_TARGET');
+    s.crabs = [{ x: 4000, y: 760, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 4000, homeY: 760 }];
+    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
+    updateShots(s); // vx becomes 43 (see the test above), x still 1000 this tick
+    updateShots(s); // this tick moves x by the previous tick's steered vx (43), then steers again
+    expect(s.shots[0]!.x).toBe(1043); // moved toward the crab (x: 4000), not stuck at 1000
+    expect(s.shots[0]!.y).toBe(4535);
+    expect(s.shots[0]!.vx).toBe(44);
+    expect(s.shots[0]!.vy).toBe(-224);
   });
 
   it('targets the boss when no crabs remain', () => {

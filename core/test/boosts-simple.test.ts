@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   CRAB_TYPES,
+  FIELD_W,
   MAX_LIVES,
   PRACTICE_RUN,
+  SHOT,
   activateBoost,
   crabSpeed,
   createGame,
   hitCrabs,
   hitShip,
+  idiv,
+  isin,
+  tamed,
   updateShots,
 } from '../src';
 
@@ -34,6 +39,37 @@ describe('MULTI_SHOT', () => {
       expect(b.vy).toBe(b.vx === 0 ? -240 : -231);
       expect(b.kind).toBe('straight');
     }
+  });
+
+  it("moves a side shot's x by idiv(SHOT.speed*isin(15deg), 1000) per tick (fix round 1: player shots now move on both axes)", () => {
+    const s = createGame('t', PRACTICE_RUN);
+    activateBoost(s, 'MULTI_SHOT');
+    for (let t = 1; t <= 8; t++) updateShots(s); // fires on the 8th call, unmoved this same tick
+    const side = s.shots.find((b) => b.vx > 0)!; // the +15 degree shot
+    const expectedVx = idiv(SHOT.speed * isin(15), 1000);
+    expect(side.vx).toBe(expectedVx);
+    const startX = side.x;
+    updateShots(s);
+    const moved = s.shots.find((b) => b.vx === expectedVx)!;
+    expect(moved.x).toBe(startX + expectedVx);
+  });
+});
+
+describe('player shot horizontal bounds (fix round 1)', () => {
+  it('drops a shot once its x leaves [0, FIELD_W]', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    s.ship.cooldown = 999; // keep the ship from firing a fresh shot this same tick
+    s.shots = [{ x: 30, y: 5000, vx: -60, vy: -10, kind: 'straight', data: 0 }];
+    updateShots(s);
+    expect(s.shots).toHaveLength(0); // x = 30 - 60 = -30: gone, not clamped or bounced
+  });
+
+  it('keeps a shot that stays inside [0, FIELD_W]', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    s.ship.cooldown = 999;
+    s.shots = [{ x: FIELD_W - 30, y: 5000, vx: 20, vy: -10, kind: 'straight', data: 0 }];
+    updateShots(s);
+    expect(s.shots).toEqual([{ x: FIELD_W - 30 + 20, y: 5000 - 10, vx: 20, vy: -10, kind: 'straight', data: 0 }]);
   });
 });
 
@@ -177,5 +213,14 @@ describe('SPEED_TAMER', () => {
     activateBoost(s, 'SPEED_TAMER');
     expect(s.boosts.tamerStacks).toBe(2);
     expect(crabSpeed(s)).toBe(4);
+  });
+
+  it('is linear, not the old compounding ×0.9-per-stack (spec C5): 5 stacks -> 0.5x, 10 stacks -> 0.1x', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    const v = 1000; // chosen so the linear and (now-removed) compounding formulas give different integers
+    s.boosts.tamerStacks = 5;
+    expect(tamed(s, v)).toBe(idiv(v * 5, 10)); // 500, not compounding's 590
+    s.boosts.tamerStacks = 10;
+    expect(tamed(s, v)).toBe(idiv(v, 10)); // 100 (the floor), not compounding's 347
   });
 });

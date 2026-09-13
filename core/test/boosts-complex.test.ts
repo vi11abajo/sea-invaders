@@ -41,7 +41,11 @@ describe('GRAVITY_WELL', () => {
     expect(s.boosts.well).toEqual({ x: WELL.margin + closeX + 3, y: WELL.margin + closeY });
   });
 
-  it('stays within the field margins and at least WELL.minDist from the ship over many seeds', () => {
+  // The minDist re-roll rule itself (including "keep the last roll even if still too close") is
+  // covered deterministically above with a stubbed RNG; a real seed's roll can still legitimately
+  // land inside minDist after exhausting every attempt, so this only checks the margin bounds,
+  // which every roll (no matter how many attempts it took) must always satisfy.
+  it('stays within the field margins over many seeds', () => {
     for (let i = 0; i < 200; i++) {
       const s = createGame(`well-${i}`, PRACTICE_RUN);
       activateBoost(s, 'GRAVITY_WELL');

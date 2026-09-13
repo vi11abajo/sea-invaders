@@ -36,20 +36,8 @@ function wander(): (tick: number) => Input {
   };
 }
 
-/**
- * Vertical range within which an incoming enemy shot is worth dodging. Retuned for Phase 3A.1 lane
- * C (together with DODGE_COLUMNS/DODGE_DWELL_LIMIT below): the boost-system fixes in this task
- * (RICOCHET removed, WAVE_BLAST scoped to the bottom row, the RANDOM_CHAOS pool widened from 10 to
- * 14) change every subsequent `rngBoosts` draw once any of those probability tables is consulted —
- * on the fixed `golden-survivor`/`golden-level6`/`golden-level30` seeds this shifts which specific
- * drops/boosts appear and when, an unavoidable side effect of correctly implementing the spec, not
- * a simulation regression. The old dodge parameters (1500/8/9 columns) no longer cleared
- * `SURVIVOR_MIN_TICKS` on that seed; this combination was found by sweeping range/dwell/column-count
- * against all three scripts at once (`survivor`, `level6`, `level30`) and picking one with
- * comfortable margin on `survivor` (~11,500 ticks, not a bare pass over the 6000 floor) that also
- * still clears level 6 and reaches level 30's boss phase 3.
- */
-const DODGE_RANGE_Y = 1000;
+/** Vertical range within which an incoming enemy shot is worth dodging. */
+const DODGE_RANGE_Y = 1500;
 
 /**
  * A boss's shots start far above the ship (muzzle near the top of the field) and take longer to
@@ -59,13 +47,21 @@ const DODGE_RANGE_Y = 1000;
  */
 const BOSS_DODGE_RANGE_Y = 3000;
 
-/** Candidate dodge columns spanning the field, evenly spaced (see the DODGE_RANGE_Y note above). */
-const DODGE_COLUMNS = Array.from({ length: 13 }, (_, i) => idiv(i * FIELD_W, 12));
+/** Candidate dodge columns spanning the field, evenly spaced. */
+const DODGE_COLUMNS = Array.from({ length: 9 }, (_, i) => idiv(i * FIELD_W, 8));
 
 /**
  * After holding the same dodge column this long, that column is dropped from consideration for
- * one pick: dwelling in one corner lets shots fired over many ticks all converge on it. (See the
- * DODGE_RANGE_Y note above.)
+ * one pick: dwelling in one corner lets shots fired over many ticks all converge on it. Retuned
+ * from 8 to 5 across Phase 3A.1 lane C's two fix rounds: the boost-table-size changes (RICOCHET
+ * removed, WAVE_BLAST scoped to the bottom row, the RANDOM_CHAOS pool widened) and, in fix round 1,
+ * player shots actually moving on both axes (so MULTI_SHOT/AUTO_TARGET pickups change which crabs
+ * die and when) each shift every subsequent `rngBoosts` draw for the fixed `golden-survivor` seed —
+ * an unavoidable side effect of correctly implementing the spec, not a simulation regression. This
+ * value was found by sweeping dwell/range/column-count against `survivor`, `level6` and `level30`
+ * at once and picking one with comfortable margin on `survivor` (~11,400 ticks, not a bare pass over
+ * the 6000 floor) that also still clears level 6 and reaches level 30's boss phase 3 — the smallest
+ * change from the pre-lane-C values (1500/8/9 columns) that satisfies all three.
  */
 const DODGE_DWELL_LIMIT = 5;
 
