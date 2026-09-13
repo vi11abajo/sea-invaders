@@ -6,14 +6,15 @@ import { damageBoss, scoreMultiplier } from './boss';
 
 /**
  * Applies an instant boost's one-shot effect, or a `-1`-duration boost's activation effect
- * (SHIELD_BARRIER's `shield = 3`, SPEED_TAMER's stack, WAVE_BLAST's board wipe). Task 15 adds a
- * case here, removed from the throw below as it lands. Timed boosts (duration > 0) are never
- * routed through here: the sim reads them via `isActive` (RICOCHET, GRAVITY_WELL) or `s.boosts.well`
- * (GRAVITY_WELL's pickup, captured in `updateBoosts`/`activateBoost`). RAPID_FIRE, MULTI_SHOT,
- * PIERCING_BULLETS, INVINCIBILITY, SCORE_MULTIPLIER, ICE_FREEZE, POINTS_FREEZE, AUTO_TARGET,
- * RICOCHET and GRAVITY_WELL are timed and never reach this switch via `activateBoost`, but keep an
- * explicit no-op case each so the `default` throw stays a guard for the boost of Task 15
- * (RANDOM_CHAOS).
+ * (SHIELD_BARRIER's `shield = 3`, SPEED_TAMER's stack, WAVE_BLAST's board wipe). Timed boosts
+ * (duration > 0) are never routed through here: the sim reads them via `isActive` (RICOCHET,
+ * GRAVITY_WELL) or `s.boosts.well` (GRAVITY_WELL's pickup, captured in
+ * `updateBoosts`/`activateBoost`). RAPID_FIRE, MULTI_SHOT, PIERCING_BULLETS, INVINCIBILITY,
+ * SCORE_MULTIPLIER, ICE_FREEZE, POINTS_FREEZE, AUTO_TARGET, RICOCHET and GRAVITY_WELL are timed
+ * and never reach this switch via `activateBoost`, but keep an explicit no-op case each for
+ * clarity. RANDOM_CHAOS is intercepted by `activateBoost` before it ever calls `applyEffect`
+ * (it activates the picked boost directly), so its case here is unreachable in practice; the
+ * `default` is kept only for exhaustiveness.
  */
 export function applyEffect(s: GameState, type: BoostType): void {
   switch (type) {
@@ -50,8 +51,13 @@ export function applyEffect(s: GameState, type: BoostType): void {
     case 'RICOCHET':
     case 'GRAVITY_WELL':
       return;
-    default:
-      throw new Error('boost not implemented: ' + type);
+    case 'RANDOM_CHAOS':
+      // Unreachable: activateBoost intercepts RANDOM_CHAOS and never calls applyEffect with it.
+      return;
+    default: {
+      const _exhaustive: never = type;
+      return _exhaustive;
+    }
   }
 }
 

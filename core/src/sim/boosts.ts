@@ -7,6 +7,15 @@ import { pullTowardsWell } from './crabs';
 const DROP_HALF = idiv(DROP.size, 2);
 
 /**
+ * The pool RANDOM_CHAOS picks from (spec §5.2): the ten timed boosts (duration 600 or 466), in
+ * `BoostType`'s declaration order, excluding RANDOM_CHAOS itself.
+ */
+const CHAOS_POOL: BoostType[] = [
+  'RAPID_FIRE', 'ICE_FREEZE', 'POINTS_FREEZE', 'AUTO_TARGET', 'INVINCIBILITY',
+  'MULTI_SHOT', 'SCORE_MULTIPLIER', 'RICOCHET', 'GRAVITY_WELL', 'PIERCING_BULLETS',
+];
+
+/**
  * Rolls a drop at (x, y) on a crab kill: `DROP.chance`% chance, then a rarity roll (common < 50,
  * rare < 85, epic < 97, else legendary) and a uniform pick within that rarity's list (spec §5.1-5.2,
  * legacy `DISTRIBUTION` order). No-op when the run has boosts disabled.
@@ -69,8 +78,22 @@ export function updateBoosts(s: GameState): void {
  * resetting an already-active one instead of stacking a second entry. GRAVITY_WELL additionally
  * (re)captures its well at the ship's current position; a drop pickup in `updateBoosts` overrides
  * this with the drop's own position right after this call returns.
+ *
+ * RANDOM_CHAOS (spec §5.2) never adds a RANDOM_CHAOS entry: it uniformly picks one of `CHAOS_POOL`
+ * and activates that instead, for `600 + rngBoosts.nextInt(301)` ticks (600-900) rather than the
+ * picked boost's own table duration. A picked GRAVITY_WELL still anchors at the ship's position via
+ * the same rule as a direct GRAVITY_WELL activation.
  */
 export function activateBoost(s: GameState, type: BoostType): void {
+  if (type === 'RANDOM_CHAOS') {
+    const picked = CHAOS_POOL[s.rngBoosts.nextInt(CHAOS_POOL.length)]!;
+    const ticksLeft = 600 + s.rngBoosts.nextInt(301);
+    if (picked === 'GRAVITY_WELL') s.boosts.well = { x: s.ship.x, y: s.ship.y };
+    const existing = s.boosts.active.find((a) => a.type === picked);
+    if (existing) existing.ticksLeft = ticksLeft;
+    else s.boosts.active.push({ type: picked, ticksLeft });
+    return;
+  }
   const cfg = BOOSTS[type];
   if (cfg.duration === 0) {
     applyEffect(s, type);

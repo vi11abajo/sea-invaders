@@ -76,6 +76,17 @@ describe('wave arrival (campaign only)', () => {
     expect(s.crabs[0]!.y).toBe(y0); // one march step, well short of the next wall/step-down
   });
 
+  it('a wave wiped mid-arrival on the level\'s last wave leaves no stale arrival countdown once the level clears', () => {
+    const l = levelById(1); // 2 waves, no boss
+    const s = createGame('arrival-wipe-cleared', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+    s.wave = l.waves; // pretend the last wave is under way
+    s.arrival = 15; // still mid-arrival
+    s.crabs = []; // wiped (e.g. by WAVE_BLAST)
+    step(s, INITIAL_INPUT);
+    expect(s.cleared).toBe(true);
+    expect(s.arrival).toBe(0);
+  });
+
   it('daily and practice runs never set arrival', () => {
     const daily = createGame('arrival-daily', DAILY_RUN);
     expect(daily.arrival).toBe(0);

@@ -1,9 +1,18 @@
-import { FIELD_W, INITIAL_INPUT, Rng, clamp, idiv, type Bullet, type GameState, type Input } from '../src';
+import {
+  DAILY_RUN, FIELD_W, INITIAL_INPUT, REPLAY_MODE, Rng, clamp, idiv, levelById, levelSeed,
+  type Bullet, type GameState, type Input, type ReplayMode, type RunConfig,
+} from '../src';
 
 export interface GoldenScript {
   ticks: number;
   /** Returns a fresh input function; call it once per tick, in order, starting at tick 1, with the state right before that tick's step(). */
   makeInput: () => (tick: number, s: GameState) => Input;
+  /** Defaults to `PRACTICE_RUN` (idle/sweep/wander/truncated/survivor). */
+  run?: RunConfig;
+  /** Defaults to `REPLAY_MODE.practice`. */
+  mode?: ReplayMode;
+  /** Defaults to `golden-${name}`. `level6`/`level30` key off the level id instead, matching `runFromReplay`. */
+  seed?: string;
 }
 
 /** Triangle wave across the field: x changes every 4 ticks, period 480 ticks. */
@@ -30,6 +39,14 @@ function wander(): (tick: number) => Input {
 /** Vertical range within which an incoming enemy shot is worth dodging. */
 const DODGE_RANGE_Y = 1500;
 
+/**
+ * A boss's shots start far above the ship (muzzle near the top of the field) and take longer to
+ * arrive than a crab's, so a boss fight uses a wider reaction window than the crab-wave one above
+ * (tuned so `survivor` still clears levels 6 and 30 without regressing the plain wave-mode floor,
+ * `SURVIVOR_MIN_TICKS` in golden.test.ts).
+ */
+const BOSS_DODGE_RANGE_Y = 3000;
+
 /** Candidate dodge columns spanning the field, evenly spaced. */
 const DODGE_COLUMNS = Array.from({ length: 9 }, (_, i) => idiv(i * FIELD_W, 8));
 
@@ -48,9 +65,10 @@ function survivor(): (tick: number, s: GameState) => Input {
   let lastColumn = DODGE_COLUMNS[idiv(DODGE_COLUMNS.length, 2)]!;
   let dwell = 0;
   return (tick, s) => {
+    const range = s.boss ? BOSS_DODGE_RANGE_Y : DODGE_RANGE_Y;
     const threats: Bullet[] = [];
     for (const b of s.enemyShots) {
-      if (Math.abs(b.y - s.ship.y) <= DODGE_RANGE_Y) threats.push(b);
+      if (Math.abs(b.y - s.ship.y) <= range) threats.push(b);
     }
     if (threats.length > 0) {
       const candidates = dwell >= DODGE_DWELL_LIMIT ? DODGE_COLUMNS.filter((c) => c !== lastColumn) : DODGE_COLUMNS;
@@ -73,6 +91,10 @@ function survivor(): (tick: number, s: GameState) => Input {
   };
 }
 
+const CAMPAIGN_RUN = (id: 6 | 30): RunConfig => ({
+  mode: 'campaign', level: levelById(id), lives: 5, features: { boosts: true },
+});
+
 export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   idle: { ticks: 3600, makeInput: () => () => INITIAL_INPUT },
   sweep: { ticks: 7200, makeInput: () => (t) => ({ x: sweepX(t), y: 9000 }) },
@@ -80,10 +102,18 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   // Same input trajectory as `wander`, cut short with the game still running.
   truncated: { ticks: 600, makeInput: wander },
   survivor: { ticks: 18_000, makeInput: survivor },
-  // Task 15 plays this on level 6 (Emerald Warlord) as a campaign run, stopping early on
+  // Plays on level 6 (reef 1's boss) as a campaign run, stopping early on `cleared || over`;
+  // `ticks` here is only the fallback cap for that early-exit loop.
+  level6: {
+    ticks: 18_000, makeInput: survivor, run: CAMPAIGN_RUN(6), mode: REPLAY_MODE.campaign, seed: levelSeed('golden', 6),
+  },
+  // Plays on level 30 (reef 5's boss, the Void Sovereign) as a campaign run, stopping early on
   // `cleared || over`; `ticks` here is only the fallback cap for that early-exit loop.
-  level6: { ticks: 18_000, makeInput: survivor },
-  // Task 15 plays this on level 30 (Void Sovereign) as a campaign run, stopping early on
-  // `cleared || over`; `ticks` here is only the fallback cap for that early-exit loop.
-  level30: { ticks: 18_000, makeInput: survivor },
+  level30: {
+    ticks: 18_000, makeInput: survivor, run: CAMPAIGN_RUN(30), mode: REPLAY_MODE.campaign, seed: levelSeed('golden', 30),
+  },
+  // The `wander` input trajectory on a boosted daily run: exercises boost pickups/effects end to
+  // end. `wander` never dodges, so the run ends in game over well short of `ticks`; this seed was
+  // picked (search, not the sim) for at least 5 boost_pickup events before the ship dies.
+  boosted: { ticks: 10_800, makeInput: wander, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-2293' },
 };

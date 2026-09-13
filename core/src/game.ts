@@ -134,9 +134,11 @@ export function nextWave(s: GameState): void {
     return;
   }
   if (l.boss && s.boss === null) {
+    s.arrival = 0;
     spawnBoss(s, l.boss);
     return;
   }
+  s.arrival = 0;
   s.cleared = true;
   s.events.push({ tick: s.tick, type: 'level_cleared' });
 }
