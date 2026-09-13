@@ -1,7 +1,7 @@
 import { formatCountdown, formatInt } from '@sea-invaders/core';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { skinName, useActiveSkin } from '../game/skins';
+import { skinName, useActiveSkin, useEquippedOctopi, variantName } from '../game/skins';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
 import { Toast } from '../ui/Toast';
@@ -13,7 +13,11 @@ import { FeatureRow, HomeTopBar } from './HomeTopBar';
 import { Ticker, type TickerItem } from './Ticker';
 import type { HomeModel, RankedInfo } from './model';
 
-/** The hero's caption; an equipped skin is added the way the prototype writes it (`· Lime skin`). */
+/**
+ * The hero's caption: the base Octopi reads `Octopi · base defender`, an equipped octopi replaces
+ * that with its name (`Octopi · Trident`), and an equipped skin is added the way the prototype writes
+ * it (`· Lime skin`).
+ */
 const HERO_CAPTION = 'Octopi · base defender';
 
 /** Fractional SKR (the pool balance) renders with one decimal; `formatInt` is for whole scores. */
@@ -55,6 +59,10 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
   const [connectOpen, setConnectOpen] = useState(false);
   const closeConnect = useCallback(() => setConnectOpen(false), []);
   const skin = skinName(useActiveSkin());
+  const variant = variantName(useEquippedOctopi());
+  const heroCaption = [variant === null ? HERO_CAPTION : `Octopi · ${variant}`, skin === null ? null : `${skin} skin`]
+    .filter((part): part is string => part !== null)
+    .join(' · ');
   // The Shop's catalogue and purchases need a wallet: signed out, its entry points ask to connect first.
   const openShop = () => (model.wallet ? onShop() : setConnectOpen(true));
 
@@ -81,7 +89,7 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
             <Ticker items={ticker} />
           </View>
         )}
-        <ReefScene caption={skin === null ? HERO_CAPTION : `${HERO_CAPTION} · ${skin} skin`} onOctopi={openShop} />
+        <ReefScene caption={heroCaption} onOctopi={openShop} />
         <View style={[styles.inset, styles.bottom]}>
           <DailyRunCard
             ranked={ranked}

@@ -62,6 +62,24 @@ export function useActiveSkin(): SkinIndex {
 }
 
 /**
+ * The octopi variant the player has equipped (the loadout's `activeVariant`), which the app shell
+ * provides; the base Octopi outside a provider. Home's hero shows it (in its colour unless a skin is
+ * equipped); a run uses its own variant through `RunOctopiContext` instead.
+ */
+export const EquippedOctopiContext = createContext<OctopiVariant>('base');
+
+/** The equipped octopi variant, for Octopi shown outside a run (Home's hero). */
+export function useEquippedOctopi(): OctopiVariant {
+  return useContext(EquippedOctopiContext);
+}
+
+/** "Trident" for the trident variant; null for the base Octopi. */
+export function variantName(octopi: OctopiVariant): string | null {
+  const id = itemOfOctopi(octopi);
+  return id === null ? null : (ITEM_NAMES[id] ?? null);
+}
+
+/**
  * The octopi variant of the run on screen. `GameScreen` provides its run's (the base Octopi for daily
  * runs and practice), so the result pose it shows takes the run's look; outside a run it is the base.
  */

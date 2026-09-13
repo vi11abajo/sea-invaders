@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withTiming } from 'react-native-reanimated';
 import { ActiveOctopi } from '../game/OctopiArt';
+import { useEquippedOctopi } from '../game/skins';
 import { Txt } from '../ui/Txt';
 import { COLORS, MOTION } from '../ui/tokens';
 
@@ -27,6 +28,8 @@ interface ReefSceneProps {
  * and firing. Fills the area it is given.
  */
 export function ReefScene({ caption, onOctopi }: ReefSceneProps) {
+  // The equipped octopi, in its colour unless a skin is equipped (the same rule as in a run).
+  const equipped = useEquippedOctopi();
   const { width } = useWindowDimensions();
   const [areaHeight, setAreaHeight] = useState(0);
   // About 40% of the width, but smaller on short screens so the caption and the cards still fit.
@@ -68,7 +71,7 @@ export function ReefScene({ caption, onOctopi }: ReefSceneProps) {
               <View style={styles.shotCore} />
             </Animated.View>
             <Pressable accessibilityRole="button" accessibilityLabel="Octopi" onPress={onOctopi}>
-              <ActiveOctopi size={hero} />
+              <ActiveOctopi size={hero} octopi={equipped} />
             </Pressable>
           </Animated.View>
           <View style={styles.caption}>

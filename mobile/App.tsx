@@ -13,9 +13,10 @@ import { useCampaign } from './src/campaign/useCampaign';
 import { DailyRunScreen } from './src/daily/DailyRunScreen';
 import { LeaderboardScreen } from './src/daily/LeaderboardScreen';
 import { GameScreen } from './src/game/GameScreen';
-import { SkinContext } from './src/game/skins';
+import { EquippedOctopiContext, SkinContext } from './src/game/skins';
 import { HomeScreen } from './src/home/HomeScreen';
 import { useHomeModel } from './src/home/useHomeModel';
+import { VARIANT_OCTOPI } from './src/loadout/items';
 import { useLoadout, type LoadoutApi } from './src/loadout/useLoadout';
 import { ProfileScreen } from './src/profile/ProfileScreen';
 import { SelfTestScreen } from './src/selftest/SelfTestScreen';
@@ -53,15 +54,18 @@ function routeFor(url: string | null): Route {
 }
 
 /**
- * Owns the session and the loadout, and puts the loadout's active skin on every screen below it
- * (Home's hero, the game, the result pose read it through `SkinContext`).
+ * Owns the session and the loadout, and puts the loadout's active skin and equipped octopi variant
+ * on every screen below it (Home's hero, the game, the result pose read them through `SkinContext` and
+ * `EquippedOctopiContext`).
  */
 function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
   const auth = useSession();
   const loadout = useLoadout(auth.session, auth.restoring);
   return (
     <SkinContext.Provider value={loadout.loadout.activeSkin}>
-      <Screens initialLevelId={initialLevelId} auth={auth} loadout={loadout} />
+      <EquippedOctopiContext.Provider value={VARIANT_OCTOPI[loadout.loadout.activeVariant]}>
+        <Screens initialLevelId={initialLevelId} auth={auth} loadout={loadout} />
+      </EquippedOctopiContext.Provider>
     </SkinContext.Provider>
   );
 }
