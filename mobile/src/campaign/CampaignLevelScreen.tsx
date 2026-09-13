@@ -69,6 +69,18 @@ interface CampaignLevelScreenProps {
   onExit: () => void;
 }
 
+/**
+ * The reef lives a finished level hands back to the progress. An octopi's extra life (Anchor's, added
+ * by the core at `createGame`) belongs to that one level: a hit spends it first, and one still unspent
+ * at the end does not carry over, so a clean Anchor run returns the lives it came in with (owner
+ * ruling 2026-09-14). Lives won from HEALTH_BOOST still carry.
+ */
+function reefLivesAfter(livesLeft: number, run: RunConfig | null): number {
+  if (run === null) return livesLeft;
+  const bonus = bonusLivesFor(run.octopi);
+  return bonus > 0 && livesLeft > run.lives ? livesLeft - Math.min(bonus, livesLeft - run.lives) : livesLeft;
+}
+
 /** One campaign level: the Level start screen, the boss reveal on boss rows, then the run and its result. */
 export function CampaignLevelScreen({
   levelId, practice, startLevel, finishLevel, loadout, signedIn, connecting, signInError, onConnect, onOpenShop,
@@ -94,7 +106,8 @@ export function CampaignLevelScreen({
   };
 
   const handleRunOver = (outcome: RunOutcome) => {
-    finishLevel({ levelId, practice, cleared: outcome.cleared, livesLeft: outcome.livesLeft, score: outcome.score })
+    const livesLeft = reefLivesAfter(outcome.livesLeft, phase.kind === 'intro' ? null : phase.run);
+    finishLevel({ levelId, practice, cleared: outcome.cleared, livesLeft, score: outcome.score })
       .then(({ outcome: kind, next }) => setResult({ outcome, kind, next }))
       .catch(() => setResult({ outcome, kind: 'error' }));
   };
@@ -163,7 +176,7 @@ export function CampaignLevelScreen({
         const stats = [
           { label: 'Score', value: formatInt(outcome.score) },
           { label: 'Best', value: formatInt(best) },
-          { label: 'Lives left', value: String(outcome.livesLeft) },
+          { label: 'Lives left', value: String(reefLivesAfter(outcome.livesLeft, phase.run)) },
         ];
         const toMap = { label: 'Map', onPress: () => onDone(kind) };
 

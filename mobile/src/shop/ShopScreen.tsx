@@ -175,7 +175,8 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
   }, [reset, show, load]);
 
   // System Back: a purchase being prepared or confirmed keeps the screen (both end on their own
-  // timeouts); a no-SOL/no-SKR sheet closes; otherwise back to Home. While the wallet is signing,
+  // timeouts); a no-SOL/no-SKR sheet closes; otherwise back to where the Shop was opened from (Home or
+  // the Level start). While the wallet is signing,
   // Back leaves too — the wallet sits on top then, so a Back that reaches the app means its
   // session went stale, and a purchase that does land shows as Owned on the next visit.
   const { phase } = purchase;
