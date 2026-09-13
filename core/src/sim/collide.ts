@@ -1,8 +1,22 @@
 import { BOSS, CRAB, CRAB_TYPES, ENEMY_SHOT, SHIP, SHOT } from '../config';
 import { clamp, idiv } from '../fixed';
-import type { Bullet, GameState } from '../types';
-import { isActive, rollDrop } from './boosts';
+import type { Bullet, Crab, GameState } from '../types';
+import { isActive, rollDrop, scoreDecayPct } from './boosts';
 import { damageBoss, scoreMultiplier } from './boss';
+
+/**
+ * Kills a crab outright: rolls its drop, scores its points (wave-scaled, scaled by the wave-mode
+ * score-decay percentage — spec C7 — then doubled by SCORE_MULTIPLIER), and counts the kill. Shared
+ * by `hitCrabs` (a lethal bullet hit) and WAVE_BLAST (spec C4, `boostEffects.ts`) so the two paths
+ * can never disagree on scoring. The caller removes `c` from `s.crabs` itself (a splice by index in
+ * `hitCrabs`, a filter in WAVE_BLAST).
+ */
+export function killCrab(s: GameState, c: Crab): void {
+  rollDrop(s, c.x, c.y);
+  const base = CRAB_TYPES[c.type].points * s.wave;
+  s.score += scoreMultiplier(s, idiv(base * scoreDecayPct(s), 100));
+  s.kills += 1;
+}
 
 const CRAB_HALF = idiv(CRAB.size, 2);
 const BOSS_HALF_W = idiv(BOSS.width, 2);
@@ -47,9 +61,7 @@ export function hitCrabs(s: GameState): void {
     c.hp -= 1;
     if (c.hp <= 0) {
       s.crabs.splice(i, 1);
-      rollDrop(s, c.x, c.y);
-      s.score += scoreMultiplier(s, CRAB_TYPES[c.type].points * s.wave);
-      s.kills += 1;
+      killCrab(s, c);
     } else if (b.data & 1) {
       b.y = c.y - idiv(CRAB.size, 2) - idiv(SHOT.h, 2) - 1;
     }

@@ -210,7 +210,11 @@ describe('Void Sovereign (kind 5)', () => {
     expect(b.effectTicks).toBe(0);
 
     updateShots(s);
-    expect(s.shots[0]!.vx).toBe(60); // steers again immediately once the freeze ends
+    // Steers again immediately once the freeze ends: after moving to y=4760, the boss (left at its
+    // default spawn point, ~2812,2180) is nearer than the crab, so AUTO_TARGET aims at the boss —
+    // offset (1812, -2580), len 3152: vx = idiv(1812*72, 3152) = 41; vy = idiv(-2580*72, 3152) - 168 = -226.
+    expect(s.shots[0]!.vx).toBe(41);
+    expect(s.shots[0]!.vy).toBe(-226);
   });
 
   it('is deterministic over 600 ticks', () => {

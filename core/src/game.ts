@@ -34,6 +34,7 @@ export function createGame(seed: string, run: RunConfig): GameState {
     rngBoosts: new Rng(`${seed}/boosts`),
     events: [],
     arrival: 0,
+    scoreDecay: 0,
   };
   if (run.level) {
     if (run.level.waves > 0) startLevelWave(s, 1);
@@ -50,6 +51,7 @@ export function spawnWave(s: GameState, wave: number): void {
   const x0 = idiv(FIELD_W - (CRAB.cols - 1) * CRAB.gapX, 2);
   s.wave = wave;
   s.crabs = [];
+  s.scoreDecay = 0; // spec C7: the score-decay clock resets at every wave start
   for (let r = 0; r < rows; r++) {
     const kind = s.rngWaves.nextInt(CRAB.kinds);
     for (let c = 0; c < CRAB.cols; c++) {
@@ -118,6 +120,7 @@ export function startLevelWave(s: GameState, wave: number): void {
     c.homeY -= ARRIVAL.drop;
   }
   s.arrival = ARRIVAL.ticks;
+  s.scoreDecay = 0; // spec C7: the score-decay clock resets at every campaign wave start too
   s.events.push({ tick: s.tick, type: 'wave_start', wave });
 }
 

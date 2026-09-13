@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CRAB_TYPES,
+  MAX_LIVES,
   PRACTICE_RUN,
   activateBoost,
   crabSpeed,
@@ -99,6 +100,15 @@ describe('SHIELD_BARRIER', () => {
     expect(s.ship.lives).toBe(3);
     expect(s.boosts.shield).toBe(2);
   });
+
+  it('a re-pickup while a shield is already active is a no-op (spec C6): consumed, not refilled', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    activateBoost(s, 'SHIELD_BARRIER');
+    s.boosts.shield = 2; // simulate one hit already absorbed
+    const result = activateBoost(s, 'SHIELD_BARRIER');
+    expect(result).toEqual({ type: 'SHIELD_BARRIER', consumed: true });
+    expect(s.boosts.shield).toBe(2); // not refilled to 3
+  });
 });
 
 describe('INVINCIBILITY', () => {
@@ -126,6 +136,13 @@ describe('HEALTH_BOOST', () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'HEALTH_BOOST');
     expect(s.ship.lives).toBe(4);
+  });
+
+  it('caps lives at MAX_LIVES (spec C9)', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    s.ship.lives = MAX_LIVES;
+    activateBoost(s, 'HEALTH_BOOST');
+    expect(s.ship.lives).toBe(MAX_LIVES);
   });
 });
 

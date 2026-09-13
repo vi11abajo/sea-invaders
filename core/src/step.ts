@@ -1,5 +1,5 @@
 import { nextWave } from './game';
-import { updateBoosts } from './sim/boosts';
+import { advanceScoreDecay, updateBoosts } from './sim/boosts';
 import { updateBoss } from './sim/boss';
 import { hitCrabs, hitShip } from './sim/collide';
 import { marchCrabs, pullShotsTowardGravity, updateEnemyShots } from './sim/crabs';
@@ -18,6 +18,7 @@ export function step(s: GameState, input: Input): void {
   updateEnemyShots(s);
   pullShotsTowardGravity(s);
   updateBoss(s);
+  advanceScoreDecay(s);
   hitCrabs(s);
   hitShip(s);
   updateBoosts(s);

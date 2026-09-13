@@ -1,45 +1,61 @@
-import { CRAB_TYPES } from '../config';
+import { MAX_LIVES } from '../config';
 import { idiv } from '../fixed';
-import type { BoostType, GameState } from '../types';
-import { rollDrop } from './boosts';
-import { damageBoss, scoreMultiplier } from './boss';
+import type { BoostType, Crab, GameState } from '../types';
+import { killCrab } from './collide';
+
+/** Bottom-row tolerance for WAVE_BLAST (spec C4): legacy ±10px ~= 367 units. */
+const WAVE_BLAST_ROW_BAND = 367;
+
+/**
+ * WAVE_BLAST's bottom-row kill (spec C4, legacy `boost-manager.js:463-481`): every crab within
+ * `WAVE_BLAST_ROW_BAND` units of the highest current `y` among crabs (a diving crab counts by its
+ * current `y`, not its formation slot) is killed through the same scoring path as a lethal bullet
+ * hit (`killCrab`), so drops/score/decay/kills all agree with a normal kill. No boss damage, no shot
+ * clearing (both removed per spec C4 — the legacy's WAVE_BLAST never touched either). Returns false
+ * (and does nothing else) when there are no crabs at all, so the pickup that triggered this is not
+ * consumed (legacy `activateBoost` returning `false`) — the drop keeps falling.
+ */
+function applyWaveBlast(s: GameState): boolean {
+  if (s.crabs.length === 0) return false;
+  let maxY = s.crabs[0]!.y;
+  for (const c of s.crabs) if (c.y > maxY) maxY = c.y;
+  const survivors: Crab[] = [];
+  for (const c of s.crabs) {
+    if (maxY - c.y <= WAVE_BLAST_ROW_BAND) killCrab(s, c);
+    else survivors.push(c);
+  }
+  s.crabs = survivors;
+  return true;
+}
 
 /**
  * Applies an instant boost's one-shot effect, or a `-1`-duration boost's activation effect
- * (SHIELD_BARRIER's `shield = 3`, SPEED_TAMER's stack, WAVE_BLAST's board wipe). Timed boosts
- * (duration > 0) are never routed through here: the sim reads them via `isActive` (RICOCHET,
- * GRAVITY_WELL) or `s.boosts.well` (GRAVITY_WELL's pickup, captured in
- * `updateBoosts`/`activateBoost`). RAPID_FIRE, MULTI_SHOT, PIERCING_BULLETS, INVINCIBILITY,
- * SCORE_MULTIPLIER, ICE_FREEZE, POINTS_FREEZE, AUTO_TARGET, RICOCHET and GRAVITY_WELL are timed
- * and never reach this switch via `activateBoost`, but keep an explicit no-op case each for
- * clarity. RANDOM_CHAOS is intercepted by `activateBoost` before it ever calls `applyEffect`
- * (it activates the picked boost directly), so its case here is unreachable in practice; the
- * `default` is kept only for exhaustiveness.
+ * (SHIELD_BARRIER's `shield = 3`, SPEED_TAMER's stack). Timed boosts (duration > 0) are never
+ * routed through here: the sim reads them via `isActive` or `s.boosts.well` (GRAVITY_WELL's pickup,
+ * captured in `updateBoosts`/`activateBoost`). RAPID_FIRE, MULTI_SHOT, PIERCING_BULLETS,
+ * INVINCIBILITY, SCORE_MULTIPLIER, ICE_FREEZE, POINTS_FREEZE, AUTO_TARGET and GRAVITY_WELL are timed
+ * and never reach this switch via `activateBoost`, but keep an explicit no-op case each for clarity.
+ * RANDOM_CHAOS is intercepted by `activateBoost` before it ever calls `applyEffect` (it activates
+ * the picked boost directly), so its case here is unreachable in practice; the `default` is kept
+ * only for exhaustiveness. Returns whether the effect actually applied (spec C4: WAVE_BLAST reports
+ * `false` with no crabs on screen); every other case is always consumed.
  */
-export function applyEffect(s: GameState, type: BoostType): void {
+export function applyEffect(s: GameState, type: BoostType): boolean {
   switch (type) {
     case 'HEALTH_BOOST':
-      s.ship.lives += 1;
-      return;
+      s.ship.lives = Math.min(MAX_LIVES, s.ship.lives + 1);
+      return true;
     case 'COIN_SHOWER':
       s.score += idiv(s.score, 4);
-      return;
+      return true;
     case 'SHIELD_BARRIER':
       s.boosts.shield = 3;
-      return;
+      return true;
     case 'SPEED_TAMER':
       s.boosts.tamerStacks = Math.min(10, s.boosts.tamerStacks + 1);
-      return;
+      return true;
     case 'WAVE_BLAST':
-      for (const c of s.crabs) {
-        rollDrop(s, c.x, c.y);
-        s.score += scoreMultiplier(s, CRAB_TYPES[c.type].points * s.wave);
-        s.kills += 1;
-      }
-      s.crabs = [];
-      if (s.boss) damageBoss(s, 10);
-      s.enemyShots = [];
-      return;
+      return applyWaveBlast(s);
     case 'RAPID_FIRE':
     case 'MULTI_SHOT':
     case 'PIERCING_BULLETS':
@@ -48,12 +64,11 @@ export function applyEffect(s: GameState, type: BoostType): void {
     case 'ICE_FREEZE':
     case 'POINTS_FREEZE':
     case 'AUTO_TARGET':
-    case 'RICOCHET':
     case 'GRAVITY_WELL':
-      return;
+      return true;
     case 'RANDOM_CHAOS':
       // Unreachable: activateBoost intercepts RANDOM_CHAOS and never calls applyEffect with it.
-      return;
+      return true;
     default: {
       const _exhaustive: never = type;
       return _exhaustive;
@@ -66,6 +81,16 @@ export function removeEffect(s: GameState, type: BoostType): void {
   switch (type) {
     case 'GRAVITY_WELL':
       s.boosts.well = null;
+      return;
+    case 'SHIELD_BARRIER':
+      // Only a chaos-timed shield (spec C8) ever reaches this: a permanent one's active entry has
+      // `ticksLeft = -1` and never expires via the tick countdown that calls `removeEffect`.
+      s.boosts.shield = 0;
+      return;
+    case 'SPEED_TAMER':
+      // Only a chaos-timed stack (spec C8) ever reaches this, one expiry per stack it granted; a
+      // permanent stack's active entry has `ticksLeft = -1` and never expires this way.
+      s.boosts.tamerStacks = Math.max(0, s.boosts.tamerStacks - 1);
       return;
     default:
       return;

@@ -30,7 +30,7 @@ export interface Bullet {
   vy: number;
   /** Player shots: 'crab' is never used; enemy shots default to 'crab'. */
   kind: BulletKind;
-  /** Kind-specific counter (zigzag flip timer, explosive fuse, ricochet bounces, pierce count). */
+  /** Kind-specific counter (zigzag flip timer, explosive fuse, pierce bit for player shots). */
   data: number;
 }
 
@@ -80,7 +80,7 @@ export interface BossState {
 
 export type BoostType =
   | 'RAPID_FIRE' | 'ICE_FREEZE' | 'HEALTH_BOOST' | 'POINTS_FREEZE'
-  | 'SHIELD_BARRIER' | 'AUTO_TARGET' | 'INVINCIBILITY' | 'MULTI_SHOT' | 'SCORE_MULTIPLIER' | 'RICOCHET'
+  | 'SHIELD_BARRIER' | 'AUTO_TARGET' | 'INVINCIBILITY' | 'MULTI_SHOT' | 'SCORE_MULTIPLIER'
   | 'WAVE_BLAST' | 'COIN_SHOWER' | 'GRAVITY_WELL' | 'PIERCING_BULLETS'
   | 'RANDOM_CHAOS' | 'SPEED_TAMER';
 
@@ -140,6 +140,8 @@ export interface GameState {
   events: GameEvent[];
   /** Ticks left in a campaign wave's arrival descent; 0 when idle. Daily/practice never set this. */
   arrival: number;
+  /** Ticks elapsed on the wave-mode score-decay clock (spec C7); reset at every wave start. */
+  scoreDecay: number;
 }
 
 /** Index of each CrabType in the state hash and the view frame, in declaration order. */
@@ -152,10 +154,15 @@ export const KIND_INDEX: Record<BulletKind, number> = {
   heavy: 13, fast: 14,
 };
 
-/** Index of each BoostType in the state hash, in declaration order. */
+/**
+ * Index of each BoostType in the state hash, in declaration order. RICOCHET was removed from the
+ * game entirely (owner decision, Phase 3A.1 lane C) — the indices below are contiguous over the
+ * remaining 15 boosts, not the old 16; any consumer keying off these numbers (the mobile app's drop
+ * icon/HUD-name maps) needs the same renumbering.
+ */
 export const BOOST_INDEX: Record<BoostType, number> = {
   RAPID_FIRE: 0, ICE_FREEZE: 1, HEALTH_BOOST: 2, POINTS_FREEZE: 3,
-  SHIELD_BARRIER: 4, AUTO_TARGET: 5, INVINCIBILITY: 6, MULTI_SHOT: 7, SCORE_MULTIPLIER: 8, RICOCHET: 9,
-  WAVE_BLAST: 10, COIN_SHOWER: 11, GRAVITY_WELL: 12, PIERCING_BULLETS: 13,
-  RANDOM_CHAOS: 14, SPEED_TAMER: 15,
+  SHIELD_BARRIER: 4, AUTO_TARGET: 5, INVINCIBILITY: 6, MULTI_SHOT: 7, SCORE_MULTIPLIER: 8,
+  WAVE_BLAST: 9, COIN_SHOWER: 10, GRAVITY_WELL: 11, PIERCING_BULLETS: 12,
+  RANDOM_CHAOS: 13, SPEED_TAMER: 14,
 };

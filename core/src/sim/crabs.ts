@@ -2,45 +2,13 @@ import { ARRIVAL, CRAB, CRAB_SHOTS, DIVER, ENEMY_SHOT, FANNER_SPREAD, FIELD_H, F
 import { idiv, isqrt } from '../fixed';
 import { icos, isin } from '../trig';
 import type { Bullet, Crab, GameState } from '../types';
-import { bossImmuneToSlowdown, chilled, tamed } from './boosts';
+import { chilled, tamed } from './boosts';
 import { shotRadius } from './collide';
 
 const HALF = idiv(CRAB.size, 2);
 
 /** A crab whose bottom edge reaches this line has invaded the reef. */
 export const INVASION_Y = FIELD_H - 300;
-
-/** GRAVITY_WELL's per-tick pull (spec §5.2): crabs move slower than enemy shots towards the well. */
-const WELL_CRAB_PULL = 6;
-const WELL_SHOT_PULL = 12;
-
-/**
- * GRAVITY_WELL's per-tick pull (spec §5.2), called from `updateBoosts` once a well is active, after
- * boost timers have ticked: every formation crab (`dive === 0`) and every enemy shot moves towards
- * `well` along the integer-normalised vector (`isqrt`). This only ever changes positions, never
- * stored velocities, so the hash stays stable across the well's activation/expiry mid-flight. A
- * crab's `y` is clamped so the pull itself can never carry it across the invasion line; its
- * formation slot (`homeX`/`homeY`) is untouched, and a diving crab is unaffected.
- */
-export function pullTowardsWell(s: GameState, well: { x: number; y: number }): void {
-  for (const c of s.crabs) {
-    if (c.dive !== 0) continue;
-    const dx = well.x - c.x;
-    const dy = well.y - c.y;
-    const len = isqrt(dx * dx + dy * dy);
-    if (len === 0) continue;
-    c.x += idiv(dx * WELL_CRAB_PULL, len);
-    c.y = Math.min(c.y + idiv(dy * WELL_CRAB_PULL, len), INVASION_Y - HALF - 1);
-  }
-  for (const b of s.enemyShots) {
-    const dx = well.x - b.x;
-    const dy = well.y - b.y;
-    const len = isqrt(dx * dx + dy * dy);
-    if (len === 0) continue;
-    b.x += idiv(dx * WELL_SHOT_PULL, len);
-    b.y += idiv(dy * WELL_SHOT_PULL, len);
-  }
-}
 
 /** Void's `gravity` shots (spec §4.1 `gravity` row) pull player shots within this many units. */
 const GRAVITY_SHOT_RANGE = 800;
@@ -49,8 +17,8 @@ const GRAVITY_SHOT_PULL = 10;
 
 /**
  * Void Sovereign's gravity wave (spec §4.2 row 5): every `gravity` enemy shot pulls every player
- * shot within `GRAVITY_SHOT_RANGE` units towards itself by `GRAVITY_SHOT_PULL` units/tick, along
- * the same integer-normalised vector as `pullTowardsWell` (positions only, `vx`/`vy` untouched).
+ * shot within `GRAVITY_SHOT_RANGE` units towards itself by `GRAVITY_SHOT_PULL` units/tick, along an
+ * integer-normalised vector (positions only, `vx`/`vy` untouched).
  * Called from `step` right after `updateEnemyShots` so it sees this tick's freshly moved gravity
  * shots, leaving `updateEnemyShots`'s own crab-shot firing and motion path untouched.
  */
@@ -137,15 +105,17 @@ function advanceDivers(s: GameState): void {
  * and isn't marched again in the same tick. Ends the run on invasion.
  *
  * While a campaign wave is arriving (`s.arrival > 0`, spec §14 amendment) every crab's `y` and
- * `homeY` instead just descend by `ARRIVAL.speed`, `x` untouched, no diver trigger and no wall or
- * invasion test — the formation is still above the field, closing in on its slots.
+ * `homeY` instead just descend by `ARRIVAL.speed` (slowed by ICE_FREEZE/SPEED_TAMER like every other
+ * crab movement, spec C5), `x` untouched, no diver trigger and no wall or invasion test — the
+ * formation is still above the field, closing in on its slots.
  */
 export function marchCrabs(s: GameState): void {
   if (s.crabs.length === 0) return;
   if (s.arrival > 0) {
+    const speed = chilled(s, tamed(s, ARRIVAL.speed), false);
     for (const c of s.crabs) {
-      c.y += ARRIVAL.speed;
-      c.homeY += ARRIVAL.speed;
+      c.y += speed;
+      c.homeY += speed;
     }
     return;
   }
@@ -204,11 +174,11 @@ const FRAGMENT_VECTORS: ReadonlyArray<readonly [number, number]> = [
  * chance and shooter RNG draws still happen exactly as for any other type. Crab shots
  * (`kind: 'crab'`, from a `normal` shooter) are untouched by the zigzag/explosive branches and keep
  * the same collision radius as before, so this stays bit-for-bit compatible with the v2 goldens.
- * SPEED_TAMER and ICE_FREEZE both scale the per-tick displacement (never the stored `vx`/`vy`, so
- * the hash stays stable across activation/expiry mid-flight): always for crab shots, skipped for
- * boss shots while `bossImmuneToSlowdown`. A shot above the field but still moving down (a
- * meteor-shower drop spawned at y -200) is never pruned for being off the top edge — only for
- * having left through the bottom, left or right.
+ * Enemy shot velocity is never slowed by ICE_FREEZE or SPEED_TAMER (spec C5: both boosts slow crab
+ * movement only — march step, arrival descent, diver dives — never bullets, matching the legacy's
+ * shipped behaviour; its one function that would have scaled bullet speed too was dead code, never
+ * called). A shot above the field but still moving down (a meteor-shower drop spawned at y -200) is
+ * never pruned for being off the top edge — only for having left through the bottom, left or right.
  *
  * While a campaign wave is arriving (`s.arrival > 0`, spec §14 amendment) existing shots still move
  * and get pruned as usual, but nothing new fires.
@@ -222,10 +192,8 @@ export function updateEnemyShots(s: GameState): void {
     } else if (b.kind === 'explosive') {
       b.data -= 1;
     }
-    const bossShot = b.kind !== 'crab' && b.kind !== 'heavy' && b.kind !== 'fast';
-    const slow = !bossShot || !bossImmuneToSlowdown(s);
-    b.x += slow ? chilled(s, tamed(s, b.vx), bossShot) : b.vx;
-    b.y += slow ? chilled(s, tamed(s, b.vy), bossShot) : b.vy;
+    b.x += b.vx;
+    b.y += b.vy;
     if (b.kind === 'explosive' && (b.data <= 0 || b.y > EXPLOSIVE_SPLIT_Y)) {
       for (const [vx, vy] of FRAGMENT_VECTORS) kept.push({ x: b.x, y: b.y, vx, vy, kind: 'fragment', data: 0 });
       continue;

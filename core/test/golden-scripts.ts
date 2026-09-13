@@ -36,8 +36,20 @@ function wander(): (tick: number) => Input {
   };
 }
 
-/** Vertical range within which an incoming enemy shot is worth dodging. */
-const DODGE_RANGE_Y = 1500;
+/**
+ * Vertical range within which an incoming enemy shot is worth dodging. Retuned for Phase 3A.1 lane
+ * C (together with DODGE_COLUMNS/DODGE_DWELL_LIMIT below): the boost-system fixes in this task
+ * (RICOCHET removed, WAVE_BLAST scoped to the bottom row, the RANDOM_CHAOS pool widened from 10 to
+ * 14) change every subsequent `rngBoosts` draw once any of those probability tables is consulted —
+ * on the fixed `golden-survivor`/`golden-level6`/`golden-level30` seeds this shifts which specific
+ * drops/boosts appear and when, an unavoidable side effect of correctly implementing the spec, not
+ * a simulation regression. The old dodge parameters (1500/8/9 columns) no longer cleared
+ * `SURVIVOR_MIN_TICKS` on that seed; this combination was found by sweeping range/dwell/column-count
+ * against all three scripts at once (`survivor`, `level6`, `level30`) and picking one with
+ * comfortable margin on `survivor` (~11,500 ticks, not a bare pass over the 6000 floor) that also
+ * still clears level 6 and reaches level 30's boss phase 3.
+ */
+const DODGE_RANGE_Y = 1000;
 
 /**
  * A boss's shots start far above the ship (muzzle near the top of the field) and take longer to
@@ -47,14 +59,15 @@ const DODGE_RANGE_Y = 1500;
  */
 const BOSS_DODGE_RANGE_Y = 3000;
 
-/** Candidate dodge columns spanning the field, evenly spaced. */
-const DODGE_COLUMNS = Array.from({ length: 9 }, (_, i) => idiv(i * FIELD_W, 8));
+/** Candidate dodge columns spanning the field, evenly spaced (see the DODGE_RANGE_Y note above). */
+const DODGE_COLUMNS = Array.from({ length: 13 }, (_, i) => idiv(i * FIELD_W, 12));
 
 /**
  * After holding the same dodge column this long, that column is dropped from consideration for
- * one pick: dwelling in one corner lets shots fired over many ticks all converge on it.
+ * one pick: dwelling in one corner lets shots fired over many ticks all converge on it. (See the
+ * DODGE_RANGE_Y note above.)
  */
-const DODGE_DWELL_LIMIT = 8;
+const DODGE_DWELL_LIMIT = 5;
 
 /**
  * Dodges every threatening enemy shot (within DODGE_RANGE_Y vertically) at once by moving to
@@ -114,6 +127,9 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   },
   // The `wander` input trajectory on a boosted daily run: exercises boost pickups/effects end to
   // end. `wander` never dodges, so the run ends in game over well short of `ticks`; this seed was
-  // picked (search, not the sim) for at least 5 boost_pickup events before the ship dies.
-  boosted: { ticks: 10_800, makeInput: wander, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-2293' },
+  // picked (search, not the sim) for at least 5 boost_pickup events before the ship dies. Re-picked
+  // for Phase 3A.1 lane C: the old seed (`golden-boosted-2293`) fell to 2 pickups once RICOCHET was
+  // removed and the RANDOM_CHAOS pool grew from 10 to 14 — both change every subsequent `rngBoosts`
+  // draw, so a fixed seed's specific drop/rarity rolls shift even though the odds themselves didn't.
+  boosted: { ticks: 10_800, makeInput: wander, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-908' },
 };

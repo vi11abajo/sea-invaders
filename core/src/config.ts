@@ -94,7 +94,7 @@ export const RARITY_ORDER: BoostRarity[] = ['common', 'rare', 'epic', 'legendary
 /** One boost type per rarity, in the legacy web engine's `DISTRIBUTION` order. */
 export const RARITY_LISTS: Record<BoostRarity, BoostType[]> = {
   common: ['RAPID_FIRE', 'ICE_FREEZE', 'HEALTH_BOOST', 'POINTS_FREEZE'],
-  rare: ['SHIELD_BARRIER', 'AUTO_TARGET', 'INVINCIBILITY', 'MULTI_SHOT', 'SCORE_MULTIPLIER', 'RICOCHET'],
+  rare: ['SHIELD_BARRIER', 'AUTO_TARGET', 'INVINCIBILITY', 'MULTI_SHOT', 'SCORE_MULTIPLIER'],
   epic: ['WAVE_BLAST', 'COIN_SHOWER', 'GRAVITY_WELL', 'PIERCING_BULLETS'],
   legendary: ['RANDOM_CHAOS', 'SPEED_TAMER'],
 };
@@ -114,7 +114,6 @@ export const BOOSTS: Record<BoostType, { rarity: BoostRarity; duration: number }
   INVINCIBILITY: { rarity: 'rare', duration: 600 },
   MULTI_SHOT: { rarity: 'rare', duration: 600 },
   SCORE_MULTIPLIER: { rarity: 'rare', duration: 600 },
-  RICOCHET: { rarity: 'rare', duration: 600 },
   WAVE_BLAST: { rarity: 'epic', duration: 0 },
   COIN_SHOWER: { rarity: 'epic', duration: 0 },
   GRAVITY_WELL: { rarity: 'epic', duration: 600 },
@@ -152,3 +151,23 @@ export const BOSS_SHOT = { speed: 110, radius: 96 } as const;
  * the slots) with no enemy fire. Daily/practice never trigger this.
  */
 export const ARRIVAL = { ticks: 30, drop: 1500, speed: 50 } as const;
+
+/** HEALTH_BOOST's life cap (spec C9, legacy `game-constants.js` `MAX_LIVES`). */
+export const MAX_LIVES = 100;
+
+/**
+ * GRAVITY_WELL's centre roll and its pull on enemy fire (spec C1, legacy `boost-manager.js:317-336`
+ * `activateBoost` and `boost-effects.js:203-247` `applyGravityWellEffect`): the centre is a seeded
+ * random point inset `margin` from the field edges, re-rolled while within `minDist` of the ship, up
+ * to `maxAttempts` rolls (the last one stands regardless); every enemy shot is redirected at `speed`
+ * units/tick towards the centre, and one within `absorb` units of it is removed.
+ */
+export const WELL = { margin: 1835, minDist: 3670, maxAttempts: 8, speed: 147, absorb: 550 } as const;
+
+/**
+ * The wave-mode score-decay clock (spec C7, legacy `game-constants.js` decay wired through
+ * `updateScoreMultiplier`): the percentage applied to a crab kill's points falls 1% every `every`
+ * ticks (1700ms at 60 ticks/s) elapsed with no boss active and POINTS_FREEZE inactive, floored at
+ * `floorPct`.
+ */
+export const SCORE_DECAY = { every: 102, floorPct: 1 } as const;

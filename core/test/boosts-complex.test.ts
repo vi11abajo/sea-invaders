@@ -1,126 +1,89 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CRAB,
+  FIELD_H,
   FIELD_W,
-  INVASION_Y,
   PRACTICE_RUN,
+  WELL,
   activateBoost,
   createGame,
   hashState,
   snapshot,
   step,
   updateBoosts,
-  updateShots,
 } from '../src';
+import type { Rng } from '../src';
 
-describe('RICOCHET', () => {
-  it('gives a newly created shot a horizontal component and the bounce credit', () => {
-    const s = createGame('t', PRACTICE_RUN);
-    activateBoost(s, 'RICOCHET');
-    for (let t = 1; t <= 8; t++) updateShots(s);
-    expect(s.shots).toHaveLength(1);
-    expect(s.shots[0]!.vx).toBe(60);
-    expect(s.shots[0]!.data & 2).toBe(2);
-  });
-
-  it('leaves vx at 0 for a shot created without RICOCHET active', () => {
-    const s = createGame('t', PRACTICE_RUN);
-    for (let t = 1; t <= 8; t++) updateShots(s);
-    expect(s.shots[0]!.vx).toBe(0);
-    expect(s.shots[0]!.data & 2).toBe(0);
-  });
-
-  it('reflects a shot off the right wall once, clears the credit, then flies on unreflected', () => {
-    const s = createGame('t', PRACTICE_RUN);
-    activateBoost(s, 'RICOCHET');
-    s.shots = [{ x: FIELD_W - 30, y: 5000, vx: 60, vy: -240, kind: 'straight', data: 2 }];
-    updateShots(s);
-    const bounced = s.shots[0]!;
-    expect(bounced.x).toBe(FIELD_W - 30);
-    expect(bounced.vx).toBe(-60);
-    expect(bounced.data & 2).toBe(0);
-    const xAfterBounce = bounced.x;
-    updateShots(s);
-    // No credit left: x is no longer touched by vx (today's behaviour for a non-ricochet shot),
-    // so a second wall contact never happens and the shot is not reflected again.
-    expect(s.shots[0]!.x).toBe(xAfterBounce);
-    expect(s.shots[0]!.vx).toBe(-60);
-  });
-
-  it('reflects a shot off the left wall using x = -x', () => {
-    const s = createGame('t', PRACTICE_RUN);
-    activateBoost(s, 'RICOCHET');
-    s.shots = [{ x: 30, y: 5000, vx: -60, vy: -240, kind: 'straight', data: 2 }];
-    updateShots(s);
-    const bounced = s.shots[0]!;
-    expect(bounced.x).toBe(30);
-    expect(bounced.vx).toBe(60);
-    expect(bounced.data & 2).toBe(0);
-  });
-
-  it('composes with the piercing bit without disturbing it', () => {
-    const s = createGame('t', PRACTICE_RUN);
-    activateBoost(s, 'RICOCHET');
-    activateBoost(s, 'PIERCING_BULLETS');
-    for (let t = 1; t <= 8; t++) updateShots(s);
-    expect(s.shots[0]!.data).toBe(3);
-  });
-});
+/** Overrides `rng.nextInt` to return `sequence` in order, one value per call. */
+function stubNextInt(rng: Rng, sequence: number[]): void {
+  let i = 0;
+  rng.nextInt = ((_n: number) => sequence[i++]!) as Rng['nextInt'];
+}
 
 describe('GRAVITY_WELL', () => {
-  it('captures the ship position as the well when activated directly (no drop)', () => {
+  it('rolls a seeded random centre inset from the field edges when activated directly', () => {
     const s = createGame('t', PRACTICE_RUN);
+    stubNextInt(s.rngBoosts, [100, 200]); // first roll is already far enough from the ship, no re-roll
     activateBoost(s, 'GRAVITY_WELL');
-    expect(s.boosts.well).toEqual({ x: s.ship.x, y: s.ship.y });
+    expect(s.boosts.well).toEqual({ x: WELL.margin + 100, y: WELL.margin + 200 });
   });
 
-  it('pulls a formation crab 6 units towards the well per tick, leaving its home slot untouched', () => {
+  it('re-rolls while the point is too close to the ship, keeping the last roll after WELL.maxAttempts', () => {
     const s = createGame('t', PRACTICE_RUN);
+    // Every attempt returns a point at (or basically on) the ship, i.e. always "too close", except
+    // the last, which is distinguishable but still within minDist — the roll keeps it regardless.
+    const closeX = s.ship.x - WELL.margin;
+    const closeY = s.ship.y - WELL.margin;
+    const sequence: number[] = [];
+    for (let i = 0; i < WELL.maxAttempts - 1; i++) sequence.push(closeX, closeY);
+    sequence.push(closeX + 3, closeY); // still only 3 units from the ship, well under minDist
+    stubNextInt(s.rngBoosts, sequence);
     activateBoost(s, 'GRAVITY_WELL');
-    const well = s.boosts.well!;
-    s.crabs = [
-      { x: well.x - 600, y: well.y, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: well.x - 600, homeY: well.y },
+    expect(s.boosts.well).toEqual({ x: WELL.margin + closeX + 3, y: WELL.margin + closeY });
+  });
+
+  it('stays within the field margins and at least WELL.minDist from the ship over many seeds', () => {
+    for (let i = 0; i < 200; i++) {
+      const s = createGame(`well-${i}`, PRACTICE_RUN);
+      activateBoost(s, 'GRAVITY_WELL');
+      const well = s.boosts.well!;
+      expect(well.x).toBeGreaterThanOrEqual(WELL.margin);
+      expect(well.x).toBeLessThanOrEqual(FIELD_W - WELL.margin);
+      expect(well.y).toBeGreaterThanOrEqual(WELL.margin);
+      expect(well.y).toBeLessThanOrEqual(FIELD_H - WELL.margin);
+    }
+  });
+
+  it('never pulls a crab (spec C1: the legacy well only ever touched bullets)', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    s.boosts.well = { x: 5000, y: 5000 };
+    s.crabs = [{ x: 2000, y: 2000, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 2000, homeY: 2000 }];
+    updateBoosts(s);
+    expect(s.crabs[0]).toMatchObject({ x: 2000, y: 2000 });
+  });
+
+  it("redirects an enemy shot's velocity to point at the well at 147 units/tick", () => {
+    const s = createGame('t', PRACTICE_RUN);
+    s.boosts.well = { x: 5000, y: 5000 };
+    s.enemyShots = [{ x: 2000, y: 1000, vx: 0, vy: 0, kind: 'crab', data: 0 }]; // offset (3000, 4000), len 5000
+    updateBoosts(s);
+    expect(s.enemyShots).toHaveLength(1);
+    expect(s.enemyShots[0]!.vx).toBe(88); // idiv(3000*147, 5000)
+    expect(s.enemyShots[0]!.vy).toBe(117); // idiv(4000*147, 5000)
+    // The well only ever overwrites velocity, never nudges position directly.
+    expect(s.enemyShots[0]!.x).toBe(2000);
+    expect(s.enemyShots[0]!.y).toBe(1000);
+  });
+
+  it('absorbs a shot within 550 units of the well, but not one just outside', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    s.boosts.well = { x: 5000, y: 5000 };
+    s.enemyShots = [
+      { x: 5000 - WELL.absorb, y: 5000, vx: 0, vy: 0, kind: 'crab', data: 0 }, // len 550: absorbed
+      { x: 5000 - (WELL.absorb + 1), y: 5000, vx: 0, vy: 0, kind: 'crab', data: 0 }, // len 551: survives
     ];
     updateBoosts(s);
-    expect(s.crabs[0]!.x).toBe(well.x - 600 + 6);
-    expect(s.crabs[0]!.y).toBe(well.y);
-    expect(s.crabs[0]!.homeX).toBe(well.x - 600);
-    expect(s.crabs[0]!.homeY).toBe(well.y);
-  });
-
-  it('never lets the pull carry a crab across the invasion line', () => {
-    const s = createGame('t', PRACTICE_RUN);
-    activateBoost(s, 'GRAVITY_WELL');
-    const startY = INVASION_Y - Math.trunc(CRAB.size / 2) - 3;
-    s.crabs = [
-      { x: 1000, y: startY, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 1000, homeY: startY },
-    ];
-    // Well placed far below the crab (same x) so the unclamped pull would push it past the line.
-    s.boosts.well = { x: 1000, y: INVASION_Y + 5000 };
-    updateBoosts(s);
-    expect(s.crabs[0]!.y).toBe(INVASION_Y - Math.trunc(CRAB.size / 2) - 1);
-    expect(s.over).toBe(false);
-  });
-
-  it('does not pull a diving crab', () => {
-    const s = createGame('t', PRACTICE_RUN);
-    activateBoost(s, 'GRAVITY_WELL');
-    const well = s.boosts.well!;
-    s.crabs = [
-      { x: well.x - 600, y: well.y, kind: 0, type: 'diver', hp: 1, dive: 30, homeX: well.x - 600, homeY: well.y },
-    ];
-    updateBoosts(s);
-    expect(s.crabs[0]!.x).toBe(well.x - 600);
-  });
-
-  it('pulls an enemy shot 12 units towards the well per tick', () => {
-    const s = createGame('t', PRACTICE_RUN);
-    activateBoost(s, 'GRAVITY_WELL');
-    const well = s.boosts.well!;
-    s.enemyShots = [{ x: well.x - 1200, y: well.y, vx: 0, vy: 0, kind: 'crab', data: 0 }];
-    updateBoosts(s);
-    expect(s.enemyShots[0]!.x).toBe(well.x - 1200 + 12);
-    expect(s.enemyShots[0]!.y).toBe(well.y);
+    expect(s.enemyShots).toHaveLength(1);
+    expect(s.enemyShots[0]!.x).toBe(5000 - (WELL.absorb + 1));
   });
 
   it('clears the well on expiry, and the snapshot frame reflects both states', () => {

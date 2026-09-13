@@ -1,4 +1,5 @@
 import { BOSS } from '../config';
+import { scoreDecayPct } from '../sim/boosts';
 import { BOOST_INDEX, KIND_INDEX, TYPE_INDEX, type GameState } from '../types';
 
 export interface BossFrame {
@@ -40,6 +41,8 @@ export interface Frame {
   well: { x: number; y: number } | null;
   /** Ticks left in a campaign wave's arrival descent; 0 when idle. */
   arrival: number;
+  /** The wave-mode score-decay percentage right now (spec C7), 100 down to 1. */
+  scoreDecayPct: number;
 }
 
 export const EMPTY_FRAME: Frame = {
@@ -55,6 +58,7 @@ export const EMPTY_FRAME: Frame = {
   shield: 0,
   well: null,
   arrival: 0,
+  scoreDecayPct: 100,
 };
 
 function bossFrame(s: GameState): BossFrame | null {
@@ -101,5 +105,6 @@ export function snapshot(s: GameState): Frame {
     shield: s.boosts.shield,
     well: s.boosts.well ? { x: s.boosts.well.x, y: s.boosts.well.y } : null,
     arrival: s.arrival,
+    scoreDecayPct: scoreDecayPct(s),
   };
 }
