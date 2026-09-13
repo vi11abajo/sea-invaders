@@ -5,7 +5,7 @@ import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
 import { Toast } from '../ui/Toast';
 import { COLORS } from '../ui/tokens';
-import { DailyRunCard } from './DailyRunCard';
+import { DailyRunCard, DailyRunRulesSheet } from './DailyRunCard';
 import { ReefScene } from './ReefScene';
 import { FeatureRow, HomeTopBar, type Feature } from './HomeTopBar';
 import { Ticker, type TickerItem } from './Ticker';
@@ -44,6 +44,7 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
   const ranked = model.ranked;
   const now = useNow(ranked !== null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const soon = (what: string) => setToast((t) => ({ id: (t?.id ?? 0) + 1, text: `${what} — coming soon` }));
 
   useEffect(() => {
@@ -83,6 +84,7 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
             onRecorded={onRecorded}
             skrBalance={model.wallet?.skr ?? 0}
             busy={ticketBusy}
+            onRules={() => setRulesOpen(true)}
           />
           <View style={styles.row}>
             <View style={styles.half}>
@@ -98,6 +100,7 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
           </View>
         </View>
       </View>
+      <DailyRunRulesSheet visible={rulesOpen} onClose={() => setRulesOpen(false)} />
       {toast !== null && <Toast key={toast.id} text={toast.text} onHide={() => setToast(null)} />}
     </View>
   );
