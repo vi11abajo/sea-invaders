@@ -1,0 +1,44 @@
+import express from 'express';
+import { authenticateToken } from '../middleware/auth.js';
+import { ShopError } from '../services/shop.js';
+import { confirmRevive, issueRevive, quoteRevive } from '../services/tide.js';
+
+const router = express.Router();
+const nowSeconds = () => Math.floor(Date.now() / 1000);
+
+router.post('/quote', authenticateToken, async (req, res, next) => {
+  try {
+    res.json(await quoteRevive({ wallet: req.user.walletAddress, now: nowSeconds() }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/', authenticateToken, async (req, res, next) => {
+  try {
+    res.status(201).json(await issueRevive({ wallet: req.user.walletAddress, now: nowSeconds() }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/confirm', authenticateToken, async (req, res, next) => {
+  try {
+    const signature = typeof req.body?.signature === 'string' ? req.body.signature : '';
+    if (!signature) return res.status(400).json({ error: 'BadRequest', message: 'signature is required' });
+    const result = await confirmRevive({ wallet: req.user.walletAddress, signature });
+    res.status(result.confirmed ? 200 : 202).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Maps ShopError to its HTTP status; everything else falls through to the app's error handler. */
+router.use((err, req, res, next) => {
+  if (err instanceof ShopError) {
+    return res.status(err.status).json({ error: 'Tide', code: err.code, message: err.message, ...err.extra });
+  }
+  next(err);
+});
+
+export default router;

@@ -52,13 +52,32 @@ function defaultPlayer(wallet) {
   };
 }
 
+/**
+ * The seven catalog items of design doc §1, all active, in the raw shape `chain/readers.js#getCatalog`
+ * returns (`kind` 0 = variant, 1 = skin; `price` in base units) - a reasonable default so most tests
+ * need not build their own catalog.
+ */
+function defaultCatalog() {
+  return [
+    { id: 0, kind: 0, price: 40_000_000n, active: true }, // Harpoon
+    { id: 1, kind: 0, price: 60_000_000n, active: true }, // Anchor
+    { id: 2, kind: 0, price: 90_000_000n, active: true }, // Trident
+    { id: 3, kind: 1, price: 25_000_000n, active: true }, // Lime
+    { id: 4, kind: 1, price: 25_000_000n, active: true }, // Lilac
+    { id: 5, kind: 1, price: 35_000_000n, active: true }, // Ember
+    { id: 6, kind: 1, price: 50_000_000n, active: true }, // Abyss
+  ];
+}
+
 export const state = {
   config: defaultConfig(),
   players: new Map(),
   weekPools: new Map(),
   balances: new Map(),
   txs: new Map(),
-  calls: { createWeekPool: [], settleWeek: [], getWeekPool: [] },
+  confirmedTxs: new Map(),
+  catalog: defaultCatalog(),
+  calls: { createWeekPool: [], settleWeek: [], getWeekPool: [], buildPurchaseTx: [], buildReviveTx: [] },
   sentTxs: [],
   sendSignedError: null,
   solBalance: 1_000_000_000n, // 1 SOL - plenty, so the faucet's balance check passes by default
@@ -72,7 +91,9 @@ export function reset() {
   state.weekPools.clear();
   state.balances.clear();
   state.txs.clear();
-  state.calls = { createWeekPool: [], settleWeek: [], getWeekPool: [] };
+  state.confirmedTxs.clear();
+  state.catalog = defaultCatalog();
+  state.calls = { createWeekPool: [], settleWeek: [], getWeekPool: [], buildPurchaseTx: [], buildReviveTx: [] };
   state.sentTxs = [];
   state.sendSignedError = null;
   state.solBalance = 1_000_000_000n;
@@ -82,6 +103,16 @@ export function reset() {
 /** Merges `patch` into the current config (or clears it with `null`). */
 export function setConfig(patch) {
   state.config = patch === null ? null : { ...defaultConfig(), ...state.config, ...patch };
+}
+
+/** Replaces the fake catalog (or clears it with `null`, as if `init_catalog` never ran). */
+export function setCatalog(items) {
+  state.catalog = items;
+}
+
+/** Sets what `getConfirmedInstructions(signature)` reports: `{ status: 'confirmed', instructions }`, `{ status: 'failed' }`, or unset for `{ status: 'missing' }`. */
+export function setConfirmedTx(signature, value) {
+  state.confirmedTxs.set(signature, value);
 }
 
 /** Sets (or replaces) a wallet's player account, merged over the default shape. */
@@ -154,6 +185,15 @@ export async function getTransactionStatus(signature) {
   return tx.ok ? 'confirmed' : 'failed';
 }
 
+export async function getCatalog() {
+  if (!state.catalog) return null;
+  return { admin: 'Admin1111111111111111111111111111111111111', items: state.catalog, count: state.catalog.length, bump: 255 };
+}
+
+export async function getConfirmedInstructions(signature) {
+  return state.confirmedTxs.get(signature) ?? { status: 'missing' };
+}
+
 export async function getSolBalance() {
   return state.solBalance;
 }
@@ -169,6 +209,16 @@ export async function buildBuyTicketTx() {
 }
 
 export async function buildTicketTx() {
+  return { ...FIXED_ENVELOPE };
+}
+
+export async function buildPurchaseTx(wallet, args) {
+  state.calls.buildPurchaseTx.push({ wallet: keyOf(wallet), ...args, treasury: args?.treasury ? keyOf(args.treasury) : args?.treasury });
+  return { ...FIXED_ENVELOPE };
+}
+
+export async function buildReviveTx(wallet, args) {
+  state.calls.buildReviveTx.push({ wallet: keyOf(wallet), ...args, treasury: args?.treasury ? keyOf(args.treasury) : args?.treasury });
   return { ...FIXED_ENVELOPE };
 }
 

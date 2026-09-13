@@ -14,7 +14,9 @@ import { chainConfig } from './config.js';
 import { connection as defaultConnection } from './connection.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rawIdl = JSON.parse(readFileSync(join(__dirname, 'idl', 'sea_invaders.json'), 'utf8'));
+
+/** The raw, unparsed IDL - exported so `chain/verify.js` can look up instruction discriminators and account layouts without re-reading the file. */
+export const rawIdl = JSON.parse(readFileSync(join(__dirname, 'idl', 'sea_invaders.json'), 'utf8'));
 
 /** The Program client, built against `connection` (defaults to `chain/connection.js`). `PROGRAM_ID` overrides the IDL's own `address`. */
 export function program(connection = defaultConnection()) {

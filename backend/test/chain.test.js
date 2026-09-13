@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { ComputeBudgetProgram, Keypair, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { ComputeBudgetProgram, Keypair, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { AccountLayout, ACCOUNT_SIZE, AccountState, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { BN } from '@anchor-lang/core';
 import bs58 from 'bs58';
@@ -23,10 +23,13 @@ const { configPda, playerPda, weekPda, ata } = await import('../src/chain/pdas.j
 const { program } = await import('../src/chain/program.js');
 const {
   buildCreatePlayerTx, buildBuyTicketTx, buildSubmitDailyBestTx, buildCreateWeekPoolTx, buildSettleWeekTx,
+  buildPurchaseTx, buildReviveTx,
 } = await import('../src/chain/txs.js');
 const {
-  getConfig, getPlayer, getWeekPool, getVaultBalance, getTokenBalance,
+  getConfig, getPlayer, getWeekPool, getVaultBalance, getTokenBalance, getCatalog, getConfirmedInstructions,
 } = await import('../src/chain/readers.js');
+const { catalogPda } = await import('../src/chain/pdas.js');
+const { hasPurchase, hasRevive } = await import('../src/chain/verify.js');
 
 const { programId } = chainConfig();
 
@@ -278,5 +281,243 @@ describe('readers', () => {
     connection.setAccount(ata(owner, skrMint), { data, owner: TOKEN_PROGRAM_ID });
 
     expect(await getTokenBalance(owner, connection)).toBe(9_500_000n);
+  });
+
+  it('getCatalog returns null when the account does not exist, and trims items to `count` otherwise', async () => {
+    expect(await getCatalog(connection)).toBeNull();
+
+    const prog = program(connection);
+    const emptyItem = { id: 0, kind: 0, price: new BN(0), active: false };
+    const items = [
+      { id: 5, kind: 1, price: new BN(25_000_000), active: true },
+      ...Array.from({ length: 15 }, () => emptyItem),
+    ];
+    const data = await prog.coder.accounts.encode('catalog', {
+      admin: Keypair.generate().publicKey,
+      items,
+      count: 1,
+      bump: 255,
+    });
+    connection.setAccount(catalogPda(), { data, owner: programId });
+
+    const catalog = await getCatalog(connection);
+    expect(catalog.count).toBe(1);
+    expect(catalog.items).toEqual([{ id: 5, kind: 1, price: 25_000_000n, active: true }]);
+  });
+});
+
+describe('buildPurchaseTx', () => {
+  it('produces an unsigned v0 tx targeting PROGRAM_ID with the purchase discriminator, args and accounts', async () => {
+    const connection = new FakeConnection();
+    const wallet = Keypair.generate().publicKey;
+    const treasury = Keypair.generate().publicKey;
+    const week = 42;
+    const result = await buildPurchaseTx(wallet, { itemId: 3, maxPrice: 25_000_000n, week, treasury, connection });
+
+    const tx = decode(result.transaction);
+    expect(tx.message.staticAccountKeys[0].toBase58()).toBe(wallet.toBase58());
+    const ix = onlyInstruction(tx);
+    expect(tx.message.staticAccountKeys[ix.programIdIndex].toBase58()).toBe(programId.toBase58());
+    const data = Buffer.from(ix.data);
+    expect(data.subarray(0, 8)).toEqual(discriminatorOf('purchase'));
+    expect(data.readUInt8(8)).toBe(3);
+    expect(data.readBigUInt64LE(9)).toBe(25_000_000n);
+    for (const sig of tx.signatures) expect(sig.every((byte) => byte === 0)).toBe(true);
+
+    const { skrMint } = chainConfig();
+    const weekPoolKey = weekPda(week);
+    const keys = tx.message.staticAccountKeys.map((k) => k.toBase58());
+    expect(keys).toEqual(expect.arrayContaining([
+      wallet.toBase58(),
+      playerPda(wallet).toBase58(),
+      catalogPda().toBase58(),
+      weekPoolKey.toBase58(),
+      ata(weekPoolKey, skrMint).toBase58(),
+      treasury.toBase58(),
+      ata(wallet, skrMint).toBase58(),
+    ]));
+  });
+
+  it('composes create_player before purchase when createPlayer is true, for a wallet with no Player PDA yet', async () => {
+    const connection = new FakeConnection();
+    const wallet = Keypair.generate().publicKey;
+    const treasury = Keypair.generate().publicKey;
+    const result = await buildPurchaseTx(wallet, { itemId: 3, maxPrice: 25_000_000n, week: 42, treasury, createPlayer: true, connection });
+
+    const tx = decode(result.transaction);
+    expect(tx.message.compiledInstructions).toHaveLength(2);
+    const [createIx, purchaseIx] = tx.message.compiledInstructions;
+    expect(Buffer.from(createIx.data.subarray(0, 8))).toEqual(discriminatorOf('create_player'));
+    expect(Buffer.from(purchaseIx.data.subarray(0, 8))).toEqual(discriminatorOf('purchase'));
+  });
+
+  it('omits create_player when createPlayer is false/omitted', async () => {
+    const connection = new FakeConnection();
+    const wallet = Keypair.generate().publicKey;
+    const treasury = Keypair.generate().publicKey;
+    const result = await buildPurchaseTx(wallet, { itemId: 3, maxPrice: 25_000_000n, week: 42, treasury, connection });
+    expect(decode(result.transaction).message.compiledInstructions).toHaveLength(1);
+  });
+});
+
+describe('buildReviveTx', () => {
+  it('produces an unsigned v0 tx targeting PROGRAM_ID with the revive discriminator', async () => {
+    const connection = new FakeConnection();
+    const wallet = Keypair.generate().publicKey;
+    const treasury = Keypair.generate().publicKey;
+    const result = await buildReviveTx(wallet, { week: 42, treasury, connection });
+
+    const tx = decode(result.transaction);
+    expect(tx.message.staticAccountKeys[0].toBase58()).toBe(wallet.toBase58());
+    const ix = onlyInstruction(tx);
+    expect(tx.message.staticAccountKeys[ix.programIdIndex].toBase58()).toBe(programId.toBase58());
+    expect(Buffer.from(ix.data.subarray(0, 8))).toEqual(discriminatorOf('revive'));
+    for (const sig of tx.signatures) expect(sig.every((byte) => byte === 0)).toBe(true);
+  });
+
+  it('composes create_player before revive when createPlayer is true, for a wallet with no Player PDA yet', async () => {
+    const connection = new FakeConnection();
+    const wallet = Keypair.generate().publicKey;
+    const treasury = Keypair.generate().publicKey;
+    const result = await buildReviveTx(wallet, { week: 42, treasury, createPlayer: true, connection });
+
+    const tx = decode(result.transaction);
+    expect(tx.message.compiledInstructions).toHaveLength(2);
+    const [createIx, reviveIx] = tx.message.compiledInstructions;
+    expect(Buffer.from(createIx.data.subarray(0, 8))).toEqual(discriminatorOf('create_player'));
+    expect(Buffer.from(reviveIx.data.subarray(0, 8))).toEqual(discriminatorOf('revive'));
+  });
+
+  it('omits create_player when createPlayer is false/omitted', async () => {
+    const connection = new FakeConnection();
+    const wallet = Keypair.generate().publicKey;
+    const treasury = Keypair.generate().publicKey;
+    const result = await buildReviveTx(wallet, { week: 42, treasury, connection });
+    expect(decode(result.transaction).message.compiledInstructions).toHaveLength(1);
+  });
+});
+
+describe('getConfirmedInstructions', () => {
+  it('returns missing/failed/confirmed exactly like getTransactionStatus, plus flattened instructions', async () => {
+    const connection = new FakeConnection();
+    const calls = [];
+    connection.getTransaction = async (signature) => {
+      calls.push(signature);
+      if (signature === 'missing-sig') return null;
+      if (signature === 'failed-sig') return { meta: { err: { InstructionError: [0, 'Custom'] } }, transaction: { message: { staticAccountKeys: [], compiledInstructions: [] } } };
+      const wallet = Keypair.generate().publicKey;
+      const treasury = Keypair.generate().publicKey;
+      const { transaction } = await buildPurchaseTx(wallet, { itemId: 3, maxPrice: 25_000_000n, week: 1, treasury, connection: new FakeConnection() });
+      const tx = decode(transaction);
+      return { meta: { err: null }, transaction: { message: tx.message } };
+    };
+
+    expect(await getConfirmedInstructions('missing-sig', connection)).toEqual({ status: 'missing' });
+    expect(await getConfirmedInstructions('failed-sig', connection)).toEqual({ status: 'failed' });
+
+    const result = await getConfirmedInstructions('good-sig', connection);
+    expect(result.status).toBe('confirmed');
+    expect(result.instructions).toHaveLength(1);
+    expect(result.instructions[0].programId).toBe(programId.toBase58());
+    expect(Buffer.from(result.instructions[0].data.subarray(0, 8))).toEqual(discriminatorOf('purchase'));
+    expect(calls).toEqual(['missing-sig', 'failed-sig', 'good-sig']);
+  });
+});
+
+describe('chain/verify', () => {
+  async function purchaseInstructions(wallet, { itemId = 3, maxPrice = 25_000_000n } = {}) {
+    const treasury = Keypair.generate().publicKey;
+    const { transaction } = await buildPurchaseTx(wallet, { itemId, maxPrice, week: 1, treasury, connection: new FakeConnection() });
+    return (await getConfirmedInstructions('sig', {
+      getTransaction: async () => ({ meta: { err: null }, transaction: { message: decode(transaction).message } }),
+    })).instructions;
+  }
+
+  async function reviveInstructions(wallet) {
+    const treasury = Keypair.generate().publicKey;
+    const { transaction } = await buildReviveTx(wallet, { week: 1, treasury, connection: new FakeConnection() });
+    return (await getConfirmedInstructions('sig', {
+      getTransaction: async () => ({ meta: { err: null }, transaction: { message: decode(transaction).message } }),
+    })).instructions;
+  }
+
+  it('hasPurchase is true for a matching wallet+item, false for a wrong wallet or a wrong item', async () => {
+    const wallet = Keypair.generate().publicKey.toBase58();
+    const other = Keypair.generate().publicKey.toBase58();
+    const instructions = await purchaseInstructions(new PublicKey(wallet), { itemId: 3 });
+
+    expect(hasPurchase(instructions, { wallet, itemId: 3 })).toBe(true);
+    expect(hasPurchase(instructions, { wallet: other, itemId: 3 })).toBe(false);
+    expect(hasPurchase(instructions, { wallet, itemId: 4 })).toBe(false);
+  });
+
+  it('hasPurchase is false for a foreign-program instruction', async () => {
+    const wallet = Keypair.generate().publicKey;
+    const transferIx = SystemProgram.transfer({ fromPubkey: wallet, toPubkey: wallet, lamports: 1 });
+    const message = new TransactionMessage({
+      payerKey: wallet, recentBlockhash: '9BFbBLgQ5FLdTsg3D96oXTQmuGaEjkCJVAeDN9nWzPqi', instructions: [transferIx],
+    }).compileToV0Message();
+    const instructions = (await getConfirmedInstructions('sig', {
+      getTransaction: async () => ({ meta: { err: null }, transaction: { message } }),
+    })).instructions;
+    expect(hasPurchase(instructions, { wallet: wallet.toBase58(), itemId: 3 })).toBe(false);
+  });
+
+  it('hasPurchase is false for a wrong-instruction transaction (revive instead of purchase)', async () => {
+    const wallet = Keypair.generate().publicKey;
+    const instructions = await reviveInstructions(wallet);
+    expect(hasPurchase(instructions, { wallet: wallet.toBase58(), itemId: 3 })).toBe(false);
+  });
+
+  it('hasRevive is true for a matching wallet, false for a wrong wallet or a wrong instruction', async () => {
+    const wallet = Keypair.generate().publicKey;
+    const other = Keypair.generate().publicKey.toBase58();
+    const instructions = await reviveInstructions(wallet);
+
+    expect(hasRevive(instructions, { wallet: wallet.toBase58() })).toBe(true);
+    expect(hasRevive(instructions, { wallet: other })).toBe(false);
+
+    const purchaseIx = await purchaseInstructions(wallet);
+    expect(hasRevive(purchaseIx, { wallet: wallet.toBase58() })).toBe(false);
+  });
+
+  it('hasPurchase is false for our purchase discriminator, the right wallet and item, under a foreign program id', async () => {
+    // Everything but the program id is exactly what a real purchase looks like - this is the test
+    // that would go green (wrongly) if the `ix.programId === programIdStr` check were ever removed
+    // from `chain/verify.js`'s `matchingInstructions`.
+    const wallet = Keypair.generate().publicKey;
+    const real = await purchaseInstructions(wallet, { itemId: 3 });
+    const spoofed = real.map((ix) => ({ ...ix, programId: Keypair.generate().publicKey.toBase58() }));
+    expect(hasPurchase(spoofed, { wallet: wallet.toBase58(), itemId: 3 })).toBe(false);
+  });
+
+  it('hasPurchase checks every matching instruction, not just the first: a tx with two purchases confirms either item', async () => {
+    const wallet = Keypair.generate().publicKey;
+    const treasury = Keypair.generate().publicKey;
+    const { skrMint } = chainConfig();
+    const weekPoolKey = weekPda(1);
+    const connection = new FakeConnection();
+    async function purchaseIx(itemId) {
+      return program(connection)
+        .methods.purchase(itemId, new BN(1_000_000))
+        .accountsPartial({
+          wallet, config: configPda(), player: playerPda(wallet), catalog: catalogPda(),
+          weekPool: weekPoolKey, vault: ata(weekPoolKey, skrMint), treasury,
+          walletToken: ata(wallet, skrMint), skrMint, tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .instruction();
+    }
+    const message = new TransactionMessage({
+      payerKey: wallet,
+      recentBlockhash: '9BFbBLgQ5FLdTsg3D96oXTQmuGaEjkCJVAeDN9nWzPqi',
+      instructions: [await purchaseIx(3), await purchaseIx(4)],
+    }).compileToV0Message();
+    const instructions = (await getConfirmedInstructions('sig', {
+      getTransaction: async () => ({ meta: { err: null }, transaction: { message } }),
+    })).instructions;
+
+    expect(hasPurchase(instructions, { wallet: wallet.toBase58(), itemId: 3 })).toBe(true);
+    expect(hasPurchase(instructions, { wallet: wallet.toBase58(), itemId: 4 })).toBe(true);
+    expect(hasPurchase(instructions, { wallet: wallet.toBase58(), itemId: 5 })).toBe(false);
   });
 });

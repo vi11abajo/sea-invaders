@@ -37,4 +37,15 @@ describe('migration list', () => {
     expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS campaign_progress/);
     expect(sql).toMatch(/user_id INTEGER PRIMARY KEY REFERENCES users\(id\)/);
   });
+
+  it('runs 008 after 007', () => {
+    const order = [...runner.matchAll(/'(\d{3}_[a-z_]+\.sql)'/g)].map((m) => m[1]);
+    expect(order.indexOf('008_loadout.sql')).toBe(order.indexOf('007_campaign_progress.sql') + 1);
+  });
+
+  it('008 creates player_loadout', () => {
+    const sql = readFileSync(new URL('../migrations/008_loadout.sql', import.meta.url), 'utf8');
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS player_loadout/);
+    expect(sql).toMatch(/wallet_address VARCHAR\(64\) PRIMARY KEY/);
+  });
 });

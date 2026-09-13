@@ -10,6 +10,10 @@ import dailyRoutes from './routes/daily.js';
 import campaignRoutes from './routes/campaign.js';
 import siwsRoutes from './routes/siws.js';
 import devnetRoutes from './routes/devnet.js';
+import shopRoutes from './routes/shop.js';
+import profileRoutes from './routes/profile.js';
+import reviveRoutes from './routes/revive.js';
+import swapRoutes from './routes/swap.js';
 import { currentCluster } from './chain/config.js';
 
 /** Builds the Express app without listening, so tests can drive it with supertest. */
@@ -47,6 +51,10 @@ export function createApp() {
   app.use('/api/leaderboard', leaderboardRoutes);
   app.use('/api/daily', dailyRoutes);
   app.use('/api/campaign', campaignRoutes);
+  app.use('/api/shop', shopRoutes);
+  app.use('/api/profile', profileRoutes);
+  app.use('/api/revive', reviveRoutes);
+  app.use('/api/swap', swapRoutes);
   if (currentCluster() === 'devnet') {
     app.use('/api/devnet', devnetRoutes);
   }

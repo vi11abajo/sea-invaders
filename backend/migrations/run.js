@@ -28,7 +28,8 @@ async function runMigrations() {
       '004_farcaster_migration.sql',
       '005_solana_ranked_runs.sql',
       '006_chain_records.sql',
-      '007_campaign_progress.sql'
+      '007_campaign_progress.sql',
+      '008_loadout.sql'
     ];
 
     // Execute each migration

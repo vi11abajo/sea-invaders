@@ -5,7 +5,8 @@ import { getAccount, TokenAccountNotFoundError } from '@solana/spl-token';
 import { program as buildProgram } from './program.js';
 import { connection as defaultConnection } from './connection.js';
 import { chainConfig } from './config.js';
-import { configPda, playerPda, weekPda, ata } from './pdas.js';
+import { catalogPda, configPda, playerPda, weekPda, ata } from './pdas.js';
+import { flattenInstructions } from './flatten.js';
 
 const toBigInt = (bn) => BigInt(bn.toString());
 const toNumber = (bn) => Number(bn.toString());
@@ -48,6 +49,23 @@ export async function getPlayer(wallet, connection = defaultConnection()) {
     inventory: toBigInt(acct.inventory),
     seeker: acct.seeker,
     lastReplayHash: Array.from(acct.lastReplayHash),
+  };
+}
+
+/** The singleton `catalog` account, or `null` if it has not been created yet. `items` is trimmed to `count` entries. */
+export async function getCatalog(connection = defaultConnection()) {
+  const acct = await buildProgram(connection).account.catalog.fetchNullable(catalogPda());
+  if (!acct) return null;
+  return {
+    admin: acct.admin.toBase58(),
+    items: acct.items.slice(0, acct.count).map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      price: toBigInt(item.price),
+      active: item.active,
+    })),
+    count: acct.count,
+    bump: acct.bump,
   };
 }
 
@@ -96,4 +114,22 @@ export async function getTransactionStatus(signature, connection = defaultConnec
   const tx = await connection.getTransaction(signature, { maxSupportedTransactionVersion: 0, commitment: 'confirmed' });
   if (!tx) return 'missing';
   return tx.meta?.err ? 'failed' : 'confirmed';
+}
+
+/**
+ * Fetches a confirmed transaction and flattens its instructions to `{ programId, accountKeys, data }`
+ * (base58 keys, a raw `Buffer` of instruction data) - the shape `chain/verify.js` inspects to check
+ * program id, instruction discriminator, args and payer before a `confirm*` endpoint touches its
+ * cache or DB (see the design doc §6 / global-constraints.md's Phase 3B additions). Same
+ * missing/failed/confirmed states as `getTransactionStatus`. Resolves address-lookup-table accounts
+ * via `meta.loadedAddresses` so a v0 tx that used one (e.g. the swap-composed transaction) still
+ * flattens correctly, not just the always-static tickets/purchase/revive transactions.
+ */
+export async function getConfirmedInstructions(signature, connection = defaultConnection()) {
+  const tx = await connection.getTransaction(signature, { maxSupportedTransactionVersion: 0, commitment: 'confirmed' });
+  if (!tx) return { status: 'missing' };
+  if (tx.meta?.err) return { status: 'failed' };
+  const message = tx.transaction.message;
+  const keys = message.getAccountKeys({ accountKeysFromLookups: tx.meta.loadedAddresses });
+  return { status: 'confirmed', instructions: flattenInstructions(message, keys) };
 }

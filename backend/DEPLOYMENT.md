@@ -378,8 +378,8 @@ commit or print the real `backend/.env`).
 | `DAILY_FREE_ATTEMPTS` | No | `0` | Free ranked attempts per UTC day, on top of any on-chain ticket. **In production this is `0`: free attempts cannot be recorded on chain**, so any non-zero value here would let a run be played without a ticket but with nowhere to record it. |
 | `AUTH_DOMAIN` | No | `seainvaders.xyz` | Sign-In With Solana: the domain shown to the wallet and checked by the server; must match the identity the app presents (`mobile/src/api/config.ts`). |
 | `AUTH_URI` | No | `https://seainvaders.xyz` | Sign-In With Solana: the URI shown to the wallet and checked by the server. |
-| `JUPITER_API_KEY` | No (not yet read by any route) | — | Sent as the `x-api-key` header to Jupiter's swap API; reserved for a not-yet-implemented in-app swap feature. Server-side only, never `EXPO_PUBLIC_*`. |
-| `SOLANA_CLUSTER` | No | `devnet` | `devnet` or `mainnet`; also gates whether `/api/devnet/*` (the faucet) is mounted at all. Set explicitly in production so it is never left to the default by accident. |
+| `JUPITER_API_KEY` | No | — | Sent as the `x-api-key` header on `POST /api/swap/quote`'s calls to Jupiter's swap API (`quoteSwap` in `services/swap.js`); never returned to clients. Server-side only, never `EXPO_PUBLIC_*`. Swap itself is gated (see below), so this is only read on `mainnet`. |
+| `SOLANA_CLUSTER` | No | `devnet` | `devnet` or `mainnet`; also gates whether `/api/devnet/*` (the faucet) is mounted at all, and whether `POST /api/swap/quote` is available at all - the SOL→SKR swap only ever makes sense once the deployment has actually moved to `mainnet`, so on any other value the route answers `409 { error: 'swap_unavailable' }` without touching Jupiter (`services/swap.js#swapAvailable`). Set explicitly in production so it is never left to the default by accident. |
 | `SOLANA_RPC_URL` | Yes | — | RPC endpoint used for all chain reads/writes. |
 | `PROGRAM_ID` | Yes | — | The `sea_invaders` Anchor program's deployed address. |
 | `SKR_MINT` | Yes | — | The SKR token mint used for tickets and payouts. |

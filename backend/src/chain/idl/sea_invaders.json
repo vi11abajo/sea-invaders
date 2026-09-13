@@ -428,6 +428,81 @@
       ]
     },
     {
+      "name": "init_catalog",
+      "discriminator": [
+        92,
+        191,
+        123,
+        159,
+        184,
+        89,
+        222,
+        156
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "catalog",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  116,
+                  97,
+                  108,
+                  111,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "CatalogArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "init_config",
       "discriminator": [
         23,
@@ -494,6 +569,314 @@
           "type": {
             "defined": {
               "name": "ConfigArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "purchase",
+      "discriminator": [
+        21,
+        93,
+        113,
+        154,
+        193,
+        160,
+        242,
+        168
+      ],
+      "accounts": [
+        {
+          "name": "wallet",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "player"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "catalog",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  116,
+                  97,
+                  108,
+                  111,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "week_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "week_pool.week",
+                "account": "WeekPool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "week_pool"
+          ]
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "wallet_token",
+          "writable": true
+        },
+        {
+          "name": "skr_mint",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "item_id",
+          "type": "u8"
+        },
+        {
+          "name": "max_price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "revive",
+      "discriminator": [
+        202,
+        187,
+        79,
+        18,
+        27,
+        117,
+        147,
+        82
+      ],
+      "accounts": [
+        {
+          "name": "wallet",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "player"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "week_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  101,
+                  101,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "week_pool.week",
+                "account": "WeekPool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "week_pool"
+          ]
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "wallet_token",
+          "writable": true
+        },
+        {
+          "name": "skr_mint",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_catalog",
+      "discriminator": [
+        227,
+        140,
+        21,
+        254,
+        40,
+        156,
+        133,
+        159
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "catalog"
+          ]
+        },
+        {
+          "name": "catalog",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  116,
+                  97,
+                  108,
+                  111,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "CatalogArgs"
             }
           }
         }
@@ -826,6 +1209,19 @@
   ],
   "accounts": [
     {
+      "name": "Catalog",
+      "discriminator": [
+        175,
+        32,
+        23,
+        106,
+        77,
+        71,
+        227,
+        200
+      ]
+    },
+    {
       "name": "Config",
       "discriminator": [
         155,
@@ -862,6 +1258,34 @@
         108,
         190,
         235
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "ItemPurchased",
+      "discriminator": [
+        33,
+        219,
+        12,
+        58,
+        205,
+        48,
+        63,
+        143
+      ]
+    },
+    {
+      "name": "Revived",
+      "discriminator": [
+        163,
+        35,
+        218,
+        188,
+        252,
+        52,
+        127,
+        130
       ]
     }
   ],
@@ -930,9 +1354,111 @@
       "code": 6012,
       "name": "NotUpgradeAuthority",
       "msg": "Only the program's upgrade authority may initialize the config"
+    },
+    {
+      "code": 6013,
+      "name": "AlreadyOwned",
+      "msg": "Item already owned"
+    },
+    {
+      "code": 6014,
+      "name": "UnknownItem",
+      "msg": "Unknown catalog item"
+    },
+    {
+      "code": 6015,
+      "name": "ItemInactive",
+      "msg": "Item is not active"
+    },
+    {
+      "code": 6016,
+      "name": "PriceChanged",
+      "msg": "Price has changed since it was quoted"
     }
   ],
   "types": [
+    {
+      "name": "Catalog",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "items",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "CatalogItem"
+                  }
+                },
+                16
+              ]
+            }
+          },
+          {
+            "name": "count",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CatalogArgs",
+      "docs": [
+        "`init_catalog`/`set_catalog`'s argument: a variable-length list (Borsh",
+        "handles the `Vec` natively - unlike `Catalog.items` above, this never",
+        "becomes on-chain account data by itself, so it does not need a fixed",
+        "`max_len`/`InitSpace`) copied into the account's fixed-size array by",
+        "`instructions::shop::build_items`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "items",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "CatalogItem"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "CatalogItem",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u8"
+          },
+          {
+            "name": "kind",
+            "type": "u8"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          }
+        ]
+      }
+    },
     {
       "name": "Config",
       "type": {
@@ -1075,6 +1601,30 @@
       }
     },
     {
+      "name": "ItemPurchased",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "item",
+            "type": "u8"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "week",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
       "name": "Player",
       "type": {
         "kind": "struct",
@@ -1140,6 +1690,30 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Revived",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "tide",
+            "type": "u8"
+          },
+          {
+            "name": "tide_at",
+            "type": "i64"
           }
         ]
       }

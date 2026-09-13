@@ -15,10 +15,11 @@
 //    authority, which fully signs before the caller sends it.
 import { ComputeBudgetProgram, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getOrCreateAssociatedTokenAccount, mintTo } from '@solana/spl-token';
+import { BN } from '@anchor-lang/core';
 import { program as buildProgram } from './program.js';
 import { connection as defaultConnection } from './connection.js';
 import { chainConfig } from './config.js';
-import { configPda, playerPda, weekPda, ata } from './pdas.js';
+import { catalogPda, configPda, playerPda, weekPda, ata } from './pdas.js';
 import { getConfig } from './readers.js';
 import { weekOf } from '../services/dailySeed.js';
 
@@ -70,16 +71,21 @@ export async function buildCreatePlayerTx(wallet, { connection = defaultConnecti
 /** `buy_ticket`. Unsigned; fee payer = wallet. `treasury` may be passed in to skip the `getConfig` round trip. */
 export async function buildBuyTicketTx(wallet, { week, treasury, connection = defaultConnection() } = {}) {
   const walletKey = toPublicKey(wallet);
-  const ix = await buyTicketInstruction(connection, walletKey, { week, treasury });
+  const ix = await buyTicketLikeInstruction(connection, 'buyTicket', walletKey, { week, treasury });
   return finalize(await buildEnvelope(connection, walletKey, [ix]));
 }
 
-async function buyTicketInstruction(connection, walletKey, { week, treasury }) {
+/**
+ * Builds an instruction for any method reusing the `BuyTicket` account set (`wallet`, `config`,
+ * `player`, `week_pool`, `vault`, `treasury`, `wallet_token`, `skr_mint`, `token_program`) with no
+ * args - `buy_ticket` and `revive` both do (see `instructions/tide.rs`).
+ */
+async function buyTicketLikeInstruction(connection, methodName, walletKey, { week, treasury }) {
   const { skrMint } = chainConfig();
   const treasuryKey = treasury ? toPublicKey(treasury) : toPublicKey((await getConfig(connection)).treasury);
   const weekPoolKey = weekPda(week);
   return buildProgram(connection)
-    .methods.buyTicket()
+    .methods[methodName]()
     .accountsPartial({
       wallet: walletKey,
       config: configPda(),
@@ -113,7 +119,55 @@ export async function buildTicketTx(wallet, { createPlayer, week, treasury, conn
   const walletKey = toPublicKey(wallet);
   const instructions = [];
   if (createPlayer) instructions.push(await createPlayerInstruction(connection, walletKey));
-  instructions.push(await buyTicketInstruction(connection, walletKey, { week, treasury }));
+  instructions.push(await buyTicketLikeInstruction(connection, 'buyTicket', walletKey, { week, treasury }));
+  return finalize(await buildEnvelope(connection, walletKey, instructions));
+}
+
+/**
+ * `create_player` (when `createPlayer` is true) + `purchase(item_id, max_price)`, composed into one
+ * v0 tx so a first-time buyer only signs once - both `purchase` and `revive` declare
+ * `player: Account<'info, Player>` with `has_one = wallet`, so a wallet with no `Player` PDA yet
+ * would otherwise fail on chain after paying the fee (`shop.rs`'s `Purchase`, `ticket.rs`'s
+ * `BuyTicket` which `revive` reuses) - exactly the gap `buildTicketTx` already closes for tickets.
+ * Unsigned; fee payer = wallet. `treasury` may be passed in to skip the `getConfig` round trip.
+ */
+export async function buildPurchaseTx(wallet, { itemId, maxPrice, week, treasury, createPlayer, connection = defaultConnection() } = {}) {
+  const walletKey = toPublicKey(wallet);
+  const { skrMint } = chainConfig();
+  const treasuryKey = treasury ? toPublicKey(treasury) : toPublicKey((await getConfig(connection)).treasury);
+  const weekPoolKey = weekPda(week);
+  const ix = await buildProgram(connection)
+    .methods.purchase(itemId, new BN(maxPrice.toString()))
+    .accountsPartial({
+      wallet: walletKey,
+      config: configPda(),
+      player: playerPda(walletKey),
+      catalog: catalogPda(),
+      weekPool: weekPoolKey,
+      vault: ata(weekPoolKey, skrMint),
+      treasury: treasuryKey,
+      walletToken: ata(walletKey, skrMint),
+      skrMint,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .instruction();
+  const instructions = [];
+  if (createPlayer) instructions.push(await createPlayerInstruction(connection, walletKey));
+  instructions.push(ix);
+  return finalize(await buildEnvelope(connection, walletKey, instructions));
+}
+
+/**
+ * `create_player` (when `createPlayer` is true) + `revive()`, composed the same way `buildPurchaseTx`
+ * composes `create_player` + `purchase` - `revive` reuses `buy_ticket`'s account set (no catalog),
+ * see `instructions/tide.rs`. Unsigned; fee payer = wallet.
+ */
+export async function buildReviveTx(wallet, { week, treasury, createPlayer, connection = defaultConnection() } = {}) {
+  const walletKey = toPublicKey(wallet);
+  const ix = await buyTicketLikeInstruction(connection, 'revive', walletKey, { week, treasury });
+  const instructions = [];
+  if (createPlayer) instructions.push(await createPlayerInstruction(connection, walletKey));
+  instructions.push(ix);
   return finalize(await buildEnvelope(connection, walletKey, instructions));
 }
 

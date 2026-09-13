@@ -28,6 +28,11 @@ export function weekPda(week) {
   return PublicKey.findProgramAddressSync([Buffer.from('week'), u32LE(week)], chainConfig().programId)[0];
 }
 
+/** The singleton `catalog` PDA (seeds = [b"catalog"]). */
+export function catalogPda() {
+  return PublicKey.findProgramAddressSync([Buffer.from('catalog')], chainConfig().programId)[0];
+}
+
 /** The associated token account for `owner` (a wallet or a PDA) and `mint`. Always allows an off-curve owner, since callers pass both wallets and PDAs (e.g. the week-pool vault). */
 export function ata(owner, mint) {
   return getAssociatedTokenAddressSync(toPublicKey(mint), toPublicKey(owner), true);
