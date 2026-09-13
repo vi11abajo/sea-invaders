@@ -8,6 +8,7 @@ import { confirmTicket, requestFaucet, requestTicket } from './src/api/daily';
 import { useSession } from './src/api/useSession';
 import { CampaignLevelScreen } from './src/campaign/CampaignLevelScreen';
 import { CampaignScreen } from './src/campaign/CampaignScreen';
+import { ReefScreen } from './src/campaign/ReefScreen';
 import { useCampaignSync } from './src/campaign/sync';
 import { useCampaign } from './src/campaign/useCampaign';
 import { DailyRunScreen } from './src/daily/DailyRunScreen';
@@ -21,7 +22,15 @@ import { useAppFonts } from './src/ui/fonts';
 import { UiGallery } from './src/ui/gallery/UiGallery';
 
 type Route = 'app' | 'selftest' | 'ui' | { kind: 'level'; id: number };
-type Screen = 'home' | 'practice' | 'daily' | 'leaderboard' | 'campaign' | { kind: 'level'; id: number; practice: boolean };
+type Screen =
+  | 'home' | 'practice' | 'daily' | 'leaderboard' | 'campaign'
+  | { kind: 'reef'; reef: number }
+  | { kind: 'level'; id: number; practice: boolean };
+
+/** The reef (1..5) that level `id` (1..30) belongs to. */
+function reefOf(id: number): number {
+  return Math.floor((id - 1) / 6) + 1;
+}
 
 /**
  * seainvaders://selftest opens the self-test, seainvaders://ui the design gallery,
@@ -112,6 +121,16 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
   // reach them before AsyncStorage resolves, so they briefly show the backdrop only.
   if (typeof screen === 'object') {
     if (campaign.progress === null) return <Backdrop />;
+    if (screen.kind === 'reef') {
+      return (
+        <ReefScreen
+          reef={screen.reef}
+          progress={campaign.progress}
+          onPlay={(id, practice) => setScreen({ kind: 'level', id, practice })}
+          onBack={() => setScreen('campaign')}
+        />
+      );
+    }
     return (
       <CampaignLevelScreen
         key={`${screen.id}-${screen.practice}-${levelAttempt}`}
@@ -124,8 +143,8 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
           setLevelAttempt((n) => n + 1);
           setScreen({ kind: 'level', id, practice: false });
         }}
-        onDone={() => setScreen('campaign')}
-        onExit={() => setScreen('campaign')}
+        onDone={() => setScreen({ kind: 'reef', reef: reefOf(screen.id) })}
+        onExit={() => setScreen({ kind: 'reef', reef: reefOf(screen.id) })}
       />
     );
   }
@@ -138,7 +157,7 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
       return (
         <CampaignScreen
           progress={campaign.progress}
-          onPlay={(id, practice) => setScreen({ kind: 'level', id, practice })}
+          onOpenReef={(reef) => setScreen({ kind: 'reef', reef })}
           onBack={home}
           synced={session === null || synced}
         />

@@ -6,7 +6,7 @@ import { Sheet } from '../ui/Sheet';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS } from '../ui/tokens';
 import { BOSS_NAMES } from '../game/bossNames';
-import { REEF_NAMES } from './CampaignScreen';
+import { REEF_NAMES } from './reefs';
 
 const FORMATION_NAMES: Record<Formation, string> = {
   grid: 'Grid', wedge: 'Wedge', wall: 'Wall', checker: 'Checker', columns: 'Columns', ring: 'Ring',

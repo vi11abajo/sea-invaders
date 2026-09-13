@@ -1,40 +1,41 @@
 import { Canvas, Image, type SkImage } from '@shopify/react-native-skia';
-import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
-import { currentLevelId, formatInt, livesForEntry, LEVELS, type CampaignProgress, type LevelSpec } from '@sea-invaders/core';
+import { livesForEntry, type CampaignProgress } from '@sea-invaders/core';
 import { useSprites } from '../game/sprites';
-import { ArtSlot } from '../ui/ArtSlot';
 import { Backdrop } from '../ui/Backdrop';
+import { Glass } from '../ui/Glass';
 import { Hearts } from '../ui/Hearts';
 import { Txt } from '../ui/Txt';
-import { COLORS, RADIUS, REEF_PROGRESS } from '../ui/tokens';
+import { COLORS, REEF_PROGRESS } from '../ui/tokens';
+import { REEF_LEGENDS, REEF_NAMES } from './reefs';
 
-/** Reef 1..5 display names: spec §7. Shared with LevelIntro and BossIntro. */
-export const REEF_NAMES = ['Kelp Shallows', 'Coral Ridge', 'Sunlit Trench', 'Crimson Deep', 'The Void'] as const;
+const BOSS_PORTRAIT_SIZE = 48;
+const ACCENT_WIDTH = 4;
+const REEF_COUNT = REEF_NAMES.length;
+const LEVELS_PER_REEF = 6;
+const LEVEL_COUNT = REEF_COUNT * LEVELS_PER_REEF;
 
-const NODE_SIZE = 48;
-const BOSS_NODE_SIZE = 72;
+type ReefState = 'cleared' | 'current' | 'ahead';
 
-type NodeState = 'locked' | 'current' | 'cleared';
-
-function nodeState(id: number, progress: CampaignProgress): NodeState {
-  if (id === currentLevelId(progress)) return 'current';
-  return progress.cleared[id - 1] ? 'cleared' : 'locked';
+function reefState(reef: number, progress: CampaignProgress): ReefState {
+  if (reef < progress.reef) return 'cleared';
+  if (reef === progress.reef) return 'current';
+  return 'ahead';
 }
 
 interface CampaignScreenProps {
   progress: CampaignProgress;
-  onPlay: (id: number, practice: boolean) => void;
+  onOpenReef: (reef: number) => void;
   onBack: () => void;
   /** False shows the "Not synced" hint; the caller passes true while signed out. */
   synced?: boolean;
 }
 
-/** The campaign map: five reef cards, each with its six level nodes. */
-export function CampaignScreen({ progress, onPlay, onBack, synced = true }: CampaignScreenProps) {
+/** The campaign home: five reef cards, each a short legend and its own clear progress. */
+export function CampaignScreen({ progress, onOpenReef, onBack, synced = true }: CampaignScreenProps) {
   const sprites = useSprites();
   const lives = livesForEntry(progress);
+  const clearedCount = progress.cleared.filter(Boolean).length;
 
   return (
     <View style={styles.root}>
@@ -46,6 +47,9 @@ export function CampaignScreen({ progress, onPlay, onBack, synced = true }: Camp
         <Txt variant="screenTitle">Campaign</Txt>
         <View style={styles.heartsSlot}>
           <Hearts lives={lives} />
+          <Txt variant="mono" tone="secondary">
+            {`${clearedCount} / ${LEVEL_COUNT} cleared`}
+          </Txt>
         </View>
       </View>
       {!synced && (
@@ -59,10 +63,12 @@ export function CampaignScreen({ progress, onPlay, onBack, synced = true }: Camp
             key={name}
             reef={i + 1}
             name={name}
-            progress={progress}
+            legend={REEF_LEGENDS[i]}
+            state={reefState(i + 1, progress)}
+            clearedInReef={progress.level - 1}
             // Static preview: the first of the two extracted GIF frames (draw.ts animates both in-run).
             bossSprite={sprites?.bosses[i]?.[0] ?? null}
-            onPlay={onPlay}
+            onPress={() => onOpenReef(i + 1)}
           />
         ))}
       </ScrollView>
@@ -73,109 +79,60 @@ export function CampaignScreen({ progress, onPlay, onBack, synced = true }: Camp
 interface ReefCardProps {
   reef: number;
   name: string;
-  progress: CampaignProgress;
+  legend: string;
+  state: ReefState;
+  /** Levels already cleared in the *current* reef; only meaningful when `state === 'current'`. */
+  clearedInReef: number;
   bossSprite: SkImage | null;
-  onPlay: (id: number, practice: boolean) => void;
-}
-
-function ReefCard({ reef, name, progress, bossSprite, onPlay }: ReefCardProps) {
-  const first = (reef - 1) * 6 + 1;
-  const ids = Array.from({ length: 6 }, (_, i) => first + i);
-  const color = REEF_PROGRESS[reef - 1];
-
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardHead}>
-        <View style={[styles.reefDot, { backgroundColor: color }]} />
-        <Txt variant="headline">{name}</Txt>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.nodes}>
-        {ids.map((id) => {
-          const level = LEVELS[id - 1];
-          const state = nodeState(id, progress);
-          const boss = level.boss !== undefined;
-          return (
-            <LevelNode
-              key={id}
-              level={level}
-              state={state}
-              boss={boss}
-              bossSprite={boss ? bossSprite : null}
-              color={color}
-              best={progress.best[id - 1] ?? 0}
-              onPress={() => onPlay(id, state === 'cleared')}
-            />
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
-
-interface LevelNodeProps {
-  level: LevelSpec;
-  state: NodeState;
-  boss: boolean;
-  bossSprite: SkImage | null;
-  color: string;
-  best: number;
   onPress: () => void;
 }
 
-function LevelNode({ level, state, boss, bossSprite, color, best, onPress }: LevelNodeProps) {
-  const size = boss ? BOSS_NODE_SIZE : NODE_SIZE;
-  const pulse = useSharedValue(1);
-
-  useEffect(() => {
-    if (state !== 'current') return;
-    pulse.value = withRepeat(withTiming(0.4, { duration: 900, easing: Easing.inOut(Easing.quad) }), -1, true);
-    return () => {
-      pulse.value = 1;
-    };
-  }, [state, pulse]);
-
-  const ringStyle = useAnimatedStyle(() => ({ opacity: state === 'current' ? pulse.value : 0 }));
-  const tappable = state !== 'locked';
+function ReefCard({ reef, name, legend, state, clearedInReef, bossSprite, onPress }: ReefCardProps) {
+  const color = REEF_PROGRESS[reef - 1];
 
   return (
-    <View style={styles.nodeWrap}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={boss ? `Level ${level.id} boss` : `Level ${level.id}`}
-        accessibilityState={{ disabled: !tappable }}
-        disabled={!tappable}
-        onPress={onPress}
-        style={[
-          styles.node,
-          { width: size, height: size, borderRadius: size / 2 },
-          state === 'locked' && styles.nodeLocked,
-          state !== 'locked' && { borderColor: color },
-        ]}
-      >
-        {boss && bossSprite ? (
-          <Canvas style={{ width: size, height: size }}>
-            <Image image={bossSprite} x={0} y={0} width={size} height={size} fit="contain" />
-          </Canvas>
-        ) : boss ? (
-          <ArtSlot size={size * 0.7} />
-        ) : (
-          <Txt variant="mono" tone={state === 'locked' ? 'tertiary' : 'primary'}>
-            {level.index}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Reef ${reef}, ${name}`}
+      onPress={onPress}
+      style={state === 'ahead' && styles.cardAhead}
+    >
+      <Glass style={[styles.card, state === 'current' && styles.cardCurrent]}>
+        <View style={[styles.accent, { backgroundColor: color }]} />
+        <View style={styles.cardBody}>
+          <View style={styles.cardRow}>
+            <Txt variant="button" tone="primary" style={styles.reefTitle} numberOfLines={1}>
+              {`Reef ${reef} · ${name}`}
+            </Txt>
+            {bossSprite ? (
+              <Canvas style={styles.bossPortrait}>
+                <Image image={bossSprite} x={0} y={0} width={BOSS_PORTRAIT_SIZE} height={BOSS_PORTRAIT_SIZE} fit="contain" />
+              </Canvas>
+            ) : (
+              <View style={styles.bossPortrait} />
+            )}
+          </View>
+          <Txt variant="secondary" tone="secondary" numberOfLines={2}>
+            {legend}
           </Txt>
-        )}
-        {state === 'current' && (
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.ring, { borderRadius: size / 2 + 4, borderColor: color }, ringStyle]}
-          />
-        )}
-      </Pressable>
-      {state === 'cleared' && (
-        <Txt variant="monoSmall" tone="secondary">
-          {formatInt(best)}
-        </Txt>
-      )}
-    </View>
+          {state === 'cleared' && (
+            <Txt variant="monoSmall" tone="success">
+              Cleared
+            </Txt>
+          )}
+          {state === 'current' && (
+            <Txt variant="monoSmall" tone="secondary">
+              {`${clearedInReef} / ${LEVELS_PER_REEF} levels`}
+            </Txt>
+          )}
+          {state === 'ahead' && (
+            <Txt variant="monoSmall" tone="tertiary">
+              Locked
+            </Txt>
+          )}
+        </View>
+      </Glass>
+    </Pressable>
   );
 }
 
@@ -189,20 +146,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
   syncHint: { paddingHorizontal: 16, marginBottom: 4 },
-  heartsSlot: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
-  list: { paddingHorizontal: 16, paddingBottom: 28, gap: 14 },
-  card: {
-    borderRadius: RADIUS.card, padding: 14, gap: 12, backgroundColor: COLORS.glass,
-    borderWidth: 1, borderColor: COLORS.glassBorder,
-  },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  reefDot: { width: 8, height: 8, borderRadius: 4 },
-  nodes: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  nodeWrap: { alignItems: 'center', gap: 4 },
-  node: {
-    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-    backgroundColor: COLORS.hudGlass, borderWidth: 1.5, borderColor: COLORS.glassBorder,
-  },
-  nodeLocked: { opacity: 0.4 },
-  ring: { position: 'absolute', top: -4, left: -4, right: -4, bottom: -4, borderWidth: 2 },
+  heartsSlot: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 10 },
+  list: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
+  card: { flexDirection: 'row' },
+  cardCurrent: { borderWidth: 1.5, borderColor: COLORS.text, backgroundColor: 'rgba(255,255,255,0.14)' },
+  cardAhead: { opacity: 0.5 },
+  accent: { width: ACCENT_WIDTH },
+  cardBody: { flex: 1, padding: 12, gap: 8 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  reefTitle: { flex: 1, fontSize: 15 },
+  bossPortrait: { width: BOSS_PORTRAIT_SIZE, height: BOSS_PORTRAIT_SIZE },
 });
