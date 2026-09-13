@@ -3,7 +3,7 @@ import {
   type SkImage, type SkPath,
 } from '@shopify/react-native-skia';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { BackHandler, Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   Easing, interpolate, useAnimatedStyle, useDerivedValue, useSharedValue, withRepeat, withTiming, type SharedValue,
 } from 'react-native-reanimated';
@@ -102,6 +102,18 @@ export function CampaignScreen({ progress, initialReef, onPlay, onBack }: Campai
 
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const bossSprite = sprites?.bosses[reef - 1]?.[0] ?? null;
+
+  // System back: closes an open level/boss sheet first; only leaves to Home once none is open.
+  // Local to this screen (like every other screen's own handler in this app) — App.tsx registers
+  // no global BackHandler, so there is nothing here to conflict with.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (sheet !== null) setSheet(null);
+      else onBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [sheet, onBack]);
 
   return (
     <Animated.View style={[styles.root, rise]}>
