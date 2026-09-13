@@ -1,9 +1,9 @@
-import { BlendMode, FilterMode, MipmapMode, PaintStyle, Skia, TileMode } from '@shopify/react-native-skia';
+import { BlendMode, BlurStyle, ClipOp, FilterMode, MipmapMode, PaintStyle, Skia, TileMode } from '@shopify/react-native-skia';
 import {
   BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, DROP, ENEMY_SHOT, KIND_INDEX, RARITY_ORDER, OCTOPI,
   type BoostType, type Frame, type Layout,
 } from '@sea-invaders/core';
-import { COLORS } from '../ui/tokens';
+import { COLORS, SIGNATURE_GRADIENT } from '../ui/tokens';
 import { PIXEL_RATIO, type PreparedSprite, type PreparedSprites } from './sprites';
 
 type Recorder = ReturnType<typeof Skia.PictureRecorder>;
@@ -76,17 +76,77 @@ const SHIELD_COLOR = Skia.Color('rgba(0,221,255,0.6)');
 const PLAYER_SHIELD_STROKE = 4;
 const BOSS_SHIELD_STROKE = 6;
 
-/** INVINCIBILITY indication (spec M6): legacy rainbow outline, cycling every 6 ticks. The outline's
- * own `SkRRect` is precomputed per Octopi pose in `sprites.ts` (`PreparedSprites.invincibleOutline`)
- * and only translated here — never rebuilt per frame. */
-const INVINCIBLE_COLORS = ['#ff0000', '#ff8800', '#ffff00', '#00ff00', '#0088ff', '#0000ff', '#8800ff'].map((hex) => Skia.Color(hex));
-const INVINCIBLE_STROKE_W = 3;
+/**
+ * `stops` as a closed loop of `perSegment` evenly interpolated `#RRGGBB` colours between each pair of
+ * neighbours (the last stop blends back into the first), built once on the JS thread.
+ */
+function colorLoop(stops: readonly string[], perSegment: number): string[] {
+  const rgb = stops.map((hex) => {
+    const v = Number.parseInt(hex.slice(1, 7), 16);
+    return [(v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff] as const;
+  });
+  const out: string[] = [];
+  for (let i = 0; i < rgb.length; i++) {
+    const a = rgb[i]!;
+    const b = rgb[(i + 1) % rgb.length]!;
+    for (let s = 0; s < perSegment; s++) {
+      const t = s / perSegment;
+      const ch = [0, 1, 2].map((c) => Math.round(a[c]! + (b[c]! - a[c]!) * t).toString(16).padStart(2, '0'));
+      out.push(`#${ch.join('')}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * INVINCIBILITY indication (owner ruling 2026-09-13): Octopi itself flashes through the Solana
+ * signature gradient. Its silhouette is drawn again over the sprite in one colour of the gradient
+ * loop (`SrcIn` keeps the sprite's own alpha, so every skin and both poses work), the colour stepping
+ * every `INVINCIBLE_STEP_TICKS` and the overlay pulsing between `INVINCIBLE_ALPHA_MIN` and
+ * `INVINCIBLE_ALPHA_MAX` once per `INVINCIBLE_PULSE_TICKS`. One colour filter per step of the loop is
+ * built here, never per frame; the rising sparks take the same colour.
+ */
+const INVINCIBLE_LOOP = colorLoop(SIGNATURE_GRADIENT.colors, 4);
+const INVINCIBLE_COLORS = INVINCIBLE_LOOP.map((hex) => Skia.Color(hex));
+const INVINCIBLE_FILTERS = INVINCIBLE_LOOP.map((hex) => Skia.ColorFilter.MakeBlend(Skia.Color(hex), BlendMode.SrcIn));
+const INVINCIBLE_STEP_TICKS = 2;
+const INVINCIBLE_PULSE_TICKS = 20;
+const INVINCIBLE_ALPHA_MIN = 0.25;
+const INVINCIBLE_ALPHA_MAX = 0.8;
 const INVINCIBLE_SPARK_COUNT = 4;
 const INVINCIBLE_SPARK_RISE_TICKS = 18;
-/** How far a spark rises over its lifetime, and its size range, both in dp (unscaled, like the outline). */
+/** How far a spark rises over its lifetime, and its size range, both in dp (unscaled). */
 const INVINCIBLE_SPARK_RISE = 24;
 const INVINCIBLE_SPARK_MIN_R = 2;
 const INVINCIBLE_SPARK_MAX_R = 4;
+
+/**
+ * Where and when WAVE_BLAST fired: the tick of its `boost_pickup` event and Octopi's position then,
+ * in milli-units. `GameScreen` records it; `drawFrame` animates the shock rings from it.
+ */
+export interface WaveBlast {
+  tick: number;
+  x: number;
+  y: number;
+}
+
+/**
+ * WAVE_BLAST (legacy `boost-effects.js` `createWaveBlastEffect`): three shock rings expand from where
+ * Octopi picked the boost up, each radius growing linearly to `reach` x the field's longer side over
+ * `life` ticks while fading out (alpha = 1 - progress), with a soft glow (legacy `shadowBlur`); the
+ * rings are `BLAST_STROKE_W * intensity` wide and each gets an inner ring at 0.8 of its radius. Legacy
+ * lives 0.5 / 0.4 / 0.3 s are 30 / 24 / 18 ticks; its 10 / 20 ms stagger rounds to one tick. The glow
+ * mask filters are built here once.
+ */
+const BLAST_RINGS = [
+  { color: Skia.Color('#0088ff'), life: 30, delay: 0, reach: 1, intensity: 1 },
+  { color: Skia.Color('#00aaff'), life: 24, delay: 1, reach: 0.7, intensity: 0.6 },
+  { color: Skia.Color('#66ccff'), life: 18, delay: 1, reach: 0.5, intensity: 0.3 },
+].map((ring) => ({ ...ring, glow: Skia.MaskFilter.MakeBlur(BlurStyle.Normal, Math.max(2, 8 * ring.intensity), true) }));
+const BLAST_STROKE_W = 8;
+const BLAST_INNER_W = 4;
+/** The inner ring only shows once the ring has opened this far (dp), as in the legacy. */
+const BLAST_INNER_FROM = 20;
 
 /** Legacy black-hole look (spec M8): base/pulse glow radius in units; `pulse = 0.5 + 0.5*sin(tick/4)`. */
 const WELL_GLOW_BASE = 1470;
@@ -197,6 +257,7 @@ export function drawFrame(
   h: number,
   sprites: PreparedSprites,
   fieldRect: Rect,
+  blast: WaveBlast | null,
 ) {
   'worklet';
   const canvas = recorder.beginRecording(Skia.XYWHRect(0, 0, w, h));
@@ -463,6 +524,24 @@ export function drawFrame(
   if (octopiSprite.filter !== null) paint.setColorFilter(octopiSprite.filter);
   drawSpriteAt(canvas, paint, octopiSprite, sx - octopiSprite.w / 2, sy - octopiSprite.h / 2);
   if (octopiSprite.filter !== null) paint.setColorFilter(null);
+
+  // INVINCIBILITY: Octopi's silhouette again, in the current colour of the Solana gradient loop.
+  let invincible = false;
+  for (let i = 0; i < f.boosts.length; i += 2) {
+    if (f.boosts[i] === BOOST_INDEX.INVINCIBILITY) {
+      invincible = true;
+      break;
+    }
+  }
+  const invincibleStep = Math.floor(f.tick / INVINCIBLE_STEP_TICKS) % INVINCIBLE_FILTERS.length;
+  const invinciblePulse = 0.5 + 0.5 * Math.sin((f.tick / INVINCIBLE_PULSE_TICKS) * 2 * Math.PI);
+  if (invincible) {
+    paint.setColorFilter(INVINCIBLE_FILTERS[invincibleStep]!);
+    paint.setAlphaf(INVINCIBLE_ALPHA_MIN + (INVINCIBLE_ALPHA_MAX - INVINCIBLE_ALPHA_MIN) * invinciblePulse);
+    drawSpriteAt(canvas, paint, octopiSprite, sx - octopiSprite.w / 2, sy - octopiSprite.h / 2);
+    paint.setColorFilter(null);
+    paint.setAlphaf(1);
+  }
   if (DEV_HITBOX) {
     paint.setColor(SHOT_COLOR);
     paint.setAlphaf(0.6);
@@ -479,29 +558,9 @@ export function drawFrame(
     paint.setStyle(FILL);
   }
 
-  // INVINCIBILITY (spec M6): a legacy rainbow outline around Octopi, plus rising sparks.
-  let invincible = false;
-  for (let i = 0; i < f.boosts.length; i += 2) {
-    if (f.boosts[i] === BOOST_INDEX.INVINCIBILITY) {
-      invincible = true;
-      break;
-    }
-  }
+  // INVINCIBILITY: sparks rising off Octopi in the same gradient colour as its flash.
   if (invincible) {
-    // Precomputed per Octopi pose in sprites.ts (never rebuilt here): centred at the local origin,
-    // so a translate to Octopi's centre is all this needs — no scale, so the stroke stays 3 dp.
-    const outlineRRect = f.octopi.invuln > 0 ? sprites.invincibleOutline.hit : sprites.invincibleOutline.front;
-    const color = INVINCIBLE_COLORS[Math.floor(f.tick / 6) % INVINCIBLE_COLORS.length]!;
-    paint.setStyle(STROKE);
-    paint.setStrokeWidth(INVINCIBLE_STROKE_W);
-    paint.setColor(color);
-    paint.setAlphaf(0.5 + 0.3 * Math.sin(f.tick / 10));
-    canvas.save();
-    canvas.translate(sx, sy);
-    canvas.drawRRect(outlineRRect, paint);
-    canvas.restore();
-    paint.setStyle(FILL);
-
+    const color = INVINCIBLE_COLORS[invincibleStep]!;
     for (let i = 0; i < INVINCIBLE_SPARK_COUNT; i++) {
       const rndX = ((f.tick * 37 + i * 101) % 97) / 97;
       const rndPhase = ((f.tick * 53 + i * 131) % 89) / 89;
@@ -511,10 +570,46 @@ export function drawFrame(
       const dotY = sy - octopiSprite.h / 2 - t * INVINCIBLE_SPARK_RISE;
       const dotR = INVINCIBLE_SPARK_MIN_R + rndX * (INVINCIBLE_SPARK_MAX_R - INVINCIBLE_SPARK_MIN_R);
       paint.setColor(color);
-      paint.setAlphaf((0.5 + 0.3 * Math.sin(f.tick / 10)) * (1 - t));
+      paint.setAlphaf((0.5 + 0.3 * invinciblePulse) * (1 - t));
       canvas.drawCircle(dotX, dotY, dotR, paint);
     }
     paint.setAlphaf(1);
+  }
+
+  // WAVE_BLAST: the shock rings, kept inside the field.
+  if (blast !== null) {
+    const bx = px(blast.x);
+    const by = py(blast.y);
+    const maxR = Math.max(fieldRect.width, fieldRect.height);
+    canvas.save();
+    canvas.clipRect(fieldRect, ClipOp.Intersect, true);
+    paint.setStyle(STROKE);
+    for (let i = 0; i < BLAST_RINGS.length; i++) {
+      const ring = BLAST_RINGS[i]!;
+      const age = f.tick - blast.tick - ring.delay;
+      if (age < 0 || age >= ring.life) continue;
+      const progress = age / ring.life;
+      const r = progress * ring.reach * maxR;
+      const alpha = 1 - progress;
+      const width = Math.max(1, BLAST_STROKE_W * ring.intensity);
+      paint.setColor(ring.color);
+      paint.setMaskFilter(ring.glow);
+      paint.setStrokeWidth(width * 2);
+      paint.setAlphaf(alpha * ring.intensity * 0.6);
+      canvas.drawCircle(bx, by, r, paint);
+      paint.setMaskFilter(null);
+      paint.setStrokeWidth(width);
+      paint.setAlphaf(alpha);
+      canvas.drawCircle(bx, by, r, paint);
+      if (r > BLAST_INNER_FROM) {
+        paint.setStrokeWidth(Math.max(1, BLAST_INNER_W * ring.intensity));
+        paint.setAlphaf(alpha * ring.intensity * 0.5);
+        canvas.drawCircle(bx, by, r * 0.8, paint);
+      }
+    }
+    paint.setStyle(FILL);
+    paint.setAlphaf(1);
+    canvas.restore();
   }
 
   // Void's temporal freeze: a violet tint over the whole field, on top of everything else.

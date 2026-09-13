@@ -13,7 +13,7 @@ import { COLORS, FONTS } from '../ui/tokens';
 import { GameHud, type HudBoost } from './GameHud';
 import { PauseSheet } from './PauseSheet';
 import { RESULT_POSE_SIZE, ResultView } from './ResultView';
-import { drawFrame } from './draw';
+import { drawFrame, type WaveBlast } from './draw';
 import { SKIN_TINTS, useActiveSkin } from './skins';
 import { primeOctopiArt, usePreparedSprites, useSprites } from './sprites';
 
@@ -139,6 +139,8 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const skin = useActiveSkin();
   const prepared = usePreparedSprites(sprites, layout, skin);
   const frame = useSharedValue<Frame>(EMPTY_FRAME);
+  /** The last WAVE_BLAST of this run, for its shock rings (view only, never fed back to the sim). */
+  const blast = useSharedValue<WaveBlast | null>(null);
   const input = useRef<Input>(INITIAL_INPUT);
   const paused = useRef(false);
   const quit = useRef(false);
@@ -169,6 +171,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     input.current = INITIAL_INPUT;
     paused.current = false;
     quit.current = false;
+    blast.value = null;
     let shown = START_HUD;
     let reported = false;
     let frames = 0;
@@ -215,6 +218,8 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         } else if (ev.type === 'boost_pickup') {
           toastText = titleCase(ev.boost);
           toastFrames = TOAST_FRAMES;
+          // Only emitted when the blast actually fired (with no crabs the drop is not consumed).
+          if (ev.boost === 'WAVE_BLAST') blast.value = { tick: ev.tick, x: state.octopi.x, y: state.octopi.y };
         }
       }
       state.events.length = 0;
@@ -261,7 +266,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     };
     handle = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(handle);
-  }, [runIndex, frame, seed, mode, run]);
+  }, [runIndex, frame, blast, seed, mode, run]);
 
   const recorder = useMemo(() => Skia.PictureRecorder(), []);
   const paint = useMemo(() => Skia.Paint(), []);
@@ -271,7 +276,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       recorder.beginRecording(Skia.XYWHRect(0, 0, width, height));
       return recorder.finishRecordingAsPicture();
     }
-    return drawFrame(recorder, paint, frame.value, layout, width, height, prepared, fieldRect);
+    return drawFrame(recorder, paint, frame.value, layout, width, height, prepared, fieldRect, blast.value);
   });
 
   const onTouch = (e: GestureResponderEvent) => {

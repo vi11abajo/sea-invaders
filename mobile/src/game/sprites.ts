@@ -164,21 +164,9 @@ export interface PreparedSprite {
   filter: SkColorFilter | null;
 }
 
-/** INVINCIBILITY outline geometry, in dp (unscaled): a stroke can't be sized by `canvas.scale`
- * without also scaling its width, so the outline rect is precomputed here at each Octopi pose's
- * real on-screen size instead of built from a transform in the per-frame worklet. */
-export const INVINCIBLE_INFLATE = 4;
-export const INVINCIBLE_CORNER_R = 8;
-
 export interface PreparedSprites {
   /** Octopi's two poses in the active skin, tinted into their snapshots (`prepareOctopi`). */
   octopi: { front: PreparedSprite; hit: PreparedSprite };
-  /**
-   * One precomputed `SkRRect` per Octopi pose (`front`/`hit`), centred at the local origin and sized
-   * to that pose's own `w x h` inflated by `INVINCIBLE_INFLATE` on each side. `draw.ts` only
-   * `canvas.translate`s to Octopi's centre before drawing it — never reallocated per frame.
-   */
-  invincibleOutline: { front: ReturnType<typeof Skia.RRectXY>; hit: ReturnType<typeof Skia.RRectXY> };
   crabs: PreparedSprite[];
   /**
    * ICE_FREEZE indication (owner ruling): the three ice sprites, pre-scaled to fit inside a
@@ -240,13 +228,6 @@ function containSize(image: SkImage, box: number): { w: number; h: number } {
   return { w: box * (imgW / imgH), h: box };
 }
 
-/** The INVINCIBILITY outline `SkRRect` for a prepared sprite of size `w x h`, centred at `(0, 0)`. */
-function outlineRRect(sprite: PreparedSprite): ReturnType<typeof Skia.RRectXY> {
-  const w = sprite.w + INVINCIBLE_INFLATE * 2;
-  const h = sprite.h + INVINCIBLE_INFLATE * 2;
-  return Skia.RRectXY({ x: -w / 2, y: -h / 2, width: w, height: h }, INVINCIBLE_CORNER_R, INVINCIBLE_CORNER_R);
-}
-
 function preparedFrom(image: SkImage, w: number, h: number, src?: Rect, filter: SkColorFilter | null = null): PreparedSprite {
   const scaledImage = renderScaled(image, w, h, src, filter);
   const ok = scaledImage !== null;
@@ -268,20 +249,20 @@ function preparedFrom(image: SkImage, w: number, h: number, src?: Rect, filter: 
   };
 }
 
-type PreparedOctopi = Pick<PreparedSprites, 'octopi' | 'invincibleOutline'>;
-type PreparedWorld = Omit<PreparedSprites, 'octopi' | 'invincibleOutline'>;
+type PreparedOctopi = Pick<PreparedSprites, 'octopi'>;
+type PreparedWorld = Omit<PreparedSprites, 'octopi'>;
 
 /**
  * Octopi's front and hit poses in `skin`, pre-scaled like every other sprite with the skin's
  * `ColorMatrix` applied in the same offscreen draw (both poses share the body colour `#1C6DC6` the
- * matrix is calibrated on), plus each pose's INVINCIBILITY outline. The base skin draws untouched.
+ * matrix is calibrated on). The base skin draws untouched.
  */
 export function prepareOctopi(sprites: Sprites, layout: Layout, skin: SkinIndex): PreparedOctopi {
   const filter = SKIN_FILTERS[skin] ?? null;
   const octopiW = OCTOPI.size * layout.scale;
   const front = preparedFrom(sprites.octopi.front, octopiW, octopiW * (sprites.octopi.front.height() / sprites.octopi.front.width()), undefined, filter);
   const hit = preparedFrom(sprites.octopi.hit, octopiW, octopiW * (sprites.octopi.hit.height() / sprites.octopi.hit.width()), undefined, filter);
-  return { octopi: { front, hit }, invincibleOutline: { front: outlineRRect(front), hit: outlineRRect(hit) } };
+  return { octopi: { front, hit } };
 }
 
 /** Every sprite but Octopi's: crabs, ice, bosses and boost icons. */
