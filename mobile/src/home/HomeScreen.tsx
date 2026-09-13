@@ -1,10 +1,11 @@
 import { formatCountdown, formatInt } from '@sea-invaders/core';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
 import { Toast } from '../ui/Toast';
 import { COLORS } from '../ui/tokens';
+import { ConnectSheet } from '../wallet/WalletSheets';
 import { DailyRunCard, DailyRunRulesSheet } from './DailyRunCard';
 import { ReefScene } from './ReefScene';
 import { FeatureRow, HomeTopBar, type Feature } from './HomeTopBar';
@@ -24,6 +25,8 @@ interface HomeScreenProps {
   onDaily: () => void;
   onCampaign: () => void;
   onLeaderboard: () => void;
+  /** Opens the Shop. Only called with a wallet: signed out, the Shop entry points open the Connect sheet instead. */
+  onShop: () => void;
   /** Connect wallet when signed out; profile when signed in (still "coming soon"). */
   onWallet: () => void;
   /** Buys a ranked ticket on-chain; resolves false when declined or failed. */
@@ -40,12 +43,16 @@ interface HomeScreenProps {
 }
 
 /** Home, the "Reef": Octopi in the idle world, the Daily Run card and the ways into the game. */
-export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboard, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null, onRecorded = () => {}, dailyError = null }: HomeScreenProps) {
+export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboard, onShop, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null, onRecorded = () => {}, dailyError = null }: HomeScreenProps) {
   const ranked = model.ranked;
   const now = useNow(ranked !== null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const closeConnect = useCallback(() => setConnectOpen(false), []);
   const soon = (what: string) => setToast((t) => ({ id: (t?.id ?? 0) + 1, text: `${what} — coming soon` }));
+  // The Shop's catalogue and purchases need a wallet: signed out, its entry points ask to connect first.
+  const openShop = () => (model.wallet ? onShop() : setConnectOpen(true));
 
   useEffect(() => {
     if (alert !== null) setToast((t) => ({ id: (t?.id ?? 0) + 1, text: alert }));
@@ -59,10 +66,10 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
       <Backdrop floorGlow />
       <View style={styles.column}>
         <View style={styles.inset}>
-          <HomeTopBar wallet={model.wallet} onWallet={model.wallet ? () => soon('Profile') : onWallet} onShop={() => soon('Shop')} />
+          <HomeTopBar wallet={model.wallet} onWallet={model.wallet ? () => soon('Profile') : onWallet} onShop={openShop} />
           <FeatureRow
             campaignBadge={campaign?.level ?? null}
-            onPress={(f) => (f === 'campaign' ? onCampaign() : f === 'ranks' ? onLeaderboard() : soon(FEATURE_NAMES[f]))}
+            onPress={(f) => (f === 'campaign' ? onCampaign() : f === 'ranks' ? onLeaderboard() : f === 'shop' ? openShop() : soon(FEATURE_NAMES[f]))}
           />
         </View>
         {ticker.length > 0 && (
@@ -70,7 +77,7 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
             <Ticker items={ticker} />
           </View>
         )}
-        <ReefScene caption="Octopi · base defender" onOctopi={() => soon('Shop')} />
+        <ReefScene caption="Octopi · base defender" onOctopi={openShop} />
         <View style={[styles.inset, styles.bottom]}>
           <DailyRunCard
             ranked={ranked}
@@ -101,6 +108,14 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
         </View>
       </View>
       <DailyRunRulesSheet visible={rulesOpen} onClose={() => setRulesOpen(false)} />
+      <ConnectSheet
+        visible={connectOpen}
+        onContinue={() => {
+          setConnectOpen(false);
+          onWallet();
+        }}
+        onClose={closeConnect}
+      />
       {toast !== null && <Toast key={toast.id} text={toast.text} onHide={() => setToast(null)} />}
     </View>
   );

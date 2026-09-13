@@ -16,13 +16,14 @@ import { GameScreen } from './src/game/GameScreen';
 import { HomeScreen } from './src/home/HomeScreen';
 import { useHomeModel } from './src/home/useHomeModel';
 import { SelfTestScreen } from './src/selftest/SelfTestScreen';
+import { ShopScreen } from './src/shop/ShopScreen';
 import { Backdrop } from './src/ui/Backdrop';
 import { useAppFonts } from './src/ui/fonts';
 import { UiGallery } from './src/ui/gallery/UiGallery';
 
 type Route = 'app' | 'selftest' | 'ui' | { kind: 'level'; id: number };
 type Screen =
-  | 'home' | 'practice' | 'daily' | 'leaderboard'
+  | 'home' | 'practice' | 'daily' | 'leaderboard' | 'shop'
   | { kind: 'campaign'; initialReef?: number }
   | { kind: 'level'; id: number; practice: boolean };
 
@@ -68,6 +69,12 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
     setScreen('home');
     refresh();
   };
+
+  // The Shop needs a session (Home only opens it signed in); if the session goes away while it is
+  // open, return Home instead of leaving a stale 'shop' to reappear on the next sign-in.
+  useEffect(() => {
+    if (screen === 'shop' && session === null && !restoring) setScreen('home');
+  }, [screen, session, restoring]);
 
   // Screens show `ticketMessage` as a one-shot toast (an effect keyed on the prop value, so a
   // repeated identical string or a remount would otherwise replay it). Clearing it back to null
@@ -172,6 +179,9 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
       );
     case 'leaderboard':
       return <LeaderboardScreen onBack={home} />;
+    case 'shop':
+      if (session !== null) return <ShopScreen walletAddress={session.walletAddress} onBack={home} />;
+      return <Backdrop />;
     default:
       return (
         <HomeScreen
@@ -180,6 +190,7 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
           onDaily={() => setScreen('daily')}
           onCampaign={() => setScreen({ kind: 'campaign' })}
           onLeaderboard={() => setScreen('leaderboard')}
+          onShop={() => setScreen('shop')}
           onWallet={() => void signIn()}
           onBuyTicket={buyTicket}
           onFaucet={buyFaucet}

@@ -6,6 +6,8 @@ export class ApiError extends Error {
     readonly status: number,
     message: string,
     readonly code?: string,
+    /** The error response's JSON body, for routes that carry extra fields (e.g. the shop's `needSkr`/`haveSkr`). */
+    readonly details?: Readonly<Record<string, unknown>>,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -51,7 +53,8 @@ export async function apiFetch<T>(path: string, init: { method?: 'GET' | 'POST' 
   if (!response.ok) {
     const body = (data ?? {}) as { message?: string; code?: string; error?: string; reason?: string };
     if (init.auth && (response.status === 401 || (response.status === 403 && body.error === 'InvalidToken'))) await clearSession();
-    throw new ApiError(response.status, body.message ?? body.reason ?? body.error ?? `HTTP ${response.status}`, body.code ?? body.reason ?? body.error);
+    const details = data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : undefined;
+    throw new ApiError(response.status, body.message ?? body.reason ?? body.error ?? `HTTP ${response.status}`, body.code ?? body.reason ?? body.error, details);
   }
   return data as T;
 }
