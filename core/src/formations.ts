@@ -6,13 +6,21 @@ import { icos, isin } from './trig';
 export interface Pos { x: number; y: number }
 
 /**
+ * Horizontal room a formation keeps on each side of the field so it can march before bouncing.
+ * Without it an 8-column wall (gap compressed to fit exactly) touched both edges at once, hit the
+ * wall test every tick and stepped down 250 units per tick — the "wall falls on Octopi" bug on
+ * level 10.
+ */
+export const MARCH_MARGIN = 400;
+
+/**
  * Centred grid; the ring places its points on an ellipse using the integer sine table in trig.ts.
- * Column spacing compresses below CRAB.gapX only when a row would otherwise overflow FIELD_W (wide
- * formations up to 8 columns, e.g. the level table's `wall 2x8` rows) — never widens it, so grid 3x6
- * still matches spawnWave's fixed CRAB.gapX layout exactly.
+ * Column spacing compresses below CRAB.gapX only when a row would otherwise leave less than
+ * MARCH_MARGIN on each side of FIELD_W (wide formations, e.g. the level table's `wall 2x7` and
+ * `wall 2x8` rows) — never widens it, so grid 3x6 still matches spawnWave's fixed CRAB.gapX layout.
  */
 export function formationPositions(formation: Formation, rows: number, cols: number): Pos[] {
-  const gapX = Math.min(CRAB.gapX, idiv(FIELD_W - CRAB.size, Math.max(1, cols - 1)));
+  const gapX = Math.min(CRAB.gapX, idiv(FIELD_W - CRAB.size - 2 * MARCH_MARGIN, Math.max(1, cols - 1)));
   const x0 = idiv(FIELD_W - (cols - 1) * gapX, 2);
   const at = (r: number, c: number, gapY: number = CRAB.gapY): Pos => ({ x: x0 + c * gapX, y: CRAB.startY + r * gapY });
   const out: Pos[] = [];

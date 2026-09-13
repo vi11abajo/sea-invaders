@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CRAB, FIELD_W, formationPositions } from '../src';
+import { CRAB, FIELD_W, INITIAL_INPUT, LEVELS, MARCH_MARGIN, createGame, formationPositions, step } from '../src';
 
 const HALF = CRAB.size / 2;
 const inside = (p: { x: number; y: number }) => p.x - HALF >= 0 && p.x + HALF <= FIELD_W && Number.isInteger(p.x) && Number.isInteger(p.y);
@@ -35,14 +35,29 @@ describe('formationPositions', () => {
       for (const p of formationPositions(f, 6, 8)) expect(inside(p)).toBe(true);
     }
   });
-  it('an 8-column row compresses spacing to fit; a 6-column row keeps CRAB.gapX', () => {
+  it('an 8-column row compresses spacing and keeps MARCH_MARGIN on both sides; a 6-column row keeps CRAB.gapX', () => {
     const row0 = formationPositions('wall', 2, 8)
       .filter((p) => p.y === 1500)
       .map((p) => p.x)
       .sort((a, b) => a - b);
-    expect(row0.every((x) => x >= 265 && x <= 5360)).toBe(true);
-    for (let i = 1; i < row0.length; i++) expect(row0[i]! - row0[i - 1]!).toBe(727);
+    const half = CRAB.size / 2;
+    expect(row0[0]! - half).toBeGreaterThanOrEqual(MARCH_MARGIN);
+    expect(FIELD_W - (row0[row0.length - 1]! + half)).toBeGreaterThanOrEqual(MARCH_MARGIN);
+    for (let i = 1; i < row0.length; i++) expect(row0[i]! - row0[i - 1]!).toBe(613);
     const g = formationPositions('grid', 3, 6);
     expect(g[1]!.x - g[0]!.x).toBe(800);
+  });
+});
+
+describe('wide formations march', () => {
+  it('an 8-column wall marches sideways after arriving instead of stepping down every tick (level 10 bug)', () => {
+    const s = createGame('wall-march', { mode: 'campaign', level: LEVELS[9]!, lives: 5, features: { boosts: true } });
+    for (let t = 0; t < 30; t++) step(s, INITIAL_INPUT); // arrival
+    const y0 = s.crabs[0]!.y;
+    const x0 = s.crabs[0]!.x;
+    for (let t = 0; t < 20; t++) step(s, INITIAL_INPUT);
+    expect(s.crabs[0]!.y).toBe(y0);
+    expect(s.crabs[0]!.x).not.toBe(x0);
+    expect(s.over).toBe(false);
   });
 });
