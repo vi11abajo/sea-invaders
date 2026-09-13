@@ -724,7 +724,7 @@ function BossSheet({ reef, progress, sprites, onPlay, onClose }: BossSheetProps)
         sprite={bossSprite}
         kicker={`REEF ${reef} BOSS`}
         title={BOSS_NAMES[reef - 1]}
-        subtitle={`${reef} phases · ability: ${ability}`}
+        subtitle={`${reef} ${reef === 1 ? 'phase' : 'phases'} · ability: ${ability}`}
       />
       <View style={styles.tiles}>
         <StatTile label="Phases" value={String(reef)} />
