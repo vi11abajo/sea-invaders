@@ -9,6 +9,10 @@ function stubNextInt(rng: Rng, sequence: number[]): void {
 }
 
 /**
+ * Hand-copied on purpose (not imported from `../src/sim/boosts`): checking it against `BOOSTS`
+ * below would be tautological against the production list otherwise, and this way a change to
+ * either one that breaks the spec §5.2 correspondence fails a test instead of passing silently.
+ *
  * The exact pool RANDOM_CHAOS picks from (spec §5.2, Task 15 decision): the ten timed boosts
  * (duration 600 or 466), in `BoostType`'s declaration order, excluding RANDOM_CHAOS itself.
  */
@@ -46,6 +50,17 @@ describe('RANDOM_CHAOS', () => {
     activateBoost(s, 'RANDOM_CHAOS');
     expect(s.boosts.active).toEqual([{ type: 'GRAVITY_WELL', ticksLeft: 600 }]);
     expect(s.boosts.well).toEqual({ x: 1234, y: 5678 });
+  });
+
+  it('a drop that resolves to GRAVITY_WELL anchors the well at the drop position, like a real GRAVITY_WELL pickup', () => {
+    const s = createGame('chaos-well-drop', PRACTICE_RUN);
+    s.ship.x = 1000;
+    s.ship.y = 9000;
+    stubNextInt(s.rngBoosts, [8, 0]); // index 8 -> GRAVITY_WELL
+    s.drops.push({ x: 1050, y: 8980, boost: 'RANDOM_CHAOS', ttl: 100 }); // falls to y 9040 this tick
+    updateBoosts(s);
+    expect(s.boosts.active[0]).toMatchObject({ type: 'GRAVITY_WELL' });
+    expect(s.boosts.well).toEqual({ x: 1050, y: 9040 });
   });
 
   it('the pool covers exactly the ten timed boosts (duration 600 or 466), in declaration order', () => {

@@ -34,8 +34,11 @@ export function rollDrop(s: GameState, x: number, y: number): void {
 /**
  * Advances every drop (fall, ttl, pickup by the ship) and every active boost timer, then applies
  * GRAVITY_WELL's pull for the tick, in that order. Called once per tick after `hitShip`
- * (spec §5.1-5.2). A GRAVITY_WELL pickup sets `boosts.well` to the drop's position, overriding the
- * ship-position default that `activateBoost` sets for a direct activation (tests, RANDOM_CHAOS).
+ * (spec §5.1-5.2). A pickup that resolves to GRAVITY_WELL (a direct one, or a RANDOM_CHAOS drop
+ * that rolled it) sets `boosts.well` to the drop's own position, overriding the ship-position
+ * default that `activateBoost` sets when it applies GRAVITY_WELL: keyed off `activateBoost`'s
+ * return value (the boost actually applied), not `d.boost`, so a chaos-rolled well anchors the
+ * same way a real GRAVITY_WELL pickup does.
  */
 export function updateBoosts(s: GameState): void {
   const kept: Drop[] = [];
@@ -45,8 +48,8 @@ export function updateBoosts(s: GameState): void {
     if (d.ttl <= 0 || d.y - DROP_HALF > FIELD_H) continue;
     const reach = DROP_HALF + SHIP.hitRadius;
     if (Math.abs(d.x - s.ship.x) < reach && Math.abs(d.y - s.ship.y) < reach) {
-      activateBoost(s, d.boost);
-      if (d.boost === 'GRAVITY_WELL') s.boosts.well = { x: d.x, y: d.y };
+      const resolved = activateBoost(s, d.boost);
+      if (resolved === 'GRAVITY_WELL') s.boosts.well = { x: d.x, y: d.y };
       s.events.push({ tick: s.tick, type: 'boost_pickup', boost: d.boost });
       continue;
     }
@@ -72,19 +75,23 @@ export function updateBoosts(s: GameState): void {
 }
 
 /**
- * Activates or refreshes a boost. Instants (`duration 0`) apply once and are never tracked in
- * `active`. `-1`-duration boosts are tracked once (no timer) and re-apply their effect on every
- * activation (SPEED_TAMER's stack). Timed boosts set or reset `ticksLeft` to the full duration,
- * resetting an already-active one instead of stacking a second entry. GRAVITY_WELL additionally
- * (re)captures its well at the ship's current position; a drop pickup in `updateBoosts` overrides
- * this with the drop's own position right after this call returns.
+ * Activates or refreshes a boost, and returns the `BoostType` actually applied (its argument,
+ * except for RANDOM_CHAOS — see below); `updateBoosts` keys its drop-position well override off
+ * this return value rather than the type requested, so a chaos roll is indistinguishable from a
+ * direct pickup of whatever it resolved to. Instants (`duration 0`) apply once and are never
+ * tracked in `active`. `-1`-duration boosts are tracked once (no timer) and re-apply their effect
+ * on every activation (SPEED_TAMER's stack). Timed boosts set or reset `ticksLeft` to the full
+ * duration, resetting an already-active one instead of stacking a second entry. GRAVITY_WELL
+ * additionally (re)captures its well at the ship's current position; a drop pickup in
+ * `updateBoosts` overrides this with the drop's own position right after this call returns.
  *
  * RANDOM_CHAOS (spec §5.2) never adds a RANDOM_CHAOS entry: it uniformly picks one of `CHAOS_POOL`
  * and activates that instead, for `600 + rngBoosts.nextInt(301)` ticks (600-900) rather than the
- * picked boost's own table duration. A picked GRAVITY_WELL still anchors at the ship's position via
- * the same rule as a direct GRAVITY_WELL activation.
+ * picked boost's own table duration. A picked GRAVITY_WELL still anchors at the ship's position by
+ * the same rule as a direct GRAVITY_WELL activation (and `updateBoosts` still overrides that to
+ * the drop's position for a chaos drop pickup, same as any other).
  */
-export function activateBoost(s: GameState, type: BoostType): void {
+export function activateBoost(s: GameState, type: BoostType): BoostType {
   if (type === 'RANDOM_CHAOS') {
     const picked = CHAOS_POOL[s.rngBoosts.nextInt(CHAOS_POOL.length)]!;
     const ticksLeft = 600 + s.rngBoosts.nextInt(301);
@@ -92,22 +99,23 @@ export function activateBoost(s: GameState, type: BoostType): void {
     const existing = s.boosts.active.find((a) => a.type === picked);
     if (existing) existing.ticksLeft = ticksLeft;
     else s.boosts.active.push({ type: picked, ticksLeft });
-    return;
+    return picked;
   }
   const cfg = BOOSTS[type];
   if (cfg.duration === 0) {
     applyEffect(s, type);
-    return;
+    return type;
   }
   if (cfg.duration === -1) {
     if (!s.boosts.active.some((a) => a.type === type)) s.boosts.active.push({ type, ticksLeft: -1 });
     applyEffect(s, type);
-    return;
+    return type;
   }
   if (type === 'GRAVITY_WELL') s.boosts.well = { x: s.ship.x, y: s.ship.y };
   const existing = s.boosts.active.find((a) => a.type === type);
   if (existing) existing.ticksLeft = cfg.duration;
   else s.boosts.active.push({ type, ticksLeft: cfg.duration });
+  return type;
 }
 
 /** True when `type` currently has an active entry (timed or `-1`). */

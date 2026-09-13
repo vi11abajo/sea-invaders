@@ -101,8 +101,8 @@ export const RARITY_LISTS: Record<BoostRarity, BoostType[]> = {
 
 /**
  * Rarity and duration (ticks; 0 instant, -1 until consumed) per boost type (spec §5.2).
- * RANDOM_CHAOS's actual roll (600-900 ticks) is Task 15's; this base value is only a placeholder
- * for the table shape until then.
+ * RANDOM_CHAOS's `duration` here is unused: its actual timer is rolled in `activateBoost`
+ * (`600 + rngBoosts.nextInt(301)`, i.e. 600-900 ticks), applied to whichever boost it picks.
  */
 export const BOOSTS: Record<BoostType, { rarity: BoostRarity; duration: number }> = {
   RAPID_FIRE: { rarity: 'common', duration: 600 },
