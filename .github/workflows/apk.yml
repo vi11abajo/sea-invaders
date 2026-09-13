@@ -20,6 +20,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Use the npm the lockfiles were written with
+        run: npm install -g npm@11
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
