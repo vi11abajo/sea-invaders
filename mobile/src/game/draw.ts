@@ -61,6 +61,15 @@ const WHITE_FLASH_FILTER = Skia.ColorFilter.MakeBlend(Skia.Color('#FFFFFF'), Ble
 /** Void's temporal freeze: a violet tint over the whole field, drawn last (on top of everything). */
 const FREEZE_OVERLAY = Skia.Color('rgba(153,102,255,0.18)');
 
+/**
+ * ICE_FREEZE indication (owner ruling): a translucent ice cube over every crab, plus the legacy
+ * full-field fog drawn right after them (legacy `boost-effects.js:453-489`'s desktop-branch full-
+ * canvas rect at 0.1 alpha; the ice cubes are the owner's addition). Each cube's own `SkRRect` is
+ * precomputed per crab kind in `sprites.ts` (`PreparedSprites.iceCubes`) and only translated here.
+ */
+const ICE_CUBE_COLOR = Skia.Color('rgba(170,238,255,0.35)');
+const ICE_FOG_COLOR = Skia.Color('rgba(170,238,255,0.10)');
+
 const SHIELD_COLOR = Skia.Color('rgba(0,221,255,0.6)');
 const PLAYER_SHIELD_STROKE = 4;
 const BOSS_SHIELD_STROKE = 6;
@@ -222,13 +231,37 @@ export function drawFrame(
     paint.setShader(null);
   }
 
+  // ICE_FREEZE (owner ruling): an ice cube over every crab below, plus the legacy fog after them.
+  let iceFreeze = false;
+  for (let i = 0; i < f.boosts.length; i += 2) {
+    if (f.boosts[i] === BOOST_INDEX.ICE_FREEZE) {
+      iceFreeze = true;
+      break;
+    }
+  }
+
   // Crabs: the sprite for the crab's kind already encodes its colour/type (TYPE_COLOUR); no tint.
+  if (iceFreeze) paint.setColor(ICE_CUBE_COLOR);
   for (let i = 0; i < f.crabs.length; i += 5) {
     const cx = px(f.crabs[i]!);
     const cy = py(f.crabs[i + 1]!);
     const kind = f.crabs[i + 2]!;
     const sprite = sprites.crabs[kind];
-    if (sprite !== undefined) drawSpriteAt(canvas, paint, sprite, cx - sprite.w / 2, cy - sprite.h / 2);
+    if (sprite === undefined) continue;
+    drawSpriteAt(canvas, paint, sprite, cx - sprite.w / 2, cy - sprite.h / 2);
+    if (iceFreeze) {
+      const iceRRect = sprites.iceCubes[kind];
+      if (iceRRect !== undefined) {
+        canvas.save();
+        canvas.translate(cx, cy);
+        canvas.drawRRect(iceRRect, paint);
+        canvas.restore();
+      }
+    }
+  }
+  if (iceFreeze) {
+    paint.setColor(ICE_FOG_COLOR);
+    canvas.drawRect(fieldRect, paint);
   }
 
   // Player shots: a bright core over a soft glow.

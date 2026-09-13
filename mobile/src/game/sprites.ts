@@ -146,6 +146,13 @@ export interface PreparedSprite {
 export const INVINCIBLE_INFLATE = 4;
 export const INVINCIBLE_CORNER_R = 8;
 
+/** ICE_FREEZE ice-cube geometry (owner ruling), in dp (unscaled): sized to each crab sprite,
+ * inflated 2 dp on each side with a 6 dp corner radius — precomputed here for the same reason as
+ * the INVINCIBILITY outline above (a fill can be sized by `canvas.scale`, but precomputing keeps
+ * this on the same once-per-layout path as every other prepared sprite geometry). */
+export const ICE_CUBE_INFLATE = 2;
+export const ICE_CUBE_CORNER_R = 6;
+
 export interface PreparedSprites {
   ship: { front: PreparedSprite; hit: PreparedSprite };
   /**
@@ -155,6 +162,12 @@ export interface PreparedSprites {
    */
   invincibleOutline: { front: ReturnType<typeof Skia.RRectXY>; hit: ReturnType<typeof Skia.RRectXY> };
   crabs: PreparedSprite[];
+  /**
+   * One precomputed `SkRRect` per crab kind (`crabs[kind]`), centred at the local origin and sized
+   * to that kind's own `w x h` inflated by `ICE_CUBE_INFLATE` on each side. `draw.ts` only
+   * `canvas.translate`s to each crab's centre before drawing it — never reallocated per frame.
+   */
+  iceCubes: ReturnType<typeof Skia.RRectXY>[];
   /** `bosses[kind - 1] = [frame0, frame1]`, both pre-scaled to `BOSS.width x BOSS.height`. */
   bosses: [PreparedSprite, PreparedSprite][];
   boosts: PreparedSprite[];
@@ -206,6 +219,13 @@ function outlineRRect(sprite: PreparedSprite): ReturnType<typeof Skia.RRectXY> {
   return Skia.RRectXY({ x: -w / 2, y: -h / 2, width: w, height: h }, INVINCIBLE_CORNER_R, INVINCIBLE_CORNER_R);
 }
 
+/** The ICE_FREEZE ice-cube `SkRRect` for a prepared sprite of size `w x h`, centred at `(0, 0)`. */
+function iceCubeRRect(sprite: PreparedSprite): ReturnType<typeof Skia.RRectXY> {
+  const w = sprite.w + ICE_CUBE_INFLATE * 2;
+  const h = sprite.h + ICE_CUBE_INFLATE * 2;
+  return Skia.RRectXY({ x: -w / 2, y: -h / 2, width: w, height: h }, ICE_CUBE_CORNER_R, ICE_CUBE_CORNER_R);
+}
+
 function preparedFrom(image: SkImage, w: number, h: number, src?: Rect): PreparedSprite {
   const scaledImage = renderScaled(image, w, h, src);
   const ok = scaledImage !== null;
@@ -241,6 +261,7 @@ export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprite
 
   const crabSize = CRAB.size * k;
   const crabs = sprites.crabs.map((img) => preparedFrom(img, crabSize, crabSize));
+  const iceCubes = crabs.map(iceCubeRRect);
 
   const bossW = BOSS.width * k;
   const bossH = BOSS.height * k;
@@ -254,7 +275,7 @@ export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprite
     return preparedFrom(img, w, h);
   });
 
-  return { ship: { front, hit }, invincibleOutline, crabs, bosses, boosts };
+  return { ship: { front, hit }, invincibleOutline, crabs, iceCubes, bosses, boosts };
 }
 
 /** `prepareSprites`, memoized on `sprites`/`layout` so it rebuilds only when either changes. */
