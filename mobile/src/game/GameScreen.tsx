@@ -1,4 +1,5 @@
-import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
+import { GeistMono_500Medium } from '@expo-google-fonts/geist-mono/500Medium';
+import { Canvas, Picture, Skia, useFont } from '@shopify/react-native-skia';
 import {
   BOOSTS, BOOST_INDEX, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
   SHIP, createGame, fitField, formatInt, snapshot, step, touchToInput,
@@ -13,8 +14,8 @@ import { COLORS, FONTS } from '../ui/tokens';
 import { GameHud, type HudBoost } from './GameHud';
 import { PauseSheet } from './PauseSheet';
 import { ResultView } from './ResultView';
-import { drawFrame } from './draw';
-import { useSprites } from './sprites';
+import { dropTextOffsets, drawFrame } from './draw';
+import { usePreparedSprites, useSprites } from './sprites';
 
 /** Milli-units between the finger and the ship centre, so the finger never covers the ship. */
 const FINGER_LIFT = 600;
@@ -132,10 +133,12 @@ interface GameScreenProps {
 export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode = 'PRACTICE', note = 'Practice · unranked', run, onRunOver, renderResult }: GameScreenProps) {
   const { width, height } = useWindowDimensions();
   const layout = useMemo(() => fitField(width, height), [width, height]);
+  const fieldRect = useMemo(() => ({ x: layout.offsetX, y: layout.offsetY, width: layout.width, height: layout.height }), [layout]);
   const sprites = useSprites();
+  const prepared = usePreparedSprites(sprites, layout);
+  const font = useFont(GeistMono_500Medium, 12);
+  const dropOffsets = useMemo(() => (font === null ? null : dropTextOffsets(font)), [font]);
   const frame = useSharedValue<Frame>(EMPTY_FRAME);
-  /** -1 left, 0 front, 1 right; the sign of the ship's last movement. */
-  const facing = useSharedValue<number>(0);
   const input = useRef<Input>(INITIAL_INPUT);
   const paused = useRef(false);
   const quit = useRef(false);
@@ -147,8 +150,8 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   onRunOverRef.current = onRunOver;
 
   useEffect(() => {
-    // Sprites load once on mount; hold the loop until they are ready (see the loading branch below).
-    if (sprites === null) return;
+    // Sprites load once on mount; hold the loop until the pre-scaled set is ready (see the loading branch below).
+    if (prepared === null) return;
     // Practice seed: the app may use the clock; only the core must not.
     const runSeed = seed ?? `practice-${runIndex}-${Date.now()}`;
     const config = run ?? (mode === REPLAY_MODE.daily ? DAILY_RUN : PRACTICE_RUN);
@@ -158,8 +161,6 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     input.current = INITIAL_INPUT;
     paused.current = false;
     quit.current = false;
-    facing.value = 0;
-    let prevShipX = state.ship.x;
     let shown = START_HUD;
     let reported = false;
     let frames = 0;
@@ -211,9 +212,6 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         toastFrames -= 1;
         if (toastFrames === 0) toastText = null;
       }
-      const dx = state.ship.x - prevShipX;
-      facing.value = dx > 20 ? 1 : dx < -20 ? -1 : 0;
-      prevShipX = state.ship.x;
       const f = snapshot(state);
       frame.value = f;
       frames += 1;
@@ -249,17 +247,17 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     };
     handle = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(handle);
-  }, [runIndex, frame, facing, seed, mode, sprites, run]);
+  }, [runIndex, frame, seed, mode, prepared, run]);
 
   const recorder = useMemo(() => Skia.PictureRecorder(), []);
   const paint = useMemo(() => Skia.Paint(), []);
   const picture = useDerivedValue(() => {
     'worklet';
-    if (sprites === null) {
+    if (prepared === null) {
       recorder.beginRecording(Skia.XYWHRect(0, 0, width, height));
       return recorder.finishRecordingAsPicture();
     }
-    return drawFrame(recorder, paint, frame.value, layout, width, height, sprites, facing.value);
+    return drawFrame(recorder, paint, frame.value, layout, width, height, prepared, fieldRect, font, dropOffsets);
   });
 
   const onTouch = (e: GestureResponderEvent) => {
@@ -299,7 +297,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   return (
     <View style={styles.root}>
       <Backdrop variant={hud.over ? 'menu' : 'play'} />
-      {sprites === null ? (
+      {prepared === null ? (
         <View style={styles.loading} pointerEvents="none">
           <Txt variant="headline">Loading…</Txt>
         </View>
@@ -329,7 +327,6 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
             onResponderGrant={onTouch}
             onResponderMove={onTouch}
           />
-          {hud.boss !== null && hud.boss.freeze > 0 && <View style={styles.frozen} pointerEvents="none" />}
           <GameHud
             mode={hudMode}
             score={hud.score}
@@ -360,7 +357,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.app },
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   loading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  frozen: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(51,153,255,0.18)' },
   banner: {
     position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center',
     fontFamily: FONTS.medium, fontSize: 22, letterSpacing: 1.2, color: COLORS.text,
