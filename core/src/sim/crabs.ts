@@ -1,4 +1,4 @@
-import { ARRIVAL, CRAB, CRAB_SHOTS, DIVER, ENEMY_SHOT, FANNER_SPREAD, FIELD_H, FIELD_W } from '../config';
+import { ARRIVAL, CRAB, CRAB_SHOTS, DIVER, ENEMY_SHOT, FANNER_SPREAD, FIELD_H, FIELD_W, TUNING, scalePct } from '../config';
 import { idiv, isqrt } from '../fixed';
 import { icos, isin } from '../trig';
 import type { Bullet, Crab, GameState } from '../types';
@@ -97,28 +97,17 @@ function advanceDivers(s: GameState): void {
 }
 
 /**
- * Marches the formation sideways; at a wall it reverses and steps down instead. Swift crabs cover
- * extra ground on their own, and the wall check honours that extent too. The march always applies
- * to every crab's formation slot — a diving crab's `(homeX, homeY)` for a crab that's away, its
- * actual `(x, y)` otherwise — so the slot keeps tracking the group even when every crab is diving.
- * `advanceDivers` runs after, so a crab whose dive ends this tick snaps to its already-moved slot
- * and isn't marched again in the same tick. Ends the run on invasion.
- *
- * While a campaign wave is arriving (`s.arrival > 0`, spec §14 amendment) every crab's `y` and
- * `homeY` instead just descend by `ARRIVAL.speed` (slowed by ICE_FREEZE/SPEED_TAMER like every other
- * crab movement, spec C5), `x` untouched, no diver trigger and no wall or invasion test — the
- * formation is still above the field, closing in on its slots.
+ * How many march steps the formation takes on `tick`: `TUNING.crabMovePct` percent of one step per
+ * tick, spread evenly by rounding the running total up (at 90 it marches on ticks 0-8 and rests on
+ * tick 9 of every ten, at 100 it marches every tick, at 150 it alternates two steps and one).
+ * Scaling the number of steps instead of the small per-tick step keeps the tuned speed exact.
  */
-export function marchCrabs(s: GameState): void {
-  if (s.crabs.length === 0) return;
-  if (s.arrival > 0) {
-    const speed = chilled(s, tamed(s, ARRIVAL.speed), false);
-    for (const c of s.crabs) {
-      c.y += speed;
-      c.homeY += speed;
-    }
-    return;
-  }
+export function marchSteps(tick: number, pct: number = TUNING.crabMovePct): number {
+  return idiv((tick + 1) * pct + 99, 100) - idiv(tick * pct + 99, 100);
+}
+
+/** One formation step: sideways, or reverse and step down at a wall (see `marchCrabs`). */
+function marchOnce(s: GameState): void {
   let hitsWall = false;
   for (const c of s.crabs) {
     const slotX = c.dive === 0 ? c.x : c.homeX;
@@ -140,6 +129,34 @@ export function marchCrabs(s: GameState): void {
       else c.homeX += crabStep(s, c);
     }
   }
+}
+
+/**
+ * Marches the formation sideways (`marchSteps` steps this tick); at a wall it reverses and steps
+ * down instead. Swift crabs cover extra ground on their own, and the wall check honours that
+ * extent too. The march always applies
+ * to every crab's formation slot — a diving crab's `(homeX, homeY)` for a crab that's away, its
+ * actual `(x, y)` otherwise — so the slot keeps tracking the group even when every crab is diving.
+ * `advanceDivers` runs after, so a crab whose dive ends this tick snaps to its already-moved slot
+ * and isn't marched again in the same tick. Ends the run on invasion.
+ *
+ * While a campaign wave is arriving (`s.arrival > 0`, spec §14 amendment) every crab's `y` and
+ * `homeY` instead just descend by `ARRIVAL.speed` (slowed by ICE_FREEZE/SPEED_TAMER like every other
+ * crab movement, spec C5), `x` untouched, no diver trigger and no wall or invasion test — the
+ * formation is still above the field, closing in on its slots.
+ */
+export function marchCrabs(s: GameState): void {
+  if (s.crabs.length === 0) return;
+  if (s.arrival > 0) {
+    const speed = chilled(s, tamed(s, ARRIVAL.speed), false);
+    for (const c of s.crabs) {
+      c.y += speed;
+      c.homeY += speed;
+    }
+    return;
+  }
+  const steps = marchSteps(s.tick);
+  for (let i = 0; i < steps; i++) marchOnce(s);
   advanceDivers(s);
   triggerDiver(s);
   for (const c of s.crabs) {
@@ -150,9 +167,12 @@ export function marchCrabs(s: GameState): void {
   }
 }
 
-/** Chance per tick, in 1/1000, that some crab fires. `offset` is the level's fireOffset (0 outside the campaign). */
+/**
+ * Chance per tick, in 1/1000, that some crab fires: the original chance (capped at 60) scaled by
+ * `TUNING.crabFirePct`. `offset` is the level's fireOffset (0 outside the campaign).
+ */
 export function fireChance(wave: number, offset = 0): number {
-  return Math.min(ENEMY_SHOT.perMille + offset + (wave - 1) * 4, 60);
+  return scalePct(Math.min(ENEMY_SHOT.perMille + offset + (wave - 1) * 4, 60), TUNING.crabFirePct);
 }
 
 /** An `explosive` shot below this line splits into fragments immediately, fuse or not (spec §4.1 `explosive`). */

@@ -10,6 +10,7 @@ import {
   createGame,
   hitCrabs,
   hitOctopi,
+  icos,
   idiv,
   isin,
   tamed,
@@ -33,10 +34,11 @@ describe('MULTI_SHOT', () => {
     activateBoost(s, 'MULTI_SHOT');
     for (let t = 1; t <= 8; t++) updateShots(s);
     expect(s.shots).toHaveLength(3);
+    const side = idiv(SHOT.speed * isin(15), 1000);
     const vxs = s.shots.map((b) => b.vx).sort((a, b) => a - b);
-    expect(vxs).toEqual([-62, 0, 62]);
+    expect(vxs).toEqual([-side, 0, side]);
     for (const b of s.shots) {
-      expect(b.vy).toBe(b.vx === 0 ? -240 : -231);
+      expect(b.vy).toBe(b.vx === 0 ? -SHOT.speed : -idiv(SHOT.speed * icos(15), 1000));
       expect(b.kind).toBe('straight');
     }
   });

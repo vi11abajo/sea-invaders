@@ -1,7 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Hasher, INITIAL_INPUT, createGame, step, type GameState, type Golden } from '../src';
+
+// The v2 goldens predate the game-speed tuning: replay them with every TUNING knob back at 100 %,
+// which must reproduce the untuned game exactly.
+vi.mock('../src/config', async (importOriginal) => {
+  const m = await importOriginal<typeof import('../src/config')>();
+  return {
+    ...m,
+    TUNING: { octopiShotPct: 100, crabMovePct: 100, crabFirePct: 100 },
+    SHOT: { ...m.SHOT, speed: m.UNTUNED_SPEED.octopiShot },
+    DIVER: { ...m.DIVER, speed: m.UNTUNED_SPEED.diver },
+  };
+});
 
 /** The v2 state hash: only the fields that existed in core v2, in the v2 order. */
 function hashV2(s: GameState): string {

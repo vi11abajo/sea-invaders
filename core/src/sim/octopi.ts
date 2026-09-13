@@ -9,9 +9,9 @@ const HALF = idiv(OCTOPI.size, 2);
 const RAPID_FIRE_INTERVAL = 4;
 /** Half-angle in degrees between MULTI_SHOT's outer shots and its straight aim. */
 const MULTI_SHOT_SPREAD = 15;
-/** AUTO_TARGET's legacy velocity blend (spec C3): `speed*0.3` toward the target, `speed*0.7` up, from `SHOT.speed = 240`. */
-const AUTO_TARGET_TOWARD = 72;
-const AUTO_TARGET_UP = 168;
+/** AUTO_TARGET's legacy velocity blend (spec C3): 30 % of `SHOT.speed` toward the target, 70 % up, so it follows `TUNING.octopiShotPct`. */
+const AUTO_TARGET_TOWARD = idiv(SHOT.speed * 3, 10);
+const AUTO_TARGET_UP = idiv(SHOT.speed * 7, 10);
 
 function distSq(a: { x: number; y: number }, b: { x: number; y: number }): number {
   const dx = a.x - b.x;

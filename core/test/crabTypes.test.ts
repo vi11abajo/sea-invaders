@@ -11,6 +11,7 @@ import {
   hitOctopi,
   idiv,
   marchCrabs,
+  marchSteps,
   spawnFormation,
   updateEnemyShots,
 } from '../src';
@@ -79,15 +80,18 @@ describe('crab types', () => {
     c.dive = DIVER.ticks; // start the dive now; the interval trigger itself is covered above
     const v = crabSpeed(s); // constant: wave/waveTotal/kills never change across this span
     // Travel needed to reach a wall from here vastly exceeds DIVER.ticks * v, so the lone
-    // formation slot never bounces during the dive: the expected drift is exactly ticks * v.
+    // formation slot never bounces during the dive: the expected drift is exactly one v per march
+    // step taken (TUNING.crabMovePct below 100 rests the formation on some ticks).
+    let marched = 0;
     for (let i = 0; i < DIVER.ticks; i++) {
       s.tick += 1;
+      marched += marchSteps(s.tick);
       marchCrabs(s);
     }
     expect(c.dive).toBe(0);
     expect(c.x).toBe(c.homeX);
     expect(c.y).toBe(c.homeY);
-    expect(c.homeX).toBe(startHomeX + DIVER.ticks * v);
+    expect(c.homeX).toBe(startHomeX + marched * v);
     expect(c.homeY).toBe(startHomeY);
   });
   it('a diver returning after its row stepped down lands on the row\'s current y, not the stale spawn slot', () => {

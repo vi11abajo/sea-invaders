@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_INPUT, PRACTICE_RUN, createGame, moveOctopi, step, updateShots } from '../src';
+import { INITIAL_INPUT, PRACTICE_RUN, SHOT, createGame, moveOctopi, step, updateShots } from '../src';
 
 describe('moveOctopi', () => {
   it('moves at most 250 per tick toward the target', () => {
@@ -25,7 +25,7 @@ describe('updateShots', () => {
     for (let t = 1; t <= 7; t++) updateShots(s);
     expect(s.shots).toHaveLength(0);
     updateShots(s);
-    expect(s.shots).toEqual([{ x: 2812, y: 9650 - 562, vx: 0, vy: -240, kind: 'straight', data: 0 }]);
+    expect(s.shots).toEqual([{ x: 2812, y: 9650 - 562, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 }]);
     for (let t = 9; t <= 24; t++) updateShots(s);
     expect(s.shots).toHaveLength(3);
   });

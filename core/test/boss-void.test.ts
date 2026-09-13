@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   BOSS, BOSS_HOOKS, FIELD_W, INITIAL_INPUT, PRACTICE_RUN, activateBoost, createGame, hashState, idiv, isqrt, muzzle,
-  pullShotsTowardGravity, spawnBoss, step, updateShots,
+  SHOT, pullShotsTowardGravity, spawnBoss, step, updateShots,
 } from '../src';
+import { autoTargetSteer, velocity } from './auto-target-steer';
 
 const fresh = () => {
   const s = createGame('void', { ...PRACTICE_RUN, features: { boosts: false } });
@@ -197,7 +198,7 @@ describe('Void Sovereign (kind 5)', () => {
     const b = s.boss!;
     activateBoost(s, 'AUTO_TARGET');
     s.crabs = [{ x: 5000, y: 500, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 5000, homeY: 500 }];
-    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
+    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 }];
     VOID.ability(s, b);
     expect(b.effectTicks).toBe(180);
 
@@ -206,15 +207,13 @@ describe('Void Sovereign (kind 5)', () => {
       VOID.tick!(s, b);
     }
     expect(s.shots[0]!.vx).toBe(0); // AUTO_TARGET steering skipped while frozen: stored vx untouched
-    expect(s.shots[0]!.vy).toBe(-240); // motion skipped too
+    expect(s.shots[0]!.vy).toBe(-SHOT.speed); // motion skipped too
     expect(b.effectTicks).toBe(0);
 
     updateShots(s);
-    // Steers again immediately once the freeze ends: after moving to y=4760, the boss (left at its
-    // default spawn point, ~2812,2180) is nearer than the crab, so AUTO_TARGET aims at the boss —
-    // offset (1812, -2580), len 3152: vx = idiv(1812*72, 3152) = 41; vy = idiv(-2580*72, 3152) - 168 = -226.
-    expect(s.shots[0]!.vx).toBe(41);
-    expect(s.shots[0]!.vy).toBe(-226);
+    // Steers again immediately once the freeze ends: after the move, the boss (left at its default
+    // spawn point, ~2812,2180) is nearer than the crab, so AUTO_TARGET aims at the boss.
+    expect(velocity(s.shots[0]!)).toEqual(autoTargetSteer(b.x - 1000, b.y - (5000 - SHOT.speed)));
   });
 
   it('is deterministic over 600 ticks', () => {

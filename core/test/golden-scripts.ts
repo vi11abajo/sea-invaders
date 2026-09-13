@@ -36,8 +36,8 @@ function wander(): (tick: number) => Input {
   };
 }
 
-/** Vertical range within which an incoming enemy shot is worth dodging. */
-const DODGE_RANGE_Y = 1500;
+/** Vertical range within which an incoming enemy shot is worth dodging (see `DODGE_DWELL_LIMIT`). */
+const DODGE_RANGE_Y = 1200;
 
 /**
  * A boss's shots start far above Octopi (muzzle near the top of the field) and take longer to
@@ -47,8 +47,8 @@ const DODGE_RANGE_Y = 1500;
  */
 const BOSS_DODGE_RANGE_Y = 3000;
 
-/** Candidate dodge columns spanning the field, evenly spaced. */
-const DODGE_COLUMNS = Array.from({ length: 9 }, (_, i) => idiv(i * FIELD_W, 8));
+/** Candidate dodge columns spanning the field, evenly spaced (see `DODGE_DWELL_LIMIT`). */
+const DODGE_COLUMNS = Array.from({ length: 11 }, (_, i) => idiv(i * FIELD_W, 10));
 
 /**
  * After holding the same dodge column this long, that column is dropped from consideration for
@@ -62,8 +62,11 @@ const DODGE_COLUMNS = Array.from({ length: 9 }, (_, i) => idiv(i * FIELD_W, 8));
  * at once and picking one with comfortable margin on `survivor` (~11,400 ticks, not a bare pass over
  * the 6000 floor) that also still clears level 6 and reaches level 30's boss phase 3 — the smallest
  * change from the pre-lane-C values (1500/8/9 columns) that satisfies all three.
+ * Retuned again with the game-speed tuning of 2026-09-13 (slower Octopi shots, slower and less
+ * trigger-happy crabs), which shifts every draw the same way: the same three-way sweep picked range
+ * 1200, dwell 7 and 11 columns (`survivor` ~10,200 ticks, level 6 cleared, level 30 phase 3).
  */
-const DODGE_DWELL_LIMIT = 5;
+const DODGE_DWELL_LIMIT = 7;
 
 /**
  * Dodges every threatening enemy shot (within DODGE_RANGE_Y vertically) at once by moving to
@@ -121,10 +124,10 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   level30: {
     ticks: 18_000, makeInput: survivor, run: CAMPAIGN_RUN(30), mode: REPLAY_MODE.campaign, seed: levelSeed('golden', 30),
   },
-  // The `wander` input trajectory on a boosted daily run: exercises boost pickups/effects end to
-  // end. `wander` never dodges, so the run ends in game over well short of `ticks`; this seed was
-  // picked (search, not the sim) for at least 5 boost_pickup events before Octopi dies. Re-picked
-  // whenever the `rngBoosts` draw sequence changes (Phase 3A.1: RICOCHET removed, chaos pool 10 -> 14,
-  // drop chance 7 % -> 3 %): `golden-boosted-19` gives 7 pickups at the current rules.
-  boosted: { ticks: 10_800, makeInput: wander, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-19' },
+  // The `survivor` input on a boosted daily run: exercises boost pickups/effects end to end. The seed
+  // was picked (search, not the sim) for at least 5 boost_pickup events, and is re-picked whenever
+  // the `rngBoosts` draw sequence changes. Until the game-speed tuning of 2026-09-13 this used the
+  // non-dodging `wander` input, but its runs now end too early (about 750 ticks on average, at most
+  // 4 pickups over 2000 seeds): `golden-boosted-0` gives 7 pickups over 6124 ticks with `survivor`.
+  boosted: { ticks: 10_800, makeInput: survivor, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-0' },
 };

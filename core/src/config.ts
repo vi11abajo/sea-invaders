@@ -1,3 +1,4 @@
+import { idiv } from './fixed';
 import type { CrabType } from './levels';
 import type { BoostType, BulletKind, OctopiVariant } from './types';
 
@@ -45,7 +46,31 @@ export function piercingFor(variant: OctopiVariant): boolean {
   return variant !== 'base' && Boolean(VARIANTS[variant].piercing);
 }
 
-export const SHOT = { w: 120, h: 360, speed: 240 } as const;
+/**
+ * Game-speed tuning in percent of the original speeds (100 = unchanged, below 100 slower, above
+ * faster). Change these knobs rather than the values they scale: every derived speed follows.
+ * Owner tuning 2026-09-13: Octopi's shots -20 %, crab movement -10 %, crab fire rate -10 %.
+ * Any change alters every replay, so it ships with a CORE_VERSION bump and regenerated goldens.
+ */
+export const TUNING = {
+  /** How fast Octopi's shots fly: scales `UNTUNED_SPEED.octopiShot` into `SHOT.speed`. */
+  octopiShotPct: 80,
+  /** How fast crabs move: the formation march (see `marchSteps`) and diver dives (`DIVER.speed`). */
+  crabMovePct: 90,
+  /** How often crabs fire: scales the per-tick fire chance (see `fireChance`). */
+  crabFirePct: 90,
+} as const;
+
+/** The original speeds, in units/tick, that the `TUNING` knobs scale. */
+export const UNTUNED_SPEED = { octopiShot: 240, diver: 220 } as const;
+
+/** `base` scaled to `pct` percent, rounded towards zero (integer-only like the rest of the core). */
+export function scalePct(base: number, pct: number): number {
+  return idiv(base * pct, 100);
+}
+
+/** Player shot; `speed` is `UNTUNED_SPEED.octopiShot` scaled by `TUNING.octopiShotPct`. */
+export const SHOT = { w: 120, h: 360, speed: scalePct(UNTUNED_SPEED.octopiShot, TUNING.octopiShotPct) } as const;
 
 export const ENEMY_SHOT = {
   radius: 96,
@@ -102,8 +127,11 @@ export const CRAB_SHOTS: Record<CrabType, { kind: BulletKind; speed: number; cou
   diver: null,
 };
 
-/** A `diver`-type crab leaves formation every `interval` ticks for `ticks` ticks, closing at `speed` units/tick. */
-export const DIVER = { interval: 360, ticks: 90, speed: 220 } as const;
+/**
+ * A `diver`-type crab leaves formation every `interval` ticks for `ticks` ticks, closing at `speed`
+ * units/tick: `UNTUNED_SPEED.diver` scaled by `TUNING.crabMovePct`.
+ */
+export const DIVER = { interval: 360, ticks: 90, speed: scalePct(UNTUNED_SPEED.diver, TUNING.crabMovePct) } as const;
 
 /** Half-angle in degrees between a fanner's outer shots and its straight aim. */
 export const FANNER_SPREAD = 20;

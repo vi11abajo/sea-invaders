@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BOSS,
   PRACTICE_RUN,
+  SHOT,
   activateBoost,
   advanceScoreDecay,
   createGame,
@@ -18,6 +19,7 @@ import {
   updateEnemyShots,
   updateShots,
 } from '../src';
+import { autoTargetSteer, velocity } from './auto-target-steer';
 
 describe('ICE_FREEZE', () => {
   it('halves the formation march step (6 to 3 at wave 1)', () => {
@@ -163,28 +165,31 @@ describe('AUTO_TARGET', () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'AUTO_TARGET');
     s.crabs = [{ x: 4000, y: 760, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 4000, homeY: 760 }];
-    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
+    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 }];
     updateShots(s);
     // The very first tick's move used the shot's original vx (0, before any steering), so x hasn't
-    // moved yet. After moving to y=4760, offset to the crab is (3000, -4000), a 3-4-5 triangle
-    // (len 5000): vx = idiv(3000*72, 5000) = 43; vy = idiv(-4000*72, 5000) - 168 = -57 - 168 = -225.
+    // moved yet; the new velocity aims from the moved position at the crab.
+    const y = 5000 - SHOT.speed;
     expect(s.shots[0]!.x).toBe(1000);
-    expect(s.shots[0]!.y).toBe(4760);
-    expect(s.shots[0]!.vx).toBe(43);
-    expect(s.shots[0]!.vy).toBe(-225);
+    expect(s.shots[0]!.y).toBe(y);
+    expect(velocity(s.shots[0]!)).toEqual(autoTargetSteer(4000 - 1000, 760 - y));
+    expect(s.shots[0]!.vx).toBeGreaterThan(0); // toward the crab on the right
   });
 
   it("moves a shot's x toward its target using the steered vx from the previous tick (fix round 1: player shots now move on both axes)", () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'AUTO_TARGET');
     s.crabs = [{ x: 4000, y: 760, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 4000, homeY: 760 }];
-    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
-    updateShots(s); // vx becomes 43 (see the test above), x still 1000 this tick
-    updateShots(s); // this tick moves x by the previous tick's steered vx (43), then steers again
-    expect(s.shots[0]!.x).toBe(1043); // moved toward the crab (x: 4000), not stuck at 1000
-    expect(s.shots[0]!.y).toBe(4535);
-    expect(s.shots[0]!.vx).toBe(44);
-    expect(s.shots[0]!.vy).toBe(-224);
+    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 }];
+    updateShots(s); // steers (see the test above), x still 1000 this tick
+    const first = autoTargetSteer(4000 - 1000, 760 - (5000 - SHOT.speed));
+    updateShots(s); // this tick moves by the previous tick's steered velocity, then steers again
+    const x = 1000 + first.vx;
+    const y = 5000 - SHOT.speed + first.vy;
+    expect(x).toBeGreaterThan(1000);
+    expect(s.shots[0]!.x).toBe(x); // moved toward the crab (x: 4000), not stuck at 1000
+    expect(s.shots[0]!.y).toBe(y);
+    expect(velocity(s.shots[0]!)).toEqual(autoTargetSteer(4000 - x, 760 - y));
   });
 
   it('targets the boss when no crabs remain', () => {
@@ -194,11 +199,10 @@ describe('AUTO_TARGET', () => {
     spawnBoss(s, 1);
     s.boss!.x = 5000;
     s.boss!.y = 500;
-    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
+    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 }];
     updateShots(s);
-    // offset to the boss after the move is (4000, -4260), len 5843 (see boosts-complex/boss-void tests).
-    expect(s.shots[0]!.vx).toBe(49);
-    expect(s.shots[0]!.vy).toBe(-220);
+    // aims from the moved shot at the boss's centre
+    expect(velocity(s.shots[0]!)).toEqual(autoTargetSteer(5000 - 1000, 500 - (5000 - SHOT.speed)));
   });
 
   it('prefers the boss over a farther crab', () => {
@@ -208,11 +212,10 @@ describe('AUTO_TARGET', () => {
     spawnBoss(s, 1);
     s.boss!.x = 1100;
     s.boss!.y = 4700;
-    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
+    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 }];
     updateShots(s);
-    // offset to the (nearer) boss after the move is (100, -60), len 116.
-    expect(s.shots[0]!.vx).toBe(62);
-    expect(s.shots[0]!.vy).toBe(-205);
+    // aims at the (nearer) boss, not the crab at (5000, 100)
+    expect(velocity(s.shots[0]!)).toEqual(autoTargetSteer(1100 - 1000, 4700 - (5000 - SHOT.speed)));
   });
 
   it('prefers a crab over a farther boss', () => {
@@ -222,10 +225,10 @@ describe('AUTO_TARGET', () => {
     spawnBoss(s, 1);
     s.boss!.x = 5000;
     s.boss!.y = 100;
-    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
+    s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 }];
     updateShots(s);
-    expect(s.shots[0]!.vx).toBe(62);
-    expect(s.shots[0]!.vy).toBe(-205);
+    // aims at the (nearer) crab, not the boss at (5000, 100)
+    expect(velocity(s.shots[0]!)).toEqual(autoTargetSteer(1100 - 1000, 4700 - (5000 - SHOT.speed)));
   });
 
   it('leaves vx/vy unchanged with neither crabs nor a boss', () => {
