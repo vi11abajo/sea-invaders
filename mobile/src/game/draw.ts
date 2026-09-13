@@ -65,11 +65,11 @@ const SHIELD_COLOR = Skia.Color('rgba(0,221,255,0.6)');
 const PLAYER_SHIELD_STROKE = 4;
 const BOSS_SHIELD_STROKE = 6;
 
-/** INVINCIBILITY indication (spec M6): legacy rainbow outline, cycling every 6 ticks. */
+/** INVINCIBILITY indication (spec M6): legacy rainbow outline, cycling every 6 ticks. The outline's
+ * own `SkRRect` is precomputed per ship pose in `sprites.ts` (`PreparedSprites.invincibleOutline`)
+ * and only translated here — never rebuilt per frame. */
 const INVINCIBLE_COLORS = ['#ff0000', '#ff8800', '#ffff00', '#00ff00', '#0088ff', '#0000ff', '#8800ff'].map((hex) => Skia.Color(hex));
 const INVINCIBLE_STROKE_W = 3;
-const INVINCIBLE_INFLATE = 4;
-const INVINCIBLE_CORNER_R = 8;
 const INVINCIBLE_SPARK_COUNT = 4;
 const INVINCIBLE_SPARK_RISE_TICKS = 18;
 /** How far a spark rises over its lifetime, and its size range, both in dp (unscaled, like the outline). */
@@ -111,7 +111,7 @@ const HEAVY_DIAMETER = 280;
 const FAST_W = 30;
 const FAST_H = 200;
 
-/** A unit box centred on the origin, reused (via `canvas.scale`) for the zigzag diamond and the invincibility outline — never reallocated per shot/frame. */
+/** A unit box centred on the origin, reused (via `canvas.scale`) for the zigzag diamond — never reallocated per shot. */
 const UNIT_SQUARE = { x: -0.5, y: -0.5, width: 1, height: 1 };
 /** A narrow unit rect trailing above the origin, reused for the meteor's motion trail. */
 const METEOR_TRAIL_UNIT = { x: -0.15, y: -2.4, width: 0.3, height: 2 };
@@ -435,17 +435,18 @@ export function drawFrame(
     }
   }
   if (invincible) {
-    const outlineW = shipSprite.w + INVINCIBLE_INFLATE * 2;
-    const outlineH = shipSprite.h + INVINCIBLE_INFLATE * 2;
-    // Built fresh here (once per frame, not per entity — cheap, and a stroke can't be sized by
-    // `canvas.scale` without also scaling `INVINCIBLE_STROKE_W`, unlike the fills elsewhere in this file).
-    const outlineRRect = Skia.RRectXY(scratch(sx - outlineW / 2, sy - outlineH / 2, outlineW, outlineH), INVINCIBLE_CORNER_R, INVINCIBLE_CORNER_R);
+    // Precomputed per ship pose in sprites.ts (never rebuilt here): centred at the local origin,
+    // so a translate to the ship's centre is all this needs — no scale, so the stroke stays 3 dp.
+    const outlineRRect = f.ship.invuln > 0 ? sprites.invincibleOutline.hit : sprites.invincibleOutline.front;
     const color = INVINCIBLE_COLORS[Math.floor(f.tick / 6) % INVINCIBLE_COLORS.length]!;
     paint.setStyle(STROKE);
     paint.setStrokeWidth(INVINCIBLE_STROKE_W);
     paint.setColor(color);
     paint.setAlphaf(0.5 + 0.3 * Math.sin(f.tick / 10));
+    canvas.save();
+    canvas.translate(sx, sy);
     canvas.drawRRect(outlineRRect, paint);
+    canvas.restore();
     paint.setStyle(FILL);
 
     for (let i = 0; i < INVINCIBLE_SPARK_COUNT; i++) {

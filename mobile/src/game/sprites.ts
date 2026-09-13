@@ -124,8 +124,20 @@ export interface PreparedSprite {
   dest: Rect;
 }
 
+/** INVINCIBILITY outline geometry, in dp (unscaled): a stroke can't be sized by `canvas.scale`
+ * without also scaling its width, so the outline rect is precomputed here at each ship pose's
+ * real on-screen size instead of built from a transform in the per-frame worklet. */
+export const INVINCIBLE_INFLATE = 4;
+export const INVINCIBLE_CORNER_R = 8;
+
 export interface PreparedSprites {
   ship: { front: PreparedSprite; hit: PreparedSprite };
+  /**
+   * One precomputed `SkRRect` per ship pose (`front`/`hit`), centred at the local origin and sized
+   * to that pose's own `w x h` inflated by `INVINCIBLE_INFLATE` on each side. `draw.ts` only
+   * `canvas.translate`s to the ship's centre before drawing it — never reallocated per frame.
+   */
+  invincibleOutline: { front: ReturnType<typeof Skia.RRectXY>; hit: ReturnType<typeof Skia.RRectXY> };
   crabs: PreparedSprite[];
   /** `bosses[kind - 1] = [frame0, frame1]`, both pre-scaled to `BOSS.width x BOSS.height`. */
   bosses: [PreparedSprite, PreparedSprite][];
@@ -166,6 +178,13 @@ function containSize(image: SkImage, box: number): { w: number; h: number } {
   return { w: box * (imgW / imgH), h: box };
 }
 
+/** The INVINCIBILITY outline `SkRRect` for a prepared sprite of size `w x h`, centred at `(0, 0)`. */
+function outlineRRect(sprite: PreparedSprite): ReturnType<typeof Skia.RRectXY> {
+  const w = sprite.w + INVINCIBLE_INFLATE * 2;
+  const h = sprite.h + INVINCIBLE_INFLATE * 2;
+  return Skia.RRectXY({ x: -w / 2, y: -h / 2, width: w, height: h }, INVINCIBLE_CORNER_R, INVINCIBLE_CORNER_R);
+}
+
 function preparedFrom(image: SkImage, w: number, h: number, src?: Rect): PreparedSprite {
   const scaledImage = renderScaled(image, w, h, src);
   const ok = scaledImage !== null;
@@ -193,6 +212,7 @@ export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprite
   const shipW = SHIP.size * k;
   const front = preparedFrom(sprites.ship.front, shipW, shipW * (sprites.ship.front.height() / sprites.ship.front.width()));
   const hit = preparedFrom(sprites.ship.hit, shipW, shipW * (sprites.ship.hit.height() / sprites.ship.hit.width()));
+  const invincibleOutline = { front: outlineRRect(front), hit: outlineRRect(hit) };
 
   const crabSize = CRAB.size * k;
   const crabs = sprites.crabs.map((img) => preparedFrom(img, crabSize, crabSize));
@@ -209,7 +229,7 @@ export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprite
     return preparedFrom(img, w, h);
   });
 
-  return { ship: { front, hit }, crabs, bosses, boosts };
+  return { ship: { front, hit }, invincibleOutline, crabs, bosses, boosts };
 }
 
 /** `prepareSprites`, memoized on `sprites`/`layout` so it rebuilds only when either changes. */
