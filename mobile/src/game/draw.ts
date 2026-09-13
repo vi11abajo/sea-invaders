@@ -454,10 +454,15 @@ export function drawFrame(
   }
 
   // Octopi: always the front sprite, swapped for the damage pose while invulnerable (no blink).
+  // Both poses come from `prepareOctopi` already in the active skin (the tint is baked into their
+  // snapshots); only a pose whose snapshot failed carries the skin's prebuilt colour filter, which
+  // its full-size fallback draw applies here.
   const sx = px(f.octopi.x);
   const sy = py(f.octopi.y);
   const octopiSprite = f.octopi.invuln > 0 ? sprites.octopi.hit : sprites.octopi.front;
+  if (octopiSprite.filter !== null) paint.setColorFilter(octopiSprite.filter);
   drawSpriteAt(canvas, paint, octopiSprite, sx - octopiSprite.w / 2, sy - octopiSprite.h / 2);
+  if (octopiSprite.filter !== null) paint.setColorFilter(null);
   if (DEV_HITBOX) {
     paint.setColor(SHOT_COLOR);
     paint.setAlphaf(0.6);

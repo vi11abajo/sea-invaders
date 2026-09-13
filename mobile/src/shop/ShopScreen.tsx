@@ -1,4 +1,3 @@
-import { useImage, type SkImage } from '@shopify/react-native-skia';
 import { PublicKey, type Connection } from '@solana/web3.js';
 import { useMobileWallet } from '@wallet-ui/react-native-web3js';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,8 +15,6 @@ import { formatSkr, formatSolBalance, formatSolPrice } from '../wallet/format';
 import { DECLINED_TOAST, usePurchase } from '../wallet/usePurchase';
 import { PurchaseSheets } from '../wallet/WalletSheets';
 import { ItemArt } from './ItemArt';
-
-const OCTOPI_SPRITE = require('../../assets/sprites/octopiFront.png');
 
 /** What each campaign octopi does (design doc §1), by catalogue item id. Names and prices come from the backend. */
 const PERKS: Readonly<Record<number, string>> = {
@@ -56,7 +53,6 @@ interface ShopScreenProps {
  * runs the on-chain purchase through `usePurchase` and its sheets; pull down to refresh.
  */
 export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
-  const octopi = useImage(OCTOPI_SPRITE);
   const { connection } = useMobileWallet();
   const purchase = usePurchase();
   const { start, reset } = purchase;
@@ -242,7 +238,7 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
               </View>
             )
           ) : (
-            <Catalogue shop={shop} image={octopi} solQuotes={solQuotes} disabled={busy} onBuy={(item) => void buy(item)} />
+            <Catalogue shop={shop} solQuotes={solQuotes} disabled={busy} onBuy={(item) => void buy(item)} />
           )}
         </ScrollView>
       </Animated.View>
@@ -273,14 +269,13 @@ function BalancePill({ skr, solLamports }: { skr: number; solLamports: number | 
 
 interface CatalogueProps {
   shop: ShopInfo;
-  image: SkImage | null;
   /** Mainnet SOL quotes by item id, for items the SKR balance cannot cover. */
   solQuotes: Readonly<Record<number, number>>;
   disabled: boolean;
   onBuy: (item: ShopItem) => void;
 }
 
-function Catalogue({ shop, image, solQuotes, disabled, onBuy }: CatalogueProps) {
+function Catalogue({ shop, solQuotes, disabled, onBuy }: CatalogueProps) {
   const short = (item: ShopItem) => shop.swap.available && !item.owned && item.priceSkr > shop.balanceSkr;
   const priceLabel = (item: ShopItem): string => {
     if (item.owned) return 'Owned';
@@ -307,7 +302,7 @@ function Catalogue({ shop, image, solQuotes, disabled, onBuy }: CatalogueProps) 
           <Txt variant="secondary" tone="secondary" style={[styles.section, styles.sectionFirst]}>CAMPAIGN OCTOPI</Txt>
           {variants.map((item) => (
             <View key={item.id} style={styles.row}>
-              <ItemArt image={image} itemId={item.id} size={VARIANT_THUMB} />
+              <ItemArt itemId={item.id} size={VARIANT_THUMB} />
               <View style={styles.rowText}>
                 <Txt style={styles.rowName} numberOfLines={1}>{item.name}</Txt>
                 {PERKS[item.id] !== undefined && (
@@ -326,7 +321,7 @@ function Catalogue({ shop, image, solQuotes, disabled, onBuy }: CatalogueProps) 
             <View key={pair[0].id} style={styles.gridRow}>
               {pair.map((item) => (
                 <View key={item.id} style={styles.card}>
-                  <ItemArt image={image} itemId={item.id} size={SKIN_SWATCH} />
+                  <ItemArt itemId={item.id} size={SKIN_SWATCH} />
                   <Txt style={styles.cardName} numberOfLines={1}>{item.name}</Txt>
                   <PricePill item={item} label={priceLabel(item)} height={CARD_PILL} stretch disabled={disabled} onBuy={onBuy} />
                 </View>

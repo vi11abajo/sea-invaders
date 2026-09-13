@@ -12,9 +12,10 @@ import { Txt } from '../ui/Txt';
 import { COLORS, FONTS } from '../ui/tokens';
 import { GameHud, type HudBoost } from './GameHud';
 import { PauseSheet } from './PauseSheet';
-import { ResultView } from './ResultView';
+import { RESULT_POSE_SIZE, ResultView } from './ResultView';
 import { drawFrame } from './draw';
-import { usePreparedSprites, useSprites } from './sprites';
+import { SKIN_TINTS, useActiveSkin } from './skins';
+import { primeOctopiArt, usePreparedSprites, useSprites } from './sprites';
 
 /** Milli-units between the finger and Octopi's centre, so the finger never covers Octopi. */
 const FINGER_LIFT = 600;
@@ -135,7 +136,8 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const layout = useMemo(() => fitField(width, height), [width, height]);
   const fieldRect = useMemo(() => ({ x: layout.offsetX, y: layout.offsetY, width: layout.width, height: layout.height }), [layout]);
   const sprites = useSprites();
-  const prepared = usePreparedSprites(sprites, layout);
+  const skin = useActiveSkin();
+  const prepared = usePreparedSprites(sprites, layout, skin);
   const frame = useSharedValue<Frame>(EMPTY_FRAME);
   const input = useRef<Input>(INITIAL_INPUT);
   const paused = useRef(false);
@@ -150,6 +152,12 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   // pre-scaled sprites) never appears in the run effect's deps and never calls `createGame` again.
   const preparedRef = useRef(prepared);
   preparedRef.current = prepared;
+
+  // The result screen's Octopi, made now from the sprite this run already decoded, so the pose is
+  // there the moment the run ends instead of decoding the asset again at that point.
+  useEffect(() => {
+    if (sprites !== null) primeOctopiArt(sprites.octopi.front, SKIN_TINTS[skin] ?? null, RESULT_POSE_SIZE);
+  }, [sprites, skin]);
 
   useEffect(() => {
     // Practice seed: the app may use the clock; only the core must not.

@@ -1,6 +1,7 @@
 import { formatCountdown, formatInt } from '@sea-invaders/core';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { skinName, useActiveSkin } from '../game/skins';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
 import { Toast } from '../ui/Toast';
@@ -8,11 +9,12 @@ import { COLORS } from '../ui/tokens';
 import { ConnectSheet } from '../wallet/WalletSheets';
 import { DailyRunCard, DailyRunRulesSheet } from './DailyRunCard';
 import { ReefScene } from './ReefScene';
-import { FeatureRow, HomeTopBar, type Feature } from './HomeTopBar';
+import { FeatureRow, HomeTopBar } from './HomeTopBar';
 import { Ticker, type TickerItem } from './Ticker';
 import type { HomeModel, RankedInfo } from './model';
 
-const FEATURE_NAMES: Record<Feature, string> = { campaign: 'Campaign', shop: 'Shop', ranks: 'Leaderboard', profile: 'Profile' };
+/** The hero's caption; an equipped skin is added the way the prototype writes it (`· Lime skin`). */
+const HERO_CAPTION = 'Octopi · base defender';
 
 /** Fractional SKR (the pool balance) renders with one decimal; `formatInt` is for whole scores. */
 function formatSkr(value: number): string {
@@ -27,7 +29,9 @@ interface HomeScreenProps {
   onLeaderboard: () => void;
   /** Opens the Shop. Only called with a wallet: signed out, the Shop entry points open the Connect sheet instead. */
   onShop: () => void;
-  /** Connect wallet when signed out; profile when signed in (still "coming soon"). */
+  /** Opens the Profile: the wallet pill when signed in, and the Profile icon either way (signed out it offers to connect). */
+  onProfile: () => void;
+  /** Starts the wallet sign-in: the "Connect wallet" pill and the Daily Run card when signed out. */
   onWallet: () => void;
   /** Buys a ranked ticket on-chain; resolves false when declined or failed. */
   onBuyTicket: () => Promise<boolean>;
@@ -43,14 +47,14 @@ interface HomeScreenProps {
 }
 
 /** Home, the "Reef": Octopi in the idle world, the Daily Run card and the ways into the game. */
-export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboard, onShop, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null, onRecorded = () => {}, dailyError = null }: HomeScreenProps) {
+export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboard, onShop, onProfile, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null, onRecorded = () => {}, dailyError = null }: HomeScreenProps) {
   const ranked = model.ranked;
   const now = useNow(ranked !== null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
   const closeConnect = useCallback(() => setConnectOpen(false), []);
-  const soon = (what: string) => setToast((t) => ({ id: (t?.id ?? 0) + 1, text: `${what} — coming soon` }));
+  const skin = skinName(useActiveSkin());
   // The Shop's catalogue and purchases need a wallet: signed out, its entry points ask to connect first.
   const openShop = () => (model.wallet ? onShop() : setConnectOpen(true));
 
@@ -66,10 +70,10 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
       <Backdrop floorGlow />
       <View style={styles.column}>
         <View style={styles.inset}>
-          <HomeTopBar wallet={model.wallet} onWallet={model.wallet ? () => soon('Profile') : onWallet} onShop={openShop} />
+          <HomeTopBar wallet={model.wallet} onWallet={model.wallet ? onProfile : onWallet} onShop={openShop} />
           <FeatureRow
             campaignBadge={campaign?.level ?? null}
-            onPress={(f) => (f === 'campaign' ? onCampaign() : f === 'ranks' ? onLeaderboard() : f === 'shop' ? openShop() : soon(FEATURE_NAMES[f]))}
+            onPress={(f) => (f === 'campaign' ? onCampaign() : f === 'ranks' ? onLeaderboard() : f === 'shop' ? openShop() : onProfile())}
           />
         </View>
         {ticker.length > 0 && (
@@ -77,7 +81,7 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
             <Ticker items={ticker} />
           </View>
         )}
-        <ReefScene caption="Octopi · base defender" onOctopi={openShop} />
+        <ReefScene caption={skin === null ? HERO_CAPTION : `${HERO_CAPTION} · ${skin} skin`} onOctopi={openShop} />
         <View style={[styles.inset, styles.bottom]}>
           <DailyRunCard
             ranked={ranked}

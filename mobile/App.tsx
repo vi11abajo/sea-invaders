@@ -13,8 +13,11 @@ import { useCampaign } from './src/campaign/useCampaign';
 import { DailyRunScreen } from './src/daily/DailyRunScreen';
 import { LeaderboardScreen } from './src/daily/LeaderboardScreen';
 import { GameScreen } from './src/game/GameScreen';
+import { SkinContext } from './src/game/skins';
 import { HomeScreen } from './src/home/HomeScreen';
 import { useHomeModel } from './src/home/useHomeModel';
+import { useLoadout, type LoadoutApi } from './src/loadout/useLoadout';
+import { ProfileScreen } from './src/profile/ProfileScreen';
 import { SelfTestScreen } from './src/selftest/SelfTestScreen';
 import { ShopScreen } from './src/shop/ShopScreen';
 import { Backdrop } from './src/ui/Backdrop';
@@ -23,7 +26,7 @@ import { UiGallery } from './src/ui/gallery/UiGallery';
 
 type Route = 'app' | 'selftest' | 'ui' | { kind: 'level'; id: number };
 type Screen =
-  | 'home' | 'practice' | 'daily' | 'leaderboard' | 'shop'
+  | 'home' | 'practice' | 'daily' | 'leaderboard' | 'shop' | 'profile'
   | { kind: 'campaign'; initialReef?: number }
   | { kind: 'level'; id: number; practice: boolean };
 
@@ -49,15 +52,35 @@ function routeFor(url: string | null): Route {
   return 'app';
 }
 
-/** Everything that needs the wallet provider and the session. */
+/**
+ * Owns the session and the loadout, and puts the loadout's active skin on every screen below it
+ * (Home's hero, the game, the result pose read it through `SkinContext`).
+ */
 function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
+  const auth = useSession();
+  const loadout = useLoadout(auth.session, auth.restoring);
+  return (
+    <SkinContext.Provider value={loadout.loadout.activeSkin}>
+      <Screens initialLevelId={initialLevelId} auth={auth} loadout={loadout} />
+    </SkinContext.Provider>
+  );
+}
+
+interface ScreensProps {
+  initialLevelId: number | null;
+  auth: ReturnType<typeof useSession>;
+  loadout: LoadoutApi;
+}
+
+/** Everything that needs the wallet provider and the session. */
+function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
   // The deep link is a QA tool: it always opens in practice mode so it can never mutate real
   // progress (a non-current level would also make finishLevel reject — see CampaignLevelScreen).
   const [screen, setScreen] = useState<Screen>(initialLevelId !== null ? { kind: 'level', id: initialLevelId, practice: true } : 'home');
   // Bumped on every level (re-)entry so the level screen's key changes even when `id`/`practice`
   // do not (e.g. "Retry level"), forcing a fresh mount instead of reusing the finished run's state.
   const [levelAttempt, setLevelAttempt] = useState(0);
-  const { session, restoring, signIn, error } = useSession();
+  const { session, restoring, loading: signingIn, signIn, signOut, error } = auth;
   const campaign = useCampaign();
   // The campaign map's new design has no sync indicator; the sync itself still needs to run.
   useCampaignSync(session, campaign.progress, campaign.replaceProgress);
@@ -120,9 +143,10 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
     }
   }, [refresh]);
 
-  // Until the stored session is read, show the backdrop only, so a cold start does not flash
-  // "Connect wallet" before it resolves. A sign-in in flight keeps Home on screen.
-  if (restoring) return <Backdrop />;
+  // Until the stored session and the loadout's offline copy are read, show the backdrop only, so a
+  // cold start does not flash "Connect wallet" or Octopi's base colours before they resolve. A
+  // sign-in in flight keeps Home on screen.
+  if (restoring || !loadout.loadout.ready) return <Backdrop />;
 
   // The campaign screens need the loaded progress; a fresh install or the level deep link can
   // reach them before AsyncStorage resolves, so they briefly show the backdrop only.
@@ -182,6 +206,20 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
     case 'shop':
       if (session !== null) return <ShopScreen walletAddress={session.walletAddress} onBack={home} />;
       return <Backdrop />;
+    case 'profile':
+      return (
+        <ProfileScreen
+          walletAddress={session?.walletAddress ?? null}
+          loadout={loadout.loadout}
+          onEquip={loadout.equip}
+          onReloadLoadout={loadout.refresh}
+          onConnect={() => void signIn()}
+          connecting={signingIn}
+          signInError={error}
+          onDisconnect={() => void signOut()}
+          onBack={home}
+        />
+      );
     default:
       return (
         <HomeScreen
@@ -191,6 +229,7 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
           onCampaign={() => setScreen({ kind: 'campaign' })}
           onLeaderboard={() => setScreen('leaderboard')}
           onShop={() => setScreen('shop')}
+          onProfile={() => setScreen('profile')}
           onWallet={() => void signIn()}
           onBuyTicket={buyTicket}
           onFaucet={buyFaucet}

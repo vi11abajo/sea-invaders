@@ -1,7 +1,10 @@
-import { FilterMode, MipmapMode, Skia, useImage, type SkImage } from '@shopify/react-native-skia';
+import { FilterMode, MipmapMode, Skia, loadData, useImage, type SkColorFilter, type SkImage, type SkSurface } from '@shopify/react-native-skia';
 import { BOSS, CRAB, DROP, OCTOPI, type Layout } from '@sea-invaders/core';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PixelRatio } from 'react-native';
+import type { SkinIndex } from '../loadout/items';
+import { tintMatrix } from '../shop/tints';
+import { SKIN_FILTERS } from './skins';
 
 /**
  * Read once on the JS thread; `draw.ts`'s worklet closes over this value rather than calling into
@@ -11,6 +14,9 @@ import { PixelRatio } from 'react-native';
  * draw time.
  */
 export const PIXEL_RATIO = PixelRatio.get();
+
+/** Octopi's front pose: the in-game sprite and the source of every UI snapshot (`useOctopiArt`). */
+const OCTOPI_FRONT = require('../../assets/sprites/octopiFront.png');
 
 export interface Sprites {
   octopi: { front: SkImage; hit: SkImage };
@@ -31,7 +37,7 @@ export interface Sprites {
  * caller can hold the game loop and show a loading state instead of drawing with a missing image.
  */
 export function useSprites(): Sprites | null {
-  const front = useImage(require('../../assets/sprites/octopiFront.png'));
+  const front = useImage(OCTOPI_FRONT);
   const hit = useImage(require('../../assets/sprites/OctopiOoff.png'));
 
   // Crab colour order matches CRAB_COLORS in draw.ts: kind 0..4.
@@ -150,6 +156,12 @@ export interface PreparedSprite {
   src: Rect;
   /** Where `image` lands on screen, in dp — read only by the `scaled === false` fallback path. */
   dest: Rect;
+  /**
+   * The colour filter the `scaled === false` fallback must draw `image` through: an Octopi pose's
+   * skin tint when its tinted snapshot failed and `image` is the untinted original. Null when the
+   * snapshot already carries the tint, and for every sprite that has none.
+   */
+  filter: SkColorFilter | null;
 }
 
 /** INVINCIBILITY outline geometry, in dp (unscaled): a stroke can't be sized by `canvas.scale`
@@ -159,6 +171,7 @@ export const INVINCIBLE_INFLATE = 4;
 export const INVINCIBLE_CORNER_R = 8;
 
 export interface PreparedSprites {
+  /** Octopi's two poses in the active skin, tinted into their snapshots (`prepareOctopi`). */
   octopi: { front: PreparedSprite; hit: PreparedSprite };
   /**
    * One precomputed `SkRRect` per Octopi pose (`front`/`hit`), centred at the local origin and sized
@@ -186,18 +199,27 @@ export interface PreparedSprites {
  * dp-sized image that then gets upscaled again by the OS compositor. `drawImageRectOptions` with
  * `FilterMode.Linear`/`MipmapMode.Linear` does that downsample; cropping `src` first (for an
  * aspect-fill) still works the same as before. Snapshots the result and converts it to a
- * non-texture image `drawSpriteAt` (draw.ts) draws back down to dp size at draw time. Returns null
- * if the surface, its snapshot, or the conversion is unavailable on this device/driver, or if any
- * of it throws.
+ * non-texture image `drawSpriteAt` (draw.ts) draws back down to dp size at draw time. A `filter`
+ * (an Octopi skin's `ColorMatrix`) recolours the pixels in the same draw, so a tinted snapshot costs
+ * nothing more than a plain one. Returns null if the surface, its snapshot, or the conversion is
+ * unavailable on this device/driver, or if any of it throws.
  */
-function renderScaled(image: SkImage, w: number, h: number, src?: Rect): SkImage | null {
+function renderScaled(
+  image: SkImage,
+  w: number,
+  h: number,
+  src?: Rect,
+  filter: SkColorFilter | null = null,
+  makeSurface: (width: number, height: number) => SkSurface | null = (width, height) => Skia.Surface.MakeOffscreen(width, height),
+): SkImage | null {
   try {
     const width = Math.max(1, Math.round(w * PIXEL_RATIO));
     const height = Math.max(1, Math.round(h * PIXEL_RATIO));
-    const surface = Skia.Surface.MakeOffscreen(width, height);
+    const surface = makeSurface(width, height);
     if (surface === null) return null;
     const canvas = surface.getCanvas();
     const paint = Skia.Paint();
+    if (filter !== null) paint.setColorFilter(filter);
     const from = src ?? { x: 0, y: 0, width: image.width(), height: image.height() };
     canvas.drawImageRectOptions(image, from, { x: 0, y: 0, width, height }, FilterMode.Linear, MipmapMode.Linear, paint);
     surface.flush();
@@ -225,8 +247,8 @@ function outlineRRect(sprite: PreparedSprite): ReturnType<typeof Skia.RRectXY> {
   return Skia.RRectXY({ x: -w / 2, y: -h / 2, width: w, height: h }, INVINCIBLE_CORNER_R, INVINCIBLE_CORNER_R);
 }
 
-function preparedFrom(image: SkImage, w: number, h: number, src?: Rect): PreparedSprite {
-  const scaledImage = renderScaled(image, w, h, src);
+function preparedFrom(image: SkImage, w: number, h: number, src?: Rect, filter: SkColorFilter | null = null): PreparedSprite {
+  const scaledImage = renderScaled(image, w, h, src, filter);
   const ok = scaledImage !== null;
   const fallbackSrc = src ?? { x: 0, y: 0, width: image.width(), height: image.height() };
   return {
@@ -241,22 +263,30 @@ function preparedFrom(image: SkImage, w: number, h: number, src?: Rect): Prepare
     // step, with no offscreen surface in between.
     src: ok ? { x: 0, y: 0, width: w * PIXEL_RATIO, height: h * PIXEL_RATIO } : fallbackSrc,
     dest: { x: 0, y: 0, width: w, height: h },
+    // A failed snapshot falls back to the untinted original, so the tint moves to draw time.
+    filter: ok ? null : filter,
   };
 }
 
-/**
- * Pre-scales every sprite to its exact on-screen size once, at physical-pixel resolution with mip
- * filtering (Task 4's FPS ruling, plus the crushed-sprite fix): the UI-thread worklet then draws
- * each with a single `canvas.drawImageOptions` call, no per-frame resampling. Called from a
- * `useMemo` in `GameScreen` keyed on `sprites`/`layout`, so it only reruns when either changes.
- */
-export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprites {
-  const k = layout.scale;
+type PreparedOctopi = Pick<PreparedSprites, 'octopi' | 'invincibleOutline'>;
+type PreparedWorld = Omit<PreparedSprites, 'octopi' | 'invincibleOutline'>;
 
-  const octopiW = OCTOPI.size * k;
-  const front = preparedFrom(sprites.octopi.front, octopiW, octopiW * (sprites.octopi.front.height() / sprites.octopi.front.width()));
-  const hit = preparedFrom(sprites.octopi.hit, octopiW, octopiW * (sprites.octopi.hit.height() / sprites.octopi.hit.width()));
-  const invincibleOutline = { front: outlineRRect(front), hit: outlineRRect(hit) };
+/**
+ * Octopi's front and hit poses in `skin`, pre-scaled like every other sprite with the skin's
+ * `ColorMatrix` applied in the same offscreen draw (both poses share the body colour `#1C6DC6` the
+ * matrix is calibrated on), plus each pose's INVINCIBILITY outline. The base skin draws untouched.
+ */
+export function prepareOctopi(sprites: Sprites, layout: Layout, skin: SkinIndex): PreparedOctopi {
+  const filter = SKIN_FILTERS[skin] ?? null;
+  const octopiW = OCTOPI.size * layout.scale;
+  const front = preparedFrom(sprites.octopi.front, octopiW, octopiW * (sprites.octopi.front.height() / sprites.octopi.front.width()), undefined, filter);
+  const hit = preparedFrom(sprites.octopi.hit, octopiW, octopiW * (sprites.octopi.hit.height() / sprites.octopi.hit.width()), undefined, filter);
+  return { octopi: { front, hit }, invincibleOutline: { front: outlineRRect(front), hit: outlineRRect(hit) } };
+}
+
+/** Every sprite but Octopi's: crabs, ice, bosses and boost icons. */
+function prepareWorld(sprites: Sprites, layout: Layout): PreparedWorld {
+  const k = layout.scale;
 
   const crabSize = CRAB.size * k;
   const crabs = sprites.crabs.map((img) => preparedFrom(img, crabSize, crabSize));
@@ -279,10 +309,145 @@ export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprite
     return preparedFrom(img, w, h);
   });
 
-  return { octopi: { front, hit }, invincibleOutline, crabs, ice, bosses, boosts };
+  return { crabs, ice, bosses, boosts };
 }
 
-/** `prepareSprites`, memoized on `sprites`/`layout` so it rebuilds only when either changes. */
-export function usePreparedSprites(sprites: Sprites | null, layout: Layout): PreparedSprites | null {
-  return useMemo(() => (sprites === null ? null : prepareSprites(sprites, layout)), [sprites, layout]);
+/**
+ * Pre-scales every sprite to its exact on-screen size once, at physical-pixel resolution with mip
+ * filtering (Task 4's FPS ruling, plus the crushed-sprite fix): the UI-thread worklet then draws
+ * each with a single `canvas.drawImageOptions` call, no per-frame resampling. Octopi comes out in
+ * `skin` (`prepareOctopi`).
+ */
+export function prepareSprites(sprites: Sprites, layout: Layout, skin: SkinIndex): PreparedSprites {
+  return { ...prepareWorld(sprites, layout), ...prepareOctopi(sprites, layout, skin) };
+}
+
+/**
+ * `prepareSprites` for `GameScreen`, memoized in two parts: the world sprites rebuild only when
+ * `sprites`/`layout` change, Octopi's two tinted poses also when the active skin changes.
+ */
+export function usePreparedSprites(sprites: Sprites | null, layout: Layout, skin: SkinIndex): PreparedSprites | null {
+  const world = useMemo(() => (sprites === null ? null : prepareWorld(sprites, layout)), [sprites, layout]);
+  const octopi = useMemo(() => (sprites === null ? null : prepareOctopi(sprites, layout, skin)), [sprites, layout, skin]);
+  return useMemo(() => (world === null || octopi === null ? null : { ...world, ...octopi }), [world, octopi]);
+}
+
+/*
+ * Octopi on UI screens (Home's hero, the result pose, Shop and Profile thumbs): small snapshots of
+ * the front pose, recoloured and pre-scaled through the same `renderScaled` path as the game. The
+ * ~2300 px asset decodes to ~20 MB, so it is decoded only while a snapshot is being made and
+ * released as soon as none is waiting; screens hold only their own snapshots (a 160 dp hero is
+ * about 1 MB at 3x, a 56 dp thumb about 0.1 MB).
+ */
+
+/** Snapshots kept for reuse across screens; the oldest is dropped past this count (a screen keeps its own reference). */
+const ART_LIMIT = 24;
+const artCache = new Map<string, SkImage>();
+const artJobs = new Map<string, Promise<SkImage | null>>();
+/** The decoded asset while any snapshot waits on it; null otherwise. */
+let artSource: Promise<SkImage | null> | null = null;
+let artWaiting = 0;
+
+function artKey(tint: string | null, px: number): string {
+  return `${tint ?? 'base'}@${px}`;
+}
+
+function rememberArt(key: string, image: SkImage): void {
+  artCache.delete(key);
+  artCache.set(key, image);
+  if (artCache.size > ART_LIMIT) {
+    const oldest = artCache.keys().next().value;
+    if (oldest !== undefined) artCache.delete(oldest);
+  }
+}
+
+/**
+ * Renders `source` recoloured to `tint` into a snapshot that fits a `px x px` physical-pixel square,
+ * keeping its aspect ratio. Falls back to a CPU surface where the GPU offscreen one is unavailable,
+ * so a UI Octopi never goes missing.
+ */
+function renderArt(source: SkImage, tint: string | null, px: number): SkImage | null {
+  const { w, h } = containSize(source, px / PIXEL_RATIO);
+  const filter = tint === null ? null : Skia.ColorFilter.MakeMatrix(tintMatrix(tint));
+  return (
+    renderScaled(source, w, h, undefined, filter) ??
+    renderScaled(source, w, h, undefined, filter, (width, height) => Skia.Surface.Make(width, height))
+  );
+}
+
+function requestArt(tint: string | null, px: number): Promise<SkImage | null> {
+  const key = artKey(tint, px);
+  const cached = artCache.get(key);
+  if (cached !== undefined) {
+    rememberArt(key, cached);
+    return Promise.resolve(cached);
+  }
+  const running = artJobs.get(key);
+  if (running !== undefined) return running;
+  artWaiting += 1;
+  if (artSource === null) {
+    // Started inside the chain so a failure to resolve the asset lands in the catch, not the caller.
+    artSource = Promise.resolve()
+      .then(() => loadData(OCTOPI_FRONT, (data) => Skia.Image.MakeImageFromEncoded(data)))
+      .catch(() => null);
+  }
+  const source = artSource;
+  const job = source
+    .then((image) => {
+      if (image === null) return null;
+      const art = renderArt(image, tint, px);
+      if (art !== null) rememberArt(key, art);
+      return art;
+    })
+    .catch(() => null)
+    .finally(() => {
+      artJobs.delete(key);
+      artWaiting -= 1;
+      if (artWaiting === 0 && artSource === source) {
+        // Nothing else waits on the decoded asset: release its ~20 MB now rather than at GC.
+        artSource = null;
+        void source.then((image) => image?.dispose());
+      }
+    });
+  artJobs.set(key, job);
+  return job;
+}
+
+/**
+ * Makes the snapshot `useOctopiArt(tint, box)` will ask for from an already decoded front pose (the
+ * game's own sprite), so a later screen finds it ready without decoding the asset again.
+ */
+export function primeOctopiArt(source: SkImage, tint: string | null, box: number): void {
+  const px = Math.round(box * PIXEL_RATIO);
+  if (px <= 0) return;
+  const key = artKey(tint, px);
+  if (artCache.has(key) || artJobs.has(key)) return;
+  const art = renderArt(source, tint, px);
+  if (art !== null) rememberArt(key, art);
+}
+
+/**
+ * Octopi's front pose recoloured to `tint` (null = its own colours, otherwise a `shop/tints.ts`
+ * colour), pre-scaled to fit a `box x box` dp square at physical pixels: draw it into that square
+ * (`fit="contain"`) and it lands 1:1 on the screen's pixels. Null until the snapshot is ready, or
+ * while `box` is 0 (not laid out yet).
+ */
+export function useOctopiArt(tint: string | null, box: number): SkImage | null {
+  const px = Math.round(box * PIXEL_RATIO);
+  const key = artKey(tint, px);
+  const [held, setHeld] = useState<{ key: string; image: SkImage } | null>(null);
+  useEffect(() => {
+    if (px <= 0) return undefined;
+    let alive = true;
+    void requestArt(tint, px).then((image) => {
+      if (alive && image !== null) setHeld({ key, image });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [key, tint, px]);
+  if (px <= 0) return null;
+  if (held !== null && held.key === key) return held.image;
+  // A snapshot another screen already made draws on the first frame, before the effect above holds it.
+  return artCache.get(key) ?? null;
 }

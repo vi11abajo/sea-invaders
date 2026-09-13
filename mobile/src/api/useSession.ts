@@ -46,10 +46,17 @@ export function useSession() {
     }
   }, [walletSignIn, forgetWalletAuthorization]);
 
+  // Disconnect: forget the wallet's cached authorization (local only, no wallet round trip) and the
+  // stored session. A failure to forget the authorization never keeps the player signed in.
   const signOut = useCallback(async () => {
+    try {
+      await forgetWalletAuthorization();
+    } catch (e) {
+      console.warn('[auth] forgetting the wallet authorization failed', e instanceof Error ? e.message : e);
+    }
     await apiSignOut();
     setSession(null);
-  }, []);
+  }, [forgetWalletAuthorization]);
 
   return { session, restoring, loading, signIn, signOut, error };
 }

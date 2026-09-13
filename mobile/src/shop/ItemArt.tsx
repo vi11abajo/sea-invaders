@@ -1,12 +1,12 @@
-import { Canvas, Circle, ColorMatrix, FilterMode, Image, MipmapMode, RadialGradient, vec, type SkImage } from '@shopify/react-native-skia';
-import { useMemo } from 'react';
-import { ITEM_TINT, tintMatrix, tintWithAlpha } from './tints';
+import { Canvas, Circle, FilterMode, Image, MipmapMode, RadialGradient, vec } from '@shopify/react-native-skia';
+import { useOctopiArt } from '../game/sprites';
+import { ITEM_TINT, tintWithAlpha } from './tints';
 
 /**
- * The sprite is ~2300 px wide and the thumbs are 56-64 dp, a >10x reduction: mip-mapped linear
- * sampling keeps the outlines smooth instead of "crushed" (the lesson of the in-game sprites).
+ * The thumb is a snapshot already recoloured and pre-scaled to the screen's physical pixels
+ * (`useOctopiArt`), so a plain linear draw lands it 1:1; the ~2300 px sprite is never held for it.
  */
-const SAMPLING = { filter: FilterMode.Linear, mipmap: MipmapMode.Linear } as const;
+const SAMPLING = { filter: FilterMode.Linear, mipmap: MipmapMode.None } as const;
 /** The sprite's share of the thumb, leaving a rim for the glow behind it. */
 const SPRITE_SHARE = 0.88;
 /** The glow is the design's art-slot light, `radial-gradient(circle at 50% 40%, <colour> 25 %, transparent 70%)`. */
@@ -16,22 +16,20 @@ const GLOW_CENTER_Y = 0.4;
 const GLOW_RADIUS = Math.sqrt(0.5 * 0.5 + 0.6 * 0.6);
 
 interface ItemArtProps {
-  /** `octopiFront.png`, decoded once by the screen and shared by every thumb. Null while it loads. */
-  image: SkImage | null;
-  /** Catalogue item id; an id without a tint (a future item) shows the base Octopi. */
-  itemId: number;
-  /** Thumb side in dp: 56 for a campaign octopi row, 64 for a skin card. */
+  /** Catalogue item id; null (the base Octopi) or an id without a tint (a future item) shows Octopi's own colours. */
+  itemId: number | null;
+  /** Thumb side in dp: 56 for a campaign octopi row, 64 for a skin card, 34 for a Profile tile. */
   size: number;
 }
 
 /** A catalogue item's thumb: Octopi recoloured to the item's tint over a soft glow of the same colour. */
-export function ItemArt({ image, itemId, size }: ItemArtProps) {
-  const tint = ITEM_TINT[itemId];
-  const matrix = useMemo(() => (tint === undefined ? null : tintMatrix(tint)), [tint]);
+export function ItemArt({ itemId, size }: ItemArtProps) {
+  const tint = itemId === null ? undefined : ITEM_TINT[itemId];
   const glow = tint ?? '#FFFFFF';
   const half = size / 2;
   const sprite = size * SPRITE_SHARE;
   const inset = (size - sprite) / 2;
+  const art = useOctopiArt(tint ?? null, sprite);
   return (
     <Canvas style={{ width: size, height: size }} pointerEvents="none">
       <Circle cx={half} cy={half} r={half}>
@@ -42,11 +40,7 @@ export function ItemArt({ image, itemId, size }: ItemArtProps) {
           positions={[0, 0.7]}
         />
       </Circle>
-      {image !== null && (
-        <Image image={image} x={inset} y={inset} width={sprite} height={sprite} fit="contain" sampling={SAMPLING}>
-          {matrix !== null && <ColorMatrix matrix={matrix} />}
-        </Image>
-      )}
+      {art !== null && <Image image={art} x={inset} y={inset} width={sprite} height={sprite} fit="contain" sampling={SAMPLING} />}
     </Canvas>
   );
 }

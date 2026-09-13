@@ -1,13 +1,15 @@
 import { formatInt } from '@sea-invaders/core';
 import type { ReactNode } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { GradientText } from '../ui/GradientText';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS } from '../ui/tokens';
+import { ActiveOctopi } from './OctopiArt';
 
-const OCTOPI_FRONT = require('../../assets/sprites/octopiFront.png');
+/** Octopi's pose on the result screen, in dp. `GameScreen` primes this size while the run plays. */
+export const RESULT_POSE_SIZE = 120;
 
 export interface ResultStat {
   label: string;
@@ -37,7 +39,7 @@ interface ResultViewProps {
   extra?: ReactNode;
 }
 
-/** End of a run: the score in the signature gradient, Octopi's pose and a sheet of stats and actions. */
+/** End of a run: the score in the signature gradient, Octopi's pose (in the active skin) and a sheet of stats and actions. */
 export function ResultView({ title, score, stats, note, primaryLabel = 'Play again', onPlayAgain, secondary, onBack, extra }: ResultViewProps) {
   return (
     <View style={styles.root}>
@@ -53,7 +55,7 @@ export function ResultView({ title, score, stats, note, primaryLabel = 'Play aga
         <GradientText text={formatInt(score)} size={72} />
       </View>
       <View style={styles.pose} pointerEvents="none">
-        <Image source={OCTOPI_FRONT} style={styles.poseImage} resizeMode="contain" />
+        <ActiveOctopi size={RESULT_POSE_SIZE} />
       </View>
       <Sheet>
         <View style={styles.tiles}>
@@ -90,7 +92,6 @@ const styles = StyleSheet.create({
   head: { position: 'absolute', top: 120, left: 0, right: 0, alignItems: 'center', gap: 8 },
   title: { fontSize: 12, letterSpacing: 0.72 },
   pose: { position: 'absolute', top: 300, left: 0, right: 0, alignItems: 'center' },
-  poseImage: { width: 120, height: 120 },
   tiles: { flexDirection: 'row', gap: 6 },
   tile: { flex: 1, padding: 10, borderRadius: RADIUS.tile, backgroundColor: 'rgba(236,228,253,0.08)' },
   tileLabel: { fontSize: 10 },

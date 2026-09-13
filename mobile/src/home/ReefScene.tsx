@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withTiming } from 'react-native-reanimated';
+import { ActiveOctopi } from '../game/OctopiArt';
 import { Txt } from '../ui/Txt';
 import { COLORS, MOTION } from '../ui/tokens';
 
@@ -12,7 +13,6 @@ const CRAB_ROW = [
   require('../../assets/sprites/crabRed.png'),
   require('../../assets/sprites/crabViolet.png'),
 ];
-const OCTOPI_FRONT = require('../../assets/sprites/octopiFront.png');
 /** How far a shot rises before it has faded out, in dp. */
 const SHOT_RISE = 420;
 const SHOT_MS = 1100;
@@ -22,7 +22,10 @@ interface ReefSceneProps {
   onOctopi: () => void;
 }
 
-/** The idle world on Home: a far crab row swaying, and Octopi drifting and firing. Fills the space it is given. */
+/**
+ * The idle world on Home: a far crab row swaying, and Octopi, in the player's active skin, drifting
+ * and firing. Fills the area it is given.
+ */
 export function ReefScene({ caption, onOctopi }: ReefSceneProps) {
   const { width } = useWindowDimensions();
   const [areaHeight, setAreaHeight] = useState(0);
@@ -65,7 +68,7 @@ export function ReefScene({ caption, onOctopi }: ReefSceneProps) {
               <View style={styles.shotCore} />
             </Animated.View>
             <Pressable accessibilityRole="button" accessibilityLabel="Octopi" onPress={onOctopi}>
-              <Image source={OCTOPI_FRONT} style={{ width: hero, height: hero }} resizeMode="contain" />
+              <ActiveOctopi size={hero} />
             </Pressable>
           </Animated.View>
           <View style={styles.caption}>

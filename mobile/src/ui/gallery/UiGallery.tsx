@@ -43,6 +43,7 @@ export function UiGallery() {
         onCampaign={() => {}}
         onLeaderboard={() => {}}
         onShop={() => {}}
+        onProfile={() => {}}
         onWallet={() => {}}
         onBuyTicket={() => Promise.resolve(false)}
         onFaucet={() => Promise.resolve()}
