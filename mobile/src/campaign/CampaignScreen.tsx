@@ -1,27 +1,19 @@
 import { Canvas, Image, type SkImage } from '@shopify/react-native-skia';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { livesForEntry, type CampaignProgress } from '@sea-invaders/core';
+import { livesForEntry, LEVELS_PER_REEF, type CampaignProgress } from '@sea-invaders/core';
 import { useSprites } from '../game/sprites';
+import { ArtSlot } from '../ui/ArtSlot';
 import { Backdrop } from '../ui/Backdrop';
 import { Glass } from '../ui/Glass';
 import { Hearts } from '../ui/Hearts';
 import { Txt } from '../ui/Txt';
 import { COLORS, REEF_PROGRESS } from '../ui/tokens';
-import { REEF_LEGENDS, REEF_NAMES } from './reefs';
+import { reefProgress, REEF_LEGENDS, REEF_NAMES, type ReefProgress } from './reefs';
 
 const BOSS_PORTRAIT_SIZE = 48;
 const ACCENT_WIDTH = 4;
 const REEF_COUNT = REEF_NAMES.length;
-const LEVELS_PER_REEF = 6;
 const LEVEL_COUNT = REEF_COUNT * LEVELS_PER_REEF;
-
-type ReefState = 'cleared' | 'current' | 'ahead';
-
-function reefState(reef: number, progress: CampaignProgress): ReefState {
-  if (reef < progress.reef) return 'cleared';
-  if (reef === progress.reef) return 'current';
-  return 'ahead';
-}
 
 interface CampaignScreenProps {
   progress: CampaignProgress;
@@ -64,8 +56,7 @@ export function CampaignScreen({ progress, onOpenReef, onBack, synced = true }: 
             reef={i + 1}
             name={name}
             legend={REEF_LEGENDS[i]}
-            state={reefState(i + 1, progress)}
-            clearedInReef={progress.level - 1}
+            progress={reefProgress(progress, i + 1)}
             // Static preview: the first of the two extracted GIF frames (draw.ts animates both in-run).
             bossSprite={sprites?.bosses[i]?.[0] ?? null}
             onPress={() => onOpenReef(i + 1)}
@@ -80,14 +71,12 @@ interface ReefCardProps {
   reef: number;
   name: string;
   legend: string;
-  state: ReefState;
-  /** Levels already cleared in the *current* reef; only meaningful when `state === 'current'`. */
-  clearedInReef: number;
+  progress: ReefProgress;
   bossSprite: SkImage | null;
   onPress: () => void;
 }
 
-function ReefCard({ reef, name, legend, state, clearedInReef, bossSprite, onPress }: ReefCardProps) {
+function ReefCard({ reef, name, legend, progress, bossSprite, onPress }: ReefCardProps) {
   const color = REEF_PROGRESS[reef - 1];
 
   return (
@@ -95,9 +84,9 @@ function ReefCard({ reef, name, legend, state, clearedInReef, bossSprite, onPres
       accessibilityRole="button"
       accessibilityLabel={`Reef ${reef}, ${name}`}
       onPress={onPress}
-      style={state === 'ahead' && styles.cardAhead}
+      style={progress.locked && styles.cardAhead}
     >
-      <Glass style={[styles.card, state === 'current' && styles.cardCurrent]}>
+      <Glass style={[styles.card, progress.current && styles.cardCurrent]}>
         <View style={[styles.accent, { backgroundColor: color }]} />
         <View style={styles.cardBody}>
           <View style={styles.cardRow}>
@@ -109,25 +98,23 @@ function ReefCard({ reef, name, legend, state, clearedInReef, bossSprite, onPres
                 <Image image={bossSprite} x={0} y={0} width={BOSS_PORTRAIT_SIZE} height={BOSS_PORTRAIT_SIZE} fit="contain" />
               </Canvas>
             ) : (
-              <View style={styles.bossPortrait} />
+              <ArtSlot size={BOSS_PORTRAIT_SIZE} />
             )}
           </View>
           <Txt variant="secondary" tone="secondary" numberOfLines={2}>
             {legend}
           </Txt>
-          {state === 'cleared' && (
+          {progress.reefCleared ? (
             <Txt variant="monoSmall" tone="success">
               Cleared
             </Txt>
-          )}
-          {state === 'current' && (
-            <Txt variant="monoSmall" tone="secondary">
-              {`${clearedInReef} / ${LEVELS_PER_REEF} levels`}
-            </Txt>
-          )}
-          {state === 'ahead' && (
+          ) : progress.locked ? (
             <Txt variant="monoSmall" tone="tertiary">
               Locked
+            </Txt>
+          ) : (
+            <Txt variant="monoSmall" tone="secondary">
+              {`${progress.cleared} / ${LEVELS_PER_REEF} levels`}
             </Txt>
           )}
         </View>

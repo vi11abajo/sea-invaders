@@ -4,7 +4,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming,
 } from 'react-native-reanimated';
-import { currentLevelId, formatInt, livesForEntry, LEVELS, type CampaignProgress, type LevelSpec } from '@sea-invaders/core';
+import {
+  currentLevelId, formatInt, livesForEntry, LEVELS, REEFS, type CampaignProgress, type LevelSpec,
+} from '@sea-invaders/core';
 import { BOSS_NAMES } from '../game/bossNames';
 import { useSprites } from '../game/sprites';
 import { ArtSlot } from '../ui/ArtSlot';
@@ -13,7 +15,7 @@ import { Hearts } from '../ui/Hearts';
 import { PillButton } from '../ui/PillButton';
 import { Txt } from '../ui/Txt';
 import { COLORS, MOTION, REEF_PROGRESS } from '../ui/tokens';
-import { REEF_LEGENDS, REEF_NAMES } from './reefs';
+import { reefProgress, REEF_LEGENDS, REEF_NAMES } from './reefs';
 
 const NODE_SIZE = 48;
 const BOSS_NODE_SIZE = 72;
@@ -56,9 +58,7 @@ export function ReefScreen({ reef, progress, onPlay, onBack }: ReefScreenProps) 
     transform: [{ translateY: (1 - shown.value) * MOTION.riseOffset }],
   }));
 
-  const isCurrent = reef === progress.reef;
-  const isCleared = reef < progress.reef;
-  const isLocked = reef > progress.reef;
+  const rp = reefProgress(progress, reef);
 
   return (
     <View style={styles.root}>
@@ -114,19 +114,26 @@ export function ReefScreen({ reef, progress, onPlay, onBack }: ReefScreenProps) 
           })}
         </View>
         <View style={styles.cta}>
-          {isCurrent && (
+          {rp.current && (
             <PillButton
               label={`Continue · Level ${currentLevelId(progress)}`}
               height={56}
               onPress={() => onPlay(currentLevelId(progress), false)}
             />
           )}
-          {isCleared && (
-            <Txt variant="secondary" tone="secondary" style={styles.ctaHint}>
-              Replay in practice
-            </Txt>
+          {rp.reefCleared && (
+            <View style={styles.ctaHint}>
+              {reef === REEFS && (
+                <Txt variant="secondary" tone="success">
+                  Campaign complete
+                </Txt>
+              )}
+              <Txt variant="secondary" tone="secondary">
+                Replay any level in practice
+              </Txt>
+            </View>
           )}
-          {isLocked && <PillButton label={`Clear Reef ${reef - 1} first`} height={56} disabled />}
+          {rp.locked && <PillButton label={`Clear Reef ${reef - 1} first`} height={56} disabled />}
         </View>
       </Animated.View>
     </View>
@@ -227,5 +234,5 @@ const styles = StyleSheet.create({
   nodeLocked: { opacity: 0.4 },
   ring: { position: 'absolute', top: -4, left: -4, right: -4, bottom: -4, borderWidth: 2 },
   cta: { marginTop: 'auto', marginBottom: 28, alignItems: 'center' },
-  ctaHint: { paddingVertical: 18 },
+  ctaHint: { paddingVertical: 18, alignItems: 'center', gap: 4 },
 });
