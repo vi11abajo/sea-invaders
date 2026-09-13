@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { COLORS, MOTION, RADIUS } from './tokens';
 
@@ -13,6 +13,7 @@ interface SheetProps {
 
 /** A bottom sheet that rises in. */
 export function Sheet({ children, kind = 'world', onDismiss }: SheetProps) {
+  const { height } = useWindowDimensions();
   const shown = useSharedValue(0);
   useEffect(() => {
     shown.value = withTiming(1, { duration: MOTION.riseMs, easing: Easing.out(Easing.cubic) });
@@ -23,12 +24,13 @@ export function Sheet({ children, kind = 'world', onDismiss }: SheetProps) {
   }));
 
   if (kind === 'modal') {
+    // The backdrop is a sibling BEHIND the panel (not an ancestor of it), so a tap on the panel
+    // never reaches the backdrop's responder and the panel's own ScrollView keeps its gestures.
     return (
-      <Pressable style={styles.scrim} accessible={false} onPress={onDismiss}>
-        <Pressable accessible={false} onPress={() => {}}>
-          <Animated.View style={[styles.modal, rise]}>{children}</Animated.View>
-        </Pressable>
-      </Pressable>
+      <View style={styles.scrim}>
+        <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={onDismiss} />
+        <Animated.View style={[styles.modal, { maxHeight: height * 0.82 }, rise]}>{children}</Animated.View>
+      </View>
     );
   }
   return <Animated.View style={[styles.world, rise]}>{children}</Animated.View>;
@@ -40,7 +42,7 @@ const styles = StyleSheet.create({
     padding: 16, paddingBottom: 28, backgroundColor: COLORS.scrim,
   },
   modal: {
-    gap: 14, paddingHorizontal: 20, paddingVertical: 22, borderRadius: RADIUS.modal,
+    flexDirection: 'column', gap: 14, paddingHorizontal: 20, paddingVertical: 22, borderRadius: RADIUS.modal,
     backgroundColor: COLORS.modalSheet, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
   world: {

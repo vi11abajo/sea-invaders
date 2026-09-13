@@ -1,5 +1,5 @@
 import { formatCountdown, formatInt } from '@sea-invaders/core';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { RecordScore } from '../daily/RecordScore';
 import { TicketCard } from '../daily/TicketCard';
@@ -76,10 +76,9 @@ export function DailyRunCard({ ranked, now, signedIn, onConnect, error = null, o
     if (!signedIn) {
       return (
         <View style={styles.card}>
-          <View>
-            <DailyRunLabel text="Daily Run" onRules={onRules} />
+          <CardHead onRules={onRules}>
             <Txt variant="headline" style={styles.headline}>Connect a wallet to play</Txt>
-          </View>
+          </CardHead>
           <Txt variant="body" tone="secondary">Same seed for everyone, three attempts a day.</Txt>
           <PillButton label="Connect wallet" onPress={onConnect} />
         </View>
@@ -87,10 +86,9 @@ export function DailyRunCard({ ranked, now, signedIn, onConnect, error = null, o
     }
     return (
       <View style={styles.card}>
-        <View>
-          <DailyRunLabel text="Daily Run" onRules={onRules} />
+        <CardHead onRules={onRules}>
           <Txt variant="headline" style={styles.headline}>Loading today's run</Txt>
-        </View>
+        </CardHead>
         {error !== null && <Txt variant="body" tone="secondary">{error}</Txt>}
         <PillButton label="Play Daily Run" disabled />
       </View>
@@ -99,25 +97,27 @@ export function DailyRunCard({ ranked, now, signedIn, onConnect, error = null, o
 
   const left = ranked.attemptsLeft;
   // Attempts are counted within the current ticket: with 5 left of two tickets the card says
-  // "2 of 3", and the tickets bought today sit in the label, so every player reads "N of 3".
+  // "2 of 3", and the tickets bought today sit in a meta line under the headline, so every
+  // player reads "N of 3".
   const per = ranked.attemptsPerTicket;
   const inTicket = left > 0 ? ((left - 1) % per) + 1 : 0;
   const tickets = ranked.ticketsToday;
   return (
     <View style={styles.card}>
-      <View style={styles.head}>
-        <View>
-          <DailyRunLabel
-            text={`Daily Run · Seed #${ranked.seed}${tickets > 0 ? ` · ${tickets} ${tickets === 1 ? 'ticket' : 'tickets'} today` : ''}`}
-            onRules={onRules}
-          />
-          <Txt variant="headline" style={styles.headline}>{left > 0 ? `${inTicket} of ${per} attempts` : 'No attempts left'}</Txt>
-        </View>
-        <View style={styles.seed}>
-          <Txt variant="secondary" tone="tertiary" style={styles.small}>New seed</Txt>
-          <Txt variant="mono" style={styles.countdown}>{formatCountdown((ranked.newSeedAt - now) / 1000)}</Txt>
-        </View>
-      </View>
+      <CardHead
+        onRules={onRules}
+        right={
+          <View style={styles.seed}>
+            <Txt variant="secondary" tone="tertiary" style={styles.small}>New seed</Txt>
+            <Txt variant="mono" style={styles.countdown}>{formatCountdown((ranked.newSeedAt - now) / 1000)}</Txt>
+          </View>
+        }
+      >
+        <Txt variant="headline" style={styles.headline}>{left > 0 ? `${inTicket} of ${per} attempts` : 'No attempts left'}</Txt>
+        <Txt variant="secondary" tone="secondary" style={styles.meta}>
+          {`Seed #${ranked.seed}${tickets > 0 ? ` · ${tickets} ${tickets === 1 ? 'ticket' : 'tickets'} today` : ''}`}
+        </Txt>
+      </CardHead>
       <View style={styles.stats}>
         <Stat label="Today" value={formatInt(ranked.todayBest)} />
         <Stat label={ranked.weekRank === null ? 'Week' : `Week · #${ranked.weekRank}`} value={formatInt(ranked.weekTotal)} />
@@ -159,12 +159,22 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** The card's label text, followed by the info button that opens the rules sheet. */
-function DailyRunLabel({ text, onRules }: { text: string; onRules: () => void }) {
+/**
+ * The card's header: the "Daily Run" label and info button on one row, an optional right-aligned
+ * block (the "New seed" countdown) on the same row, then `children` (the headline, and for the
+ * ranked state a meta line) stacked below. Shared by every card state.
+ */
+function CardHead({ onRules, right, children }: { onRules: () => void; right?: ReactNode; children: ReactNode }) {
   return (
-    <View style={styles.labelRow}>
-      <Txt variant="label" tone="secondary" style={styles.labelText}>{text}</Txt>
-      <InfoButton onPress={onRules} />
+    <View>
+      <View style={styles.headRow}>
+        <View style={styles.headLeft}>
+          <Txt variant="label" tone="secondary">Daily Run</Txt>
+          <InfoButton onPress={onRules} />
+        </View>
+        {right}
+      </View>
+      {children}
     </View>
   );
 }
@@ -205,15 +215,13 @@ export function DailyRunRulesSheet({ visible, onClose }: DailyRunRulesSheetProps
   return (
     <Sheet kind="modal" onDismiss={onClose}>
       <Txt variant="headline">Daily Run rules</Txt>
-      <ScrollView style={styles.rulesScroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.rulesList}>
-          {RULES.map((rule) => (
-            <View key={rule.title} style={styles.rule}>
-              <Txt variant="button" style={styles.ruleTitle}>{rule.title}</Txt>
-              <Txt variant="body" tone="secondary">{rule.body}</Txt>
-            </View>
-          ))}
-        </View>
+      <ScrollView style={styles.rulesScroll} contentContainerStyle={styles.rulesList} showsVerticalScrollIndicator={false}>
+        {RULES.map((rule) => (
+          <View key={rule.title} style={styles.rule}>
+            <Txt variant="button" style={styles.ruleTitle}>{rule.title}</Txt>
+            <Txt variant="body" tone="secondary">{rule.body}</Txt>
+          </View>
+        ))}
       </ScrollView>
       <PillButton label="Got it" onPress={onClose} />
     </Sheet>
@@ -225,20 +233,20 @@ const styles = StyleSheet.create({
     gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderRadius: RADIUS.card,
     backgroundColor: 'rgba(18,18,18,0.66)', borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   headline: { marginTop: 3 },
+  meta: { marginTop: 2 },
   seed: { alignItems: 'flex-end' },
   small: { fontSize: 11 },
   countdown: { fontSize: 14 },
   stats: { flexDirection: 'row', gap: 6 },
   stat: { flex: 1, gap: 2 },
-  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  labelText: { flexShrink: 1 },
   infoButton: {
     width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: COLORS.glassBorder,
   },
-  rulesScroll: { maxHeight: 320 },
+  rulesScroll: { flexShrink: 1, flexGrow: 0 },
   rulesList: { gap: 14, paddingBottom: 2 },
   rule: { gap: 3 },
   ruleTitle: { fontSize: 14 },
