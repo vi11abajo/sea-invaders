@@ -1,6 +1,6 @@
 import { AccountMeta, ComputeBudgetProgram, PublicKey, Keypair } from "@solana/web3.js";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { BN } from "@anchor-lang/core";
+import { BN, EventParser } from "@anchor-lang/core";
 import { configPda, Ctx } from "./helpers";
 
 // Re-exported so existing imports of `configPda` from "./fixtures" (e.g.
@@ -54,6 +54,27 @@ export const playerPda = (pid: PublicKey, wallet: PublicKey) =>
     [Buffer.from("player"), wallet.toBuffer()],
     pid
   )[0];
+
+export const catalogPda = (pid: PublicKey) =>
+  PublicKey.findProgramAddressSync([Buffer.from("catalog")], pid)[0];
+
+// The seven items of design §1 - kind 0 = variant (ids 0..2), kind 1 = skin
+// (ids 3..6). Prices are the design's SKR figures, in base units (6
+// decimals, same as LADDER above).
+export const CATALOG_ITEMS = [
+  { id: 0, kind: 0, price: 40 }, // Harpoon
+  { id: 1, kind: 0, price: 60 }, // Anchor
+  { id: 2, kind: 0, price: 90 }, // Trident
+  { id: 3, kind: 1, price: 25 }, // Lime
+  { id: 4, kind: 1, price: 25 }, // Lilac
+  { id: 5, kind: 1, price: 35 }, // Ember
+  { id: 6, kind: 1, price: 50 }, // Abyss
+].map((it) => ({
+  id: it.id,
+  kind: it.kind,
+  price: new BN(it.price).mul(new BN(1_000_000)),
+  active: true,
+}));
 
 export const weekPda = (pid: PublicKey, week: number) => {
   const b = Buffer.alloc(4);
@@ -262,4 +283,131 @@ export async function settleWeek(
       ? [ix]
       : [ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnitLimit }), ix];
   return ctx.send(ixs, [caller]);
+}
+
+// `catalog` is a singleton PDA (seeds = [b"catalog"], like `config`), so
+// this mirrors `initConfig`'s idempotency: whichever test is first to call
+// it performs the real `init_catalog`; every later call confirms the
+// existing catalog matches `items` (same as `initConfig` confirms the
+// existing config's `skr_mint`) and returns without sending a transaction,
+// or throws if it does not - a silent no-op on a mismatched list would let
+// a later test run against catalog prices/items it never asked for.
+export async function initCatalog(ctx: Ctx, items = CATALOG_ITEMS) {
+  const pda = catalogPda(ctx.programId);
+  const existing = await ctx.program.account.catalog.fetchNullable(pda);
+  if (existing) {
+    const matches =
+      existing.count === items.length &&
+      items.every((it, i) => {
+        const e = existing.items[i];
+        return (
+          e.id === it.id &&
+          e.kind === it.kind &&
+          e.price.eq(it.price) &&
+          e.active === it.active
+        );
+      });
+    if (!matches) {
+      throw new Error(
+        "catalog already initialized with a different item list - every test file must share the same catalog (see fixtures.ts's initCatalog)"
+      );
+    }
+    return;
+  }
+  const ix = await ctx.program.methods
+    .initCatalog({ items })
+    .accountsPartial({ admin: ctx.admin.publicKey })
+    .instruction();
+  await ctx.send([ix], [ctx.admin]);
+}
+
+export async function setCatalog(
+  ctx: Ctx,
+  items: typeof CATALOG_ITEMS,
+  admin: Keypair = ctx.admin
+) {
+  const ix = await ctx.program.methods
+    .setCatalog({ items })
+    .accountsPartial({ admin: admin.publicKey })
+    .instruction();
+  await ctx.send([ix], [admin]);
+}
+
+export async function fetchCatalog(ctx: Ctx) {
+  return ctx.program.account.catalog.fetch(catalogPda(ctx.programId));
+}
+
+// `catalog`'s seeds are constant (`[b"catalog"]`), so - like `config` in
+// `buyTicket` above - Anchor's client resolves it on its own; only the
+// same non-derivable accounts `buyTicket` must pass explicitly are needed
+// here too.
+// Returns the transaction signature (like `settleWeek` above) so callers
+// can fetch its logs and assert the `ItemPurchased` event payload - see
+// `getEvent` below.
+export async function purchase(
+  ctx: Ctx,
+  who: Keypair,
+  itemId: number,
+  maxPrice: BN,
+  week: number
+) {
+  const weekPool = weekPda(ctx.programId, week);
+  const ix = await ctx.program.methods
+    .purchase(itemId, maxPrice)
+    .accountsPartial({
+      wallet: who.publicKey,
+      weekPool,
+      vault: ctx.ata(weekPool),
+      treasury: ctx.treasury,
+      walletToken: ctx.ata(who.publicKey),
+      skrMint: ctx.mint,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .instruction();
+  return ctx.send([ix], [who]);
+}
+
+// `revive` reuses `buy_ticket`'s account set verbatim (see `tide.rs`), so
+// this fixture mirrors `buyTicket` above exactly, just without an
+// instruction argument. Returns the transaction signature, like `purchase`
+// above, so callers can assert the `Revived` event payload.
+export async function revive(ctx: Ctx, who: Keypair, week: number) {
+  const weekPool = weekPda(ctx.programId, week);
+  const ix = await ctx.program.methods
+    .revive()
+    .accountsPartial({
+      wallet: who.publicKey,
+      weekPool,
+      vault: ctx.ata(weekPool),
+      treasury: ctx.treasury,
+      walletToken: ctx.ata(who.publicKey),
+      skrMint: ctx.mint,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .instruction();
+  return ctx.send([ix], [who]);
+}
+
+// Fetches `signature`'s confirmed transaction and decodes the first log
+// event named `eventName` (undefined if none matches) - used to assert
+// `ItemPurchased`/`Revived` payloads, the backend's interface contract for
+// these instructions. `eventName` must be the camelCased form ("itemPurchased",
+// "revived") - `program.coder` (built from the auto-camelCased IDL, same as
+// every account field, e.g. `tideAt`) decodes and reports event names that
+// way too, not the Rust struct's own PascalCase name.
+export async function getEvent(
+  ctx: Ctx,
+  signature: string,
+  eventName: string
+): Promise<any> {
+  const tx = await ctx.connection.getTransaction(signature, {
+    commitment: "confirmed",
+    maxSupportedTransactionVersion: 0,
+  });
+  const logs = tx?.meta?.logMessages ?? [];
+  const parser = new EventParser(ctx.programId, ctx.program.coder);
+  for (const event of parser.parseLogs(logs)) {
+    if (event.name === eventName) return event.data;
+  }
+  return undefined;
 }

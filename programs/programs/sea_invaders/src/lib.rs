@@ -6,7 +6,7 @@ pub mod time;
 use anchor_lang::prelude::*;
 
 use instructions::*;
-use state::ConfigArgs;
+use state::{CatalogArgs, ConfigArgs};
 
 declare_id!("G1vEN2CY1KfjPia3hD7MALBwseSRUfrcBivxfKKGqset");
 
@@ -61,5 +61,21 @@ pub mod sea_invaders {
         week: u32,
     ) -> Result<()> {
         instructions::settle::settle_week(ctx, week)
+    }
+
+    pub fn init_catalog(ctx: Context<InitCatalog>, args: CatalogArgs) -> Result<()> {
+        instructions::shop::init_catalog(ctx, args)
+    }
+
+    pub fn set_catalog(ctx: Context<SetCatalog>, args: CatalogArgs) -> Result<()> {
+        instructions::shop::set_catalog(ctx, args)
+    }
+
+    pub fn purchase(ctx: Context<Purchase>, item_id: u8, max_price: u64) -> Result<()> {
+        instructions::shop::purchase(ctx, item_id, max_price)
+    }
+
+    pub fn revive(ctx: Context<BuyTicket>) -> Result<()> {
+        instructions::tide::revive(ctx)
     }
 }

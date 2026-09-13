@@ -62,6 +62,38 @@ pub struct TopEntry {
     pub updated_at: i64,
 }
 
+/// Maximum number of items the `Catalog` PDA can hold - the seven items of
+/// spec §1 (ids 0..6) fit comfortably, with room for the admin to add more
+/// later without a migration.
+pub const MAX_CATALOG_ITEMS: usize = 16;
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Default, InitSpace, PartialEq, Eq, Debug)]
+pub struct CatalogItem {
+    pub id: u8,
+    pub kind: u8, // 0 = variant, 1 = skin
+    pub price: u64, // base units
+    pub active: bool,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct Catalog {
+    pub admin: Pubkey,
+    pub items: [CatalogItem; MAX_CATALOG_ITEMS],
+    pub count: u8,
+    pub bump: u8,
+}
+
+/// `init_catalog`/`set_catalog`'s argument: a variable-length list (Borsh
+/// handles the `Vec` natively - unlike `Catalog.items` above, this never
+/// becomes on-chain account data by itself, so it does not need a fixed
+/// `max_len`/`InitSpace`) copied into the account's fixed-size array by
+/// `instructions::shop::build_items`.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct CatalogArgs {
+    pub items: Vec<CatalogItem>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct WeekPool {

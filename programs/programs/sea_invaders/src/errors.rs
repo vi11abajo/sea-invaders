@@ -28,4 +28,12 @@ pub enum SeaError {
     Overflow,
     #[msg("Only the program's upgrade authority may initialize the config")]
     NotUpgradeAuthority,
+    #[msg("Item already owned")]
+    AlreadyOwned,
+    #[msg("Unknown catalog item")]
+    UnknownItem,
+    #[msg("Item is not active")]
+    ItemInactive,
+    #[msg("Price has changed since it was quoted")]
+    PriceChanged,
 }

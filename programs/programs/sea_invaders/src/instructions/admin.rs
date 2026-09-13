@@ -18,6 +18,9 @@ fn validate(args: &ConfigArgs) -> Result<()> {
         args.revive_ladder.windows(2).all(|w| w[0] <= w[1]),
         SeaError::InvalidConfig
     );
+    // `revive` (tide.rs) divides by `ebb_seconds`; zero would turn every
+    // revive into a misleading `Overflow` instead of a clear admin error.
+    require!(args.ebb_seconds > 0, SeaError::InvalidConfig);
     Ok(())
 }
 

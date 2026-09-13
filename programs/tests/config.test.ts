@@ -14,9 +14,10 @@ import {
 } from "./fixtures";
 
 describe("config and accounts", () => {
-  // A single shared LiteSVM instance for the whole file (see smoke.test.ts
-  // for why): each `it` below uses its own fresh keypairs/days/weeks so the
-  // tests stay independent despite sharing `ctx`.
+  // A single shared `solana-test-validator` for the whole mocha run (see
+  // helpers.ts's `setup`/`config` comment for why): each `it` below uses
+  // its own fresh keypairs/days/weeks so the tests stay independent
+  // despite sharing `ctx`.
   let ctx: Ctx;
 
   before(async () => {
@@ -72,6 +73,26 @@ describe("config and accounts", () => {
       ...configArgs(ctx),
       payoutBps: [3000, 2000, 1200, 800, 600, 480, 480, 480, 480, 481],
     };
+    let err = "";
+    try {
+      await ctx.send(
+        [
+          await ctx.program.methods
+            .updateConfig(bad)
+            .accounts({ admin: ctx.admin.publicKey })
+            .instruction(),
+        ],
+        [ctx.admin]
+      );
+    } catch (e: any) {
+      err = e.message;
+    }
+    expect(err).to.contain("InvalidConfig");
+  });
+
+  it("rejects a zero ebb_seconds (revive would divide by it)", async () => {
+    await initConfig(ctx);
+    const bad = { ...configArgs(ctx), ebbSeconds: 0 };
     let err = "";
     try {
       await ctx.send(
