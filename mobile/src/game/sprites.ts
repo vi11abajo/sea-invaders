@@ -1,5 +1,5 @@
 import { FilterMode, MipmapMode, Skia, useImage, type SkImage } from '@shopify/react-native-skia';
-import { BOSS, CRAB, DROP, SHIP, type Layout } from '@sea-invaders/core';
+import { BOSS, CRAB, DROP, OCTOPI, type Layout } from '@sea-invaders/core';
 import { useMemo } from 'react';
 import { PixelRatio } from 'react-native';
 
@@ -13,7 +13,7 @@ import { PixelRatio } from 'react-native';
 export const PIXEL_RATIO = PixelRatio.get();
 
 export interface Sprites {
-  ship: { front: SkImage; hit: SkImage };
+  octopi: { front: SkImage; hit: SkImage };
   /** Colour by `kind` (0..4): green, blue, violet, red, yellow. */
   crabs: SkImage[];
   /** Two extracted GIF frames per boss, colour by `kind` (1..5): green, blue, yellow, red, violet; `bosses[kind - 1]` (0-based). */
@@ -81,7 +81,7 @@ export function useSprites(): Sprites | null {
       return null;
     }
     return {
-      ship: { front, hit },
+      octopi: { front, hit },
       crabs: [crabGreen, crabBlue, crabViolet, crabRed, crabYellow],
       bosses: [
         [bossGreen0, bossGreen1],
@@ -141,7 +141,7 @@ export interface PreparedSprite {
 }
 
 /** INVINCIBILITY outline geometry, in dp (unscaled): a stroke can't be sized by `canvas.scale`
- * without also scaling its width, so the outline rect is precomputed here at each ship pose's
+ * without also scaling its width, so the outline rect is precomputed here at each Octopi pose's
  * real on-screen size instead of built from a transform in the per-frame worklet. */
 export const INVINCIBLE_INFLATE = 4;
 export const INVINCIBLE_CORNER_R = 8;
@@ -154,11 +154,11 @@ export const ICE_CUBE_INFLATE = 2;
 export const ICE_CUBE_CORNER_R = 6;
 
 export interface PreparedSprites {
-  ship: { front: PreparedSprite; hit: PreparedSprite };
+  octopi: { front: PreparedSprite; hit: PreparedSprite };
   /**
-   * One precomputed `SkRRect` per ship pose (`front`/`hit`), centred at the local origin and sized
+   * One precomputed `SkRRect` per Octopi pose (`front`/`hit`), centred at the local origin and sized
    * to that pose's own `w x h` inflated by `INVINCIBLE_INFLATE` on each side. `draw.ts` only
-   * `canvas.translate`s to the ship's centre before drawing it — never reallocated per frame.
+   * `canvas.translate`s to Octopi's centre before drawing it — never reallocated per frame.
    */
   invincibleOutline: { front: ReturnType<typeof Skia.RRectXY>; hit: ReturnType<typeof Skia.RRectXY> };
   crabs: PreparedSprite[];
@@ -254,9 +254,9 @@ function preparedFrom(image: SkImage, w: number, h: number, src?: Rect): Prepare
 export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprites {
   const k = layout.scale;
 
-  const shipW = SHIP.size * k;
-  const front = preparedFrom(sprites.ship.front, shipW, shipW * (sprites.ship.front.height() / sprites.ship.front.width()));
-  const hit = preparedFrom(sprites.ship.hit, shipW, shipW * (sprites.ship.hit.height() / sprites.ship.hit.width()));
+  const octopiW = OCTOPI.size * k;
+  const front = preparedFrom(sprites.octopi.front, octopiW, octopiW * (sprites.octopi.front.height() / sprites.octopi.front.width()));
+  const hit = preparedFrom(sprites.octopi.hit, octopiW, octopiW * (sprites.octopi.hit.height() / sprites.octopi.hit.width()));
   const invincibleOutline = { front: outlineRRect(front), hit: outlineRRect(hit) };
 
   const crabSize = CRAB.size * k;
@@ -275,7 +275,7 @@ export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprite
     return preparedFrom(img, w, h);
   });
 
-  return { ship: { front, hit }, invincibleOutline, crabs, iceCubes, bosses, boosts };
+  return { octopi: { front, hit }, invincibleOutline, crabs, iceCubes, bosses, boosts };
 }
 
 /** `prepareSprites`, memoized on `sprites`/`layout` so it rebuilds only when either changes. */

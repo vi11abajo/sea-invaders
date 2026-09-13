@@ -40,7 +40,7 @@ function wander(): (tick: number) => Input {
 const DODGE_RANGE_Y = 1500;
 
 /**
- * A boss's shots start far above the ship (muzzle near the top of the field) and take longer to
+ * A boss's shots start far above Octopi (muzzle near the top of the field) and take longer to
  * arrive than a crab's, so a boss fight uses a wider reaction window than the crab-wave one above
  * (tuned so `survivor` still clears levels 6 and 30 without regressing the plain wave-mode floor,
  * `SURVIVOR_MIN_TICKS` in golden.test.ts).
@@ -77,7 +77,7 @@ function survivor(): (tick: number, s: GameState) => Input {
     const range = s.boss ? BOSS_DODGE_RANGE_Y : DODGE_RANGE_Y;
     const threats: Bullet[] = [];
     for (const b of s.enemyShots) {
-      if (Math.abs(b.y - s.ship.y) <= range) threats.push(b);
+      if (Math.abs(b.y - s.octopi.y) <= range) threats.push(b);
     }
     if (threats.length > 0) {
       const candidates = dwell >= DODGE_DWELL_LIMIT ? DODGE_COLUMNS.filter((c) => c !== lastColumn) : DODGE_COLUMNS;
@@ -123,7 +123,7 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   },
   // The `wander` input trajectory on a boosted daily run: exercises boost pickups/effects end to
   // end. `wander` never dodges, so the run ends in game over well short of `ticks`; this seed was
-  // picked (search, not the sim) for at least 5 boost_pickup events before the ship dies. Re-picked
+  // picked (search, not the sim) for at least 5 boost_pickup events before Octopi dies. Re-picked
   // for Phase 3A.1 lane C: the old seed (`golden-boosted-2293`) fell to 2 pickups once RICOCHET was
   // removed and the RANDOM_CHAOS pool grew from 10 to 14 — both change every subsequent `rngBoosts`
   // draw, so a fixed seed's specific drop/rarity rolls shift even though the odds themselves didn't.

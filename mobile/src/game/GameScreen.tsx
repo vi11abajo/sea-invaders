@@ -1,7 +1,7 @@
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
   BOOST_INDEX, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
-  SHIP, createGame, fitField, formatInt, snapshot, step, touchToInput,
+  OCTOPI, createGame, fitField, formatInt, snapshot, step, touchToInput,
   type BoostType, type BossFrame, type Frame, type Input, type Replay, type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -16,10 +16,10 @@ import { ResultView } from './ResultView';
 import { drawFrame } from './draw';
 import { usePreparedSprites, useSprites } from './sprites';
 
-/** Milli-units between the finger and the ship centre, so the finger never covers the ship. */
+/** Milli-units between the finger and Octopi's centre, so the finger never covers Octopi. */
 const FINGER_LIFT = 600;
 
-const HINT = 'Drag anywhere — ship follows above your finger. Auto-fire.';
+const HINT = 'Drag anywhere — Octopi follows above your finger. Auto-fire.';
 
 /** How long the wave/phase banner and the pickup toast stay up, in rendered frames. */
 const BANNER_FRAMES = 60;
@@ -105,7 +105,7 @@ export interface RunOutcome {
   ticks: number;
   /** false when the player quit before the game ended. */
   over: boolean;
-  /** Ship lives remaining when the run ended. */
+  /** Octopi lives remaining when the run ended. */
   livesLeft: number;
   /** True when a campaign level's win condition was met (`state.cleared`). */
   cleared: boolean;
@@ -156,7 +156,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     const runSeed = seed ?? `practice-${runIndex}-${Date.now()}`;
     const config = run ?? (mode === REPLAY_MODE.daily ? DAILY_RUN : PRACTICE_RUN);
     const state = createGame(runSeed, config);
-    const recorder = new ReplayRecorder(runSeed, mode, run?.level?.id ?? 0, run?.lives ?? SHIP.lives);
+    const recorder = new ReplayRecorder(runSeed, mode, run?.level?.id ?? 0, run?.lives ?? OCTOPI.lives);
     const stepper = new FixedStepper();
     input.current = INITIAL_INPUT;
     paused.current = false;
@@ -228,7 +228,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       }
       const over = state.over || state.cleared || quit.current;
       const next: Hud = {
-        score: state.score, lives: state.ship.lives, wave: state.wave, kills: state.kills, over, fps,
+        score: state.score, lives: state.octopi.lives, wave: state.wave, kills: state.kills, over, fps,
         boss: f.boss, boosts: boostsFromFrame(f.boosts, state.boosts.tamerStacks), shield: f.shield, banner: bannerText, toast: toastText,
       };
       if (
@@ -244,7 +244,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         reported = true;
         const result: RunOutcome = {
           replay: recorder.finish(state.tick), score: state.score, wave: state.wave, kills: state.kills, ticks: state.tick,
-          over: state.over, livesLeft: state.ship.lives, cleared: state.cleared,
+          over: state.over, livesLeft: state.octopi.lives, cleared: state.cleared,
         };
         setOutcome(result);
         onRunOverRef.current?.(result);

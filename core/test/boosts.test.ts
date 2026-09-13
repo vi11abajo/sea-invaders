@@ -19,13 +19,13 @@ describe('boost drops', () => {
     for (let i = 0; i < 1000; i++) rollDrop(s, 1000, 1000);
     expect(s.drops).toHaveLength(0);
   });
-  it('falls, expires and is picked up by the ship', () => {
+  it('falls, expires and is picked up by Octopi', () => {
     const s = createGame('d', DAILY_RUN);
     s.drops.push({ x: 2812, y: 9000, boost: 'RAPID_FIRE', ttl: DROP.ttl });
     updateBoosts(s);
     expect(s.drops[0]!.y).toBe(9060);
     s.drops[0]!.ttl = 1; updateBoosts(s); expect(s.drops).toHaveLength(0);
-    s.drops.push({ x: s.ship.x, y: s.ship.y, boost: 'RAPID_FIRE', ttl: 100 });
+    s.drops.push({ x: s.octopi.x, y: s.octopi.y, boost: 'RAPID_FIRE', ttl: 100 });
     updateBoosts(s);
     expect(s.drops).toHaveLength(0);
     expect(isActive(s, 'RAPID_FIRE')).toBe(true);

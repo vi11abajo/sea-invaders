@@ -8,7 +8,7 @@ import type { BoostType, BulletKind } from './types';
 export const FIELD_W = 5625; // 5.625 units
 export const FIELD_H = 11250; // 11.25 units
 
-export const SHIP = {
+export const OCTOPI = {
   /** Sprite box: 20% of the field width. */
   size: 1125,
   /** Hitbox radius: a 0.32-unit circle, 3–4x smaller than the sprite. */
@@ -158,7 +158,7 @@ export const MAX_LIVES = 100;
 /**
  * GRAVITY_WELL's centre roll and its pull on enemy fire (spec C1, legacy `boost-manager.js:317-336`
  * `activateBoost` and `boost-effects.js:203-247` `applyGravityWellEffect`): the centre is a seeded
- * random point inset `margin` from the field edges, re-rolled while within `minDist` of the ship, up
+ * random point inset `margin` from the field edges, re-rolled while within `minDist` of Octopi, up
  * to `maxAttempts` rolls (the last one stands regardless); every enemy shot is redirected at `speed`
  * units/tick towards the centre, and one within `absorb` units of it is removed.
  */

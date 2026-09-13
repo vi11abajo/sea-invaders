@@ -7,7 +7,7 @@ import { Hasher, INITIAL_INPUT, createGame, step, type GameState, type Golden } 
 function hashV2(s: GameState): string {
   const h = new Hasher();
   h.int(s.tick).int(s.wave).int(s.waveTotal).int(s.score).int(s.kills).int(s.over ? 1 : 0).int(s.dir);
-  const p = s.ship;
+  const p = s.octopi;
   h.int(p.x).int(p.y).int(p.cooldown).int(p.invuln).int(p.lives);
   h.int(s.crabs.length);
   for (const c of s.crabs) h.int(c.x).int(c.y).int(c.kind);

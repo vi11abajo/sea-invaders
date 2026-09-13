@@ -9,7 +9,7 @@ describe('hashState', () => {
     const a = createGame('h', PRACTICE_RUN);
     const b = createGame('h', PRACTICE_RUN);
     expect(hashState(a)).toBe(hashState(b));
-    b.ship.x += 1;
+    b.octopi.x += 1;
     expect(hashState(b)).not.toBe(hashState(a));
     const c = createGame('h', PRACTICE_RUN);
     c.rngFire.nextU32();

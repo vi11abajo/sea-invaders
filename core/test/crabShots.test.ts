@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PRACTICE_RUN, createGame, shotRadius, spawnFormation, updateEnemyShots } from '../src';
 import type { CrabType } from '../src';
 
-/** Spawns a lone crab of `type` centred on the ship's x, then forces a fire (crab 0, no randomness). */
+/** Spawns a lone crab of `type` centred on Octopi's x, then forces a fire (crab 0, no randomness). */
 function fire(type: CrabType) {
   const s = createGame('shots', PRACTICE_RUN);
   spawnFormation(s, { formation: 'grid', rows: 1, cols: 1, kinds: [type] });
@@ -17,7 +17,7 @@ describe('CRAB_SHOTS by type', () => {
     expect(s.enemyShots).toHaveLength(1);
     const b = s.enemyShots[0]!;
     expect(b.kind).toBe('crab');
-    expect(b.vy).toBe(110); // crab.x === ship.x, so vx is 0 and vy carries the full speed
+    expect(b.vy).toBe(110); // crab.x === octopi.x, so vx is 0 and vy carries the full speed
     expect(shotRadius(b)).toBe(96);
   });
 

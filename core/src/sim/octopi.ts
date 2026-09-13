@@ -1,11 +1,11 @@
-import { FIELD_W, SHIP, SHOT } from '../config';
+import { FIELD_W, OCTOPI, SHOT } from '../config';
 import { clamp, idiv, isqrt } from '../fixed';
 import { icos, isin } from '../trig';
 import type { Bullet, GameState, Input } from '../types';
 import { isActive } from './boosts';
 
-const HALF = idiv(SHIP.size, 2);
-/** RAPID_FIRE's fire interval, replacing SHIP.fireInterval while active (spec §5.2). */
+const HALF = idiv(OCTOPI.size, 2);
+/** RAPID_FIRE's fire interval, replacing OCTOPI.fireInterval while active (spec §5.2). */
 const RAPID_FIRE_INTERVAL = 4;
 /** Half-angle in degrees between MULTI_SHOT's outer shots and its straight aim. */
 const MULTI_SHOT_SPREAD = 15;
@@ -38,12 +38,12 @@ function autoTargetPoint(s: GameState, b: Bullet): { x: number; y: number } | nu
   return best;
 }
 
-/** Moves the ship toward the target, at most SHIP.maxStep per axis per tick, inside its allowed area. */
-export function moveShip(s: GameState, input: Input): void {
+/** Moves Octopi toward the target, at most OCTOPI.maxStep per axis per tick, inside its allowed area. */
+export function moveOctopi(s: GameState, input: Input): void {
   const tx = clamp(input.x | 0, HALF, FIELD_W - HALF);
-  const ty = clamp(input.y | 0, SHIP.minY, SHIP.maxY);
-  s.ship.x += clamp(tx - s.ship.x, -SHIP.maxStep, SHIP.maxStep);
-  s.ship.y += clamp(ty - s.ship.y, -SHIP.maxStep, SHIP.maxStep);
+  const ty = clamp(input.y | 0, OCTOPI.minY, OCTOPI.maxY);
+  s.octopi.x += clamp(tx - s.octopi.x, -OCTOPI.maxStep, OCTOPI.maxStep);
+  s.octopi.y += clamp(ty - s.octopi.y, -OCTOPI.maxStep, OCTOPI.maxStep);
 }
 
 /**
@@ -89,10 +89,10 @@ export function updateShots(s: GameState): void {
       b.vy = idiv(dy * AUTO_TARGET_TOWARD, len) - AUTO_TARGET_UP;
     }
   }
-  s.ship.cooldown -= 1;
-  if (s.ship.cooldown <= 0) {
-    const x = s.ship.x;
-    const y = s.ship.y - HALF;
+  s.octopi.cooldown -= 1;
+  if (s.octopi.cooldown <= 0) {
+    const x = s.octopi.x;
+    const y = s.octopi.y - HALF;
     const data = isActive(s, 'PIERCING_BULLETS') ? 1 : 0;
     if (isActive(s, 'MULTI_SHOT')) {
       for (const a of [-MULTI_SHOT_SPREAD, 0, MULTI_SHOT_SPREAD]) {
@@ -103,6 +103,6 @@ export function updateShots(s: GameState): void {
     } else {
       s.shots.push({ x, y, vx: 0, vy: -SHOT.speed, kind: 'straight', data });
     }
-    s.ship.cooldown = isActive(s, 'RAPID_FIRE') ? RAPID_FIRE_INTERVAL : SHIP.fireInterval;
+    s.octopi.cooldown = isActive(s, 'RAPID_FIRE') ? RAPID_FIRE_INTERVAL : OCTOPI.fireInterval;
   }
 }

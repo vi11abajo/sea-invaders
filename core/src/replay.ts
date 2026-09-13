@@ -21,7 +21,7 @@ export interface Replay {
   mode: ReplayMode;
   /** Campaign level id, or 0 outside the campaign. */
   levelId: number;
-  /** Lives the ship started the run with. */
+  /** Lives Octopi started the run with. */
   lives: number;
   seed: string;
   /** Number of ticks the recording client simulated. */

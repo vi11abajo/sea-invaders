@@ -2,13 +2,13 @@ import type { Rng } from './rng';
 import type { CrabType } from './levels';
 import type { RunConfig } from './run';
 
-/** Ship target in integer milli-units, as produced by the touch layer. */
+/** Octopi target in integer milli-units, as produced by the touch layer. */
 export interface Input {
   x: number;
   y: number;
 }
 
-export interface Ship {
+export interface Octopi {
   x: number;
   y: number;
   /** Ticks until the next automatic shot. */
@@ -124,7 +124,7 @@ export interface GameState {
   over: boolean;
   /** Formation direction: 1 = right, -1 = left. */
   dir: number;
-  ship: Ship;
+  octopi: Octopi;
   shots: Bullet[];
   enemyShots: Bullet[];
   crabs: Crab[];

@@ -1,4 +1,4 @@
-import { BOSS, CRAB, CRAB_TYPES, ENEMY_SHOT, SHIP, SHOT } from '../config';
+import { BOSS, CRAB, CRAB_TYPES, ENEMY_SHOT, OCTOPI, SHOT } from '../config';
 import { clamp, idiv } from '../fixed';
 import type { Bullet, Crab, GameState } from '../types';
 import { isActive, rollDrop, scoreDecayPct } from './boosts';
@@ -71,32 +71,32 @@ export function hitCrabs(s: GameState): void {
 }
 
 /**
- * Enemy shots, crab bodies and the boss box hurt the ship unless it is invulnerable. A crab that
- * touches the ship dies without score. INVINCIBILITY ignores every hit outright (no life loss, no
- * shield use, no crab removal). Otherwise SHIELD_BARRIER absorbs a hit (see `applyShipHit`) before
+ * Enemy shots, crab bodies and the boss box hurt Octopi unless it is invulnerable. A crab that
+ * touches Octopi dies without score. INVINCIBILITY ignores every hit outright (no life loss, no
+ * shield use, no crab removal). Otherwise SHIELD_BARRIER absorbs a hit (see `applyOctopiHit`) before
  * any life is lost.
  */
-export function hitShip(s: GameState): void {
-  if (s.ship.invuln > 0 || s.over) return;
+export function hitOctopi(s: GameState): void {
+  if (s.octopi.invuln > 0 || s.over) return;
   if (isActive(s, 'INVINCIBILITY')) return;
-  const { x, y } = s.ship;
+  const { x, y } = s.octopi;
   for (const b of s.enemyShots) {
     const dx = b.x - x;
     const dy = b.y - y;
-    const reach = SHIP.hitRadius + shotRadius(b);
+    const reach = OCTOPI.hitRadius + shotRadius(b);
     if (dx * dx + dy * dy < reach * reach) {
-      applyShipHit(s);
+      applyOctopiHit(s);
       return;
     }
   }
-  const r2 = SHIP.hitRadius * SHIP.hitRadius;
+  const r2 = OCTOPI.hitRadius * OCTOPI.hitRadius;
   for (let i = 0; i < s.crabs.length; i++) {
     const c = s.crabs[i]!;
     const dx = x - clamp(x, c.x - CRAB_HALF, c.x + CRAB_HALF);
     const dy = y - clamp(y, c.y - CRAB_HALF, c.y + CRAB_HALF);
     if (dx * dx + dy * dy < r2) {
       s.crabs.splice(i, 1);
-      applyShipHit(s);
+      applyOctopiHit(s);
       return;
     }
   }
@@ -105,17 +105,17 @@ export function hitShip(s: GameState): void {
     const dx = x - clamp(x, b.x - BOSS_HALF_W, b.x + BOSS_HALF_W);
     const dy = y - clamp(y, b.y - BOSS_HALF_H, b.y + BOSS_HALF_H);
     if (dx * dx + dy * dy < r2) {
-      applyShipHit(s);
+      applyOctopiHit(s);
       return;
     }
   }
 }
 
-/** A hit lands on the ship: SHIELD_BARRIER absorbs it while charged (spec §5.2), otherwise a life is lost. */
-function applyShipHit(s: GameState): void {
+/** A hit lands on Octopi: SHIELD_BARRIER absorbs it while charged (spec §5.2), otherwise a life is lost. */
+function applyOctopiHit(s: GameState): void {
   if (s.boosts.shield > 0) {
     s.boosts.shield -= 1;
-    s.ship.invuln = 30;
+    s.octopi.invuln = 30;
     s.events.push({ tick: s.tick, type: 'player_hit' });
     if (s.boosts.shield === 0) {
       s.boosts.active = s.boosts.active.filter((a) => a.type !== 'SHIELD_BARRIER');
@@ -127,9 +127,9 @@ function applyShipHit(s: GameState): void {
 }
 
 export function loseLife(s: GameState): void {
-  s.ship.lives -= 1;
-  s.ship.invuln = SHIP.invulnTicks;
+  s.octopi.lives -= 1;
+  s.octopi.invuln = OCTOPI.invulnTicks;
   s.enemyShots = [];
   s.events.push({ tick: s.tick, type: 'player_hit' });
-  if (s.ship.lives <= 0) s.over = true;
+  if (s.octopi.lives <= 0) s.over = true;
 }

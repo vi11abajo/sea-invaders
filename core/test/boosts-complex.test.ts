@@ -22,20 +22,20 @@ function stubNextInt(rng: Rng, sequence: number[]): void {
 describe('GRAVITY_WELL', () => {
   it('rolls a seeded random centre inset from the field edges when activated directly', () => {
     const s = createGame('t', PRACTICE_RUN);
-    stubNextInt(s.rngBoosts, [100, 200]); // first roll is already far enough from the ship, no re-roll
+    stubNextInt(s.rngBoosts, [100, 200]); // first roll is already far enough from Octopi, no re-roll
     activateBoost(s, 'GRAVITY_WELL');
     expect(s.boosts.well).toEqual({ x: WELL.margin + 100, y: WELL.margin + 200 });
   });
 
-  it('re-rolls while the point is too close to the ship, keeping the last roll after WELL.maxAttempts', () => {
+  it('re-rolls while the point is too close to Octopi, keeping the last roll after WELL.maxAttempts', () => {
     const s = createGame('t', PRACTICE_RUN);
-    // Every attempt returns a point at (or basically on) the ship, i.e. always "too close", except
+    // Every attempt returns a point at (or basically on) Octopi, i.e. always "too close", except
     // the last, which is distinguishable but still within minDist — the roll keeps it regardless.
-    const closeX = s.ship.x - WELL.margin;
-    const closeY = s.ship.y - WELL.margin;
+    const closeX = s.octopi.x - WELL.margin;
+    const closeY = s.octopi.y - WELL.margin;
     const sequence: number[] = [];
     for (let i = 0; i < WELL.maxAttempts - 1; i++) sequence.push(closeX, closeY);
-    sequence.push(closeX + 3, closeY); // still only 3 units from the ship, well under minDist
+    sequence.push(closeX + 3, closeY); // still only 3 units from Octopi, well under minDist
     stubNextInt(s.rngBoosts, sequence);
     activateBoost(s, 'GRAVITY_WELL');
     expect(s.boosts.well).toEqual({ x: WELL.margin + closeX + 3, y: WELL.margin + closeY });
@@ -106,7 +106,7 @@ describe('GRAVITY_WELL', () => {
     const s2 = createGame('seed-x', PRACTICE_RUN);
     activateBoost(s1, 'GRAVITY_WELL');
     activateBoost(s2, 'GRAVITY_WELL');
-    const input = { x: s1.ship.x, y: s1.ship.y };
+    const input = { x: s1.octopi.x, y: s1.octopi.y };
     for (let i = 0; i < 300; i++) {
       step(s1, input);
       step(s2, input);

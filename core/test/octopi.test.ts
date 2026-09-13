@@ -1,26 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_INPUT, PRACTICE_RUN, createGame, moveShip, step, updateShots } from '../src';
+import { INITIAL_INPUT, PRACTICE_RUN, createGame, moveOctopi, step, updateShots } from '../src';
 
-describe('moveShip', () => {
+describe('moveOctopi', () => {
   it('moves at most 250 per tick toward the target', () => {
     const s = createGame('t', PRACTICE_RUN);
-    moveShip(s, { x: 4000, y: 9650 });
-    expect(s.ship.x).toBe(2812 + 250);
-    for (let i = 0; i < 10; i++) moveShip(s, { x: 4000, y: 9650 });
-    expect(s.ship.x).toBe(4000);
+    moveOctopi(s, { x: 4000, y: 9650 });
+    expect(s.octopi.x).toBe(2812 + 250);
+    for (let i = 0; i < 10; i++) moveOctopi(s, { x: 4000, y: 9650 });
+    expect(s.octopi.x).toBe(4000);
   });
 
-  it('keeps the ship inside its area', () => {
+  it('keeps Octopi inside its area', () => {
     const s = createGame('t', PRACTICE_RUN);
-    for (let i = 0; i < 100; i++) moveShip(s, { x: -9999, y: 0 });
-    expect(s.ship).toMatchObject({ x: 562, y: 5000 });
-    for (let i = 0; i < 100; i++) moveShip(s, { x: 99999, y: 99999 });
-    expect(s.ship).toMatchObject({ x: 5625 - 562, y: 10550 });
+    for (let i = 0; i < 100; i++) moveOctopi(s, { x: -9999, y: 0 });
+    expect(s.octopi).toMatchObject({ x: 562, y: 5000 });
+    for (let i = 0; i < 100; i++) moveOctopi(s, { x: 99999, y: 99999 });
+    expect(s.octopi).toMatchObject({ x: 5625 - 562, y: 10550 });
   });
 });
 
 describe('updateShots', () => {
-  it('fires every 8 ticks from the ship nose, tagged as a straight player shot', () => {
+  it("fires every 8 ticks from Octopi's nose, tagged as a straight player shot", () => {
     const s = createGame('t', PRACTICE_RUN);
     for (let t = 1; t <= 7; t++) updateShots(s);
     expect(s.shots).toHaveLength(0);
@@ -32,7 +32,7 @@ describe('updateShots', () => {
 
   it('moves shots up and drops them once they leave the field', () => {
     const s = createGame('t', PRACTICE_RUN);
-    s.ship.cooldown = 1000;
+    s.octopi.cooldown = 1000;
     s.shots = [{ x: 100, y: 300, vx: 0, vy: -240, kind: 'straight', data: 0 }];
     updateShots(s);
     expect(s.shots[0]!.y).toBe(60);
@@ -53,8 +53,8 @@ describe('step', () => {
 
   it('counts invulnerability down to zero', () => {
     const s = createGame('t', PRACTICE_RUN);
-    s.ship.invuln = 2;
+    s.octopi.invuln = 2;
     for (let i = 0; i < 3; i++) step(s, INITIAL_INPUT);
-    expect(s.ship.invuln).toBe(0);
+    expect(s.octopi.invuln).toBe(0);
   });
 });

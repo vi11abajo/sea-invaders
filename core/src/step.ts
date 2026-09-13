@@ -1,17 +1,17 @@
 import { nextWave } from './game';
 import { advanceScoreDecay, updateBoosts } from './sim/boosts';
 import { updateBoss } from './sim/boss';
-import { hitCrabs, hitShip } from './sim/collide';
+import { hitCrabs, hitOctopi } from './sim/collide';
 import { marchCrabs, pullShotsTowardGravity, updateEnemyShots } from './sim/crabs';
-import { moveShip, updateShots } from './sim/ship';
+import { moveOctopi, updateShots } from './sim/octopi';
 import type { GameState, Input } from './types';
 
 /** Advances the game by exactly one tick. The same state and input always give the same result. */
 export function step(s: GameState, input: Input): void {
   if (s.over || s.cleared) return;
   s.tick += 1;
-  if (s.ship.invuln > 0) s.ship.invuln -= 1;
-  moveShip(s, input);
+  if (s.octopi.invuln > 0) s.octopi.invuln -= 1;
+  moveOctopi(s, input);
   updateShots(s);
   marchCrabs(s);
   if (s.over) return;
@@ -20,7 +20,7 @@ export function step(s: GameState, input: Input): void {
   updateBoss(s);
   advanceScoreDecay(s);
   hitCrabs(s);
-  hitShip(s);
+  hitOctopi(s);
   updateBoosts(s);
   // Decrement before nextWave so a wave it spawns this same tick (arrival reset to 30) keeps its
   // full descent — marchCrabs already consumed this tick's old-wave arrival tick above, and the

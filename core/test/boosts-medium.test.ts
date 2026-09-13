@@ -151,7 +151,7 @@ describe('WAVE_BLAST', () => {
     s.crabs = [];
     expect(activateBoost(s, 'WAVE_BLAST')).toEqual({ type: 'WAVE_BLAST', consumed: false });
 
-    s.drops.push({ x: s.ship.x, y: s.ship.y, boost: 'WAVE_BLAST', ttl: 100 });
+    s.drops.push({ x: s.octopi.x, y: s.octopi.y, boost: 'WAVE_BLAST', ttl: 100 });
     updateBoosts(s);
     expect(s.drops).toHaveLength(1); // still falling, not picked up
     expect(s.events.some((e) => e.type === 'boost_pickup')).toBe(false);

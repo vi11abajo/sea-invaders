@@ -20,12 +20,12 @@ export function castZigzag(s: GameState, x: number, y: number, dir: 1 | -1): voi
   s.enemyShots.push({ x, y, vx: dir * 73, vy: 110, kind: 'zigzag', data: 20 });
 }
 
-/** A slow, oversized shot (collision radius ×2, applied by kind in `hitShip`). */
+/** A slow, oversized shot (collision radius ×2, applied by kind in `hitOctopi`). */
 export function castLarge(s: GameState, x: number, y: number): void {
   s.enemyShots.push({ x, y, vx: 0, vy: 93, kind: 'large', data: 0 });
 }
 
-/** `count` shots spread evenly around a full circle, speed scaled by `mult1000`; `radiusBoost` widens the collision radius (added to `BOSS_SHOT.radius` in `hitShip`). */
+/** `count` shots spread evenly around a full circle, speed scaled by `mult1000`; `radiusBoost` widens the collision radius (added to `BOSS_SHOT.radius` in `hitOctopi`). */
 export function castRing(s: GameState, x: number, y: number, count: number, mult1000 = 1000, radiusBoost = 0): void {
   for (let i = 0; i < count; i++) {
     const deg = idiv(i * 360, count);

@@ -8,7 +8,7 @@ import {
   createGame,
   crabSpeed,
   hitCrabs,
-  hitShip,
+  hitOctopi,
   idiv,
   marchCrabs,
   spawnFormation,
@@ -53,9 +53,9 @@ describe('crab types', () => {
     const c = s.crabs[0]!;
     s.rngWaves = { nextInt: () => 0 } as never;
     // Driven by marchCrabs directly (like the other tests in this file), not the full step():
-    // this lone crab sits exactly on the ship's fixed x, so step()'s own systems destroy it
-    // long before the interval trigger — the ship's automatic fire kills it by tick ~38, and
-    // even with that fire disabled, the crab's own random enemy fire (aimed at a ship that
+    // this lone crab sits exactly on Octopi's fixed x, so step()'s own systems destroy it
+    // long before the interval trigger — Octopi's automatic fire kills it by tick ~38, and
+    // even with that fire disabled, the crab's own random enemy fire (aimed at Octopi, which
     // never moves) can end the run before the dive completes. marchCrabs alone isolates the
     // tick-driven trigger/return mechanic under test from both.
     for (let i = 0; i < 360; i++) {
@@ -140,14 +140,14 @@ describe('crab types', () => {
     expect(colourByType.get('fanner')).toBe(3);
     expect(colourByType.get('diver')).toBe(2);
   });
-  it('diver contact costs a life through hitShip, like a shot', () => {
+  it('diver contact costs a life through hitOctopi, like a shot', () => {
     const s = game('diver');
     const c = s.crabs[0]!;
     c.dive = 45; // mid-dive
-    c.x = s.ship.x;
-    c.y = s.ship.y;
-    hitShip(s);
-    expect(s.ship.lives).toBe(2);
+    c.x = s.octopi.x;
+    c.y = s.octopi.y;
+    hitOctopi(s);
+    expect(s.octopi.lives).toBe(2);
     expect(s.crabs).toHaveLength(0);
   });
 });

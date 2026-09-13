@@ -1,4 +1,4 @@
-import { BOOSTS, DROP, FIELD_H, FIELD_W, RARITY_LISTS, SCORE_DECAY, SHIP, WELL } from '../config';
+import { BOOSTS, DROP, FIELD_H, FIELD_W, RARITY_LISTS, SCORE_DECAY, OCTOPI, WELL } from '../config';
 import { idiv, isqrt } from '../fixed';
 import type { ActiveBoost, BoostType, Bullet, Drop, GameState } from '../types';
 import { applyEffect, removeEffect } from './boostEffects';
@@ -37,8 +37,8 @@ export function rollDrop(s: GameState, x: number, y: number): void {
 /**
  * Rolls GRAVITY_WELL's centre (spec C1, legacy `boost-manager.js:317-336` `activateBoost`): a
  * seeded random point inset `WELL.margin` from the field edges, re-rolled while it lands within
- * `WELL.minDist` of the ship, up to `WELL.maxAttempts` rolls in total — the last roll stands even if
- * every attempt landed too close. Neither the ship's position nor the drop's own position is used as
+ * `WELL.minDist` of Octopi, up to `WELL.maxAttempts` rolls in total — the last roll stands even if
+ * every attempt landed too close. Neither Octopi's position nor the drop's own position is used as
  * the centre any more (that was the port's own invention, not the legacy's).
  */
 function rollWellCentre(s: GameState): { x: number; y: number } {
@@ -47,8 +47,8 @@ function rollWellCentre(s: GameState): { x: number; y: number } {
   for (let attempt = 0; attempt < WELL.maxAttempts; attempt++) {
     x = WELL.margin + s.rngBoosts.nextInt(FIELD_W - 2 * WELL.margin);
     y = WELL.margin + s.rngBoosts.nextInt(FIELD_H - 2 * WELL.margin);
-    const dx = x - s.ship.x;
-    const dy = y - s.ship.y;
+    const dx = x - s.octopi.x;
+    const dy = y - s.octopi.y;
     if (dx * dx + dy * dy >= WELL.minDist * WELL.minDist) break;
   }
   return { x, y };
@@ -76,9 +76,9 @@ function applyGravityWell(s: GameState, well: { x: number; y: number }): void {
 }
 
 /**
- * Advances every drop (fall, ttl, pickup by the ship) and every active boost timer, then applies
+ * Advances every drop (fall, ttl, pickup by Octopi) and every active boost timer, then applies
  * GRAVITY_WELL's pull for the tick (if one is active), in that order. Called once per tick after
- * `hitShip` (spec §5.1-5.2). A pickup is consumed only when `activateBoost` reports it applied (spec
+ * `hitOctopi` (spec §5.1-5.2). A pickup is consumed only when `activateBoost` reports it applied (spec
  * C4: a WAVE_BLAST — direct or chaos-picked — with no crabs on screen leaves the drop falling).
  */
 export function updateBoosts(s: GameState): void {
@@ -94,8 +94,8 @@ export function updateBoosts(s: GameState): void {
     d.y += DROP.fall;
     d.ttl -= 1;
     if (d.ttl <= 0 || d.y - DROP_HALF > FIELD_H) continue;
-    const reach = DROP_HALF + SHIP.hitRadius;
-    const inReach = Math.abs(d.x - s.ship.x) < reach && Math.abs(d.y - s.ship.y) < reach;
+    const reach = DROP_HALF + OCTOPI.hitRadius;
+    const inReach = Math.abs(d.x - s.octopi.x) < reach && Math.abs(d.y - s.octopi.y) < reach;
     if (inReach) {
       const result = activateBoost(s, d.boost);
       if (result.consumed) {

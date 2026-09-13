@@ -14,7 +14,7 @@ the API only.
 
 - **Deploy pipeline:** the GitHub Actions workflow **"Deploy API to VPS"**
   (`.github/workflows/deploy.yml`, manual `workflow_dispatch` trigger only). It builds
-  `core/` (`npm ci && npm run build`), writes `backend/.env` from GitHub secrets, ships
+  `core/` (`npm ci && npm run build`), writes `backend/.env` from GitHub secrets, copies
   `backend/` and `core/dist` to the server over `scp`/`ssh`, installs production
   dependencies, runs migrations, and (re)starts the PM2 apps.
 - **Server path:** `/var/www/sea-invaders-api` (backend + built core). Not
@@ -165,7 +165,7 @@ cd ../backend
 npm ci --omit=dev
 ```
 
-The CI deploy workflow does this same build (`cd core && npm ci && npm run build`) and ships
+The CI deploy workflow does this same build (`cd core && npm ci && npm run build`) and includes
 `core/dist` in the deploy archive, so a server updated by CI already has it; only a manual
 clone needs this step.
 
@@ -173,7 +173,7 @@ clone needs this step.
 of the core it was built with (`backend/src/services/rankedRuns.js` rejects any other version
 with `update_required`) and reports that version as `coreVersion` in `GET /api/daily/today`.
 `CORE_VERSION` is 4 since 2026-09-13 (3 brought the campaign, bosses and boosts of Phase 3A; 4 the legacy boost rules and player-shot motion of Phase 3A.1), so whenever
-the core version bumps, deploy the API and ship the new APK together: runs recorded by an older
+the core version bumps, deploy the API and release the new APK together: runs recorded by an older
 app are rejected until it updates.
 
 ---

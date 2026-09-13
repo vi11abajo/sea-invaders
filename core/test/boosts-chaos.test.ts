@@ -35,7 +35,7 @@ describe('RANDOM_CHAOS', () => {
   it('a drop pickup behaves the same as a direct activation', () => {
     const s = createGame('chaos-drop', PRACTICE_RUN);
     stubNextInt(s.rngBoosts, [5, 100]); // same roll as the direct-activation case above
-    s.drops.push({ x: s.ship.x, y: s.ship.y, boost: 'RANDOM_CHAOS', ttl: 100 });
+    s.drops.push({ x: s.octopi.x, y: s.octopi.y, boost: 'RANDOM_CHAOS', ttl: 100 });
     updateBoosts(s);
     // updateBoosts ticks every active boost down by one right after the pickup in the same call,
     // same as any other freshly-picked-up timed boost would (see boosts.test.ts).
@@ -46,11 +46,11 @@ describe('RANDOM_CHAOS', () => {
 
   it('an instant HEALTH_BOOST pick applies immediately with no active-timer entry', () => {
     const s = createGame('chaos-health', PRACTICE_RUN);
-    const before = s.ship.lives;
+    const before = s.octopi.lives;
     stubNextInt(s.rngBoosts, [2, 100]); // index 2 -> HEALTH_BOOST; the duration roll is drawn but unused
     const result = activateBoost(s, 'RANDOM_CHAOS');
     expect(result).toEqual({ type: 'HEALTH_BOOST', consumed: true });
-    expect(s.ship.lives).toBe(before + 1);
+    expect(s.octopi.lives).toBe(before + 1);
     expect(s.boosts.active).toHaveLength(0);
   });
 
@@ -125,10 +125,10 @@ describe('RANDOM_CHAOS', () => {
   });
 
   describe('GRAVITY_WELL via chaos', () => {
-    it('rolls its own random centre, not the ship or drop position', () => {
+    it("rolls its own random centre, not Octopi or the drop's position", () => {
       const s = createGame('chaos-well', PRACTICE_RUN);
-      s.ship.x = 1234;
-      s.ship.y = 5678;
+      s.octopi.x = 1234;
+      s.octopi.y = 5678;
       stubNextInt(s.rngBoosts, [11, 0, 100, 200]); // index 11 -> GRAVITY_WELL, ticks 600, well roll (100, 200)
       activateBoost(s, 'RANDOM_CHAOS');
       expect(s.boosts.active).toEqual([{ type: 'GRAVITY_WELL', ticksLeft: 600 }]);
@@ -137,8 +137,8 @@ describe('RANDOM_CHAOS', () => {
 
     it('a drop pickup rolls its own centre too, not the drop position', () => {
       const s = createGame('chaos-well-drop', PRACTICE_RUN);
-      s.ship.x = 1000;
-      s.ship.y = 9000;
+      s.octopi.x = 1000;
+      s.octopi.y = 9000;
       stubNextInt(s.rngBoosts, [11, 0, 100, 200]);
       s.drops.push({ x: 1050, y: 8980, boost: 'RANDOM_CHAOS', ttl: 100 }); // falls to y 9040 this tick
       updateBoosts(s);

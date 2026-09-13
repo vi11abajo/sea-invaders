@@ -18,7 +18,7 @@ export function fitField(screenW: number, screenH: number): Layout {
   return { scale, offsetX: (screenW - width) / 2, offsetY: screenH - height, width, height };
 }
 
-/** Converts a touch point into an integer ship target, lifted by `liftMu` so the ship stays above the finger. */
+/** Converts a touch point into an integer Octopi target, lifted by `liftMu` so Octopi stays above the finger. */
 export function touchToInput(layout: Layout, px: number, py: number, liftMu: number): Input {
   return {
     x: Math.round((px - layout.offsetX) / layout.scale) + 0,

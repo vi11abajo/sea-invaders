@@ -8,7 +8,7 @@ interface ArtSlotProps {
   color?: string;
 }
 
-/** Marks where the owner's art goes, at its final size. Never ship it. */
+/** Marks where the owner's art goes, at its final size. Never release it. */
 export function ArtSlot({ size, label, color = COLORS.artSlot }: ArtSlotProps) {
   return (
     <View style={[styles.slot, { width: size, height: size, borderRadius: size / 2, borderColor: color }]}>

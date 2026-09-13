@@ -45,7 +45,7 @@ interface GameHudProps {
   combo?: number;
   /** Shown only when the core reports active boosts. */
   boosts?: HudBoost[];
-  /** The ship's SHIELD_BARRIER hits left; a chip shows only when > 0. */
+  /** Octopi's SHIELD_BARRIER hits left; a chip shows only when > 0. */
   shield?: number;
   /** The active boss, when the level has one. */
   boss?: BossFrame | null;

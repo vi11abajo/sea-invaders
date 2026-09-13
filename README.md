@@ -11,7 +11,7 @@ An arcade shooter set under the sea, built for the Solana Seeker: you play as Oc
 - **Practice.** The same game on a random seed, no wallet needed, never ranked.
 - **Wallet sign-in.** Mobile Wallet Adapter plus Sign-In With Solana; the app never holds a key.
 
-In development: a 30-level campaign across 5 reefs with 5 bosses, drop-in power-ups (boosts) in every mode, a shop with ships and skins, paid revives priced by the "Tide", and Seeker Genesis Token linking.
+In development: a 30-level campaign across 5 reefs with 5 bosses, drop-in power-ups (boosts) in every mode, a shop with octopi and skins, paid revives priced by the "Tide", and Seeker Genesis Token linking.
 
 The current build runs on devnet against a test SKR mint. Mainnet and the real SKR token come later.
 

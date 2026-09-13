@@ -5,7 +5,7 @@ import { BOOST_INDEX, KIND_INDEX, TYPE_INDEX, type GameState } from './types';
 export function hashState(s: GameState): string {
   const h = new Hasher();
   h.int(s.tick).int(s.wave).int(s.waveTotal).int(s.score).int(s.kills).int(s.over ? 1 : 0).int(s.dir).int(s.scoreDecay);
-  const p = s.ship;
+  const p = s.octopi;
   h.int(p.x).int(p.y).int(p.cooldown).int(p.invuln).int(p.lives);
   h.int(s.crabs.length);
   for (const c of s.crabs) {

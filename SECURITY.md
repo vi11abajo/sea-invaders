@@ -12,7 +12,7 @@ Include what you need to make the issue reproducible:
 - Steps to reproduce, or a proof of concept
 - Affected version, commit, or URL
 
-You can expect an initial response within a few days. Please give us a reasonable window to ship a fix before disclosing publicly.
+You can expect an initial response within a few days. Please give us a reasonable window to release a fix before disclosing publicly.
 
 ## Scope
 

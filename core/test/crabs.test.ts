@@ -57,19 +57,19 @@ describe('updateEnemyShots', () => {
     return s.enemyShots[0];
   }
 
-  it('aims straight down at a ship below the crab, tagged as a crab shot', () => {
+  it('aims straight down at Octopi below the crab, tagged as a crab shot', () => {
     const s = createGame('aim', PRACTICE_RUN);
-    s.crabs = [{ x: s.ship.x, y: 2000, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: s.ship.x, homeY: 2000 }];
+    s.crabs = [{ x: s.octopi.x, y: 2000, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: s.octopi.x, homeY: 2000 }];
     expect(firstShot(s)).toEqual({
-      x: s.ship.x, y: 2265, vx: 0, vy: ENEMY_SHOT.speed, kind: 'crab', data: 0,
+      x: s.octopi.x, y: 2265, vx: 0, vy: ENEMY_SHOT.speed, kind: 'crab', data: 0,
     });
   });
 
   it('aims diagonally with integer velocity', () => {
     const s = createGame('aim', PRACTICE_RUN);
-    // Shot origin (crab bottom edge) is 3000 left and 4000 above the ship: a 3-4-5 triangle.
-    const x = s.ship.x - 3000;
-    const y = s.ship.y - 4000 - 265;
+    // Shot origin (crab bottom edge) is 3000 left and 4000 above Octopi: a 3-4-5 triangle.
+    const x = s.octopi.x - 3000;
+    const y = s.octopi.y - 4000 - 265;
     s.crabs = [{ x, y, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: x, homeY: y }];
     expect(firstShot(s)).toMatchObject({ vx: 66, vy: 88 });
   });

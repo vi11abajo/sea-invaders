@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { CRAB, FIELD_W, INITIAL_INPUT, PRACTICE_RUN, createGame, spawnWave } from '../src';
 
 describe('createGame', () => {
-  it('starts with the ship at the bottom centre and wave 1', () => {
+  it('starts with Octopi at the bottom centre and wave 1', () => {
     const s = createGame('t', PRACTICE_RUN);
     expect(INITIAL_INPUT).toEqual({ x: 2812, y: 9650 });
-    expect(s.ship).toEqual({ x: 2812, y: 9650, cooldown: 8, invuln: 0, lives: 3 });
+    expect(s.octopi).toEqual({ x: 2812, y: 9650, cooldown: 8, invuln: 0, lives: 3 });
     expect(s).toMatchObject({ tick: 0, wave: 1, waveTotal: 18, score: 0, kills: 0, over: false });
     expect(s.crabs).toHaveLength(18);
     expect([1, -1]).toContain(s.dir);

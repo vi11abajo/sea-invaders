@@ -17,13 +17,13 @@ const OCTOPI_FRONT = require('../../assets/sprites/octopiFront.png');
 const SHOT_RISE = 420;
 const SHOT_MS = 1100;
 
-interface HangarSceneProps {
+interface ReefSceneProps {
   caption: string;
   onOctopi: () => void;
 }
 
 /** The idle world on Home: a far crab row swaying, and Octopi drifting and firing. Fills the space it is given. */
-export function HangarScene({ caption, onOctopi }: HangarSceneProps) {
+export function ReefScene({ caption, onOctopi }: ReefSceneProps) {
   const { width } = useWindowDimensions();
   const [areaHeight, setAreaHeight] = useState(0);
   // About 40% of the width, but smaller on short screens so the caption and the cards still fit.

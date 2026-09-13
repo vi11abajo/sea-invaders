@@ -43,7 +43,7 @@ function applyWaveBlast(s: GameState): boolean {
 export function applyEffect(s: GameState, type: BoostType): boolean {
   switch (type) {
     case 'HEALTH_BOOST':
-      s.ship.lives = Math.min(MAX_LIVES, s.ship.lives + 1);
+      s.octopi.lives = Math.min(MAX_LIVES, s.octopi.lives + 1);
       return true;
     case 'COIN_SHOWER':
       s.score += idiv(s.score, 4);

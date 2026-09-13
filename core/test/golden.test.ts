@@ -84,7 +84,7 @@ describe('golden replays', () => {
     expect(fresh.find((g) => g.name === 'truncated')!.expected.over).toBe(false);
   });
 
-  it('the survivor keeps the ship alive for a long stretch by dodging enemy fire', () => {
+  it('the survivor keeps Octopi alive for a long stretch by dodging enemy fire', () => {
     expect(fresh.find((g) => g.name === 'survivor')!.expected.ticks).toBeGreaterThanOrEqual(SURVIVOR_MIN_TICKS);
   });
 

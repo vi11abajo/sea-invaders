@@ -74,7 +74,7 @@ function triggerDiver(s: GameState): void {
   c.dive = DIVER.ticks;
 }
 
-/** Moves crabs currently diving one step towards the ship; snaps back to their formation slot when the dive ends. */
+/** Moves crabs currently diving one step towards Octopi; snaps back to their formation slot when the dive ends. */
 function advanceDivers(s: GameState): void {
   for (const c of s.crabs) {
     if (c.dive === 0) continue;
@@ -84,8 +84,8 @@ function advanceDivers(s: GameState): void {
       c.dive = 0;
       continue;
     }
-    const dx = s.ship.x - c.x;
-    const dy = s.ship.y - c.y;
+    const dx = s.octopi.x - c.x;
+    const dy = s.octopi.y - c.y;
     const len = isqrt(dx * dx + dy * dy);
     if (len > 0) {
       const speed = chilled(s, tamed(s, DIVER.speed), false);
@@ -210,8 +210,8 @@ export function updateEnemyShots(s: GameState): void {
   const entry = CRAB_SHOTS[crab.type];
   if (entry === null) return; // diver: chosen to fire, but fires nothing this tick
   const y = crab.y + HALF;
-  const dx = s.ship.x - crab.x;
-  const dy = s.ship.y - y;
+  const dx = s.octopi.x - crab.x;
+  const dy = s.octopi.y - y;
   const len = isqrt(dx * dx + dy * dy);
   const speed = entry.speed;
   const vx = len === 0 ? 0 : idiv(dx * speed, len);

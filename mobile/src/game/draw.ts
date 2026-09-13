@@ -1,6 +1,6 @@
 import { BlendMode, FilterMode, MipmapMode, PaintStyle, Skia, TileMode } from '@shopify/react-native-skia';
 import {
-  BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, DROP, ENEMY_SHOT, KIND_INDEX, RARITY_ORDER, SHIP,
+  BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, DROP, ENEMY_SHOT, KIND_INDEX, RARITY_ORDER, OCTOPI,
   type BoostType, type Frame, type Layout,
 } from '@sea-invaders/core';
 import { COLORS } from '../ui/tokens';
@@ -75,7 +75,7 @@ const PLAYER_SHIELD_STROKE = 4;
 const BOSS_SHIELD_STROKE = 6;
 
 /** INVINCIBILITY indication (spec M6): legacy rainbow outline, cycling every 6 ticks. The outline's
- * own `SkRRect` is precomputed per ship pose in `sprites.ts` (`PreparedSprites.invincibleOutline`)
+ * own `SkRRect` is precomputed per Octopi pose in `sprites.ts` (`PreparedSprites.invincibleOutline`)
  * and only translated here — never rebuilt per frame. */
 const INVINCIBLE_COLORS = ['#ff0000', '#ff8800', '#ffff00', '#00ff00', '#0088ff', '#0000ff', '#8800ff'].map((hex) => Skia.Color(hex));
 const INVINCIBLE_STROKE_W = 3;
@@ -452,28 +452,28 @@ export function drawFrame(
     }
   }
 
-  // Ship: always the front sprite, swapped for the damage pose while invulnerable (no blink).
-  const sx = px(f.ship.x);
-  const sy = py(f.ship.y);
-  const shipSprite = f.ship.invuln > 0 ? sprites.ship.hit : sprites.ship.front;
-  drawSpriteAt(canvas, paint, shipSprite, sx - shipSprite.w / 2, sy - shipSprite.h / 2);
+  // Octopi: always the front sprite, swapped for the damage pose while invulnerable (no blink).
+  const sx = px(f.octopi.x);
+  const sy = py(f.octopi.y);
+  const octopiSprite = f.octopi.invuln > 0 ? sprites.octopi.hit : sprites.octopi.front;
+  drawSpriteAt(canvas, paint, octopiSprite, sx - octopiSprite.w / 2, sy - octopiSprite.h / 2);
   if (DEV_HITBOX) {
     paint.setColor(SHOT_COLOR);
     paint.setAlphaf(0.6);
-    canvas.drawCircle(sx, sy, SHIP.hitRadius * k, paint);
+    canvas.drawCircle(sx, sy, OCTOPI.hitRadius * k, paint);
     paint.setAlphaf(1);
   }
 
-  // Player shield: a cyan ring around the ship.
+  // Player shield: a cyan ring around Octopi.
   if (f.shield > 0) {
     paint.setStyle(STROKE);
     paint.setStrokeWidth(PLAYER_SHIELD_STROKE);
     paint.setColor(SHIELD_COLOR);
-    canvas.drawCircle(sx, sy, SHIP.size * 0.7 * k, paint);
+    canvas.drawCircle(sx, sy, OCTOPI.size * 0.7 * k, paint);
     paint.setStyle(FILL);
   }
 
-  // INVINCIBILITY (spec M6): a legacy rainbow outline around the ship, plus rising sparks.
+  // INVINCIBILITY (spec M6): a legacy rainbow outline around Octopi, plus rising sparks.
   let invincible = false;
   for (let i = 0; i < f.boosts.length; i += 2) {
     if (f.boosts[i] === BOOST_INDEX.INVINCIBILITY) {
@@ -482,9 +482,9 @@ export function drawFrame(
     }
   }
   if (invincible) {
-    // Precomputed per ship pose in sprites.ts (never rebuilt here): centred at the local origin,
-    // so a translate to the ship's centre is all this needs — no scale, so the stroke stays 3 dp.
-    const outlineRRect = f.ship.invuln > 0 ? sprites.invincibleOutline.hit : sprites.invincibleOutline.front;
+    // Precomputed per Octopi pose in sprites.ts (never rebuilt here): centred at the local origin,
+    // so a translate to Octopi's centre is all this needs — no scale, so the stroke stays 3 dp.
+    const outlineRRect = f.octopi.invuln > 0 ? sprites.invincibleOutline.hit : sprites.invincibleOutline.front;
     const color = INVINCIBLE_COLORS[Math.floor(f.tick / 6) % INVINCIBLE_COLORS.length]!;
     paint.setStyle(STROKE);
     paint.setStrokeWidth(INVINCIBLE_STROKE_W);
@@ -501,8 +501,8 @@ export function drawFrame(
       const rndPhase = ((f.tick * 53 + i * 131) % 89) / 89;
       const phase = (f.tick + Math.floor(rndPhase * INVINCIBLE_SPARK_RISE_TICKS)) % INVINCIBLE_SPARK_RISE_TICKS;
       const t = phase / INVINCIBLE_SPARK_RISE_TICKS;
-      const dotX = sx + (rndX - 0.5) * shipSprite.w;
-      const dotY = sy - shipSprite.h / 2 - t * INVINCIBLE_SPARK_RISE;
+      const dotX = sx + (rndX - 0.5) * octopiSprite.w;
+      const dotY = sy - octopiSprite.h / 2 - t * INVINCIBLE_SPARK_RISE;
       const dotR = INVINCIBLE_SPARK_MIN_R + rndX * (INVINCIBLE_SPARK_MAX_R - INVINCIBLE_SPARK_MIN_R);
       paint.setColor(color);
       paint.setAlphaf((0.5 + 0.3 * Math.sin(f.tick / 10)) * (1 - t));

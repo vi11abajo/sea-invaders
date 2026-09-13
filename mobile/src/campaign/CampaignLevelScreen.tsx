@@ -30,7 +30,7 @@ const TITLE: Record<Outcome, string> = {
   practice: 'Practice over',
 };
 
-/** Task 3B hook: flips true once a paid/ad-gated revive ships. */
+/** Task 3B hook: flips true once a paid/ad-gated revive launches. */
 const REVIVE_ENABLED = false;
 
 interface CampaignLevelScreenProps {

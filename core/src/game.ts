@@ -1,4 +1,4 @@
-import { ARRIVAL, CRAB, CRAB_TYPES, FIELD_W, SHIP, TYPE_COLOUR } from './config';
+import { ARRIVAL, CRAB, CRAB_TYPES, FIELD_W, OCTOPI, TYPE_COLOUR } from './config';
 import { idiv } from './fixed';
 import { formationPositions } from './formations';
 import type { CrabType, Formation } from './levels';
@@ -7,8 +7,8 @@ import type { RunConfig } from './run';
 import { spawnBoss } from './sim/boss';
 import type { GameState, Input } from './types';
 
-/** Where the ship starts; also the input a replay assumes before its first recorded change. */
-export const INITIAL_INPUT: Input = Object.freeze({ x: idiv(FIELD_W, 2), y: SHIP.startY });
+/** Where Octopi starts; also the input a replay assumes before its first recorded change. */
+export const INITIAL_INPUT: Input = Object.freeze({ x: idiv(FIELD_W, 2), y: OCTOPI.startY });
 
 export function createGame(seed: string, run: RunConfig): GameState {
   const s: GameState = {
@@ -19,7 +19,7 @@ export function createGame(seed: string, run: RunConfig): GameState {
     kills: 0,
     over: false,
     dir: 1,
-    ship: { x: INITIAL_INPUT.x, y: INITIAL_INPUT.y, cooldown: SHIP.fireInterval, invuln: 0, lives: run.lives },
+    octopi: { x: INITIAL_INPUT.x, y: INITIAL_INPUT.y, cooldown: OCTOPI.fireInterval, invuln: 0, lives: run.lives },
     shots: [],
     enemyShots: [],
     crabs: [],

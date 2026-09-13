@@ -79,7 +79,7 @@ function castGravity(s: GameState, b: BossState): void {
  * `b.pending` (phases 2-4: spiral, clone, gravity). Phase 5 ("chaos") never teleports: it casts a
  * spiral immediately, then schedules a berserk ring and a 3-shot explosive volley. Its temporal
  * freeze ability halts the player's shots in flight for 180 ticks (`effectTicks`, consumed by
- * `updateShots` in `sim/ship.ts` and `frame.ts`'s `freeze` field) without touching their stored
+ * `updateShots` in `sim/octopi.ts` and `frame.ts`'s `freeze` field) without touching their stored
  * velocities, so they resume exactly where they left off once it expires.
  */
 export const VOID_HOOKS: BossHooks = {

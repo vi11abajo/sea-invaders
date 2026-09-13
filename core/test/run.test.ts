@@ -11,8 +11,8 @@ describe('RunConfig', () => {
     expect(s.run).toEqual({ mode: 'daily', lives: 3, features: { boosts: true } });
     expect(s).toMatchObject({ cleared: false, boss: null, drops: [], events: [] });
     expect(s.boosts).toEqual({ active: [], shield: 0, tamerStacks: 0, well: null });
-    expect(s.ship.lives).toBe(3);
-    expect(createGame('t', { ...PRACTICE_RUN, lives: 5 }).ship.lives).toBe(5);
+    expect(s.octopi.lives).toBe(3);
+    expect(createGame('t', { ...PRACTICE_RUN, lives: 5 }).octopi.lives).toBe(5);
   });
 
   it('seeds separate boss and boost streams that differ from the wave stream', () => {

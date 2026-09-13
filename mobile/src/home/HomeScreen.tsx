@@ -6,7 +6,7 @@ import { PillButton } from '../ui/PillButton';
 import { Toast } from '../ui/Toast';
 import { COLORS } from '../ui/tokens';
 import { DailyRunCard } from './DailyRunCard';
-import { HangarScene } from './HangarScene';
+import { ReefScene } from './ReefScene';
 import { FeatureRow, HomeTopBar, type Feature } from './HomeTopBar';
 import { Ticker, type TickerItem } from './Ticker';
 import type { HomeModel, RankedInfo } from './model';
@@ -39,7 +39,7 @@ interface HomeScreenProps {
   dailyError?: string | null;
 }
 
-/** Home, the "Hangar": Octopi in the idle world, the Daily Run card and the ways into the game. */
+/** Home, the "Reef": Octopi in the idle world, the Daily Run card and the ways into the game. */
 export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboard, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null, onRecorded = () => {}, dailyError = null }: HomeScreenProps) {
   const ranked = model.ranked;
   const now = useNow(ranked !== null);
@@ -69,7 +69,7 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
             <Ticker items={ticker} />
           </View>
         )}
-        <HangarScene caption="Octopi · base ship" onOctopi={() => soon('Shop')} />
+        <ReefScene caption="Octopi · base defender" onOctopi={() => soon('Shop')} />
         <View style={[styles.inset, styles.bottom]}>
           <DailyRunCard
             ranked={ranked}

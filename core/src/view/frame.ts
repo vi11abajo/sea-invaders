@@ -22,7 +22,7 @@ export interface BossFrame {
 /** Plain-number copy of what the renderer needs; safe to hand to the UI thread every frame. */
 export interface Frame {
   tick: number;
-  ship: { x: number; y: number; invuln: number };
+  octopi: { x: number; y: number; invuln: number };
   lives: number;
   /** x, y, kind, typeIndex, hp quintuples. */
   crabs: number[];
@@ -47,7 +47,7 @@ export interface Frame {
 
 export const EMPTY_FRAME: Frame = {
   tick: 0,
-  ship: { x: 0, y: 0, invuln: 0 },
+  octopi: { x: 0, y: 0, invuln: 0 },
   lives: 0,
   crabs: [],
   shots: [],
@@ -94,8 +94,8 @@ export function snapshot(s: GameState): Frame {
   for (const a of s.boosts.active) boosts.push(BOOST_INDEX[a.type], a.ticksLeft);
   return {
     tick: s.tick,
-    ship: { x: s.ship.x, y: s.ship.y, invuln: s.ship.invuln },
-    lives: s.ship.lives,
+    octopi: { x: s.octopi.x, y: s.octopi.y, invuln: s.octopi.invuln },
+    lives: s.octopi.lives,
     crabs,
     shots,
     enemyShots,
