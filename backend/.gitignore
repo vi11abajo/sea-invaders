@@ -40,4 +40,6 @@ build/
 backup/
 *.tar.gz
 *.sql
+# Migrations are source, not dumps.
+!migrations/*.sql
 *_backup_*
