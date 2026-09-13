@@ -3,7 +3,7 @@ import { CORE_VERSION, DAILY_RUN, PRACTICE_RUN, createGame, hashState, step } fr
 
 describe('RunConfig', () => {
   it('bumps the core version', () => {
-    expect(CORE_VERSION).toBe(3);
+    expect(CORE_VERSION).toBe(4);
   });
 
   it('creates daily and practice runs with the new state fields', () => {
