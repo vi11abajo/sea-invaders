@@ -15,7 +15,7 @@ interface BossIntroProps {
   onDone: () => void;
 }
 
-/** The boss reveal card shown right before its fight starts: sprite and name over a dark backdrop. */
+/** The boss reveal card shown right before its fight starts: sprite and name over its reef, dimmed. */
 export function BossIntro({ kind, onDone }: BossIntroProps) {
   const sprites = useSprites();
   const onDoneRef = useRef(onDone);
@@ -45,7 +45,7 @@ export function BossIntro({ kind, onDone }: BossIntroProps) {
 
 const styles = StyleSheet.create({
   root: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.92)',
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center', justifyContent: 'center', gap: 16,
   },
 });

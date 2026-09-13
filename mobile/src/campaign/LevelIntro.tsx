@@ -1,11 +1,11 @@
 import type { CrabType, Formation, LevelSpec } from '@sea-invaders/core';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS } from '../ui/tokens';
 import { BOSS_NAMES } from '../game/bossNames';
+import { ReefBackdrop } from './ReefBackdrop';
 import { REEF_NAMES } from './reefs';
 
 const FORMATION_NAMES: Record<Formation, string> = {
@@ -31,7 +31,7 @@ export function LevelIntro({ level, practice, lives, onPlay, onBack }: LevelIntr
 
   return (
     <View style={styles.root}>
-      <Backdrop variant="menu" />
+      <ReefBackdrop reef={level.reef} />
       <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} hitSlop={4} style={styles.back}>
         <Txt variant="button">←</Txt>
       </Pressable>

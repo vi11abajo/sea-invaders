@@ -5,6 +5,7 @@ import {
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { GameScreen, type RunOutcome } from '../game/GameScreen';
+import { ReefBackdrop } from './ReefBackdrop';
 import { ResultView } from '../game/ResultView';
 import { PillButton } from '../ui/PillButton';
 import { COLORS } from '../ui/tokens';
@@ -79,7 +80,12 @@ export function CampaignLevelScreen({ levelId, practice, startLevel, finishLevel
     return <LevelIntro level={level} practice={practice} lives={run.lives} onPlay={beginPlay} onBack={onExit} />;
   }
   if (phase === 'boss-intro' && level.boss !== undefined) {
-    return <BossIntro kind={level.boss} onDone={() => setPhase('playing')} />;
+    return (
+      <View style={StyleSheet.absoluteFill}>
+        <ReefBackdrop reef={level.reef} />
+        <BossIntro kind={level.boss} onDone={() => setPhase('playing')} />
+      </View>
+    );
   }
 
   return (
@@ -88,6 +94,7 @@ export function CampaignLevelScreen({ levelId, practice, startLevel, finishLevel
       seed={seed}
       mode={practice ? REPLAY_MODE.practice : REPLAY_MODE.campaign}
       hudMode={`LEVEL ${levelId}`}
+      backdrop={(over) => <ReefBackdrop reef={level.reef} variant={over ? 'map' : 'play'} />}
       onExit={onExit}
       onRunOver={handleRunOver}
       renderResult={(outcome, playAgain) => {

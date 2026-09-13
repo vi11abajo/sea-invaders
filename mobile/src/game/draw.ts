@@ -27,7 +27,7 @@ const SHOT_COLOR = Skia.Color('#19FB9B');
 /** Crab shot (kindIndex 0): today's orange glow, unchanged. */
 const CRAB_SHOT_COLOR = Skia.Color('#F48252');
 const FIELD_EDGE = Skia.Color('rgba(236,228,253,0.12)');
-/** Solid dark playfield (a themed backdrop image comes later): the darkest of the app's surface tokens. */
+/** Solid dark playfield for runs without a themed world behind them: the darkest of the app's surface tokens. */
 const FIELD_BG_COLOR = Skia.Color(COLORS.app);
 /** Visible player shot in milli-units: 3 x 18 dp on a 400 dp wide field. The hitbox stays SHOT's. */
 const SHOT_LOOK = { w: 42, h: 253 };
@@ -258,6 +258,7 @@ export function drawFrame(
   sprites: PreparedSprites,
   fieldRect: Rect,
   blast: WaveBlast | null,
+  solidField: boolean,
 ) {
   'worklet';
   const canvas = recorder.beginRecording(Skia.XYWHRect(0, 0, w, h));
@@ -268,9 +269,11 @@ export function drawFrame(
   paint.setColorFilter(null);
   paint.setAlphaf(1);
 
-  // Solid dark playfield (spec M4): a themed backdrop image comes later.
-  paint.setColor(FIELD_BG_COLOR);
-  canvas.drawRect(fieldRect, paint);
+  // Solid dark playfield (spec M4), unless a themed world (a campaign reef) shows through behind the run.
+  if (solidField) {
+    paint.setColor(FIELD_BG_COLOR);
+    canvas.drawRect(fieldRect, paint);
+  }
 
   // On screens wider than the field, faint lines mark its sides.
   if (l.offsetX > 0.5) {

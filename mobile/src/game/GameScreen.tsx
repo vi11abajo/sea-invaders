@@ -128,10 +128,16 @@ interface GameScreenProps {
   onRunOver?: (outcome: RunOutcome) => void;
   /** Replaces the default result view. `playAgain` restarts with the same props. */
   renderResult?: (outcome: RunOutcome, playAgain: () => void) => ReactNode;
+  /**
+   * The world behind the run (`over` once the result shows), e.g. a campaign reef. The field is then
+   * drawn without its solid fill so the world shows through; without it, the generic backdrop and a
+   * solid dark field are used.
+   */
+  backdrop?: (over: boolean) => ReactNode;
 }
 
 /** A run of the game. Without `seed` it is practice on a fresh seed. Without `run` it is the daily/practice mapping from `mode`. */
-export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode = 'PRACTICE', note = 'Practice · unranked', run, onRunOver, renderResult }: GameScreenProps) {
+export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode = 'PRACTICE', note = 'Practice · unranked', run, onRunOver, renderResult, backdrop }: GameScreenProps) {
   const { width, height } = useWindowDimensions();
   const layout = useMemo(() => fitField(width, height), [width, height]);
   const fieldRect = useMemo(() => ({ x: layout.offsetX, y: layout.offsetY, width: layout.width, height: layout.height }), [layout]);
@@ -268,6 +274,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     return () => cancelAnimationFrame(handle);
   }, [runIndex, frame, blast, seed, mode, run]);
 
+  const solidField = backdrop === undefined;
   const recorder = useMemo(() => Skia.PictureRecorder(), []);
   const paint = useMemo(() => Skia.Paint(), []);
   const picture = useDerivedValue(() => {
@@ -276,7 +283,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       recorder.beginRecording(Skia.XYWHRect(0, 0, width, height));
       return recorder.finishRecordingAsPicture();
     }
-    return drawFrame(recorder, paint, frame.value, layout, width, height, prepared, fieldRect, blast.value);
+    return drawFrame(recorder, paint, frame.value, layout, width, height, prepared, fieldRect, blast.value, solidField);
   });
 
   const onTouch = (e: GestureResponderEvent) => {
@@ -315,7 +322,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
 
   return (
     <View style={styles.root}>
-      <Backdrop variant={hud.over ? 'menu' : 'play'} />
+      {backdrop !== undefined ? backdrop(hud.over) : <Backdrop variant={hud.over ? 'menu' : 'play'} />}
       {prepared === null ? (
         <View style={styles.loading} pointerEvents="none">
           <Txt variant="headline">Loading…</Txt>

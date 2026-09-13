@@ -1,11 +1,11 @@
 import {
-  Blur, Canvas, Circle, ColorMatrix, DashPathEffect, Group, Image, LinearGradient, Paint, Path, Rect, Skia, vec,
-  type SkImage, type SkPath,
+  Blur, Canvas, Circle, ColorMatrix, DashPathEffect, Group, Image, Paint, Path, Skia,
+  type SkImage,
 } from '@shopify/react-native-skia';
 import { useEffect, useMemo, useState } from 'react';
-import { BackHandler, Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { BackHandler, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
-  Easing, interpolate, useAnimatedStyle, useDerivedValue, useSharedValue, withRepeat, withTiming, type SharedValue,
+  Easing, interpolate, useAnimatedStyle, useSharedValue, withRepeat, withTiming,
 } from 'react-native-reanimated';
 import {
   currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEFS, TYPE_COLOUR,
@@ -19,9 +19,10 @@ import { Sheet } from '../ui/Sheet';
 import { Txt } from '../ui/Txt';
 import { COLORS, MOTION, RADIUS } from '../ui/tokens';
 import {
-  BOSS_ABILITY, REEF_ACCENT, REEF_LEGENDS, REEF_NAMES, REEF_NEW_KIND, REEF_WORLD, levelState, reefNewEnemyCopy,
+  BOSS_ABILITY, REEF_ACCENT, REEF_LEGENDS, REEF_NAMES, REEF_NEW_KIND, levelState, reefNewEnemyCopy,
   reefProgress, type LevelState,
 } from './reefs';
+import { ReefBackdrop } from './ReefBackdrop';
 
 // The header reads "REEF n OF 6": a literal 6, not core's `REEFS` (5) — it counts the mock's
 // six-reef table (reef 6 is the unbuilt "coming" placeholder in the rail), spec §"Campaign map".
@@ -41,20 +42,9 @@ const DASH_INTERVALS = [2, 9];
 const DASH_PERIOD = DASH_INTERVALS[0] + DASH_INTERVALS[1];
 const DASH_DURATION_MS = 2400;
 
-/** Flora bar sizes and sway periods, `CampaignMap.dc.html`'s `FLORA` table. Bars 0, 3, 6 use the reef's `floraAccent`. */
-const FLORA = [
-  { w: 22, h: 62, ms: 3200 }, { w: 34, h: 34, ms: 4100 }, { w: 16, h: 92, ms: 2800 }, { w: 48, h: 28, ms: 5000 },
-  { w: 18, h: 70, ms: 3600 }, { w: 28, h: 46, ms: 4400 }, { w: 16, h: 56, ms: 3000 }, { w: 24, h: 80, ms: 4800 },
-] as const;
 
-const DOME_BOTTOM = 150;
-const DOME_HEIGHT = 230;
-const FLORA_BOTTOM = 150;
-const FLORA_HEIGHT = 150;
-const BOSS_LOOM_TOP = 104;
-const BOSS_LOOM_SIZE = 330;
-const BOSS_LOOM_OPACITY = 0.14;
-const BOSS_LOOM_BLUR = 3;
+/** The map's seabed dome and flora sit this far above the screen's bottom edge, clear of the bottom panel. */
+const MAP_FLOOR_BOTTOM = 150;
 
 /** Saturation-0 colour matrix: a locked boss sprite (node, rail chip) draws through this. */
 const GREYSCALE_MATRIX = [
@@ -64,17 +54,6 @@ const GREYSCALE_MATRIX = [
   0, 0, 0, 1, 0,
 ];
 
-/**
- * CSS `saturate(.6)` as a colour matrix (W3C filter-effects formula, s = 0.6): the looming
- * background boss (`CampaignMap.dc.html`: `filter: blur(1px) saturate(.6)`) is dimmed, not fully
- * greyscaled — full desaturation (`GREYSCALE_MATRIX`) stays reserved for locked boss sprites.
- */
-const LOOM_SATURATE_MATRIX = [
-  0.6852, 0.286, 0.0288, 0, 0,
-  0.0852, 0.886, 0.0288, 0, 0,
-  0.0852, 0.286, 0.6288, 0, 0,
-  0, 0, 0, 1, 0,
-];
 
 type SheetState = { kind: 'level'; id: number } | { kind: 'boss'; reef: number };
 
@@ -161,8 +140,7 @@ function ReefContent({ reef, progress, sprites, bossSprite, onBack, onSelectReef
 
   return (
     <Animated.View style={[styles.fill, fadeStyle]}>
-      <ReefWorld reef={reef} bossSprite={bossSprite} />
-      <Flora reef={reef} />
+      <ReefBackdrop reef={reef} bossSprite={bossSprite} floorBottom={MAP_FLOOR_BOTTOM} />
       <View style={styles.column}>
         <Header reef={reef} progress={progress} onBack={onBack} />
         <PathLayer reef={reef} progress={progress} bossSprite={bossSprite} onOpenLevel={onOpenLevel} onOpenBoss={onOpenBoss} />
@@ -199,119 +177,6 @@ function Header({ reef, progress, onBack }: { reef: number; progress: CampaignPr
         ))}
       </View>
     </View>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// World: gradient, rays, seabed dome and the looming boss (one full-screen Canvas)
-// ---------------------------------------------------------------------------
-
-function toTransparent(rgba: string): string {
-  return rgba.replace(/[\d.]+\)$/, '0)');
-}
-
-function buildDomePath(width: number, height: number): SkPath {
-  const rx = width * 0.6;
-  const ry = DOME_HEIGHT;
-  const cx = width / 2;
-  const cy = height - DOME_BOTTOM;
-  const path = Skia.Path.Make();
-  path.addArc(Skia.XYWHRect(cx - rx, cy - ry, rx * 2, ry * 2), 180, 180);
-  path.close();
-  return path;
-}
-
-function ReefWorld({ reef, bossSprite }: { reef: number; bossSprite: SkImage | null }) {
-  const { width, height } = useWindowDimensions();
-  const world = REEF_WORLD[reef - 1]!;
-
-  const rayA = useSharedValue<number>(MOTION.raysMin);
-  const rayB = useSharedValue<number>(MOTION.raysMax);
-  const drift = useSharedValue(0);
-
-  useEffect(() => {
-    const easing = Easing.inOut(Easing.quad);
-    rayA.value = withRepeat(withTiming(MOTION.raysMax, { duration: 4500, easing }), -1, true);
-    rayB.value = withRepeat(withTiming(MOTION.raysMin, { duration: 5500, easing }), -1, true);
-    drift.value = withRepeat(withTiming(1, { duration: 3500, easing }), -1, true);
-  }, [rayA, rayB, drift]);
-
-  // Drift 0..-10 dp, matching CSS `@keyframes drift`: a plain numeric derived value (no array/object
-  // rebuilt per frame) fed straight into `Image`'s own `y`.
-  const bossY = useDerivedValue(() => BOSS_LOOM_TOP + drift.value * -10);
-  // Built once per screen size — never rebuilt inside a worklet.
-  const domePath = useMemo(() => buildDomePath(width, height), [width, height]);
-  const bossLeft = width / 2 - BOSS_LOOM_SIZE / 2;
-
-  return (
-    <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Rect x={0} y={0} width={width} height={height}>
-        <LinearGradient start={vec(0, 0)} end={vec(0, height)} colors={[...world.bg.colors]} positions={[...world.bg.positions]} />
-      </Rect>
-      <Group layer={<Paint><Blur blur={70} mode="decal" /></Paint>} opacity={0.5}>
-        <Rect x={-width * 0.25} y={-height * 0.1} width={width * 1.5} height={height * 0.45}>
-          <LinearGradient start={vec(0, 0)} end={vec(width, 0)} colors={[...world.glow]} />
-        </Rect>
-      </Group>
-      <Group layer={<Paint><Blur blur={18} mode="decal" /></Paint>}>
-        <Ray x={width * 0.14} width={width * 0.26} h={height} skew={-0.244} color={world.ray} opacity={rayA} />
-        <Ray x={width * 0.58} width={width * 0.18} h={height} skew={-0.349} color={world.ray2} opacity={rayB} />
-      </Group>
-      {bossSprite !== null && (
-        <Image image={bossSprite} x={bossLeft} y={bossY} width={BOSS_LOOM_SIZE} height={BOSS_LOOM_SIZE} opacity={BOSS_LOOM_OPACITY} fit="contain">
-          <ColorMatrix matrix={LOOM_SATURATE_MATRIX} />
-          <Blur blur={BOSS_LOOM_BLUR} mode="decal" />
-        </Image>
-      )}
-      <Path path={domePath} style="fill">
-        <LinearGradient
-          start={vec(0, height - DOME_BOTTOM - DOME_HEIGHT)}
-          end={vec(0, height - DOME_BOTTOM)}
-          colors={[...world.floor.colors]}
-          positions={[...world.floor.positions]}
-        />
-      </Path>
-    </Canvas>
-  );
-}
-
-function Ray({ x, width, h, skew, color, opacity }: {
-  x: number; width: number; h: number; skew: number; color: string; opacity: SharedValue<number>;
-}) {
-  return (
-    <Group opacity={opacity} origin={vec(x, 0)} transform={[{ skewX: skew }]}>
-      <Rect x={x} y={-h * 0.1} width={width} height={h * 0.9}>
-        <LinearGradient start={vec(0, 0)} end={vec(0, h * 0.8)} colors={[color, toTransparent(color)]} />
-      </Rect>
-    </Group>
-  );
-}
-
-function Flora({ reef }: { reef: number }) {
-  const world = REEF_WORLD[reef - 1]!;
-  const accent = REEF_ACCENT[reef - 1]!;
-  return (
-    <View style={styles.flora} pointerEvents="none">
-      {FLORA.map((f, i) => (
-        <FloraBar key={i} w={f.w} h={f.h} durationMs={f.ms} color={i % 3 === 0 ? world.floraAccent : accent} />
-      ))}
-    </View>
-  );
-}
-
-function FloraBar({ w, h, durationMs, color }: { w: number; h: number; durationMs: number; color: string }) {
-  const sway = useSharedValue(0);
-  useEffect(() => {
-    sway.value = withRepeat(withTiming(1, { duration: durationMs, easing: Easing.inOut(Easing.quad) }), -1, true);
-  }, [durationMs, sway]);
-  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${(sway.value - 0.5) * 6}deg` }] }));
-  return (
-    <Animated.View
-      style={[
-        { width: w, height: h, borderTopLeftRadius: w / 2, borderTopRightRadius: w / 2, backgroundColor: color, opacity: 0.5 },
-        style,
-      ]}
-    />
   );
 }
 
@@ -856,10 +721,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
   lifeDot: { width: 8, height: 8, borderRadius: 4 },
-  flora: {
-    position: 'absolute', left: 0, right: 0, bottom: FLORA_BOTTOM, height: FLORA_HEIGHT,
-    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 6,
-  },
   pathBox: { flex: 1, marginHorizontal: 16 },
   nodeWrap: { position: 'absolute', alignItems: 'center', gap: 6 },
   node: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
