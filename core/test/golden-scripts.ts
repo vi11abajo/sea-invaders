@@ -101,7 +101,7 @@ function survivor(): (tick: number, s: GameState) => Input {
 }
 
 const CAMPAIGN_RUN = (id: 6 | 30): RunConfig => ({
-  mode: 'campaign', level: levelById(id), lives: 5, features: { boosts: true },
+  mode: 'campaign', level: levelById(id), lives: 5, features: { boosts: true }, octopi: 'base',
 });
 
 export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {

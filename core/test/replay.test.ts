@@ -25,7 +25,7 @@ describe('ReplayRecorder', () => {
     rec.record(3, { x: 3000, y: 9000 });
     rec.record(4, { x: 2000, y: 9000 });
     expect(rec.finish(4)).toEqual({
-      version: CORE_VERSION, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, seed: 'r', ticks: 4,
+      version: CORE_VERSION, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, octopi: 'base', seed: 'r', ticks: 4,
       inputs: [2, 3000, 9000, 4, 2000, 9000],
     });
   });
@@ -50,7 +50,8 @@ describe('runReplay', () => {
 
   it('rejects a replay from another core version', () => {
     expect(() => runReplay({
-      version: CORE_VERSION + 1, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, seed: 'x', ticks: 1, inputs: [],
+      version: CORE_VERSION + 1, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, octopi: 'base', seed: 'x', ticks: 1,
+      inputs: [],
     })).toThrow();
   });
 
@@ -90,10 +91,22 @@ describe('runReplay', () => {
     expect(() => runReplay(replay, { levelId: 0, lives: 3 })).not.toThrow();
   });
 
+  it('rejects a daily replay recorded with a paid octopi variant against the base-only daily verifier', () => {
+    const rec = new ReplayRecorder('a', REPLAY_MODE.daily, 0, 3, 'harpoon');
+    const replay = rec.finish(1);
+    expect(() => runReplay(replay, { octopi: 'base' })).toThrow('replay octopi harpoon does not match base');
+  });
+
+  it('accepts a replay whose octopi variant matches what was expected', () => {
+    const rec = new ReplayRecorder('a', REPLAY_MODE.campaign, 0, 3, 'anchor');
+    const replay = rec.finish(1);
+    expect(() => runReplay(replay, { octopi: 'anchor' })).not.toThrow();
+  });
+
   it('rejects a replay whose declared ticks exceed the maximum, even without going through decodeReplay', () => {
     const replay: Replay = {
-      version: CORE_VERSION, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, seed: 'x', ticks: MAX_REPLAY_TICKS + 1,
-      inputs: [],
+      version: CORE_VERSION, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, octopi: 'base', seed: 'x',
+      ticks: MAX_REPLAY_TICKS + 1, inputs: [],
     };
     expect(() => runReplay(replay)).toThrow();
   });
@@ -102,8 +115,8 @@ describe('runReplay', () => {
     const inputs: number[] = [];
     for (let i = 0; i < MAX_REPLAY_INPUTS + 1; i++) inputs.push(i + 1, 0, 0);
     const replay: Replay = {
-      version: CORE_VERSION, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, seed: 'x', ticks: MAX_REPLAY_TICKS,
-      inputs,
+      version: CORE_VERSION, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, octopi: 'base', seed: 'x',
+      ticks: MAX_REPLAY_TICKS, inputs,
     };
     expect(() => runReplay(replay)).toThrow();
   });
@@ -135,9 +148,9 @@ describe('runReplay', () => {
 });
 
 describe('replay codec', () => {
-  it('round-trips, including the level id and lives header fields', () => {
+  it('round-trips, including the level id, lives and octopi header fields', () => {
     const r: Replay = {
-      version: 1, mode: REPLAY_MODE.daily, levelId: 5, lives: 2, seed: 'abc123', ticks: 500,
+      version: 1, mode: REPLAY_MODE.daily, levelId: 5, lives: 2, octopi: 'anchor', seed: 'abc123', ticks: 500,
       inputs: [1, 0, 11250, 7, 5625, 0, 300, 2812, 9650],
     };
     expect(decodeReplay(encodeReplay(r))).toEqual(r);
@@ -145,12 +158,12 @@ describe('replay codec', () => {
 
   it('rejects truncated input, trailing bytes and a non-ASCII seed', () => {
     const bytes = encodeReplay({
-      version: 1, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, seed: 's', ticks: 10, inputs: [1, 2, 3],
+      version: 1, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, octopi: 'base', seed: 's', ticks: 10, inputs: [1, 2, 3],
     });
     expect(() => decodeReplay(bytes.slice(0, bytes.length - 1))).toThrow();
     expect(() => decodeReplay(Uint8Array.from([...bytes, 0]))).toThrow();
     expect(() => encodeReplay({
-      version: 1, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, seed: 'é', ticks: 1, inputs: [],
+      version: 1, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, octopi: 'base', seed: 'é', ticks: 1, inputs: [],
     })).toThrow();
   });
 
@@ -166,11 +179,11 @@ describe('replay codec', () => {
 
   const zig = (v: number): number => (v >= 0 ? v * 2 : -v * 2 - 1);
 
-  /** version, mode, levelId, lives, ticks and an (optionally empty) ASCII seed — the fixed prefix every replay starts with. */
-  function header(version: number, mode: number, levelId: number, lives: number, ticks: number, seed: string): number[] {
+  /** version, mode, levelId, lives, octopi index, ticks and an (optionally empty) ASCII seed — the fixed prefix every replay starts with. */
+  function header(version: number, mode: number, levelId: number, lives: number, octopi: number, ticks: number, seed: string): number[] {
     const out = [
       ...varintBytes(version), ...varintBytes(mode), ...varintBytes(levelId), ...varintBytes(lives),
-      ...varintBytes(ticks), ...varintBytes(seed.length),
+      ...varintBytes(octopi), ...varintBytes(ticks), ...varintBytes(seed.length),
     ];
     for (let i = 0; i < seed.length; i++) out.push(seed.charCodeAt(i));
     return out;
@@ -201,35 +214,43 @@ describe('replay codec', () => {
     expect(() => decodeReplay(bytes)).toThrow('replay lives out of range');
   });
 
+  it('rejects an octopi variant index beyond the known variants', () => {
+    const bytes = Uint8Array.from([...varintBytes(2), ...varintBytes(0), ...varintBytes(0), ...varintBytes(3), ...varintBytes(4)]);
+    expect(() => decodeReplay(bytes)).toThrow('replay octopi variant invalid');
+  });
+
   it('rejects ticks beyond MAX_REPLAY_TICKS', () => {
     const bytes = Uint8Array.from([
-      ...varintBytes(2), ...varintBytes(0), ...varintBytes(0), ...varintBytes(3), ...varintBytes(MAX_REPLAY_TICKS + 1),
+      ...varintBytes(2), ...varintBytes(0), ...varintBytes(0), ...varintBytes(3), ...varintBytes(0),
+      ...varintBytes(MAX_REPLAY_TICKS + 1),
     ]);
     expect(() => decodeReplay(bytes)).toThrow();
   });
 
   it('rejects a seed longer than 64 bytes', () => {
     const bytes = Uint8Array.from([
-      ...varintBytes(2), ...varintBytes(0), ...varintBytes(0), ...varintBytes(3), ...varintBytes(10), ...varintBytes(65),
+      ...varintBytes(2), ...varintBytes(0), ...varintBytes(0), ...varintBytes(3), ...varintBytes(0), ...varintBytes(10),
+      ...varintBytes(65),
     ]);
     expect(() => decodeReplay(bytes)).toThrow();
   });
 
   it('rejects a seed byte above 0x7f (non-ASCII)', () => {
     const bytes = Uint8Array.from([
-      ...varintBytes(2), ...varintBytes(0), ...varintBytes(0), ...varintBytes(3), ...varintBytes(10), ...varintBytes(1), 200,
+      ...varintBytes(2), ...varintBytes(0), ...varintBytes(0), ...varintBytes(3), ...varintBytes(0), ...varintBytes(10),
+      ...varintBytes(1), 200,
     ]);
     expect(() => decodeReplay(bytes)).toThrow();
   });
 
   it('rejects an input count beyond MAX_REPLAY_INPUTS', () => {
-    const bytes = Uint8Array.from([...header(2, 0, 0, 3, 10, ''), ...varintBytes(MAX_REPLAY_INPUTS + 1)]);
+    const bytes = Uint8Array.from([...header(2, 0, 0, 3, 0, 10, ''), ...varintBytes(MAX_REPLAY_INPUTS + 1)]);
     expect(() => decodeReplay(bytes)).toThrow();
   });
 
   it('rejects a tick that does not strictly increase over the previous one', () => {
     const bytes = Uint8Array.from([
-      ...header(2, 0, 0, 3, 5, ''),
+      ...header(2, 0, 0, 3, 0, 5, ''),
       ...varintBytes(2), // count
       ...varintBytes(3), ...varintBytes(zig(0)), ...varintBytes(zig(0)), // tick 3
       ...varintBytes(0), // delta 0 -> tick still 3, not strictly greater
@@ -239,7 +260,7 @@ describe('replay codec', () => {
 
   it('rejects a tick greater than the declared ticks', () => {
     const bytes = Uint8Array.from([
-      ...header(2, 0, 0, 3, 5, ''),
+      ...header(2, 0, 0, 3, 0, 5, ''),
       ...varintBytes(1), // count
       ...varintBytes(6), // tick 6 > ticks 5
     ]);
@@ -248,7 +269,7 @@ describe('replay codec', () => {
 
   it('rejects an x/y coordinate outside the signed 32-bit range', () => {
     const bytes = Uint8Array.from([
-      ...header(2, 0, 0, 3, 10, ''),
+      ...header(2, 0, 0, 3, 0, 10, ''),
       ...varintBytes(1), // count
       ...varintBytes(1), // tick 1
       ...varintBytes(zig(3_000_000_000)), // pushes x far past 2_147_483_647

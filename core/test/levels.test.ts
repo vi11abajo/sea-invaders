@@ -22,13 +22,13 @@ describe('LEVELS', () => {
   });
   it('every non-boss level spawns inside the field', () => {
     for (const l of LEVELS.filter((l) => !l.boss)) {
-      const s = createGame(levelSeed('run', l.id), { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+      const s = createGame(levelSeed('run', l.id), { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
       for (const c of s.crabs) expect(c.x - CRAB.size / 2 >= 0 && c.x + CRAB.size / 2 <= FIELD_W).toBe(true);
     }
   });
   it('clears a level after its last wave and stops stepping', () => {
     const l = levelById(1);
-    const s = createGame('x', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+    const s = createGame('x', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
     s.wave = l.waves; // force the last wave, regardless of the table's actual wave count
     s.crabs = [];
     step(s, INITIAL_INPUT);
@@ -40,7 +40,7 @@ describe('LEVELS', () => {
   });
   it('advances waves inside a level with growing rows', () => {
     const l = levelById(4); // 3 waves, 5 rows
-    const s = createGame('x', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+    const s = createGame('x', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
     expect(s.wave).toBe(1);
     s.crabs = [];
     step(s, INITIAL_INPUT);

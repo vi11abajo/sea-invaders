@@ -6,7 +6,7 @@ import {
 describe('wave arrival (campaign only)', () => {
   it('spawns a level wave above its slots and lands exactly on them after ARRIVAL.ticks', () => {
     const l = levelById(1);
-    const s = createGame('arrival-land', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+    const s = createGame('arrival-land', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
     expect(s.arrival).toBe(ARRIVAL.ticks);
     // The slot each crab is descending to: its current y/homeY plus the drop it was spawned with.
     const slots = s.crabs.map((c) => ({ x: c.x, y: c.y + ARRIVAL.drop, homeY: c.homeY + ARRIVAL.drop }));
@@ -24,13 +24,13 @@ describe('wave arrival (campaign only)', () => {
 
   it('emits wave_start with the wave number when a level wave begins', () => {
     const l = levelById(1);
-    const s = createGame('arrival-event', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+    const s = createGame('arrival-event', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
     expect(s.events).toContainEqual({ tick: 0, type: 'wave_start', wave: 1 });
   });
 
   it('fires no crab shot while a wave is arriving', () => {
     const l = levelById(1);
-    const s = createGame('arrival-noshots', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+    const s = createGame('arrival-noshots', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
     for (let i = 0; i < ARRIVAL.ticks; i++) {
       step(s, INITIAL_INPUT);
       expect(s.enemyShots).toHaveLength(0);
@@ -39,7 +39,7 @@ describe('wave arrival (campaign only)', () => {
 
   it('does not march, trigger a diver or test invasion while arriving', () => {
     const l = levelById(1);
-    const s = createGame('arrival-nomarch', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+    const s = createGame('arrival-nomarch', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
     const x0 = s.crabs[0]!.x;
     step(s, INITIAL_INPUT);
     expect(s.crabs[0]!.x).toBe(x0); // x untouched during arrival, only y/homeY move
@@ -48,7 +48,7 @@ describe('wave arrival (campaign only)', () => {
 
   it('a wave spawned mid-level by nextWave also gets its full 30 descent ticks', () => {
     const l = levelById(1); // 2 waves
-    const s = createGame('arrival-midlevel', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+    const s = createGame('arrival-midlevel', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
     s.crabs = []; // clear wave 1 so this tick's end-of-step nextWave spawns wave 2
     step(s, INITIAL_INPUT);
     expect(s.wave).toBe(2);
@@ -78,7 +78,7 @@ describe('wave arrival (campaign only)', () => {
 
   it('a wave wiped mid-arrival on the level\'s last wave leaves no stale arrival countdown once the level clears', () => {
     const l = levelById(1); // 2 waves, no boss
-    const s = createGame('arrival-wipe-cleared', { mode: 'campaign', level: l, lives: 5, features: { boosts: false } });
+    const s = createGame('arrival-wipe-cleared', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
     s.wave = l.waves; // pretend the last wave is under way
     s.arrival = 15; // still mid-arrival
     s.crabs = []; // wiped (e.g. by WAVE_BLAST)

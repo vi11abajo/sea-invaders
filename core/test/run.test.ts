@@ -3,12 +3,12 @@ import { CORE_VERSION, DAILY_RUN, PRACTICE_RUN, createGame, hashState, step } fr
 
 describe('RunConfig', () => {
   it('bumps the core version', () => {
-    expect(CORE_VERSION).toBe(5);
+    expect(CORE_VERSION).toBe(6);
   });
 
   it('creates daily and practice runs with the new state fields', () => {
     const s = createGame('t', DAILY_RUN);
-    expect(s.run).toEqual({ mode: 'daily', lives: 3, features: { boosts: true } });
+    expect(s.run).toEqual({ mode: 'daily', lives: 3, features: { boosts: true }, octopi: 'base' });
     expect(s).toMatchObject({ cleared: false, boss: null, drops: [], events: [] });
     expect(s.boosts).toEqual({ active: [], shield: 0, tamerStacks: 0, well: null });
     expect(s.octopi.lives).toBe(3);

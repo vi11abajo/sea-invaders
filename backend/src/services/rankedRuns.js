@@ -156,7 +156,7 @@ export async function finishRun({ userId, runId, replayBase64, now }) {
 
   let result;
   try {
-    result = runReplay(replay, { seed: run.seed, mode: REPLAY_MODE.daily, levelId: 0, lives: OCTOPI.lives });
+    result = runReplay(replay, { seed: run.seed, mode: REPLAY_MODE.daily, levelId: 0, lives: OCTOPI.lives, octopi: 'base' });
   } catch (error) {
     await reject('seed_mismatch', error.message);
   }

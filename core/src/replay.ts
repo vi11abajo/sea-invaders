@@ -3,10 +3,10 @@ import { LEVELS } from './levels';
 import type { RunConfig, RunMode } from './run';
 import { hashState } from './state-hash';
 import { step } from './step';
-import type { Input } from './types';
+import { VARIANT_INDEX, type Input, type OctopiVariant } from './types';
 
 /** Bumped whenever simulation behaviour changes; replays only run on the version that recorded them. */
-export const CORE_VERSION = 5;
+export const CORE_VERSION = 6;
 
 /** 15 minutes at 60 Hz: an upper bound on how long a single replay may run or claim to run. */
 export const MAX_REPLAY_TICKS = 54_000;
@@ -23,6 +23,8 @@ export interface Replay {
   levelId: number;
   /** Lives Octopi started the run with. */
   lives: number;
+  /** Paid gameplay variant the run was played with (spec §4); always 'base' outside the campaign. */
+  octopi: OctopiVariant;
   seed: string;
   /** Number of ticks the recording client simulated. */
   ticks: number;
@@ -47,6 +49,7 @@ export class ReplayRecorder {
     private readonly mode: ReplayMode,
     private readonly levelId: number,
     private readonly lives: number,
+    private readonly octopi: OctopiVariant = 'base',
   ) {}
 
   /** Call right before the step() that produces `tick`, with the input that step will use. */
@@ -59,8 +62,8 @@ export class ReplayRecorder {
 
   finish(ticks: number): Replay {
     return {
-      version: CORE_VERSION, mode: this.mode, levelId: this.levelId, lives: this.lives, seed: this.seed, ticks,
-      inputs: this.inputs.slice(),
+      version: CORE_VERSION, mode: this.mode, levelId: this.levelId, lives: this.lives, octopi: this.octopi,
+      seed: this.seed, ticks, inputs: this.inputs.slice(),
     };
   }
 }
@@ -71,15 +74,19 @@ const MODE_NAME: Record<ReplayMode, RunMode> = { 0: 'practice', 1: 'daily', 2: '
 export function runFromReplay(r: Replay): RunConfig {
   const level = r.levelId === 0 ? undefined : LEVELS.find((l) => l.id === r.levelId);
   if (r.levelId !== 0 && !level) throw new Error(`replay level ${r.levelId} unknown`);
-  return { mode: MODE_NAME[r.mode], level, lives: r.lives, features: { boosts: true } };
+  return { mode: MODE_NAME[r.mode], level, lives: r.lives, features: { boosts: true }, octopi: r.octopi };
 }
 
 /**
  * Replays `replay` and returns its outcome. When `expected` is given, the replay's own
- * seed/mode/levelId/lives must match it first — a cheap check before spending time simulating a
- * mismatched run.
+ * seed/mode/levelId/lives/octopi must match it first — a cheap check before spending time
+ * simulating a mismatched run. The daily verifier passes `octopi: 'base'`, so a daily replay
+ * recorded with a paid variant is rejected here rather than silently scored (spec §4).
  */
-export function runReplay(replay: Replay, expected?: { seed?: string; mode?: ReplayMode; levelId?: number; lives?: number }): ReplayResult {
+export function runReplay(
+  replay: Replay,
+  expected?: { seed?: string; mode?: ReplayMode; levelId?: number; lives?: number; octopi?: OctopiVariant },
+): ReplayResult {
   if (replay.version !== CORE_VERSION) {
     throw new Error(`replay core version ${replay.version} does not match ${CORE_VERSION}`);
   }
@@ -94,6 +101,9 @@ export function runReplay(replay: Replay, expected?: { seed?: string; mode?: Rep
   }
   if (expected?.lives !== undefined && expected.lives !== replay.lives) {
     throw new Error(`replay lives ${replay.lives} does not match ${expected.lives}`);
+  }
+  if (expected?.octopi !== undefined && expected.octopi !== replay.octopi) {
+    throw new Error(`replay octopi ${replay.octopi} does not match ${expected.octopi}`);
   }
   if (replay.ticks > MAX_REPLAY_TICKS) throw new Error('replay ticks exceed maximum');
   if (replay.inputs.length / 3 > MAX_REPLAY_INPUTS) throw new Error('replay input count exceeds maximum');
@@ -128,6 +138,9 @@ const unzigzag = (u: number): number => (u % 2 === 0 ? u / 2 : -(u + 1) / 2);
 const MIN_COORD = -2_147_483_648;
 const MAX_COORD = 2_147_483_647;
 
+/** Reverse of `VARIANT_INDEX`, in the same declaration order: `Object.keys` preserves insertion order for string keys. */
+const VARIANT_BY_INDEX: OctopiVariant[] = Object.keys(VARIANT_INDEX) as OctopiVariant[];
+
 /** Compact binary form: varint header, ASCII seed, then per change a tick delta and zigzag x/y deltas. */
 export function encodeReplay(r: Replay): Uint8Array {
   const out: number[] = [];
@@ -135,6 +148,7 @@ export function encodeReplay(r: Replay): Uint8Array {
   pushVarint(out, r.mode);
   pushVarint(out, r.levelId);
   pushVarint(out, r.lives);
+  pushVarint(out, VARIANT_INDEX[r.octopi]);
   pushVarint(out, r.ticks);
   pushVarint(out, r.seed.length);
   for (let i = 0; i < r.seed.length; i++) {
@@ -184,6 +198,9 @@ export function decodeReplay(bytes: Uint8Array): Replay {
   if (levelId > 30) throw new Error('replay level out of range');
   const lives = read();
   if (lives > 255) throw new Error('replay lives out of range');
+  const octopiIndex = read();
+  const octopi = VARIANT_BY_INDEX[octopiIndex];
+  if (octopi === undefined) throw new Error('replay octopi variant invalid');
   const ticks = read();
   if (ticks > MAX_REPLAY_TICKS) throw new Error('replay ticks exceed maximum');
   const seedLength = read();
@@ -214,5 +231,5 @@ export function decodeReplay(bytes: Uint8Array): Replay {
     inputs.push(t, x, y);
   }
   if (pos !== bytes.length) throw new Error('trailing bytes in replay');
-  return { version, mode, levelId, lives, seed, ticks, inputs };
+  return { version, mode, levelId, lives, octopi, seed, ticks, inputs };
 }

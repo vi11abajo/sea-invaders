@@ -18,6 +18,13 @@ export interface Octopi {
   lives: number;
 }
 
+/**
+ * Paid gameplay variant for a run (spec §4): `base` is the free, unmodified Octopi. Never a
+ * simulation input beyond `RunConfig.octopi` — every effect (fire cadence, starting lives, the
+ * piercing bit) is applied once in `createGame`/`updateShots` from that field.
+ */
+export type OctopiVariant = 'base' | 'harpoon' | 'anchor' | 'trident';
+
 export type BulletKind =
   | 'crab' | 'straight' | 'zigzag' | 'large' | 'wave' | 'ring' | 'explosive' | 'fragment'
   | 'meteor' | 'berserk' | 'spiral' | 'gravity' | 'clone'
@@ -105,7 +112,7 @@ export interface Drop {
 }
 
 export type GameEvent =
-  | { tick: number; type: 'wave_cleared' | 'level_cleared' | 'boss_spawn' | 'boss_phase' | 'boss_dead' | 'shield_break' | 'player_hit' }
+  | { tick: number; type: 'wave_cleared' | 'level_cleared' | 'boss_spawn' | 'boss_phase' | 'boss_dead' | 'shield_break' | 'player_hit' | 'revived' }
   | { tick: number; type: 'boss_ability'; name: 'regen' | 'shield' | 'meteor' | 'rage' | 'freeze' }
   | { tick: number; type: 'boss_teleport'; fromX: number; toX: number }
   | { tick: number; type: 'boss_clone'; leftX: number; rightX: number }
@@ -166,3 +173,6 @@ export const BOOST_INDEX: Record<BoostType, number> = {
   WAVE_BLAST: 9, COIN_SHOWER: 10, GRAVITY_WELL: 11, PIERCING_BULLETS: 12,
   RANDOM_CHAOS: 13, SPEED_TAMER: 14,
 };
+
+/** Index of each OctopiVariant in the replay header byte, in declaration order. */
+export const VARIANT_INDEX: Record<OctopiVariant, number> = { base: 0, harpoon: 1, anchor: 2, trident: 3 };

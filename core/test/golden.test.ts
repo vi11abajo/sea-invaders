@@ -32,7 +32,7 @@ function play(name: string): PlayResult {
   const levelId = run.level?.id ?? 0;
   const seed = script.seed ?? `golden-${name}`;
   const s = createGame(seed, run);
-  const rec = new ReplayRecorder(seed, mode, levelId, run.lives);
+  const rec = new ReplayRecorder(seed, mode, levelId, run.lives, run.octopi);
   let maxBossPhase = 0;
   for (let t = 1; t <= script.ticks && !s.over && !s.cleared; t++) {
     const i = input(t, s);

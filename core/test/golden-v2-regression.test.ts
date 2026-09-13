@@ -21,7 +21,7 @@ const goldens = JSON.parse(readFileSync(join(process.cwd(), 'golden', 'golden-v2
 describe('core v2 goldens still reproduce with boosts off', () => {
   for (const g of goldens) {
     it(g.name, () => {
-      const s = createGame(g.replay.seed, { mode: 'practice', lives: 3, features: { boosts: false } });
+      const s = createGame(g.replay.seed, { mode: 'practice', lives: 3, features: { boosts: false }, octopi: 'base' });
       const { inputs } = g.replay;
       let x = INITIAL_INPUT.x, y = INITIAL_INPUT.y, next = 0;
       for (let t = 1; t <= g.replay.ticks; t++) {

@@ -9,7 +9,7 @@ import {
   livesForEntry,
   mergeProgress,
   newProgress,
-  revive,
+  reviveReef,
   type CampaignProgress,
 } from '../src';
 
@@ -128,9 +128,9 @@ describe('campaign progress', () => {
     expect(next.best[29]).toBe(42);
   });
 
-  it('revive resets lives to 3 and keeps the current level', () => {
+  it('reviveReef resets lives to 3 and keeps the current level', () => {
     const p = progress({ reef: 2, level: 4, lives: 0 });
-    const revived = revive(p, 9999);
+    const revived = reviveReef(p, 9999);
     expect(revived.lives).toBe(3);
     expect(revived.reef).toBe(2);
     expect(revived.level).toBe(4);

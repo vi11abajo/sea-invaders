@@ -1,4 +1,4 @@
-import { ARRIVAL, CRAB, CRAB_TYPES, FIELD_W, OCTOPI, TYPE_COLOUR } from './config';
+import { ARRIVAL, CRAB, CRAB_TYPES, FIELD_W, OCTOPI, TYPE_COLOUR, bonusLivesFor, fireIntervalFor } from './config';
 import { idiv } from './fixed';
 import { formationPositions } from './formations';
 import type { CrabType, Formation } from './levels';
@@ -11,6 +11,7 @@ import type { GameState, Input } from './types';
 export const INITIAL_INPUT: Input = Object.freeze({ x: idiv(FIELD_W, 2), y: OCTOPI.startY });
 
 export function createGame(seed: string, run: RunConfig): GameState {
+  const lives = run.lives + bonusLivesFor(run.octopi);
   const s: GameState = {
     tick: 0,
     wave: 0,
@@ -19,7 +20,7 @@ export function createGame(seed: string, run: RunConfig): GameState {
     kills: 0,
     over: false,
     dir: 1,
-    octopi: { x: INITIAL_INPUT.x, y: INITIAL_INPUT.y, cooldown: OCTOPI.fireInterval, invuln: 0, lives: run.lives },
+    octopi: { x: INITIAL_INPUT.x, y: INITIAL_INPUT.y, cooldown: fireIntervalFor(run.octopi), invuln: 0, lives },
     shots: [],
     enemyShots: [],
     crabs: [],

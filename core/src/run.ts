@@ -1,5 +1,6 @@
 import { OCTOPI } from './config';
 import type { LevelSpec } from './levels';
+import type { OctopiVariant } from './types';
 
 export type RunMode = 'daily' | 'practice' | 'campaign';
 
@@ -10,7 +11,9 @@ export interface RunConfig {
   /** Lives Octopi starts with: reef lives in the campaign, OCTOPI.lives otherwise. */
   lives: number;
   features: { boosts: boolean };
+  /** Paid gameplay variant for this run (spec §4): only ever non-'base' for a campaign run. */
+  octopi: OctopiVariant;
 }
 
-export const DAILY_RUN: RunConfig = Object.freeze({ mode: 'daily', lives: OCTOPI.lives, features: Object.freeze({ boosts: true }) }) as RunConfig;
-export const PRACTICE_RUN: RunConfig = Object.freeze({ mode: 'practice', lives: OCTOPI.lives, features: Object.freeze({ boosts: true }) }) as RunConfig;
+export const DAILY_RUN: RunConfig = Object.freeze({ mode: 'daily', lives: OCTOPI.lives, features: Object.freeze({ boosts: true }), octopi: 'base' }) as RunConfig;
+export const PRACTICE_RUN: RunConfig = Object.freeze({ mode: 'practice', lives: OCTOPI.lives, features: Object.freeze({ boosts: true }), octopi: 'base' }) as RunConfig;

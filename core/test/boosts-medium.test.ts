@@ -87,7 +87,7 @@ describe('score decay (spec C7)', () => {
     expect(scoreDecayPct(s)).toBe(100);
 
     const level = levelById(1)!; // a level with crab waves before its boss (waves > 0), unlike level 6
-    const c = createGame('t2', { mode: 'campaign', level, lives: 5, features: { boosts: true } });
+    const c = createGame('t2', { mode: 'campaign', level, lives: 5, features: { boosts: true }, octopi: 'base' });
     for (let i = 0; i < 300; i++) advanceScoreDecay(c);
     expect(c.scoreDecay).toBeGreaterThan(0);
     startLevelWave(c, c.wave + 1);

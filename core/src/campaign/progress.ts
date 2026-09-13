@@ -102,8 +102,13 @@ export function applyLevelResult(p: CampaignProgress, r: LevelResult): { next: C
   return { next: { ...p, level: 1, lives: REEF_LIVES, updatedAt: r.now }, outcome: 'reef_lost' };
 }
 
-/** 3B hook: refills lives to `REVIVE_LIVES` and keeps the current reef/level. */
-export function revive(p: CampaignProgress, now: number): CampaignProgress {
+/**
+ * Refills a lost reef's lives to `REVIVE_LIVES` and keeps the current reef/level. Named `reviveReef`
+ * (not `revive`) so it never collides with `sim/revive.ts`'s `revive(s: GameState)` — the two are
+ * unrelated: this one restarts a whole reef after `reef_lost`, that one revives mid-level after the
+ * Tide's last life (spec §4).
+ */
+export function reviveReef(p: CampaignProgress, now: number): CampaignProgress {
   return { ...p, lives: REVIVE_LIVES, updatedAt: now };
 }
 

@@ -1,4 +1,4 @@
-import { FIELD_W, OCTOPI, SHOT } from '../config';
+import { FIELD_W, OCTOPI, SHOT, fireIntervalFor, piercingFor } from '../config';
 import { clamp, idiv, isqrt } from '../fixed';
 import { icos, isin } from '../trig';
 import type { Bullet, GameState, Input } from '../types';
@@ -53,7 +53,8 @@ export function moveOctopi(s: GameState, input: Input): void {
  * the field — off the top exactly as before, or now off either side (`x` outside `[0, FIELD_W]`) —
  * steers survivors while AUTO_TARGET is active, then fires when the cooldown runs out. RAPID_FIRE
  * shortens the cooldown; MULTI_SHOT fires three shots (-15/0/+15 degrees) instead of one;
- * PIERCING_BULLETS tags every new shot's `data` with bit 1 so `hitCrabs` lets it keep flying
+ * PIERCING_BULLETS tags every new shot's `data` with bit 1 so `hitCrabs` lets it keep flying, and
+ * the trident variant (spec §4) tags it unconditionally, boost or not
  * (RICOCHET was removed from the game entirely — owner decision, Phase 3A.1 lane C — so bit 2 and
  * the old field-edge wall-bounce it drove are gone too; only bit 1 remains meaningful). AUTO_TARGET
  * fully recomputes every surviving shot's `vx`/`vy` every tick (spec C3: the legacy's fixed
@@ -93,7 +94,7 @@ export function updateShots(s: GameState): void {
   if (s.octopi.cooldown <= 0) {
     const x = s.octopi.x;
     const y = s.octopi.y - HALF;
-    const data = isActive(s, 'PIERCING_BULLETS') ? 1 : 0;
+    const data = (isActive(s, 'PIERCING_BULLETS') || piercingFor(s.run.octopi)) ? 1 : 0;
     if (isActive(s, 'MULTI_SHOT')) {
       for (const a of [-MULTI_SHOT_SPREAD, 0, MULTI_SHOT_SPREAD]) {
         const vx = idiv(SHOT.speed * isin(a), 1000);
@@ -103,6 +104,6 @@ export function updateShots(s: GameState): void {
     } else {
       s.shots.push({ x, y, vx: 0, vy: -SHOT.speed, kind: 'straight', data });
     }
-    s.octopi.cooldown = isActive(s, 'RAPID_FIRE') ? RAPID_FIRE_INTERVAL : OCTOPI.fireInterval;
+    s.octopi.cooldown = isActive(s, 'RAPID_FIRE') ? RAPID_FIRE_INTERVAL : fireIntervalFor(s.run.octopi);
   }
 }

@@ -51,7 +51,7 @@ describe('formationPositions', () => {
 
 describe('wide formations march', () => {
   it('an 8-column wall marches sideways after arriving instead of stepping down every tick (level 10 bug)', () => {
-    const s = createGame('wall-march', { mode: 'campaign', level: LEVELS[9]!, lives: 5, features: { boosts: true } });
+    const s = createGame('wall-march', { mode: 'campaign', level: LEVELS[9]!, lives: 5, features: { boosts: true }, octopi: 'base' });
     for (let t = 0; t < 30; t++) step(s, INITIAL_INPUT); // arrival
     const y0 = s.crabs[0]!.y;
     const x0 = s.crabs[0]!.x;

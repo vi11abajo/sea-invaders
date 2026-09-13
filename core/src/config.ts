@@ -1,5 +1,5 @@
 import type { CrabType } from './levels';
-import type { BoostType, BulletKind } from './types';
+import type { BoostType, BulletKind, OctopiVariant } from './types';
 
 /**
  * Gameplay constants in milli-units and ticks. The playfield is fixed and
@@ -22,6 +22,28 @@ export const OCTOPI = {
   invulnTicks: 120,
   fireInterval: 8,
 } as const;
+
+/** Per-variant overrides layered onto the OCTOPI defaults above (spec §4); `base` has none. */
+export const VARIANTS: Record<Exclude<OctopiVariant, 'base'>, { fireInterval?: number; lives?: number; piercing?: boolean }> = {
+  harpoon: { fireInterval: 6 },
+  anchor: { lives: 1 },
+  trident: { piercing: true },
+};
+
+/** Octopi's fire cadence for `variant`, absent any active RAPID_FIRE boost (spec §4: harpoon fires every 6 ticks, others the base 8). */
+export function fireIntervalFor(variant: OctopiVariant): number {
+  return variant === 'base' ? OCTOPI.fireInterval : (VARIANTS[variant].fireInterval ?? OCTOPI.fireInterval);
+}
+
+/** Extra lives `variant` grants on top of `RunConfig.lives` at run start (spec §4: anchor only). */
+export function bonusLivesFor(variant: OctopiVariant): number {
+  return variant === 'base' ? 0 : (VARIANTS[variant].lives ?? 0);
+}
+
+/** Whether `variant` tags every player shot with the PIERCING bit regardless of boosts (spec §4: trident only). */
+export function piercingFor(variant: OctopiVariant): boolean {
+  return variant !== 'base' && Boolean(VARIANTS[variant].piercing);
+}
 
 export const SHOT = { w: 120, h: 360, speed: 240 } as const;
 
