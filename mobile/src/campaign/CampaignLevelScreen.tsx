@@ -2,13 +2,14 @@ import {
   applyLevelResult, bonusLivesFor, currentLevelId, formatInt, levelById, levelSeed, LEVELS_PER_REEF, REPLAY_MODE,
   type CampaignProgress, type OctopiVariant, type RunConfig,
 } from '@sea-invaders/core';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { GameScreen, type RunOutcome } from '../game/GameScreen';
+import { GameScreen, type DownedRun, type RunOutcome } from '../game/GameScreen';
 import { VARIANT_OCTOPI } from '../loadout/items';
 import type { LoadoutApi } from '../loadout/useLoadout';
 import { ReefBackdrop } from './ReefBackdrop';
 import { ResultView } from '../game/ResultView';
+import { TideSheet } from '../tide/TideSheet';
 import { PillButton } from '../ui/PillButton';
 import { COLORS } from '../ui/tokens';
 import { BossIntro } from './BossIntro';
@@ -36,6 +37,18 @@ const TITLE: Record<Outcome, string> = {
 
 /** Task 3B hook: flips true once a paid/ad-gated revive launches. */
 const REVIVE_ENABLED = false;
+
+/** Tide revives one level attempt allows (design §3.6, a client rule); the next loss ends the level. */
+const REVIVES_PER_ATTEMPT = 3;
+
+/** A loss the Tide sheet is offering a revive for. */
+interface Down {
+  /** Counts losses in this attempt, so each one mounts a fresh sheet. */
+  id: number;
+  run: DownedRun;
+  /** Revives left in this attempt, this one included. */
+  revivesLeft: number;
+}
 
 interface CampaignLevelScreenProps {
   levelId: number;
@@ -97,6 +110,11 @@ export function CampaignLevelScreen({
   // results carry `next`, the post-result progress `applyLevelResult` computed, so the result
   // screen's targets and stats never depend on this component's own (pre-result) `progress` prop.
   const [result, setResult] = useState<LevelResult | null>(null);
+  // The Tide: the loss on offer, and the revives this attempt has used. A "Retry level" remounts
+  // this screen (App bumps its key), so every attempt starts with all of them.
+  const [down, setDown] = useState<Down | null>(null);
+  const revivesUsed = useRef(0);
+  const losses = useRef(0);
 
   // The RunConfig is built when Start is pressed, so it carries the octopi picked just before; kept
   // in the phase from then on, so it stays the same object and the game loop is not restarted.
@@ -110,6 +128,26 @@ export function CampaignLevelScreen({
     finishLevel({ levelId, practice, cleared: outcome.cleared, livesLeft, score: outcome.score })
       .then(({ outcome: kind, next }) => setResult({ outcome, kind, next }))
       .catch(() => setResult({ outcome, kind: 'error' }));
+  };
+
+  // The last life lost in a real attempt: hold the run for the Tide while revives are left. A
+  // practice replay of a cleared level has nothing at stake, so it is never offered one.
+  const handleDown = (run: DownedRun): boolean => {
+    const revivesLeft = REVIVES_PER_ATTEMPT - revivesUsed.current;
+    if (practice || revivesLeft <= 0) return false;
+    losses.current += 1;
+    setDown({ id: losses.current, run, revivesLeft });
+    return true;
+  };
+  // Confirmed on chain: revive the held run. `DownedRun` settles once, so a second call does nothing.
+  const revived = (loss: Down) => {
+    if (loss.run.revive()) revivesUsed.current += 1;
+    setDown(null);
+  };
+  // End level: the run ends as the loss it was, and its outcome goes through `handleRunOver`.
+  const endLevel = (loss: Down) => {
+    loss.run.end();
+    setDown(null);
   };
 
   if (phase.kind === 'intro') {
@@ -151,6 +189,19 @@ export function CampaignLevelScreen({
       backdrop={(over) => <ReefBackdrop reef={level.reef} variant={over ? 'map' : 'play'} />}
       onExit={onExit}
       onRunOver={handleRunOver}
+      onDown={handleDown}
+      overlay={down !== null && (
+        <TideSheet
+          key={down.id}
+          revivesLeft={down.revivesLeft}
+          signedIn={signedIn}
+          connecting={connecting}
+          signInError={signInError}
+          onConnect={onConnect}
+          onRevived={() => revived(down)}
+          onEndLevel={() => endLevel(down)}
+        />
+      )}
       renderResult={(outcome, playAgain) => {
         if (result === null) {
           return (

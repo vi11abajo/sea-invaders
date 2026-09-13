@@ -11,8 +11,8 @@ import type { Purchase } from './usePurchase';
 // The wallet sheets of the handoff ("Wallet & error states", screens 11, 13, 16): modal sheets
 // (`#141318`, radius 24) over the dimmed scrim, built on `Sheet kind="modal"`.
 
-/** The 28 dp ring spinner (handoff Motion): a 2 dp track at 15 % white with its top arc in `color`, one turn a second. */
-function Spinner({ color = COLORS.success }: { color?: string }) {
+/** The 28 dp ring spinner (handoff Motion): a 2 dp track at 15 % white with its top arc in `color` (green signing, purple revive), one turn a second. */
+export function Spinner({ color = COLORS.success }: { color?: string }) {
   const turn = useSharedValue(0);
   useEffect(() => {
     turn.value = withRepeat(withTiming(1, { duration: MOTION.spinnerMs, easing: Easing.linear }), -1, false);

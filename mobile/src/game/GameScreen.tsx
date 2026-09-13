@@ -1,7 +1,7 @@
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
   BOOST_INDEX, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
-  OCTOPI, createGame, fitField, formatInt, snapshot, step, touchToInput,
+  OCTOPI, createGame, fitField, formatInt, revive, snapshot, step, touchToInput,
   type BoostType, type BossFrame, type Frame, type Input, type OctopiVariant, type Replay, type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -127,6 +127,17 @@ export interface RunOutcome {
   cleared: boolean;
 }
 
+/** A run held at the loss of its last life (see `onDown`). The first of `revive`/`end` settles it; later calls do nothing. */
+export interface DownedRun {
+  /**
+   * Revives Octopi through the core (`revive(state)`: 1 life, 2 s invulnerability, enemy shots
+   * cleared) and resumes the run. True when the run is playing again.
+   */
+  revive: () => boolean;
+  /** Ends the run as if it had never been held: the outcome goes to `onRunOver` and the result shows. */
+  end: () => void;
+}
+
 interface GameScreenProps {
   /** Leaves the game, from the result screen or the system back button. */
   onExit: () => void;
@@ -152,10 +163,19 @@ interface GameScreenProps {
    * solid dark field are used.
    */
   backdrop?: (over: boolean) => ReactNode;
+  /**
+   * Called when Octopi loses its last life (not when crabs reach the reef line, a level clears or
+   * the run is quit). Return true to hold the run: the clock stops as in a pause, nothing is reported,
+   * and the host settles it through `down.revive()` or `down.end()`. While held, System Back goes to
+   * the `overlay`'s own handler. Omit it, or return false, and the run ends as usual.
+   */
+  onDown?: (down: DownedRun) => boolean;
+  /** Drawn over the HUD while the run is on screen, e.g. the host's sheet over a held run. */
+  overlay?: ReactNode;
 }
 
 /** A run of the game. Without `seed` it is practice on a fresh seed. Without `run` it is the daily/practice mapping from `mode`. */
-export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode = 'PRACTICE', note = 'Practice · unranked', run, onRunOver, renderResult, backdrop }: GameScreenProps) {
+export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode = 'PRACTICE', note = 'Practice · unranked', run, onRunOver, renderResult, backdrop, onDown, overlay }: GameScreenProps) {
   const { width, height } = useWindowDimensions();
   const layout = useMemo(() => fitField(width, height), [width, height]);
   const fieldRect = useMemo(() => ({ x: layout.offsetX, y: layout.offsetY, width: layout.width, height: layout.height }), [layout]);
@@ -178,6 +198,10 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
   const onRunOverRef = useRef(onRunOver);
   onRunOverRef.current = onRunOver;
+  const onDownRef = useRef(onDown);
+  onDownRef.current = onDown;
+  /** True while the run is held at its last life, waiting for the host's `revive`/`end`. */
+  const held = useRef(false);
   // Read through a ref inside the loop below so a layout change (which rebuilds `prepared`, the
   // pre-scaled sprites) never appears in the run effect's deps and never calls `createGame` again.
   const preparedRef = useRef(prepared);
@@ -199,9 +223,14 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     input.current = INITIAL_INPUT;
     paused.current = false;
     quit.current = false;
+    held.current = false;
     blast.value = null;
     let shown = START_HUD;
     let reported = false;
+    // A held loss the host ended: reported on the next frame, never offered again.
+    let downEnded = false;
+    // False once this run's effect is cleaned up, so a `DownedRun` handed out for it does nothing.
+    let live = true;
     let frames = 0;
     let fpsSince = performance.now();
     let fps = 0;
@@ -213,6 +242,29 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     let toastText: string | null = null;
     let toastFrames = 0;
 
+    /** Offers this loss to the host; true when the host holds the run. */
+    const offerDown = (): boolean => {
+      let settled = false;
+      const down: DownedRun = {
+        revive: () => {
+          if (settled || !live) return false;
+          settled = true;
+          revive(state);
+          held.current = false;
+          return !state.over;
+        },
+        end: () => {
+          if (settled || !live) return;
+          settled = true;
+          downEnded = true;
+          held.current = false;
+        },
+      };
+      const holding = onDownRef.current?.(down) === true;
+      // A host that settled the loss inside `onDown` itself leaves nothing to hold.
+      return holding && !settled;
+    };
+
     const loop = () => {
       if (preparedRef.current === null) {
         // Sprites not ready yet: hold the clock (no ticks, no stepper.advance) so none are lost or
@@ -221,8 +273,8 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         return;
       }
       const now = performance.now();
-      if (paused.current) {
-        // Restart the clock on every paused frame, so resuming does not replay the pause.
+      if (paused.current || held.current) {
+        // Restart the clock on every paused or held frame, so resuming does not replay the wait.
         stepper.reset();
       } else {
         const ticks = stepper.advance(now);
@@ -267,7 +319,14 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         frames = 0;
         fpsSince = now;
       }
-      const over = state.over || state.cleared || quit.current;
+      // The last life lost (not a clear, a quit or crabs on the reef line): the host may hold the run.
+      if (
+        state.over && state.octopi.lives === 0 && !state.cleared && !quit.current &&
+        !held.current && !downEnded && !reported
+      ) {
+        held.current = offerDown();
+      }
+      const over = (state.over && !held.current) || state.cleared || quit.current;
       const next: Hud = {
         score: state.score, lives: state.octopi.lives, wave: state.wave, kills: state.kills, over, fps,
         boss: f.boss, boosts: boostsFromFrame(f.boosts, state.boosts.tamerStacks), shield: f.shield, banner: bannerText, toast: toastText,
@@ -293,7 +352,11 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       if (!over) handle = requestAnimationFrame(loop);
     };
     handle = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(handle);
+    return () => {
+      live = false;
+      held.current = false;
+      cancelAnimationFrame(handle);
+    };
   }, [runIndex, frame, blast, seed, mode, run]);
 
   const solidField = backdrop === undefined;
@@ -331,9 +394,13 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     setRunIndex((r) => r + 1);
   };
 
-  // System back: pauses a run, closes the pause sheet, and leaves from the result screen.
+  // System back: pauses a run, closes the pause sheet, and leaves from the result screen. A held run
+  // passes it on to the handler of the host's overlay (mounted as a child, so registered just under
+  // this one); until that overlay is on screen, it is swallowed.
+  const hasOverlay = overlay !== undefined && overlay !== null && overlay !== false;
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (held.current) return !hasOverlay;
       if (hud.over) onExit();
       else if (showPause) resume();
       else pause();
@@ -399,6 +466,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
             {hud.fps} FPS
           </Text>
           {showPause && <PauseSheet onResume={resume} onQuit={quitRun} />}
+          {overlay}
         </>
       )}
     </View>
