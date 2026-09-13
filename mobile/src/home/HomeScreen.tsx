@@ -99,6 +99,7 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
                 kind="glass"
                 label={campaign ? `Campaign · ${campaign.level}/${campaign.total}` : 'Campaign'}
                 onPress={onCampaign}
+                fitLabel
               />
             </View>
             <View style={styles.half}>
