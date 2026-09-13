@@ -18,7 +18,7 @@ const TIMEOUT_MS = 15_000;
  * JSON request to the backend. With `auth`, sends the stored JWT and clears it when the
  * server rejects it: on any 401, or on a 403 whose body reports `error: 'InvalidToken'`.
  */
-export async function apiFetch<T>(path: string, init: { method?: 'GET' | 'POST'; body?: unknown; auth?: boolean } = {}): Promise<T> {
+export async function apiFetch<T>(path: string, init: { method?: 'GET' | 'POST' | 'PUT'; body?: unknown; auth?: boolean } = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (init.body !== undefined) headers['Content-Type'] = 'application/json';
   if (init.auth) {

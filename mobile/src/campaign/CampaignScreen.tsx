@@ -27,7 +27,7 @@ interface CampaignScreenProps {
   progress: CampaignProgress;
   onPlay: (id: number, practice: boolean) => void;
   onBack: () => void;
-  /** False shows the "Not synced" hint. Defaults to true until sync exists (Task 21). */
+  /** False shows the "Not synced" hint; the caller passes true while signed out. */
   synced?: boolean;
 }
 

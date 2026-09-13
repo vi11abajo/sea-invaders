@@ -56,5 +56,11 @@ export function useCampaign() {
     setProgress(next);
   }, [progress]);
 
-  return { progress, startLevel, finishLevel, reviveNow };
+  /** Replaces progress wholesale (a server merge after sign-in) and persists it. */
+  const replaceProgress = useCallback(async (next: CampaignProgress): Promise<void> => {
+    await saveProgress(next);
+    setProgress(next);
+  }, []);
+
+  return { progress, startLevel, finishLevel, reviveNow, replaceProgress };
 }

@@ -8,6 +8,7 @@ import { confirmTicket, requestFaucet, requestTicket } from './src/api/daily';
 import { useSession } from './src/api/useSession';
 import { CampaignLevelScreen } from './src/campaign/CampaignLevelScreen';
 import { CampaignScreen } from './src/campaign/CampaignScreen';
+import { useCampaignSync } from './src/campaign/sync';
 import { useCampaign } from './src/campaign/useCampaign';
 import { DailyRunScreen } from './src/daily/DailyRunScreen';
 import { LeaderboardScreen } from './src/daily/LeaderboardScreen';
@@ -49,6 +50,7 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
   const [levelAttempt, setLevelAttempt] = useState(0);
   const { session, restoring, signIn, error } = useSession();
   const campaign = useCampaign();
+  const { synced } = useCampaignSync(session, campaign.progress, campaign.replaceProgress);
   const { model, refresh } = useHomeModel(session, campaign.progress);
   const signAndSend = useSignAndSend();
   const [ticketBusy, setTicketBusy] = useState(false);
@@ -138,6 +140,7 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
           progress={campaign.progress}
           onPlay={(id, practice) => setScreen({ kind: 'level', id, practice })}
           onBack={home}
+          synced={session === null || synced}
         />
       );
     case 'daily':
