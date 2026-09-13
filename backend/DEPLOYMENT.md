@@ -169,6 +169,13 @@ The CI deploy workflow does this same build (`cd core && npm ci && npm run build
 `core/dist` in the deploy archive, so a server updated by CI already has it; only a manual
 clone needs this step.
 
+**Core version contract.** The API verifies replays only against the exact `CORE_VERSION`
+of the core it was built with (`backend/src/services/rankedRuns.js` rejects any other version
+with `update_required`) and reports that version as `coreVersion` in `GET /api/daily/today`.
+`CORE_VERSION` is 3 since 2026-09-13 (the campaign, bosses and boosts of Phase 3A), so whenever
+the core version bumps, deploy the API and ship the new APK together: runs recorded by an older
+app are rejected until it updates.
+
 ---
 
 ## 5️⃣ Configure environment variables
