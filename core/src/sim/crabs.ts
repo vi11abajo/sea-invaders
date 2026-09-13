@@ -176,7 +176,7 @@ const FRAGMENT_VECTORS: ReadonlyArray<readonly [number, number]> = [
  * the same collision radius as before, so this stays bit-for-bit compatible with the v2 goldens.
  * Enemy shot velocity is never slowed by ICE_FREEZE or SPEED_TAMER (spec C5: both boosts slow crab
  * movement only — march step, arrival descent, diver dives — never bullets, matching the legacy's
- * shipped behaviour; its one function that would have scaled bullet speed too was dead code, never
+ * released behaviour; its one function that would have scaled bullet speed too was dead code, never
  * called). A shot above the field but still moving down (a meteor-shower drop spawned at y -200) is
  * never pruned for being off the top edge — only for having left through the bottom, left or right.
  *
