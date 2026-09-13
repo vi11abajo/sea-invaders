@@ -62,12 +62,14 @@ const WHITE_FLASH_FILTER = Skia.ColorFilter.MakeBlend(Skia.Color('#FFFFFF'), Ble
 const FREEZE_OVERLAY = Skia.Color('rgba(153,102,255,0.18)');
 
 /**
- * ICE_FREEZE indication (owner ruling): a translucent ice cube over every crab, plus the legacy
- * full-field fog drawn right after them (legacy `boost-effects.js:453-489`'s desktop-branch full-
- * canvas rect at 0.1 alpha; the ice cubes are the owner's addition). Each cube's own `SkRRect` is
- * precomputed per crab kind in `sprites.ts` (`PreparedSprites.iceCubes`) and only translated here.
+ * ICE_FREEZE indication (owner ruling): one of the owner's three ice sprites drawn over every crab,
+ * plus the legacy full-field fog drawn right after them (legacy `boost-effects.js:453-489`'s
+ * desktop-branch full-canvas rect at 0.1 alpha). The ice sprites themselves are pre-scaled in
+ * `sprites.ts` (`PreparedSprites.ice`); the variant per crab is picked deterministically below
+ * (crab offset + kind) so it doesn't flicker frame to frame, and drawn at `ICE_ALPHA` via the same
+ * `drawSpriteAt` every other sprite uses.
  */
-const ICE_CUBE_COLOR = Skia.Color('rgba(170,238,255,0.35)');
+const ICE_ALPHA = 0.75;
 const ICE_FOG_COLOR = Skia.Color('rgba(170,238,255,0.10)');
 
 const SHIELD_COLOR = Skia.Color('rgba(0,221,255,0.6)');
@@ -231,7 +233,7 @@ export function drawFrame(
     paint.setShader(null);
   }
 
-  // ICE_FREEZE (owner ruling): an ice cube over every crab below, plus the legacy fog after them.
+  // ICE_FREEZE (owner ruling): an ice sprite over every crab below, plus the legacy fog after them.
   let iceFreeze = false;
   for (let i = 0; i < f.boosts.length; i += 2) {
     if (f.boosts[i] === BOOST_INDEX.ICE_FREEZE) {
@@ -241,7 +243,6 @@ export function drawFrame(
   }
 
   // Crabs: the sprite for the crab's kind already encodes its colour/type (TYPE_COLOUR); no tint.
-  if (iceFreeze) paint.setColor(ICE_CUBE_COLOR);
   for (let i = 0; i < f.crabs.length; i += 5) {
     const cx = px(f.crabs[i]!);
     const cy = py(f.crabs[i + 1]!);
@@ -250,12 +251,12 @@ export function drawFrame(
     if (sprite === undefined) continue;
     drawSpriteAt(canvas, paint, sprite, cx - sprite.w / 2, cy - sprite.h / 2);
     if (iceFreeze) {
-      const iceRRect = sprites.iceCubes[kind];
-      if (iceRRect !== undefined) {
-        canvas.save();
-        canvas.translate(cx, cy);
-        canvas.drawRRect(iceRRect, paint);
-        canvas.restore();
+      const variant = (Math.floor(i / 5) + kind) % 3;
+      const iceSprite = sprites.ice[variant];
+      if (iceSprite !== undefined) {
+        paint.setAlphaf(ICE_ALPHA);
+        drawSpriteAt(canvas, paint, iceSprite, cx - iceSprite.w / 2, cy - iceSprite.h / 2);
+        paint.setAlphaf(1);
       }
     }
   }

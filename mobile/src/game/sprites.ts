@@ -16,6 +16,10 @@ export interface Sprites {
   octopi: { front: SkImage; hit: SkImage };
   /** Colour by `kind` (0..4): green, blue, violet, red, yellow. */
   crabs: SkImage[];
+  /** ICE_FREEZE indication (owner ruling): three ice sprites, drawn one per crab (`draw.ts` picks a
+   * deterministic variant per crab so it doesn't flicker). Index order is arbitrary — the three are
+   * visually interchangeable. */
+  ice: SkImage[];
   /** Two extracted GIF frames per boss, colour by `kind` (1..5): green, blue, yellow, red, violet; `bosses[kind - 1]` (0-based). */
   bosses: [SkImage, SkImage][];
   /** One icon per `BoostType`, in `BOOST_INDEX` order. */
@@ -36,6 +40,11 @@ export function useSprites(): Sprites | null {
   const crabViolet = useImage(require('../../assets/sprites/crabViolet.png'));
   const crabRed = useImage(require('../../assets/sprites/crabRed.png'));
   const crabYellow = useImage(require('../../assets/sprites/crabYellow.png'));
+
+  // ICE_FREEZE indication (owner ruling): three interchangeable ice sprites.
+  const ice1 = useImage(require('../../assets/sprites/ice1.png'));
+  const ice2 = useImage(require('../../assets/sprites/ice2.png'));
+  const ice3 = useImage(require('../../assets/sprites/ice3.png'));
 
   // Boss colour order: kind 1..5. Two GIF frames each, flipped every 60 ticks in draw.ts.
   const bossGreen0 = useImage(require('../../assets/sprites/crabBOSSGreen-0.png'));
@@ -70,6 +79,7 @@ export function useSprites(): Sprites | null {
     if (
       front === null || hit === null ||
       crabGreen === null || crabBlue === null || crabViolet === null || crabRed === null || crabYellow === null ||
+      ice1 === null || ice2 === null || ice3 === null ||
       bossGreen0 === null || bossGreen1 === null || bossBlue0 === null || bossBlue1 === null ||
       bossYellow0 === null || bossYellow1 === null || bossRed0 === null || bossRed1 === null ||
       bossViolet0 === null || bossViolet1 === null ||
@@ -83,6 +93,7 @@ export function useSprites(): Sprites | null {
     return {
       octopi: { front, hit },
       crabs: [crabGreen, crabBlue, crabViolet, crabRed, crabYellow],
+      ice: [ice1, ice2, ice3],
       bosses: [
         [bossGreen0, bossGreen1],
         [bossBlue0, bossBlue1],
@@ -100,6 +111,7 @@ export function useSprites(): Sprites | null {
   }, [
     front, hit,
     crabGreen, crabBlue, crabViolet, crabRed, crabYellow,
+    ice1, ice2, ice3,
     bossGreen0, bossGreen1, bossBlue0, bossBlue1, bossYellow0, bossYellow1, bossRed0, bossRed1, bossViolet0, bossViolet1,
     rapidFire, iceFreeze, healthBoost, pointsFreeze, shieldBarrier, autoTarget, invincibility, multiShot,
     scoreMultiplier, waveBlast, coinShower, gravityWell, piercingBullets, randomChaos, speedTamer,
@@ -146,13 +158,6 @@ export interface PreparedSprite {
 export const INVINCIBLE_INFLATE = 4;
 export const INVINCIBLE_CORNER_R = 8;
 
-/** ICE_FREEZE ice-cube geometry (owner ruling), in dp (unscaled): sized to each crab sprite,
- * inflated 2 dp on each side with a 6 dp corner radius — precomputed here for the same reason as
- * the INVINCIBILITY outline above (a fill can be sized by `canvas.scale`, but precomputing keeps
- * this on the same once-per-layout path as every other prepared sprite geometry). */
-export const ICE_CUBE_INFLATE = 2;
-export const ICE_CUBE_CORNER_R = 6;
-
 export interface PreparedSprites {
   octopi: { front: PreparedSprite; hit: PreparedSprite };
   /**
@@ -163,11 +168,12 @@ export interface PreparedSprites {
   invincibleOutline: { front: ReturnType<typeof Skia.RRectXY>; hit: ReturnType<typeof Skia.RRectXY> };
   crabs: PreparedSprite[];
   /**
-   * One precomputed `SkRRect` per crab kind (`crabs[kind]`), centred at the local origin and sized
-   * to that kind's own `w x h` inflated by `ICE_CUBE_INFLATE` on each side. `draw.ts` only
-   * `canvas.translate`s to each crab's centre before drawing it — never reallocated per frame.
+   * ICE_FREEZE indication (owner ruling): the three ice sprites, pre-scaled to fit inside a
+   * `CRAB.size * 1.3` square (keeping each image's own aspect ratio). `draw.ts` picks one of the
+   * three per crab deterministically (by crab offset + kind) and draws it centred on that crab via
+   * `drawSpriteAt` — same pre-scaled/mip-filtered path as every other sprite here.
    */
-  iceCubes: ReturnType<typeof Skia.RRectXY>[];
+  ice: PreparedSprite[];
   /** `bosses[kind - 1] = [frame0, frame1]`, both pre-scaled to `BOSS.width x BOSS.height`. */
   bosses: [PreparedSprite, PreparedSprite][];
   boosts: PreparedSprite[];
@@ -219,13 +225,6 @@ function outlineRRect(sprite: PreparedSprite): ReturnType<typeof Skia.RRectXY> {
   return Skia.RRectXY({ x: -w / 2, y: -h / 2, width: w, height: h }, INVINCIBLE_CORNER_R, INVINCIBLE_CORNER_R);
 }
 
-/** The ICE_FREEZE ice-cube `SkRRect` for a prepared sprite of size `w x h`, centred at `(0, 0)`. */
-function iceCubeRRect(sprite: PreparedSprite): ReturnType<typeof Skia.RRectXY> {
-  const w = sprite.w + ICE_CUBE_INFLATE * 2;
-  const h = sprite.h + ICE_CUBE_INFLATE * 2;
-  return Skia.RRectXY({ x: -w / 2, y: -h / 2, width: w, height: h }, ICE_CUBE_CORNER_R, ICE_CUBE_CORNER_R);
-}
-
 function preparedFrom(image: SkImage, w: number, h: number, src?: Rect): PreparedSprite {
   const scaledImage = renderScaled(image, w, h, src);
   const ok = scaledImage !== null;
@@ -261,7 +260,12 @@ export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprite
 
   const crabSize = CRAB.size * k;
   const crabs = sprites.crabs.map((img) => preparedFrom(img, crabSize, crabSize));
-  const iceCubes = crabs.map(iceCubeRRect);
+
+  const iceBox = CRAB.size * 1.3 * k;
+  const ice = sprites.ice.map((img) => {
+    const { w, h } = containSize(img, iceBox);
+    return preparedFrom(img, w, h);
+  });
 
   const bossW = BOSS.width * k;
   const bossH = BOSS.height * k;
@@ -275,7 +279,7 @@ export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprite
     return preparedFrom(img, w, h);
   });
 
-  return { octopi: { front, hit }, invincibleOutline, crabs, iceCubes, bosses, boosts };
+  return { octopi: { front, hit }, invincibleOutline, crabs, ice, bosses, boosts };
 }
 
 /** `prepareSprites`, memoized on `sprites`/`layout` so it rebuilds only when either changes. */
