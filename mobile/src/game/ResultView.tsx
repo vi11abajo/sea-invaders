@@ -1,12 +1,13 @@
 import { formatInt } from '@sea-invaders/core';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { ArtSlot } from '../ui/ArtSlot';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { GradientText } from '../ui/GradientText';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS } from '../ui/tokens';
+
+const OCTOPI_FRONT = require('../../assets/sprites/octopiFront.png');
 
 export interface ResultStat {
   label: string;
@@ -52,7 +53,7 @@ export function ResultView({ title, score, stats, note, primaryLabel = 'Play aga
         <GradientText text={formatInt(score)} size={72} />
       </View>
       <View style={styles.pose} pointerEvents="none">
-        <ArtSlot size={120} label="Octopi" />
+        <Image source={OCTOPI_FRONT} style={styles.poseImage} resizeMode="contain" />
       </View>
       <Sheet>
         <View style={styles.tiles}>
@@ -89,6 +90,7 @@ const styles = StyleSheet.create({
   head: { position: 'absolute', top: 120, left: 0, right: 0, alignItems: 'center', gap: 8 },
   title: { fontSize: 12, letterSpacing: 0.72 },
   pose: { position: 'absolute', top: 300, left: 0, right: 0, alignItems: 'center' },
+  poseImage: { width: 120, height: 120 },
   tiles: { flexDirection: 'row', gap: 6 },
   tile: { flex: 1, padding: 10, borderRadius: RADIUS.tile, backgroundColor: 'rgba(236,228,253,0.08)' },
   tileLabel: { fontSize: 10 },

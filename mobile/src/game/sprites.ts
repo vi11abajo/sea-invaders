@@ -1,6 +1,16 @@
-import { Skia, useImage, type SkImage } from '@shopify/react-native-skia';
+import { FilterMode, MipmapMode, Skia, useImage, type SkImage } from '@shopify/react-native-skia';
 import { BOSS, CRAB, DROP, SHIP, type Layout } from '@sea-invaders/core';
 import { useMemo } from 'react';
+import { PixelRatio } from 'react-native';
+
+/**
+ * Read once on the JS thread; `draw.ts`'s worklet closes over this value rather than calling into
+ * RN. Offscreen surfaces are sized in physical pixels using this ratio (spec: a several-hundred px
+ * source sprite pre-scaled straight to dp size on a high-density screen was a ~12x reduction with no
+ * filtering, then upscaled back — "extremely crushed"); `drawSpriteAt` scales back down to dp at
+ * draw time.
+ */
+export const PIXEL_RATIO = PixelRatio.get();
 
 export interface Sprites {
   ship: { front: SkImage; hit: SkImage };
@@ -104,23 +114,30 @@ interface Rect {
   height: number;
 }
 
-/** A sprite ready for the UI-thread worklet to draw at `(left, top)`, already sized to `w x h`. */
+/** A sprite ready for the UI-thread worklet to draw at `(left, top)`, already sized to `w x h` (dp). */
 export interface PreparedSprite {
   image: SkImage;
+  /** On-screen size in dp. `image` itself is `w * PIXEL_RATIO x h * PIXEL_RATIO` (physical pixels) when `scaled`. */
   w: number;
   h: number;
   /**
-   * True when `image` is this sprite's own pre-scaled snapshot, sized exactly `w x h` (draw with a
-   * plain `canvas.drawImage`); false when this sprite's own offscreen render failed and `image` is
-   * the original, full-resolution asset instead (draw via `drawImageRect` using `src`/`dest`). This
-   * is decided per sprite — one sprite's offscreen render failing never affects another's.
+   * True when `image` is this sprite's own pre-scaled snapshot, sized `w * PIXEL_RATIO x h *
+   * PIXEL_RATIO` physical pixels (draw.ts's fast path scales it back down to dp and draws it with
+   * `canvas.drawImageOptions`); false when this sprite's own offscreen render failed and `image` is
+   * the original, full-resolution asset instead (draw via `drawImageRectOptions` using `src`/`dest`,
+   * both mip-filtered the same way). This is decided per sprite — one sprite's offscreen render
+   * failing never affects another's.
    */
   scaled: boolean;
   /**
-   * `image`'s own bounds, always matching `image`: `{0, 0, w, h}` when `scaled`, the original
-   * asset's bounds otherwise. Read by the `drawImageRect` + `translate` fallback when `scaled` is false.
+   * `image`'s own bounds, always matching `image`: `{0, 0, w * PIXEL_RATIO, h * PIXEL_RATIO}`
+   * (physical pixels) when `scaled`, the original asset's own bounds otherwise. Read by the
+   * `drawImageRectOptions` + `translate` fallback when `scaled` is false; the fast (`scaled`) path
+   * doesn't read it (it draws the whole snapshot via `drawImageOptions`), but it's kept accurate
+   * regardless so `src` always describes `image`'s real bounds.
    */
   src: Rect;
+  /** Where `image` lands on screen, in dp — read only by the `scaled === false` fallback path. */
   dest: Rect;
 }
 
@@ -145,21 +162,26 @@ export interface PreparedSprites {
 }
 
 /**
- * Renders `image` into an offscreen surface at exactly `w x h` (cropping `src` first when given,
- * for an aspect-fill), snapshots it and converts it to a non-texture image the UI-thread worklet
- * can draw with a plain `canvas.drawImage`. Returns null if the surface, its snapshot, or the
- * conversion is unavailable on this device/driver, or if any of it throws.
+ * Renders `image` into an offscreen surface sized in PHYSICAL pixels — `round(w * PIXEL_RATIO) x
+ * round(h * PIXEL_RATIO)`, not dp — so a large reduction (e.g. a several-hundred px source down to
+ * a few dozen dp) is mip-filtered by Skia instead of nearest-sampled straight to a blurry/crushed
+ * dp-sized image that then gets upscaled again by the OS compositor. `drawImageRectOptions` with
+ * `FilterMode.Linear`/`MipmapMode.Linear` does that downsample; cropping `src` first (for an
+ * aspect-fill) still works the same as before. Snapshots the result and converts it to a
+ * non-texture image `drawSpriteAt` (draw.ts) draws back down to dp size at draw time. Returns null
+ * if the surface, its snapshot, or the conversion is unavailable on this device/driver, or if any
+ * of it throws.
  */
 function renderScaled(image: SkImage, w: number, h: number, src?: Rect): SkImage | null {
   try {
-    const width = Math.max(1, Math.round(w));
-    const height = Math.max(1, Math.round(h));
+    const width = Math.max(1, Math.round(w * PIXEL_RATIO));
+    const height = Math.max(1, Math.round(h * PIXEL_RATIO));
     const surface = Skia.Surface.MakeOffscreen(width, height);
     if (surface === null) return null;
     const canvas = surface.getCanvas();
     const paint = Skia.Paint();
     const from = src ?? { x: 0, y: 0, width: image.width(), height: image.height() };
-    canvas.drawImageRect(image, from, { x: 0, y: 0, width, height }, paint);
+    canvas.drawImageRectOptions(image, from, { x: 0, y: 0, width, height }, FilterMode.Linear, MipmapMode.Linear, paint);
     surface.flush();
     const snapshot = surface.makeImageSnapshot();
     return snapshot.makeNonTextureImage();
@@ -194,17 +216,21 @@ function preparedFrom(image: SkImage, w: number, h: number, src?: Rect): Prepare
     w,
     h,
     scaled: ok,
-    // `src` always matches `image`: the scaled snapshot's own full bounds, or the original asset's
-    // bounds when this particular sprite fell back — never a mismatched pair.
-    src: ok ? { x: 0, y: 0, width: w, height: h } : fallbackSrc,
+    // `src` always matches `image`'s own bounds: the scaled snapshot is `renderScaled`'s physical-
+    // pixel surface size (`w * PIXEL_RATIO x h * PIXEL_RATIO`), the original asset's own bounds
+    // when this particular sprite fell back instead — never a mismatched pair. `dest` (below)
+    // stays in dp either way: the fallback path draws straight to the final on-screen size in one
+    // step, with no offscreen surface in between.
+    src: ok ? { x: 0, y: 0, width: w * PIXEL_RATIO, height: h * PIXEL_RATIO } : fallbackSrc,
     dest: { x: 0, y: 0, width: w, height: h },
   };
 }
 
 /**
- * Pre-scales every sprite to its exact on-screen size once (Task 4's FPS ruling): the UI-thread
- * worklet then draws each with a single `canvas.drawImage`, no per-frame resampling. Called from
- * a `useMemo` in `GameScreen` keyed on `sprites`/`layout`, so it only reruns when either changes.
+ * Pre-scales every sprite to its exact on-screen size once, at physical-pixel resolution with mip
+ * filtering (Task 4's FPS ruling, plus the crushed-sprite fix): the UI-thread worklet then draws
+ * each with a single `canvas.drawImageOptions` call, no per-frame resampling. Called from a
+ * `useMemo` in `GameScreen` keyed on `sprites`/`layout`, so it only reruns when either changes.
  */
 export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprites {
   const k = layout.scale;

@@ -1,10 +1,10 @@
-import { BlendMode, PaintStyle, Skia, TileMode } from '@shopify/react-native-skia';
+import { BlendMode, FilterMode, MipmapMode, PaintStyle, Skia, TileMode } from '@shopify/react-native-skia';
 import {
   BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, DROP, ENEMY_SHOT, KIND_INDEX, RARITY_ORDER, SHIP,
   type BoostType, type Frame, type Layout,
 } from '@sea-invaders/core';
 import { COLORS } from '../ui/tokens';
-import type { PreparedSprite, PreparedSprites } from './sprites';
+import { PIXEL_RATIO, type PreparedSprite, type PreparedSprites } from './sprites';
 
 type Recorder = ReturnType<typeof Skia.PictureRecorder>;
 type Paint = ReturnType<typeof Skia.Paint>;
@@ -146,16 +146,30 @@ const DROP_GLOW_COLOR: ReturnType<typeof Skia.Color>[] = Object.entries(BOOST_IN
   [],
 );
 
-/** Draws `sprite` with its top-left corner at `(left, top)`: a plain `drawImage` when this sprite's own pre-scale succeeded (`sprite.scaled`), else the precomputed-rect `drawImageRect` fallback for this sprite alone — one sprite falling back never affects any other. */
+/**
+ * Draws `sprite` with its top-left corner at `(left, top)`. When this sprite's own pre-scale
+ * succeeded (`sprite.scaled`), `sprite.image` is a physical-pixel-sized snapshot (see `sprites.ts`);
+ * scaling the canvas down by `1 / PIXEL_RATIO` before drawing it at its native size renders it at
+ * the intended dp size, with Skia's own linear resample doing the (small, constant) final scale
+ * rather than a second nearest-neighbour resize of an already mip-filtered image. `PIXEL_RATIO` is
+ * imported as a plain number computed once on the JS thread (`sprites.ts`), so this worklet closes
+ * over a constant rather than calling into RN — same pattern as `DEV_HITBOX` above.
+ * Otherwise (this sprite's own offscreen render failed) falls back to the precomputed-rect
+ * `drawImageRectOptions`, mip-filtered the same way — one sprite falling back never affects any other.
+ */
 function drawSpriteAt(canvas: Canvas, paint: Paint, sprite: PreparedSprite, left: number, top: number) {
   'worklet';
   if (sprite.scaled) {
-    canvas.drawImage(sprite.image, left, top, paint);
+    canvas.save();
+    canvas.translate(left, top);
+    canvas.scale(1 / PIXEL_RATIO, 1 / PIXEL_RATIO);
+    canvas.drawImageOptions(sprite.image, 0, 0, FilterMode.Linear, MipmapMode.None, paint);
+    canvas.restore();
     return;
   }
   canvas.save();
   canvas.translate(left, top);
-  canvas.drawImageRect(sprite.image, sprite.src, sprite.dest, paint);
+  canvas.drawImageRectOptions(sprite.image, sprite.src, sprite.dest, FilterMode.Linear, MipmapMode.Linear, paint);
   canvas.restore();
 }
 
