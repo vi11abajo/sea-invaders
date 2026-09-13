@@ -19,17 +19,27 @@ function differs(a: CampaignProgress, b: CampaignProgress): boolean {
  *
  * State machine:
  * - Signed out (`session === null`): `synced` is false, nothing runs.
- * - On sign-in (a new `session`, once `progress` has loaded): GET the server copy. A 404 means
- *   the wallet never synced before — keep the local progress as-is. Otherwise `mergeProgress`
- *   the local and server copies (spec §6.2: per-level OR/max, position fields from the newer
- *   `updatedAt`); `replaceProgress` only if the merge differs from local (avoids a redundant
- *   write), then PUT the merged value once so the server has it too.
+ * - On sign-in (a new `session`, once `progress` has loaded): GET the server copy. A 404 with
+ *   `code: 'not_found'` means the wallet never synced before — keep the local progress as-is; any
+ *   other error (including a 404 with a different code) goes to the failure path. Otherwise
+ *   `mergeProgress` the local and server copies (spec §6.2: per-level OR/max, position fields
+ *   from the newer `updatedAt`); `replaceProgress` only if the merge differs from local (avoids a
+ *   redundant write), then PUT the merged value once so the server has it too.
  * - After that initial round trip (success or failure), every later `progress` change starts a
- *   2 s debounce timer that PUTs the current progress; at most one PUT is in flight at a time,
- *   and a change that arrives while one is in flight is picked up by its own later debounce.
- * - A successful PUT stores the server's returned merge via `replaceProgress`, but only if it
- *   differs from what was sent (avoids an update loop), and flips `synced` to true. A failed PUT
- *   (network or 4xx/5xx) leaves `synced` false; the next progress change retries.
+ *   2 s debounce timer that PUTs the current progress; at most one PUT is in flight at a time. A
+ *   change that arrives while one is in flight is not dropped: `sendPut` remembers only the
+ *   latest such value and, once the in-flight PUT settles, immediately resends that latest value
+ *   instead of waiting for another 2 s or for some unrelated future change to happen to pick it
+ *   up. `synced` does not read true off the settled PUT in that case — only the follow-up send's
+ *   own outcome decides it.
+ * - A successful PUT (with nothing queued behind it) stores the server's returned merge via
+ *   `replaceProgress`, but only if it differs from what was sent (avoids an update loop), and
+ *   flips `synced` to true. A failed PUT (network or 4xx/5xx) leaves `synced` false; the next
+ *   progress change retries.
+ * - A PUT that settles after the component has unmounted, or after `session` has changed (a
+ *   sign-out, or a different sign-in) from what it was sent for, is treated as stale: it never
+ *   calls `replaceProgress`/`setSynced`, and any value queued behind it is dropped rather than
+ *   resent for a session that is no longer current.
  */
 export function useCampaignSync(
   session: Session | null,
@@ -46,22 +56,57 @@ export function useCampaignSync(
   // does not immediately re-trigger the debounced PUT.
   const lastSyncedRef = useRef<CampaignProgress | null>(null);
   const inFlightRef = useRef(false);
+  // The latest progress a caller tried to send while a PUT was already in flight; resent as soon
+  // as that PUT settles instead of being silently dropped.
+  const pendingRef = useRef<CampaignProgress | null>(null);
+  // True for the component's whole lifetime; flips false on unmount so a PUT that settles late
+  // never touches state afterwards.
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
+  // Always the latest `session`, kept current every render (not just inside an effect) so a PUT
+  // in flight can tell, the moment it settles, whether it is still running for the current
+  // session or has been superseded by a sign-out/sign-in that happened while it was pending.
+  const sessionRef = useRef<Session | null>(session);
+  sessionRef.current = session;
 
   const sendPut = useCallback(
     async (p: CampaignProgress): Promise<void> => {
-      if (inFlightRef.current) return;
+      if (inFlightRef.current) {
+        pendingRef.current = p;
+        return;
+      }
       inFlightRef.current = true;
+      const forSession = sessionRef.current;
+      let success = false;
       try {
         const { progress: merged } = await putCampaign(p);
-        if (differs(merged, p)) await replaceProgress(merged);
-        lastSyncedRef.current = merged;
-        setSynced(true);
+        if (mountedRef.current && sessionRef.current === forSession) {
+          if (differs(merged, p)) await replaceProgress(merged);
+          lastSyncedRef.current = merged;
+        }
+        success = true;
         console.log('[sync] PUT ok', merged.updatedAt);
       } catch (e) {
-        setSynced(false);
         console.warn('[sync] PUT failed', e instanceof Error ? e.message : String(e));
       } finally {
         inFlightRef.current = false;
+        const pending = pendingRef.current;
+        pendingRef.current = null;
+        const stale = !mountedRef.current || sessionRef.current !== forSession;
+        if (stale) {
+          // Unmounted or no longer the same session: drop this outcome and anything queued.
+        } else if (pending) {
+          // Superseded while this PUT was in flight: resend the latest value right away rather
+          // than reporting this PUT's now-outdated success as fully synced.
+          void sendPut(pending);
+        } else {
+          setSynced(success);
+        }
       }
     },
     [replaceProgress],
@@ -85,8 +130,9 @@ export function useCampaignSync(
           const res = await getCampaign();
           server = res.progress;
         } catch (e) {
-          // A 404 means the wallet never synced before: keep the local progress and PUT it.
-          if (!(e instanceof ApiError && e.status === 404)) throw e;
+          // A 404 with `not_found` means the wallet never synced before: keep the local progress
+          // and PUT it. Any other error (including a 404 with a different code) is a real failure.
+          if (!(e instanceof ApiError && e.status === 404 && e.code === 'not_found')) throw e;
         }
         if (cancelled) return;
         const merged = server ? mergeProgress(progress, server) : progress;
