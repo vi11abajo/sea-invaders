@@ -19,8 +19,8 @@ import { Sheet } from '../ui/Sheet';
 import { Txt } from '../ui/Txt';
 import { COLORS, MOTION, RADIUS } from '../ui/tokens';
 import {
-  BOSS_ABILITY, REEF_ACCENT, REEF_NAMES, REEF_NEW_KIND, REEF_WORLD, levelState, reefNewEnemyCopy, reefProgress,
-  type LevelState,
+  BOSS_ABILITY, REEF_ACCENT, REEF_LEGENDS, REEF_NAMES, REEF_NEW_KIND, REEF_WORLD, levelState, reefNewEnemyCopy,
+  reefProgress, type LevelState,
 } from './reefs';
 
 // The header reads "REEF n OF 6": a literal 6, not core's `REEFS` (5) — it counts the mock's
@@ -666,6 +666,66 @@ function StatTile({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Owner request 2026-09-13: the reef legends return as an info panel inside the level/boss sheet. */
+type SheetView = 'main' | 'info';
+
+/** A round "i" toggle pinned to the sheet card's own top-left corner, over the tile — visible in both sheet views. */
+function InfoButton({ onPress, active }: { onPress: () => void; active: boolean }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Level info"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={styles.infoButton}
+      hitSlop={6}
+    >
+      <Txt variant="body" tone="secondary">
+        i
+      </Txt>
+    </Pressable>
+  );
+}
+
+interface InfoRowSpec {
+  label: string;
+  value: string;
+}
+
+function InfoRow({ label, value }: InfoRowSpec) {
+  return (
+    <View style={styles.infoRow}>
+      <Txt variant="secondary" tone="secondary">
+        {label}
+      </Txt>
+      <Txt variant="mono" style={styles.tileValue}>
+        {value}
+      </Txt>
+    </View>
+  );
+}
+
+/** The reef-legend info view, shared by the level and boss sheets (only the row data differs). */
+function ReefInfoView({ reef, rows, onBack }: { reef: number; rows: readonly InfoRowSpec[]; onBack: () => void }) {
+  return (
+    <>
+      <Txt variant="monoSmall" tone="secondary" style={styles.sheetKicker}>
+        {`REEF ${reef} · ${REEF_NAMES[reef - 1].toUpperCase()}`}
+      </Txt>
+      <Txt variant="headline">About this reef</Txt>
+      <Txt variant="body" tone="secondary">
+        {REEF_LEGENDS[reef - 1]}
+      </Txt>
+      <View style={styles.infoRows}>
+        {rows.map((row) => (
+          <InfoRow key={row.label} label={row.label} value={row.value} />
+        ))}
+      </View>
+      <PillButton label="Back to level" height={56} onPress={onBack} />
+    </>
+  );
+}
+
 interface LevelSheetProps {
   id: number;
   progress: CampaignProgress;
@@ -683,22 +743,41 @@ function LevelSheetView({ id, progress, sprites, onPlay, onClose }: LevelSheetPr
   const best = progress.best[id - 1] ?? 0;
   const newKind = REEF_NEW_KIND[reef - 1]!;
   const crabSprite = sprites?.crabs[TYPE_COLOUR[newKind.kind]] ?? null;
+  const [view, setView] = useState<SheetView>('main');
+  const toggleInfo = () => setView((v) => (v === 'main' ? 'info' : 'main'));
 
   return (
     <Sheet kind="modal">
-      <SheetHead
-        sprite={crabSprite}
-        kicker={`LEVEL ${reef}-${level.index}`}
-        title={`${REEF_NAMES[reef - 1]} · level ${level.index}`}
-        subtitle={`New enemy this reef: ${reefNewEnemyCopy(reef)}`}
-      />
-      <View style={styles.tiles}>
-        <StatTile label="Waves" value={String(level.waves)} />
-        <StatTile label="Enemy" value={newKind.name} />
-        <StatTile label="Best" value={best > 0 ? formatInt(best) : '—'} />
-      </View>
-      <PillButton label={practice ? 'Replay · unranked' : 'Start level'} height={56} onPress={() => onPlay(id, practice)} />
-      <PillButton label="Back to map" kind="secondary" height={48} onPress={onClose} />
+      <InfoButton onPress={toggleInfo} active={view === 'info'} />
+      {view === 'info' ? (
+        <ReefInfoView
+          reef={reef}
+          onBack={() => setView('main')}
+          rows={[
+            { label: 'Level', value: `${reef}-${level.index}` },
+            { label: 'Waves', value: String(level.waves) },
+            { label: 'New enemy', value: `${newKind.name} crab` },
+            { label: 'Best', value: best > 0 ? formatInt(best) : '—' },
+            { label: 'Reef lives', value: String(livesForEntry(progress)) },
+          ]}
+        />
+      ) : (
+        <>
+          <SheetHead
+            sprite={crabSprite}
+            kicker={`LEVEL ${reef}-${level.index}`}
+            title={`${REEF_NAMES[reef - 1]} · level ${level.index}`}
+            subtitle={`New enemy this reef: ${reefNewEnemyCopy(reef)}`}
+          />
+          <View style={styles.tiles}>
+            <StatTile label="Waves" value={String(level.waves)} />
+            <StatTile label="Enemy" value={newKind.name} />
+            <StatTile label="Best" value={best > 0 ? formatInt(best) : '—'} />
+          </View>
+          <PillButton label={practice ? 'Replay · unranked' : 'Start level'} height={56} onPress={() => onPlay(id, practice)} />
+          <PillButton label="Back to map" kind="secondary" height={48} onPress={onClose} />
+        </>
+      )}
     </Sheet>
   );
 }
@@ -717,22 +796,40 @@ function BossSheet({ reef, progress, sprites, onPlay, onClose }: BossSheetProps)
   const bossSprite = sprites?.bosses[reef - 1]?.[0] ?? null;
   const lives = livesForEntry(progress);
   const ability = BOSS_ABILITY[reef - 1];
+  const [view, setView] = useState<SheetView>('main');
+  const toggleInfo = () => setView((v) => (v === 'main' ? 'info' : 'main'));
 
   return (
     <Sheet kind="modal">
-      <SheetHead
-        sprite={bossSprite}
-        kicker={`REEF ${reef} BOSS`}
-        title={BOSS_NAMES[reef - 1]}
-        subtitle={`${reef} ${reef === 1 ? 'phase' : 'phases'} · ability: ${ability}`}
-      />
-      <View style={styles.tiles}>
-        <StatTile label="Phases" value={String(reef)} />
-        <StatTile label="Ability" value={ability} />
-        <StatTile label="Lives" value={String(lives)} />
-      </View>
-      <PillButton label={practice ? 'Replay boss' : 'Fight boss'} height={56} onPress={() => onPlay(id, practice)} />
-      <PillButton label="Back to map" kind="secondary" height={48} onPress={onClose} />
+      <InfoButton onPress={toggleInfo} active={view === 'info'} />
+      {view === 'info' ? (
+        <ReefInfoView
+          reef={reef}
+          onBack={() => setView('main')}
+          rows={[
+            { label: 'Boss', value: BOSS_NAMES[reef - 1] },
+            { label: 'Phases', value: String(reef) },
+            { label: 'Ability', value: ability },
+            { label: 'Reef lives', value: String(lives) },
+          ]}
+        />
+      ) : (
+        <>
+          <SheetHead
+            sprite={bossSprite}
+            kicker={`REEF ${reef} BOSS`}
+            title={BOSS_NAMES[reef - 1]}
+            subtitle={`${reef} ${reef === 1 ? 'phase' : 'phases'} · ability: ${ability}`}
+          />
+          <View style={styles.tiles}>
+            <StatTile label="Phases" value={String(reef)} />
+            <StatTile label="Ability" value={ability} />
+            <StatTile label="Lives" value={String(lives)} />
+          </View>
+          <PillButton label={practice ? 'Replay boss' : 'Fight boss'} height={56} onPress={() => onPlay(id, practice)} />
+          <PillButton label="Back to map" kind="secondary" height={48} onPress={onClose} />
+        </>
+      )}
     </Sheet>
   );
 }
@@ -805,4 +902,16 @@ const styles = StyleSheet.create({
   tile: { flex: 1, padding: 10, borderRadius: RADIUS.tile, backgroundColor: 'rgba(236,228,253,0.08)' },
   tileLabel: { fontSize: 10 },
   tileValue: { fontSize: 14, color: COLORS.text },
+  // Sheet.tsx's `modal` style insets its content by paddingVertical:22/paddingHorizontal:20 — these
+  // negative offsets land the button 12 dp from the sheet card's own true top/left edges.
+  infoButton: {
+    position: 'absolute', top: 12 - 22, left: 12 - 20, zIndex: 2,
+    width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(236,228,253,0.16)',
+  },
+  infoRows: { gap: 2 },
+  infoRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(236,228,253,0.08)',
+  },
 });
