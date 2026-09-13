@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { applyLevelResult, levelById, livesForEntry, revive, type CampaignProgress, type RunConfig } from '@sea-invaders/core';
+import { applyLevelResult, levelById, livesForEntry, reviveReef, type CampaignProgress, type RunConfig } from '@sea-invaders/core';
 import { loadProgress, saveProgress } from './store';
 
 type LevelResult = Parameters<typeof applyLevelResult>[1];
@@ -33,6 +33,7 @@ export function useCampaign() {
         level: levelById(id),
         lives: practice ? 3 : livesForEntry(progress),
         features: { boosts: true },
+        octopi: 'base',
       };
     },
     [progress],
@@ -51,7 +52,7 @@ export function useCampaign() {
 
   const reviveNow = useCallback(async (): Promise<void> => {
     if (!progress) throw new Error('campaign progress not loaded yet');
-    const next = revive(progress, Date.now());
+    const next = reviveReef(progress, Date.now());
     await saveProgress(next);
     setProgress(next);
   }, [progress]);
