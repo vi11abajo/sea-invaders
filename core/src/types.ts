@@ -105,7 +105,7 @@ export interface Drop {
 }
 
 export type GameEvent =
-  | { tick: number; type: 'wave_cleared' | 'level_cleared' | 'reef_lost' | 'boss_spawn' | 'boss_phase' | 'boss_dead' | 'shield_break' | 'player_hit' }
+  | { tick: number; type: 'wave_cleared' | 'level_cleared' | 'boss_spawn' | 'boss_phase' | 'boss_dead' | 'shield_break' | 'player_hit' }
   | { tick: number; type: 'boss_ability'; name: 'regen' | 'shield' | 'meteor' | 'rage' | 'freeze' }
   | { tick: number; type: 'boss_teleport'; fromX: number; toX: number }
   | { tick: number; type: 'boss_clone'; leftX: number; rightX: number }

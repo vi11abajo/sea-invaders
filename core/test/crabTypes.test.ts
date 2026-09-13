@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CRAB,
   CRAB_TYPES,
   DIVER,
+  FIELD_W,
   PRACTICE_RUN,
   createGame,
   crabSpeed,
   hitCrabs,
   hitShip,
+  idiv,
   marchCrabs,
   spawnFormation,
   updateEnemyShots,
@@ -87,6 +90,29 @@ describe('crab types', () => {
     expect(c.homeX).toBe(startHomeX + DIVER.ticks * v);
     expect(c.homeY).toBe(startHomeY);
   });
+  it('a diver returning after its row stepped down lands on the row\'s current y, not the stale spawn slot', () => {
+    const s = game('diver');
+    const c = s.crabs[0]!;
+    const spawnY = c.y;
+    const half = idiv(CRAB.size, 2);
+    s.dir = 1;
+    // One step from the right wall: the very next marchCrabs call bounces the formation and steps
+    // the row down instead of shifting it sideways, changing `c.y` while the crab is still in
+    // formation (dive === 0) — exactly the case the fix in `triggerDiver` has to pick up fresh.
+    c.x = FIELD_W - half - 1;
+    s.tick = DIVER.interval; // also the tick the interval trigger fires on
+    s.rngWaves = { nextInt: () => 0 } as never; // pick this (only) candidate crab
+    marchCrabs(s); // steps the row down, then triggers this crab's dive in the same call
+    expect(c.dive).toBe(DIVER.ticks);
+    expect(c.homeY).toBe(spawnY + CRAB.stepDown); // fresh: the row's new y, not the stale spawnY
+    for (let i = 0; i < DIVER.ticks; i++) {
+      s.tick += 1;
+      marchCrabs(s);
+    }
+    expect(c.dive).toBe(0);
+    expect(c.y).toBe(spawnY + CRAB.stepDown); // returns to its row's current position
+  });
+
   it('spawnFormation draws exactly one direction draw and no colours, independent of the formation shape', () => {
     const s = createGame('t', PRACTICE_RUN);
     let calls = 0;

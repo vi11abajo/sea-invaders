@@ -72,6 +72,24 @@ describe('runReplay', () => {
     expect(() => runReplay(replay, { seed: 'a', mode: REPLAY_MODE.campaign })).not.toThrow();
   });
 
+  it('rejects a levelId mismatch against the expected levelId', () => {
+    const rec = new ReplayRecorder('a', REPLAY_MODE.daily, 30, 3);
+    const replay = rec.finish(1);
+    expect(() => runReplay(replay, { levelId: 0 })).toThrow('replay level mismatch');
+  });
+
+  it('rejects a lives mismatch against the expected lives', () => {
+    const rec = new ReplayRecorder('a', REPLAY_MODE.daily, 0, 99);
+    const replay = rec.finish(1);
+    expect(() => runReplay(replay, { lives: 3 })).toThrow('replay lives 99 does not match 3');
+  });
+
+  it('accepts a replay whose levelId and lives match what was expected', () => {
+    const rec = new ReplayRecorder('a', REPLAY_MODE.daily, 0, 3);
+    const replay = rec.finish(1);
+    expect(() => runReplay(replay, { levelId: 0, lives: 3 })).not.toThrow();
+  });
+
   it('rejects a replay whose declared ticks exceed the maximum, even without going through decodeReplay', () => {
     const replay: Replay = {
       version: CORE_VERSION, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, seed: 'x', ticks: MAX_REPLAY_TICKS + 1,

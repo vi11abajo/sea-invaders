@@ -23,7 +23,11 @@ export function shotRadius(b: Bullet): number {
  * Each player shot hits the first crab it overlaps, or damages the boss box; a kill (hp reaches 0)
  * scores the type's points × wave (doubled by SCORE_MULTIPLIER). A PIERCING_BULLETS shot
  * (`data & 1`) is never consumed by a crab hit — killing or not — so it keeps flying; the boss
- * branch still consumes it.
+ * branch still consumes it. Spec §5.2 is "one hit per crab per shot": a piercing shot that damages
+ * a crab without killing it is pushed clear of that crab's overlap box (`shot.y` moved just past
+ * the box, matching this function's own overlap test) so the next tick's pass can't re-hit the
+ * same crab — player shots fly up (decreasing y) and crabs march down slower than `SHOT.speed`, so
+ * a shot never re-enters a box it has already cleared.
  */
 export function hitCrabs(s: GameState): void {
   const kept: Bullet[] = [];
@@ -46,6 +50,8 @@ export function hitCrabs(s: GameState): void {
       rollDrop(s, c.x, c.y);
       s.score += scoreMultiplier(s, CRAB_TYPES[c.type].points * s.wave);
       s.kills += 1;
+    } else if (b.data & 1) {
+      b.y = c.y - idiv(CRAB.size, 2) - idiv(SHOT.h, 2) - 1;
     }
     if (b.data & 1) kept.push(b);
   }
@@ -112,5 +118,6 @@ export function loseLife(s: GameState): void {
   s.ship.lives -= 1;
   s.ship.invuln = SHIP.invulnTicks;
   s.enemyShots = [];
+  s.events.push({ tick: s.tick, type: 'player_hit' });
   if (s.ship.lives <= 0) s.over = true;
 }

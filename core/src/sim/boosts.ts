@@ -41,8 +41,15 @@ export function rollDrop(s: GameState, x: number, y: number): void {
  * same way a real GRAVITY_WELL pickup does.
  */
 export function updateBoosts(s: GameState): void {
+  // Iterate a snapshot, not `s.drops` itself: a WAVE_BLAST pickup (via `activateBoost` below) calls
+  // `rollDrop` for every crab, pushing new drops into `s.drops`, and without this those would be
+  // picked up by this same pass and get an extra fall step (or even be collected) on the same
+  // tick. Order is deterministic: survivors first, then anything spawned during this pass, in the
+  // order `rollDrop` pushed them.
+  const list = s.drops;
+  s.drops = [];
   const kept: Drop[] = [];
-  for (const d of s.drops) {
+  for (const d of list) {
     d.y += DROP.fall;
     d.ttl -= 1;
     if (d.ttl <= 0 || d.y - DROP_HALF > FIELD_H) continue;
@@ -55,7 +62,7 @@ export function updateBoosts(s: GameState): void {
     }
     kept.push(d);
   }
-  s.drops = kept;
+  s.drops = [...kept, ...s.drops];
 
   const active: ActiveBoost[] = [];
   for (const a of s.boosts.active) {

@@ -8,13 +8,15 @@ export function hashState(s: GameState): string {
   const p = s.ship;
   h.int(p.x).int(p.y).int(p.cooldown).int(p.invuln).int(p.lives);
   h.int(s.crabs.length);
-  for (const c of s.crabs) h.int(c.x).int(c.y).int(c.kind).int(TYPE_INDEX[c.type]).int(c.hp).int(c.dive);
+  for (const c of s.crabs) {
+    h.int(c.x).int(c.y).int(c.kind).int(TYPE_INDEX[c.type]).int(c.hp).int(c.dive).int(c.homeX).int(c.homeY);
+  }
   for (const list of [s.shots, s.enemyShots]) {
     h.int(list.length);
     for (const b of list) h.int(b.x).int(b.y).int(b.vx).int(b.vy).int(KIND_INDEX[b.kind]).int(b.data);
   }
   for (const r of [s.rngWaves, s.rngFire, s.rngBoss, s.rngBoosts]) h.int(r.a).int(r.b).int(r.c).int(r.d);
-  h.int(s.cleared ? 1 : 0).int(s.ship.lives).int(s.arrival);
+  h.int(s.cleared ? 1 : 0).int(s.arrival);
   if (s.boss) {
     const b = s.boss;
     h.int(b.kind).int(b.hp).int(b.maxHp).int(b.phase).int(b.x).int(b.y).int(b.vx).int(b.state === 'fighting' ? 0 : 1)

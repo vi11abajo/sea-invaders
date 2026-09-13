@@ -111,7 +111,7 @@ function runPending(s: GameState, b: BossState, hooks: BossHooks): void {
   b.pending = next;
 }
 
-/** Spawns the boss of `kind` (1..5), with `kind` phases and legacy hp `50 + 25*(kind-1)`. */
+/** Spawns the boss of `kind` (1..5), with `kind` phases and hp `BOSS.baseHp + BOSS.hpStep*(kind-1)` (spec §14 amendment: `200 + 100*(kind-1)`). */
 export function spawnBoss(s: GameState, kind: 1 | 2 | 3 | 4 | 5): void {
   const maxPhases = kind; // 1..5, as the legacy table
   const maxHp = BOSS.baseHp + BOSS.hpStep * (kind - 1);

@@ -29,6 +29,43 @@ describe('hitCrabs', () => {
     hitCrabs(s);
     expect(s.crabs).toHaveLength(0);
   });
+
+  it('a piercing shot deals exactly one hit to an armored crab in a pass, then keeps flying', () => {
+    // Spec §5.2: "one hit per crab per shot". Calling hitCrabs again with no shot movement in
+    // between stands in for the shot lingering in the crab's overlap box across consecutive ticks
+    // (SHOT.speed is slower than the overlap window is wide) — the case the fix in `hitCrabs`
+    // guards against by pushing a surviving piercing shot clear of the box it just hit.
+    const s = createGame('t', PRACTICE_RUN);
+    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'armored', hp: 2, dive: 0, homeX: 1000, homeY: 1000 }];
+    s.shots = [{ x: 1000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 1 }]; // PIERCING_BULLETS bit
+    hitCrabs(s);
+    expect(s.crabs[0]!.hp).toBe(1);
+    expect(s.shots).toHaveLength(1); // piercing: never consumed by a crab hit
+    hitCrabs(s);
+    expect(s.crabs[0]!.hp).toBe(1); // no second hit on the same crab
+    hitCrabs(s);
+    expect(s.crabs[0]!.hp).toBe(1);
+    expect(s.crabs).toHaveLength(1);
+  });
+
+  it('a piercing shot passing through two stacked armored crabs damages each exactly once', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    s.crabs = [
+      { x: 1000, y: 1000, kind: 0, type: 'armored', hp: 2, dive: 0, homeX: 1000, homeY: 1000 },
+      { x: 1000, y: 400, kind: 0, type: 'armored', hp: 2, dive: 0, homeX: 1000, homeY: 400 }, // further up the shot's path
+    ];
+    s.shots = [{ x: 1000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 1 }];
+    hitCrabs(s); // hits crab 0 only
+    expect(s.crabs[0]!.hp).toBe(1);
+    expect(s.crabs[1]!.hp).toBe(2);
+    hitCrabs(s); // crab 0 no longer overlapped (pushed clear); the shot now overlaps crab 1
+    expect(s.crabs[0]!.hp).toBe(1);
+    expect(s.crabs[1]!.hp).toBe(1);
+    hitCrabs(s); // neither crab overlapped any more
+    expect(s.crabs[0]!.hp).toBe(1);
+    expect(s.crabs[1]!.hp).toBe(1);
+    expect(s.shots).toHaveLength(1);
+  });
 });
 
 describe('hitShip', () => {

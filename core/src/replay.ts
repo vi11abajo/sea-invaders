@@ -76,10 +76,10 @@ export function runFromReplay(r: Replay): RunConfig {
 
 /**
  * Replays `replay` and returns its outcome. When `expected` is given, the replay's own
- * seed/mode/levelId must match it first — a cheap check before spending time simulating a
+ * seed/mode/levelId/lives must match it first — a cheap check before spending time simulating a
  * mismatched run.
  */
-export function runReplay(replay: Replay, expected?: { seed?: string; mode?: ReplayMode; levelId?: number }): ReplayResult {
+export function runReplay(replay: Replay, expected?: { seed?: string; mode?: ReplayMode; levelId?: number; lives?: number }): ReplayResult {
   if (replay.version !== CORE_VERSION) {
     throw new Error(`replay core version ${replay.version} does not match ${CORE_VERSION}`);
   }
@@ -91,6 +91,9 @@ export function runReplay(replay: Replay, expected?: { seed?: string; mode?: Rep
   }
   if (expected?.levelId !== undefined && expected.levelId !== replay.levelId) {
     throw new Error('replay level mismatch');
+  }
+  if (expected?.lives !== undefined && expected.lives !== replay.lives) {
+    throw new Error(`replay lives ${replay.lives} does not match ${expected.lives}`);
   }
   if (replay.ticks > MAX_REPLAY_TICKS) throw new Error('replay ticks exceed maximum');
   if (replay.inputs.length / 3 > MAX_REPLAY_INPUTS) throw new Error('replay input count exceeds maximum');

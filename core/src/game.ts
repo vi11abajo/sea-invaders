@@ -68,7 +68,9 @@ export function spawnWave(s: GameState, wave: number): void {
  * explicit tie-break), so a pool that ends in 'swift' places swift crabs on the rows closest to
  * the player. Colour is a fixed cosmetic per type (`TYPE_COLOUR`, spec §14 amendment) rather than
  * drawn: the only RNG draw here is the direction draw, so the draw count no longer depends on
- * `rows` or the formation's shape.
+ * `rows` or the formation's shape. Types are assigned by position index (an index array sorted
+ * with the tie-break above), not by keying a map off the position's coordinates, so two positions
+ * that ever land on the same integer pair would never collapse into one type entry.
  */
 export function spawnFormation(
   s: GameState,
@@ -77,12 +79,14 @@ export function spawnFormation(
   const { formation, rows, cols, kinds } = spec;
   const positions = formationPositions(formation, rows, cols);
 
-  const typeOrder = [...positions].sort((a, b) => (b.y - a.y) || (a.x - b.x));
-  const typeByPos = new Map<string, CrabType>();
-  typeOrder.forEach((p, i) => typeByPos.set(`${p.x},${p.y}`, kinds[i % kinds.length]!));
+  const order = positions.map((_, i) => i).sort(
+    (a, b) => (positions[b]!.y - positions[a]!.y) || (positions[a]!.x - positions[b]!.x),
+  );
+  const types = new Array<CrabType>(positions.length);
+  order.forEach((posIndex, i) => { types[posIndex] = kinds[i % kinds.length]!; });
 
-  s.crabs = positions.map((p) => {
-    const type = typeByPos.get(`${p.x},${p.y}`)!;
+  s.crabs = positions.map((p, i) => {
+    const type = types[i]!;
     return {
       x: p.x,
       y: p.y,

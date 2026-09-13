@@ -88,12 +88,22 @@ function crabStep(s: GameState, c: Crab): number {
   return chilled(s, crabSpeedFor(s, c), false);
 }
 
-/** Every DIVER.interval ticks, sends one diver-type crab still in formation on a dive. */
+/**
+ * Every DIVER.interval ticks, sends one diver-type crab still in formation on a dive. The chosen
+ * crab's home slot is captured here, from its current (post-march) position, rather than trusting
+ * whatever `homeX`/`homeY` already held — a crab in formation only has its `x`/`y` moved by
+ * `marchCrabs` (see that function's docstring), so its home fields go stale the moment it stops
+ * diving; snapshotting them right before the dive starts is what keeps the return slot in sync
+ * with the row it's rejoining.
+ */
 function triggerDiver(s: GameState): void {
   if (s.tick === 0 || s.tick % DIVER.interval !== 0) return;
   const candidates = s.crabs.filter((c) => c.type === 'diver' && c.dive === 0);
   if (candidates.length === 0) return;
-  candidates[s.rngWaves.nextInt(candidates.length)]!.dive = DIVER.ticks;
+  const c = candidates[s.rngWaves.nextInt(candidates.length)]!;
+  c.homeX = c.x;
+  c.homeY = c.y;
+  c.dive = DIVER.ticks;
 }
 
 /** Moves crabs currently diving one step towards the ship; snaps back to their formation slot when the dive ends. */
@@ -110,7 +120,7 @@ function advanceDivers(s: GameState): void {
     const dy = s.ship.y - c.y;
     const len = isqrt(dx * dx + dy * dy);
     if (len > 0) {
-      const speed = chilled(s, DIVER.speed, false);
+      const speed = chilled(s, tamed(s, DIVER.speed), false);
       c.x += idiv(dx * speed, len);
       c.y += idiv(dy * speed, len);
     }
