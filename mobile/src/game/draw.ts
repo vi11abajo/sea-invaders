@@ -147,10 +147,10 @@ export function dropTextOffsets(font: SkFont): DropTextOffset[] {
   });
 }
 
-/** Draws `sprite` with its top-left corner at `(left, top)`: a plain `drawImage` when pre-scaled, else the precomputed-rect `drawImageRect` fallback (see `PreparedSprites.prescaled`). */
-function drawSpriteAt(canvas: Canvas, paint: Paint, sprite: PreparedSprite, prescaled: boolean, left: number, top: number) {
+/** Draws `sprite` with its top-left corner at `(left, top)`: a plain `drawImage` when this sprite's own pre-scale succeeded (`sprite.scaled`), else the precomputed-rect `drawImageRect` fallback for this sprite alone — one sprite falling back never affects any other. */
+function drawSpriteAt(canvas: Canvas, paint: Paint, sprite: PreparedSprite, left: number, top: number) {
   'worklet';
-  if (prescaled) {
+  if (sprite.scaled) {
     canvas.drawImage(sprite.image, left, top, paint);
     return;
   }
@@ -188,7 +188,7 @@ export function drawFrame(
   // Reef backdrop, clipped so a fallback-path draw never bleeds past the field's edges.
   canvas.save();
   canvas.clipRect(fieldRect, ClipOp.Intersect, false);
-  drawSpriteAt(canvas, paint, sprites.bg, sprites.prescaled, fieldRect.x, fieldRect.y);
+  drawSpriteAt(canvas, paint, sprites.bg, fieldRect.x, fieldRect.y);
   canvas.restore();
 
   // Dark scrim over the backdrop for readability, before any gameplay entity is drawn.
@@ -223,7 +223,7 @@ export function drawFrame(
     const cy = py(f.crabs[i + 1]!);
     const kind = f.crabs[i + 2]!;
     const sprite = sprites.crabs[kind];
-    if (sprite !== undefined) drawSpriteAt(canvas, paint, sprite, sprites.prescaled, cx - sprite.w / 2, cy - sprite.h / 2);
+    if (sprite !== undefined) drawSpriteAt(canvas, paint, sprite, cx - sprite.w / 2, cy - sprite.h / 2);
   }
 
   // Player shots: a bright core over a soft glow.
@@ -371,12 +371,12 @@ export function drawFrame(
     const sprite = sprites.bosses[b.kind - 1];
     if (sprite !== undefined) {
       paint.setColorFilter(b.rage === 1 ? RAGE_FILTER : null);
-      drawSpriteAt(canvas, paint, sprite, sprites.prescaled, bx - sprite.w / 2, by - sprite.h / 2);
+      drawSpriteAt(canvas, paint, sprite, bx - sprite.w / 2, by - sprite.h / 2);
       paint.setColorFilter(null);
       if (b.transition === 1 && Math.floor(f.tick / 6) % 2 === 0) {
         paint.setColorFilter(WHITE_FLASH_FILTER);
         paint.setAlphaf(0.5);
-        drawSpriteAt(canvas, paint, sprite, sprites.prescaled, bx - sprite.w / 2, by - sprite.h / 2);
+        drawSpriteAt(canvas, paint, sprite, bx - sprite.w / 2, by - sprite.h / 2);
         paint.setColorFilter(null);
         paint.setAlphaf(1);
       }
@@ -422,7 +422,7 @@ export function drawFrame(
   const sx = px(f.ship.x);
   const sy = py(f.ship.y);
   const shipSprite = f.ship.invuln > 0 ? sprites.ship.hit : sprites.ship.front;
-  drawSpriteAt(canvas, paint, shipSprite, sprites.prescaled, sx - shipSprite.w / 2, sy - shipSprite.h / 2);
+  drawSpriteAt(canvas, paint, shipSprite, sx - shipSprite.w / 2, sy - shipSprite.h / 2);
   if (DEV_HITBOX) {
     paint.setColor(SHOT_COLOR);
     paint.setAlphaf(0.6);

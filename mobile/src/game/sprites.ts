@@ -69,8 +69,16 @@ export interface PreparedSprite {
   w: number;
   h: number;
   /**
-   * Only read when `PreparedSprites.prescaled` is false: `image`'s own bounds and the target rect
-   * at the local origin, precomputed once for the `drawImageRect` + `translate` fallback.
+   * True when `image` is this sprite's own pre-scaled snapshot, sized exactly `w x h` (draw with a
+   * plain `canvas.drawImage`); false when this sprite's own offscreen render failed and `image` is
+   * the original, full-resolution asset instead (draw via `drawImageRect` using `src`/`dest`). This
+   * is decided per sprite — one sprite's offscreen render failing never affects another's.
+   */
+  scaled: boolean;
+  /**
+   * `image`'s own bounds, always matching `image`: `{0, 0, w, h}` when `scaled`, the original
+   * asset's bounds (or its aspect-fill crop, for the backdrop) otherwise. Read by the
+   * `drawImageRect` + `translate` fallback when `scaled` is false.
    */
   src: Rect;
   dest: Rect;
@@ -81,12 +89,6 @@ export interface PreparedSprites {
   crabs: PreparedSprite[];
   bosses: PreparedSprite[];
   bg: PreparedSprite;
-  /**
-   * False when the offscreen-surface pre-scale failed on this device (no GPU surface, or a
-   * snapshot/non-texture conversion returned null): every `PreparedSprite.image` is then the
-   * original full-resolution image and draw.ts falls back to `drawImageRect` + `translate`.
-   */
-  prescaled: boolean;
 }
 
 /**
@@ -127,12 +129,19 @@ function coverSrc(image: SkImage, destW: number, destH: number): Rect {
   return { x: 0, y: (imgH - height) / 2, width: imgW, height };
 }
 
-function preparedFrom(image: SkImage, w: number, h: number, src?: Rect): { ok: boolean; sprite: PreparedSprite } {
-  const scaled = renderScaled(image, w, h, src);
+function preparedFrom(image: SkImage, w: number, h: number, src?: Rect): PreparedSprite {
+  const scaledImage = renderScaled(image, w, h, src);
+  const ok = scaledImage !== null;
   const fallbackSrc = src ?? { x: 0, y: 0, width: image.width(), height: image.height() };
   return {
-    ok: scaled !== null,
-    sprite: { image: scaled ?? image, w, h, src: fallbackSrc, dest: { x: 0, y: 0, width: w, height: h } },
+    image: ok ? scaledImage : image,
+    w,
+    h,
+    scaled: ok,
+    // `src` always matches `image`: the scaled snapshot's own full bounds, or the original asset's
+    // bounds when this particular sprite fell back — never a mismatched pair.
+    src: ok ? { x: 0, y: 0, width: w, height: h } : fallbackSrc,
+    dest: { x: 0, y: 0, width: w, height: h },
   };
 }
 
@@ -159,15 +168,7 @@ export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprite
   const bgH = layout.height;
   const bg = preparedFrom(sprites.bg, bgW, bgH, coverSrc(sprites.bg, bgW, bgH));
 
-  const prescaled = front.ok && hit.ok && bg.ok && crabs.every((c) => c.ok) && bosses.every((b) => b.ok);
-
-  return {
-    ship: { front: front.sprite, hit: hit.sprite },
-    crabs: crabs.map((c) => c.sprite),
-    bosses: bosses.map((b) => b.sprite),
-    bg: bg.sprite,
-    prescaled,
-  };
+  return { ship: { front, hit }, crabs, bosses, bg };
 }
 
 /** `prepareSprites`, memoized on `sprites`/`layout` so it rebuilds only when either changes. */
