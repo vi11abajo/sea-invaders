@@ -14,9 +14,15 @@ function formatSkr(value: number): string {
 }
 
 interface DailyRunCardProps {
-  /** Null while ranked play is not live: the card explains it and the button stays disabled. */
+  /** Null while ranked play is not live: no session, or today's fetch failed (see `error`). */
   ranked: RankedInfo | null;
   now: number;
+  /** True once a wallet session exists; picks which `ranked === null` message the card shows. */
+  signedIn: boolean;
+  /** Opens the same sign-in flow as the top-left "Connect wallet" pill. */
+  onConnect: () => void;
+  /** A failed "today" fetch's message while signed in; null while it is still loading or has succeeded. */
+  error?: string | null;
   onPlay: () => void;
   onBuyTicket: () => void;
   onFaucet: () => void;
@@ -27,15 +33,27 @@ interface DailyRunCardProps {
 }
 
 /** The Daily Run card on Home: attempts left, time to the next seed, today / week / pool, and the main action. */
-export function DailyRunCard({ ranked, now, onPlay, onBuyTicket, onFaucet, onRecorded, skrBalance, busy = false }: DailyRunCardProps) {
+export function DailyRunCard({ ranked, now, signedIn, onConnect, error = null, onPlay, onBuyTicket, onFaucet, onRecorded, skrBalance, busy = false }: DailyRunCardProps) {
   if (ranked === null) {
+    if (!signedIn) {
+      return (
+        <View style={styles.card}>
+          <View>
+            <Txt variant="label" tone="secondary">Daily Run</Txt>
+            <Txt variant="headline" style={styles.headline}>Connect a wallet to play</Txt>
+          </View>
+          <Txt variant="body" tone="secondary">Same seed for everyone, three attempts a day.</Txt>
+          <PillButton label="Connect wallet" onPress={onConnect} />
+        </View>
+      );
+    }
     return (
       <View style={styles.card}>
         <View>
           <Txt variant="label" tone="secondary">Daily Run</Txt>
-          <Txt variant="headline" style={styles.headline}>Coming next</Txt>
+          <Txt variant="headline" style={styles.headline}>Loading today's run</Txt>
         </View>
-        <Txt variant="body" tone="secondary">Same seed for everyone, three attempts a day. It needs wallet sign-in.</Txt>
+        {error !== null && <Txt variant="body" tone="secondary">{error}</Txt>}
         <PillButton label="Play Daily Run" disabled />
       </View>
     );

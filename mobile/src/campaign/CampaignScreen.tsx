@@ -60,7 +60,8 @@ export function CampaignScreen({ progress, onPlay, onBack, synced = true }: Camp
             reef={i + 1}
             name={name}
             progress={progress}
-            bossSprite={sprites?.bosses[i] ?? null}
+            // Static preview: the first of the two extracted GIF frames (draw.ts animates both in-run).
+            bossSprite={sprites?.bosses[i]?.[0] ?? null}
             onPlay={onPlay}
           />
         ))}

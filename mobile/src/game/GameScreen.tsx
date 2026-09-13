@@ -1,7 +1,6 @@
-import { GeistMono_500Medium } from '@expo-google-fonts/geist-mono/500Medium';
-import { Canvas, Picture, Skia, useFont } from '@shopify/react-native-skia';
+import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
-  BOOSTS, BOOST_INDEX, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
+  BOOST_INDEX, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
   SHIP, createGame, fitField, formatInt, snapshot, step, touchToInput,
   type BoostType, type BossFrame, type Frame, type Input, type Replay, type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
@@ -14,7 +13,7 @@ import { COLORS, FONTS } from '../ui/tokens';
 import { GameHud, type HudBoost } from './GameHud';
 import { PauseSheet } from './PauseSheet';
 import { ResultView } from './ResultView';
-import { dropTextOffsets, drawFrame } from './draw';
+import { drawFrame } from './draw';
 import { usePreparedSprites, useSprites } from './sprites';
 
 /** Milli-units between the finger and the ship centre, so the finger never covers the ship. */
@@ -36,11 +35,6 @@ const BOOST_BY_INDEX = Object.entries(BOOST_INDEX).reduce<BoostType[]>((arr, [ty
   return arr;
 }, []);
 
-/** Chip colour by rarity: spec Task 19 decisions. */
-const RARITY_COLOR: Record<string, string> = {
-  common: '#FFFFFF', rare: '#00ddff', epic: '#9f00ff', legendary: '#ffd700',
-};
-
 /** "RAPID_FIRE" -> "Rapid Fire". */
 function titleCase(type: string): string {
   return type.split('_').map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
@@ -60,7 +54,7 @@ function boostsFromFrame(flat: number[], tamerStacks: number): HudBoost[] {
     const ticksLeft = flat[i + 1]!;
     const seconds = ticksLeft < 0 ? -1 : Math.ceil(ticksLeft / 60);
     const count = type === 'SPEED_TAMER' ? tamerStacks : undefined;
-    list.push({ type, name: titleCase(type), color: RARITY_COLOR[BOOSTS[type].rarity] ?? '#FFFFFF', seconds, count });
+    list.push({ type, name: titleCase(type), seconds, count });
   }
   return list;
 }
@@ -142,8 +136,6 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const fieldRect = useMemo(() => ({ x: layout.offsetX, y: layout.offsetY, width: layout.width, height: layout.height }), [layout]);
   const sprites = useSprites();
   const prepared = usePreparedSprites(sprites, layout);
-  const font = useFont(GeistMono_500Medium, 12);
-  const dropOffsets = useMemo(() => (font === null ? null : dropTextOffsets(font)), [font]);
   const frame = useSharedValue<Frame>(EMPTY_FRAME);
   const input = useRef<Input>(INITIAL_INPUT);
   const paused = useRef(false);
@@ -156,8 +148,6 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   onRunOverRef.current = onRunOver;
   // Read through a ref inside the loop below so a layout change (which rebuilds `prepared`, the
   // pre-scaled sprites) never appears in the run effect's deps and never calls `createGame` again.
-  // `font` is not read here: nothing in this effect uses it (only the separate `dropOffsets` memo
-  // and the `picture` derived value do, both outside the run effect), so it needs no ref.
   const preparedRef = useRef(prepared);
   preparedRef.current = prepared;
 
@@ -273,7 +263,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       recorder.beginRecording(Skia.XYWHRect(0, 0, width, height));
       return recorder.finishRecordingAsPicture();
     }
-    return drawFrame(recorder, paint, frame.value, layout, width, height, prepared, fieldRect, font, dropOffsets);
+    return drawFrame(recorder, paint, frame.value, layout, width, height, prepared, fieldRect);
   });
 
   const onTouch = (e: GestureResponderEvent) => {

@@ -1,8 +1,9 @@
-import { BlendMode, ClipOp, PaintStyle, Skia, TileMode, type SkFont } from '@shopify/react-native-skia';
+import { BlendMode, PaintStyle, Skia, TileMode } from '@shopify/react-native-skia';
 import {
   BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, DROP, ENEMY_SHOT, KIND_INDEX, RARITY_ORDER, SHIP,
   type BoostType, type Frame, type Layout,
 } from '@sea-invaders/core';
+import { COLORS } from '../ui/tokens';
 import type { PreparedSprite, PreparedSprites } from './sprites';
 
 type Recorder = ReturnType<typeof Skia.PictureRecorder>;
@@ -26,7 +27,8 @@ const SHOT_COLOR = Skia.Color('#19FB9B');
 /** Crab shot (kindIndex 0): today's orange glow, unchanged. */
 const CRAB_SHOT_COLOR = Skia.Color('#F48252');
 const FIELD_EDGE = Skia.Color('rgba(236,228,253,0.12)');
-const SCRIM_COLOR = Skia.Color('rgba(0,0,0,0.45)');
+/** Solid dark playfield (a themed backdrop image comes later): the darkest of the app's surface tokens. */
+const FIELD_BG_COLOR = Skia.Color(COLORS.app);
 /** Visible player shot in milli-units: 3 x 18 dp on a 400 dp wide field. The hitbox stays SHOT's. */
 const SHOT_LOOK = { w: 42, h: 253 };
 
@@ -63,10 +65,33 @@ const SHIELD_COLOR = Skia.Color('rgba(0,221,255,0.6)');
 const PLAYER_SHIELD_STROKE = 4;
 const BOSS_SHIELD_STROKE = 6;
 
-const WELL_RADIUS = 400;
-const WELL_FILL_COLOR = Skia.Color('rgba(20,10,40,0.55)');
-const WELL_STROKE_COLOR = Skia.Color('#9966FF');
-const WELL_STROKE_W = 3;
+/** INVINCIBILITY indication (spec M6): legacy rainbow outline, cycling every 6 ticks. */
+const INVINCIBLE_COLORS = ['#ff0000', '#ff8800', '#ffff00', '#00ff00', '#0088ff', '#0000ff', '#8800ff'].map((hex) => Skia.Color(hex));
+const INVINCIBLE_STROKE_W = 3;
+const INVINCIBLE_INFLATE = 4;
+const INVINCIBLE_CORNER_R = 8;
+const INVINCIBLE_SPARK_COUNT = 4;
+const INVINCIBLE_SPARK_RISE_TICKS = 18;
+/** How far a spark rises over its lifetime, and its size range, both in dp (unscaled, like the outline). */
+const INVINCIBLE_SPARK_RISE = 24;
+const INVINCIBLE_SPARK_MIN_R = 2;
+const INVINCIBLE_SPARK_MAX_R = 4;
+
+/** Legacy black-hole look (spec M8): base/pulse glow radius in units; `pulse = 0.5 + 0.5*sin(tick/4)`. */
+const WELL_GLOW_BASE = 1470;
+const WELL_GLOW_PULSE = 550;
+/**
+ * One radial gradient built once at the origin with unit radius 1: black core fading through
+ * `rgba(20,20,50,0.9)` and `rgba(0,100,255,0.6)` to transparent. Drawn every frame through
+ * `canvas.translate` + `canvas.scale` to the well's centre and current glow radius.
+ */
+const WELL_GRADIENT = Skia.Shader.MakeRadialGradient(
+  Skia.Point(0, 0),
+  1,
+  [Skia.Color('#000000'), Skia.Color('rgba(20,20,50,0.9)'), Skia.Color('rgba(0,100,255,0.6)'), Skia.Color('rgba(0,100,255,0)')],
+  [0, 0.3, 0.6, 1],
+  TileMode.Clamp,
+);
 
 const HEAVY_COLOR = Skia.Color('#B8BEC9');
 const FAST_COLOR = Skia.Color('#FFE45C');
@@ -86,13 +111,10 @@ const HEAVY_DIAMETER = 280;
 const FAST_W = 30;
 const FAST_H = 200;
 
-/** A unit box centred on the origin, reused (via `canvas.scale`) for the zigzag diamond and the drop's rounded square — never reallocated per shot/drop. */
+/** A unit box centred on the origin, reused (via `canvas.scale`) for the zigzag diamond and the invincibility outline — never reallocated per shot/frame. */
 const UNIT_SQUARE = { x: -0.5, y: -0.5, width: 1, height: 1 };
 /** A narrow unit rect trailing above the origin, reused for the meteor's motion trail. */
 const METEOR_TRAIL_UNIT = { x: -0.15, y: -2.4, width: 0.3, height: 2 };
-/** One rounded-rect resource built once (never per drop): drawn at `DROP.size * k` via `canvas.scale`. */
-const DROP_RRECT = Skia.RRectXY(UNIT_SQUARE, 0.15, 0.15);
-const DROP_TEXT_COLOR = Skia.Color('#0B0F1A');
 
 /** Reused for every axis-aligned shot/UI shape whose size or position varies frame to frame (the
  * `fast` bar, the meteor trail, the boss shield ellipse): each draw call consumes it synchronously,
@@ -107,45 +129,22 @@ function scratch(x: number, y: number, width: number, height: number): Rect {
   return SCRATCH_RECT;
 }
 
-/** Two-letter code per `BoostType` (spec, `BOOST_INDEX` order). */
-const BOOST_CODE: Record<BoostType, string> = {
-  RAPID_FIRE: 'RF', ICE_FREEZE: 'IF', HEALTH_BOOST: 'HB', POINTS_FREEZE: 'PF',
-  SHIELD_BARRIER: 'SB', AUTO_TARGET: 'AT', INVINCIBILITY: 'IN', MULTI_SHOT: 'MS', SCORE_MULTIPLIER: 'SM', RICOCHET: 'RC',
-  WAVE_BLAST: 'WB', COIN_SHOWER: 'CS', GRAVITY_WELL: 'GW', PIERCING_BULLETS: 'PB',
-  RANDOM_CHAOS: 'RX', SPEED_TAMER: 'ST',
-};
 /** Rarity colour by `RARITY_ORDER` index (0..3): common, rare, epic, legendary. */
 const RARITY_COLOR_HEX = ['#ffffff', '#00ddff', '#9f00ff', '#ffd700'] as const;
+/** Fraction of `DROP.size * k` used as the soft glow disc's radius, behind the drop's icon. */
+const DROP_GLOW_SCALE = 0.7;
+const DROP_GLOW_ALPHA = 0.45;
 
-interface DropLook {
-  color: ReturnType<typeof Skia.Color>;
-  code: string;
-}
-
-/** One `{ color, code }` entry per `BOOST_INDEX` slot, built once at module load. */
-const DROP_LOOK: DropLook[] = Object.entries(BOOST_INDEX).reduce<DropLook[]>((table, [type, index]) => {
-  const t = type as BoostType;
-  const colorHex = RARITY_COLOR_HEX[RARITY_ORDER.indexOf(BOOSTS[t].rarity)]!;
-  table[index] = { color: Skia.Color(colorHex), code: BOOST_CODE[t]! };
-  return table;
-}, []);
-
-export interface DropTextOffset {
-  dx: number;
-  dy: number;
-}
-
-/**
- * Precomputes each drop code's centring offset for `drawText`, once per font load (see the
- * `useMemo` in `GameScreen` keyed on `font`) rather than measuring text inside the frame loop.
- */
-export function dropTextOffsets(font: SkFont): DropTextOffset[] {
-  const { ascent, descent } = font.getMetrics();
-  return DROP_LOOK.map(({ code }) => {
-    const advance = font.getGlyphWidths(font.getGlyphIDs(code)).reduce((sum, glyphW) => sum + glyphW, 0);
-    return { dx: -advance / 2, dy: -(ascent + descent) / 2 };
-  });
-}
+/** One rarity-coloured `SkColor` per `BOOST_INDEX` slot, built once at module load. */
+const DROP_GLOW_COLOR: ReturnType<typeof Skia.Color>[] = Object.entries(BOOST_INDEX).reduce<ReturnType<typeof Skia.Color>[]>(
+  (table, [type, index]) => {
+    const t = type as BoostType;
+    const colorHex = RARITY_COLOR_HEX[RARITY_ORDER.indexOf(BOOSTS[t].rarity)]!;
+    table[index] = Skia.Color(colorHex);
+    return table;
+  },
+  [],
+);
 
 /** Draws `sprite` with its top-left corner at `(left, top)`: a plain `drawImage` when this sprite's own pre-scale succeeded (`sprite.scaled`), else the precomputed-rect `drawImageRect` fallback for this sprite alone — one sprite falling back never affects any other. */
 function drawSpriteAt(canvas: Canvas, paint: Paint, sprite: PreparedSprite, left: number, top: number) {
@@ -173,8 +172,6 @@ export function drawFrame(
   h: number,
   sprites: PreparedSprites,
   fieldRect: Rect,
-  font: SkFont | null,
-  dropOffsets: DropTextOffset[] | null,
 ) {
   'worklet';
   const canvas = recorder.beginRecording(Skia.XYWHRect(0, 0, w, h));
@@ -185,14 +182,8 @@ export function drawFrame(
   paint.setColorFilter(null);
   paint.setAlphaf(1);
 
-  // Reef backdrop, clipped so a fallback-path draw never bleeds past the field's edges.
-  canvas.save();
-  canvas.clipRect(fieldRect, ClipOp.Intersect, false);
-  drawSpriteAt(canvas, paint, sprites.bg, fieldRect.x, fieldRect.y);
-  canvas.restore();
-
-  // Dark scrim over the backdrop for readability, before any gameplay entity is drawn.
-  paint.setColor(SCRIM_COLOR);
+  // Solid dark playfield (spec M4): a themed backdrop image comes later.
+  paint.setColor(FIELD_BG_COLOR);
   canvas.drawRect(fieldRect, paint);
 
   // On screens wider than the field, faint lines mark its sides.
@@ -202,19 +193,19 @@ export function drawFrame(
     canvas.drawRect(scratch(l.offsetX + l.width, 0, 1, h), paint);
   }
 
-  // Gravity well: a pulsing dark circle with a violet ring, behind the crabs/ship/bullets.
+  // Gravity well (legacy look, spec M8): one radial gradient, black core fading to transparent blue.
   if (f.well !== null) {
     const wx = px(f.well.x);
     const wy = py(f.well.y);
-    const wr = WELL_RADIUS * k * (1 + 0.15 * Math.sin(f.tick / 6));
-    paint.setStyle(FILL);
-    paint.setColor(WELL_FILL_COLOR);
-    canvas.drawCircle(wx, wy, wr, paint);
-    paint.setStyle(STROKE);
-    paint.setStrokeWidth(WELL_STROKE_W);
-    paint.setColor(WELL_STROKE_COLOR);
-    canvas.drawCircle(wx, wy, wr, paint);
-    paint.setStyle(FILL);
+    const pulse = 0.5 + 0.5 * Math.sin(f.tick / 4);
+    const glowRadius = (WELL_GLOW_BASE + WELL_GLOW_PULSE * pulse) * k;
+    paint.setShader(WELL_GRADIENT);
+    canvas.save();
+    canvas.translate(wx, wy);
+    canvas.scale(glowRadius, glowRadius);
+    canvas.drawCircle(0, 0, 1, paint);
+    canvas.restore();
+    paint.setShader(null);
   }
 
   // Crabs: the sprite for the crab's kind already encodes its colour/type (TYPE_COLOUR); no tint.
@@ -368,7 +359,9 @@ export function drawFrame(
       canvas.restore();
       paint.setShader(null);
     }
-    const sprite = sprites.bosses[b.kind - 1];
+    // Two extracted GIF frames, flipped every 60 ticks (1000 ms at 60 fps, as in the source GIF).
+    const bossFrames = sprites.bosses[b.kind - 1];
+    const sprite = bossFrames !== undefined ? bossFrames[Math.floor(f.tick / 60) % 2] : undefined;
     if (sprite !== undefined) {
       paint.setColorFilter(b.rage === 1 ? RAGE_FILTER : null);
       drawSpriteAt(canvas, paint, sprite, bx - sprite.w / 2, by - sprite.h / 2);
@@ -392,29 +385,23 @@ export function drawFrame(
     }
   }
 
-  // Drops: a rounded square in the rarity colour with a two-letter code centred in dark text.
+  // Drops: a soft glow disc in the rarity colour, with the boost's own icon over it.
   if (f.drops.length > 0) {
     const dropSize = DROP.size * k;
+    const glowRadius = dropSize * DROP_GLOW_SCALE;
     paint.setStyle(FILL);
     for (let i = 0; i < f.drops.length; i += 3) {
       const x = px(f.drops[i]!);
       const y = py(f.drops[i + 1]!);
       const typeIndex = f.drops[i + 2]!;
-      const look = DROP_LOOK[typeIndex];
-      if (look === undefined) continue;
-      paint.setColor(look.color);
-      canvas.save();
-      canvas.translate(x, y);
-      canvas.scale(dropSize, dropSize);
-      canvas.drawRRect(DROP_RRECT, paint);
-      canvas.restore();
-      if (font !== null && dropOffsets !== null) {
-        const offset = dropOffsets[typeIndex];
-        if (offset !== undefined) {
-          paint.setColor(DROP_TEXT_COLOR);
-          canvas.drawText(look.code, x + offset.dx, y + offset.dy, paint, font);
-        }
-      }
+      const glowColor = DROP_GLOW_COLOR[typeIndex];
+      if (glowColor === undefined) continue;
+      paint.setColor(glowColor);
+      paint.setAlphaf(DROP_GLOW_ALPHA);
+      canvas.drawCircle(x, y, glowRadius, paint);
+      paint.setAlphaf(1);
+      const icon = sprites.boosts[typeIndex];
+      if (icon !== undefined) drawSpriteAt(canvas, paint, icon, x - icon.w / 2, y - icon.h / 2);
     }
   }
 
@@ -437,6 +424,43 @@ export function drawFrame(
     paint.setColor(SHIELD_COLOR);
     canvas.drawCircle(sx, sy, SHIP.size * 0.7 * k, paint);
     paint.setStyle(FILL);
+  }
+
+  // INVINCIBILITY (spec M6): a legacy rainbow outline around the ship, plus rising sparks.
+  let invincible = false;
+  for (let i = 0; i < f.boosts.length; i += 2) {
+    if (f.boosts[i] === BOOST_INDEX.INVINCIBILITY) {
+      invincible = true;
+      break;
+    }
+  }
+  if (invincible) {
+    const outlineW = shipSprite.w + INVINCIBLE_INFLATE * 2;
+    const outlineH = shipSprite.h + INVINCIBLE_INFLATE * 2;
+    // Built fresh here (once per frame, not per entity — cheap, and a stroke can't be sized by
+    // `canvas.scale` without also scaling `INVINCIBLE_STROKE_W`, unlike the fills elsewhere in this file).
+    const outlineRRect = Skia.RRectXY(scratch(sx - outlineW / 2, sy - outlineH / 2, outlineW, outlineH), INVINCIBLE_CORNER_R, INVINCIBLE_CORNER_R);
+    const color = INVINCIBLE_COLORS[Math.floor(f.tick / 6) % INVINCIBLE_COLORS.length]!;
+    paint.setStyle(STROKE);
+    paint.setStrokeWidth(INVINCIBLE_STROKE_W);
+    paint.setColor(color);
+    paint.setAlphaf(0.5 + 0.3 * Math.sin(f.tick / 10));
+    canvas.drawRRect(outlineRRect, paint);
+    paint.setStyle(FILL);
+
+    for (let i = 0; i < INVINCIBLE_SPARK_COUNT; i++) {
+      const rndX = ((f.tick * 37 + i * 101) % 97) / 97;
+      const rndPhase = ((f.tick * 53 + i * 131) % 89) / 89;
+      const phase = (f.tick + Math.floor(rndPhase * INVINCIBLE_SPARK_RISE_TICKS)) % INVINCIBLE_SPARK_RISE_TICKS;
+      const t = phase / INVINCIBLE_SPARK_RISE_TICKS;
+      const dotX = sx + (rndX - 0.5) * shipSprite.w;
+      const dotY = sy - shipSprite.h / 2 - t * INVINCIBLE_SPARK_RISE;
+      const dotR = INVINCIBLE_SPARK_MIN_R + rndX * (INVINCIBLE_SPARK_MAX_R - INVINCIBLE_SPARK_MIN_R);
+      paint.setColor(color);
+      paint.setAlphaf((0.5 + 0.3 * Math.sin(f.tick / 10)) * (1 - t));
+      canvas.drawCircle(dotX, dotY, dotR, paint);
+    }
+    paint.setAlphaf(1);
   }
 
   // Void's temporal freeze: a violet tint over the whole field, on top of everything else.

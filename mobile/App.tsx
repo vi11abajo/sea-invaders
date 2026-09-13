@@ -51,7 +51,7 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
   const { session, restoring, signIn, error } = useSession();
   const campaign = useCampaign();
   const { synced } = useCampaignSync(session, campaign.progress, campaign.replaceProgress);
-  const { model, refresh } = useHomeModel(session, campaign.progress);
+  const { model, refresh, error: homeError } = useHomeModel(session, campaign.progress);
   const signAndSend = useSignAndSend();
   const [ticketBusy, setTicketBusy] = useState(false);
   const [ticketMessage, setTicketMessage] = useState<string | null>(null);
@@ -176,6 +176,7 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
           onRecorded={refresh}
           ticketBusy={ticketBusy}
           alert={ticketMessage ?? error}
+          dailyError={homeError}
         />
       );
   }

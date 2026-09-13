@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { Image, Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withTiming } from 'react-native-reanimated';
-import { ArtSlot } from '../ui/ArtSlot';
 import { Txt } from '../ui/Txt';
-import { COLORS, MOTION, REEF_LIFE } from '../ui/tokens';
+import { COLORS, MOTION } from '../ui/tokens';
 
-const CRAB_ROW = [REEF_LIFE.lime, REEF_LIFE.mint, REEF_LIFE.lilac, REEF_LIFE.orange, REEF_LIFE.yellow];
+/** The swaying row's five crabs (spec M7); cosmetic order, independent of the game's kind indices. */
+const CRAB_ROW = [
+  require('../../assets/sprites/crabGreen.png'),
+  require('../../assets/sprites/crabBlue.png'),
+  require('../../assets/sprites/crabYellow.png'),
+  require('../../assets/sprites/crabRed.png'),
+  require('../../assets/sprites/crabViolet.png'),
+];
+const OCTOPI_FRONT = require('../../assets/sprites/octopiFront.png');
 /** How far a shot rises before it has faded out, in dp. */
 const SHOT_RISE = 420;
 const SHOT_MS = 1100;
@@ -44,8 +51,8 @@ export function HangarScene({ caption, onOctopi }: HangarSceneProps) {
   return (
     <View style={styles.area} onLayout={onLayout}>
       <Animated.View style={[styles.crabs, swayStyle]} pointerEvents="none">
-        {CRAB_ROW.map((c) => (
-          <ArtSlot key={c} size={36} color={c} />
+        {CRAB_ROW.map((source, i) => (
+          <Image key={i} source={source} style={styles.crab} resizeMode="contain" />
         ))}
       </Animated.View>
       {areaHeight > 0 && (
@@ -58,7 +65,7 @@ export function HangarScene({ caption, onOctopi }: HangarSceneProps) {
               <View style={styles.shotCore} />
             </Animated.View>
             <Pressable accessibilityRole="button" accessibilityLabel="Octopi" onPress={onOctopi}>
-              <ArtSlot size={hero} label="Octopi" />
+              <Image source={OCTOPI_FRONT} style={{ width: hero, height: hero }} resizeMode="contain" />
             </Pressable>
           </Animated.View>
           <View style={styles.caption}>
@@ -73,7 +80,8 @@ export function HangarScene({ caption, onOctopi }: HangarSceneProps) {
 
 const styles = StyleSheet.create({
   area: { flex: 1 },
-  crabs: { flexDirection: 'row', justifyContent: 'center', gap: 14, opacity: 0.55, marginTop: 20 },
+  crabs: { flexDirection: 'row', justifyContent: 'center', gap: 14, marginTop: 20 },
+  crab: { width: 36, height: 36 },
   heroZone: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   shot: {
     position: 'absolute', top: -26, width: 9, height: 24, borderRadius: 4, alignItems: 'center', justifyContent: 'center',

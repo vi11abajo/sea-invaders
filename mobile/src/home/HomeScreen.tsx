@@ -35,10 +35,12 @@ interface HomeScreenProps {
   alert?: string | null;
   /** Called once a record transaction is confirmed, so ranked data (and the hint) refreshes. */
   onRecorded?: () => void;
+  /** A failed "today" fetch's message, passed straight to the Daily Run card's signed-in/null state. */
+  dailyError?: string | null;
 }
 
 /** Home, the "Hangar": Octopi in the idle world, the Daily Run card and the ways into the game. */
-export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboard, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null, onRecorded = () => {} }: HomeScreenProps) {
+export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboard, onWallet, onBuyTicket, onFaucet, ticketBusy = false, alert = null, onRecorded = () => {}, dailyError = null }: HomeScreenProps) {
   const ranked = model.ranked;
   const now = useNow(ranked !== null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
@@ -72,6 +74,9 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
           <DailyRunCard
             ranked={ranked}
             now={now}
+            signedIn={model.wallet !== null}
+            onConnect={onWallet}
+            error={dailyError}
             onPlay={onDaily}
             onBuyTicket={() => void onBuyTicket()}
             onFaucet={() => void onFaucet()}

@@ -26,7 +26,8 @@ export function BossIntro({ kind, onDone }: BossIntroProps) {
     return () => clearTimeout(timer);
   }, []);
 
-  const sprite = sprites?.bosses[kind - 1] ?? null;
+  // Static preview: the first of the two extracted GIF frames (draw.ts animates both in-run).
+  const sprite = sprites?.bosses[kind - 1]?.[0] ?? null;
 
   return (
     <Pressable accessibilityRole="button" accessibilityLabel="Continue" onPress={onDone} style={styles.root}>

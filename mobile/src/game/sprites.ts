@@ -1,14 +1,15 @@
 import { Skia, useImage, type SkImage } from '@shopify/react-native-skia';
-import { BOSS, CRAB, SHIP, type Layout } from '@sea-invaders/core';
+import { BOSS, CRAB, DROP, SHIP, type Layout } from '@sea-invaders/core';
 import { useMemo } from 'react';
 
 export interface Sprites {
   ship: { front: SkImage; hit: SkImage };
   /** Colour by `kind` (0..4): green, blue, violet, red, yellow. */
   crabs: SkImage[];
-  /** Colour by `kind` (1..5): green, blue, yellow, red, violet; `bosses[kind - 1]` (0-based). */
-  bosses: SkImage[];
-  bg: SkImage;
+  /** Two extracted GIF frames per boss, colour by `kind` (1..5): green, blue, yellow, red, violet; `bosses[kind - 1]` (0-based). */
+  bosses: [SkImage, SkImage][];
+  /** One icon per `BoostType`, in `BOOST_INDEX` order. */
+  boosts: SkImage[];
 }
 
 /**
@@ -26,33 +27,73 @@ export function useSprites(): Sprites | null {
   const crabRed = useImage(require('../../assets/sprites/crabRed.png'));
   const crabYellow = useImage(require('../../assets/sprites/crabYellow.png'));
 
-  // Boss colour order: kind 1..5.
-  const bossGreen = useImage(require('../../assets/sprites/crabBOSSGreen.png'));
-  const bossBlue = useImage(require('../../assets/sprites/crabBossBlue.png'));
-  const bossYellow = useImage(require('../../assets/sprites/crabBossYellow.png'));
-  const bossRed = useImage(require('../../assets/sprites/crabBossRed.png'));
-  const bossViolet = useImage(require('../../assets/sprites/crabBossViolet.png'));
+  // Boss colour order: kind 1..5. Two GIF frames each, flipped every 60 ticks in draw.ts.
+  const bossGreen0 = useImage(require('../../assets/sprites/crabBOSSGreen-0.png'));
+  const bossGreen1 = useImage(require('../../assets/sprites/crabBOSSGreen-1.png'));
+  const bossBlue0 = useImage(require('../../assets/sprites/crabBossBlue-0.png'));
+  const bossBlue1 = useImage(require('../../assets/sprites/crabBossBlue-1.png'));
+  const bossYellow0 = useImage(require('../../assets/sprites/crabBossYellow-0.png'));
+  const bossYellow1 = useImage(require('../../assets/sprites/crabBossYellow-1.png'));
+  const bossRed0 = useImage(require('../../assets/sprites/crabBossRed-0.png'));
+  const bossRed1 = useImage(require('../../assets/sprites/crabBossRed-1.png'));
+  const bossViolet0 = useImage(require('../../assets/sprites/crabBossViolet-0.png'));
+  const bossViolet1 = useImage(require('../../assets/sprites/crabBossViolet-1.png'));
 
-  const bg = useImage(require('../../assets/sprites/bg1.png'));
+  // Boost icons, in BOOST_INDEX order (RAPID_FIRE .. SPEED_TAMER).
+  const rapidFire = useImage(require('../../assets/sprites/boosts/rapidFire.png'));
+  const iceFreeze = useImage(require('../../assets/sprites/boosts/iceFreeze.png'));
+  const healthBoost = useImage(require('../../assets/sprites/boosts/healthBoost.png'));
+  const pointsFreeze = useImage(require('../../assets/sprites/boosts/pointsFreeze.png'));
+  const shieldBarrier = useImage(require('../../assets/sprites/boosts/shieldBarrier.png'));
+  const autoTarget = useImage(require('../../assets/sprites/boosts/autoTarget.png'));
+  const invincibility = useImage(require('../../assets/sprites/boosts/invincibility.png'));
+  const multiShot = useImage(require('../../assets/sprites/boosts/multiShot.png'));
+  const scoreMultiplier = useImage(require('../../assets/sprites/boosts/scoreMultiplier.png'));
+  const ricochet = useImage(require('../../assets/sprites/boosts/ricochet.png'));
+  const waveBlast = useImage(require('../../assets/sprites/boosts/waveBlast.png'));
+  const coinShower = useImage(require('../../assets/sprites/boosts/coinShower.png'));
+  const gravityWell = useImage(require('../../assets/sprites/boosts/gravityWell.png'));
+  const piercingBullets = useImage(require('../../assets/sprites/boosts/piercingBullets.png'));
+  const randomChaos = useImage(require('../../assets/sprites/boosts/randomChaos.png'));
+  const speedTamer = useImage(require('../../assets/sprites/boosts/speedTamer.png'));
 
   return useMemo(() => {
     if (
-      front === null || hit === null || bg === null ||
+      front === null || hit === null ||
       crabGreen === null || crabBlue === null || crabViolet === null || crabRed === null || crabYellow === null ||
-      bossGreen === null || bossBlue === null || bossYellow === null || bossRed === null || bossViolet === null
+      bossGreen0 === null || bossGreen1 === null || bossBlue0 === null || bossBlue1 === null ||
+      bossYellow0 === null || bossYellow1 === null || bossRed0 === null || bossRed1 === null ||
+      bossViolet0 === null || bossViolet1 === null ||
+      rapidFire === null || iceFreeze === null || healthBoost === null || pointsFreeze === null ||
+      shieldBarrier === null || autoTarget === null || invincibility === null || multiShot === null ||
+      scoreMultiplier === null || ricochet === null || waveBlast === null || coinShower === null ||
+      gravityWell === null || piercingBullets === null || randomChaos === null || speedTamer === null
     ) {
       return null;
     }
     return {
       ship: { front, hit },
       crabs: [crabGreen, crabBlue, crabViolet, crabRed, crabYellow],
-      bosses: [bossGreen, bossBlue, bossYellow, bossRed, bossViolet],
-      bg,
+      bosses: [
+        [bossGreen0, bossGreen1],
+        [bossBlue0, bossBlue1],
+        [bossYellow0, bossYellow1],
+        [bossRed0, bossRed1],
+        [bossViolet0, bossViolet1],
+      ],
+      boosts: [
+        rapidFire, iceFreeze, healthBoost, pointsFreeze,
+        shieldBarrier, autoTarget, invincibility, multiShot, scoreMultiplier, ricochet,
+        waveBlast, coinShower, gravityWell, piercingBullets,
+        randomChaos, speedTamer,
+      ],
     };
   }, [
-    front, hit, bg,
+    front, hit,
     crabGreen, crabBlue, crabViolet, crabRed, crabYellow,
-    bossGreen, bossBlue, bossYellow, bossRed, bossViolet,
+    bossGreen0, bossGreen1, bossBlue0, bossBlue1, bossYellow0, bossYellow1, bossRed0, bossRed1, bossViolet0, bossViolet1,
+    rapidFire, iceFreeze, healthBoost, pointsFreeze, shieldBarrier, autoTarget, invincibility, multiShot,
+    scoreMultiplier, ricochet, waveBlast, coinShower, gravityWell, piercingBullets, randomChaos, speedTamer,
   ]);
 }
 
@@ -77,8 +118,7 @@ export interface PreparedSprite {
   scaled: boolean;
   /**
    * `image`'s own bounds, always matching `image`: `{0, 0, w, h}` when `scaled`, the original
-   * asset's bounds (or its aspect-fill crop, for the backdrop) otherwise. Read by the
-   * `drawImageRect` + `translate` fallback when `scaled` is false.
+   * asset's bounds otherwise. Read by the `drawImageRect` + `translate` fallback when `scaled` is false.
    */
   src: Rect;
   dest: Rect;
@@ -87,8 +127,9 @@ export interface PreparedSprite {
 export interface PreparedSprites {
   ship: { front: PreparedSprite; hit: PreparedSprite };
   crabs: PreparedSprite[];
-  bosses: PreparedSprite[];
-  bg: PreparedSprite;
+  /** `bosses[kind - 1] = [frame0, frame1]`, both pre-scaled to `BOSS.width x BOSS.height`. */
+  bosses: [PreparedSprite, PreparedSprite][];
+  boosts: PreparedSprite[];
 }
 
 /**
@@ -115,18 +156,14 @@ function renderScaled(image: SkImage, w: number, h: number, src?: Rect): SkImage
   }
 }
 
-/** Aspect-fill source rect for `image` covering a `destW x destH` box (crops the wider dimension). */
-function coverSrc(image: SkImage, destW: number, destH: number): Rect {
+/** `w x h` for `image` scaled to fit inside a `box x box` square, keeping its own aspect ratio. */
+function containSize(image: SkImage, box: number): { w: number; h: number } {
   const imgW = image.width();
   const imgH = image.height();
-  const destAspect = destW / destH;
-  const imgAspect = imgW / imgH;
-  if (imgAspect > destAspect) {
-    const width = imgH * destAspect;
-    return { x: (imgW - width) / 2, y: 0, width, height: imgH };
+  if (imgW >= imgH) {
+    return { w: box, h: box * (imgH / imgW) };
   }
-  const height = imgW / destAspect;
-  return { x: 0, y: (imgH - height) / 2, width: imgW, height };
+  return { w: box * (imgW / imgH), h: box };
 }
 
 function preparedFrom(image: SkImage, w: number, h: number, src?: Rect): PreparedSprite {
@@ -162,13 +199,17 @@ export function prepareSprites(sprites: Sprites, layout: Layout): PreparedSprite
 
   const bossW = BOSS.width * k;
   const bossH = BOSS.height * k;
-  const bosses = sprites.bosses.map((img) => preparedFrom(img, bossW, bossH));
+  const bosses = sprites.bosses.map(
+    ([frame0, frame1]) => [preparedFrom(frame0, bossW, bossH), preparedFrom(frame1, bossW, bossH)] as [PreparedSprite, PreparedSprite],
+  );
 
-  const bgW = layout.width;
-  const bgH = layout.height;
-  const bg = preparedFrom(sprites.bg, bgW, bgH, coverSrc(sprites.bg, bgW, bgH));
+  const dropBox = DROP.size * k;
+  const boosts = sprites.boosts.map((img) => {
+    const { w, h } = containSize(img, dropBox);
+    return preparedFrom(img, w, h);
+  });
 
-  return { ship: { front, hit }, crabs, bosses, bg };
+  return { ship: { front, hit }, crabs, bosses, boosts };
 }
 
 /** `prepareSprites`, memoized on `sprites`/`layout` so it rebuilds only when either changes. */

@@ -1,14 +1,33 @@
 import { formatInt, type BoostType, type BossFrame } from '@sea-invaders/core';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import { Hearts } from '../ui/Hearts';
 import { GradientFill } from '../ui/GradientFill';
 import { COLORS, FONTS, RADIUS } from '../ui/tokens';
 import { BOSS_NAMES } from './bossNames';
 
+/** One icon per `BoostType`, the same art the world drop uses (spec M1). */
+const BOOST_ICON: Record<BoostType, ImageSourcePropType> = {
+  RAPID_FIRE: require('../../assets/sprites/boosts/rapidFire.png'),
+  ICE_FREEZE: require('../../assets/sprites/boosts/iceFreeze.png'),
+  HEALTH_BOOST: require('../../assets/sprites/boosts/healthBoost.png'),
+  POINTS_FREEZE: require('../../assets/sprites/boosts/pointsFreeze.png'),
+  SHIELD_BARRIER: require('../../assets/sprites/boosts/shieldBarrier.png'),
+  AUTO_TARGET: require('../../assets/sprites/boosts/autoTarget.png'),
+  INVINCIBILITY: require('../../assets/sprites/boosts/invincibility.png'),
+  MULTI_SHOT: require('../../assets/sprites/boosts/multiShot.png'),
+  SCORE_MULTIPLIER: require('../../assets/sprites/boosts/scoreMultiplier.png'),
+  RICOCHET: require('../../assets/sprites/boosts/ricochet.png'),
+  WAVE_BLAST: require('../../assets/sprites/boosts/waveBlast.png'),
+  COIN_SHOWER: require('../../assets/sprites/boosts/coinShower.png'),
+  GRAVITY_WELL: require('../../assets/sprites/boosts/gravityWell.png'),
+  PIERCING_BULLETS: require('../../assets/sprites/boosts/piercingBullets.png'),
+  RANDOM_CHAOS: require('../../assets/sprites/boosts/randomChaos.png'),
+  SPEED_TAMER: require('../../assets/sprites/boosts/speedTamer.png'),
+};
+
 export interface HudBoost {
   type: BoostType;
   name: string;
-  color: string;
   /** Seconds remaining, or -1 for a boost that lasts until consumed (no timer to show). */
   seconds: number;
   /** SPEED_TAMER's stack count, shown instead of the "∞" a -1 `seconds` would otherwise render. */
@@ -62,14 +81,14 @@ export function GameHud({ mode, score, lives, combo, boosts, shield = 0, boss, t
           <View style={styles.boosts}>
             {timedBoosts.map((b) => (
               <View key={b.type} style={[styles.glass, styles.pill, styles.chip]}>
-                <View style={[styles.chipDot, { backgroundColor: b.color }]} />
+                <Image source={BOOST_ICON[b.type]} style={styles.chipIcon} resizeMode="contain" />
                 <Text style={styles.chipName}>{b.name}</Text>
                 <Text style={styles.chipTime}>{b.count !== undefined ? `×${b.count}` : b.seconds < 0 ? '∞' : `${b.seconds}s`}</Text>
               </View>
             ))}
             {shield > 0 && (
               <View style={[styles.glass, styles.pill, styles.chip]}>
-                <View style={[styles.chipDot, { backgroundColor: COLORS.info }]} />
+                <Image source={BOOST_ICON.SHIELD_BARRIER} style={styles.chipIcon} resizeMode="contain" />
                 <Text style={styles.chipName}>Shield</Text>
                 <Text style={styles.chipTime}>{`×${shield}`}</Text>
               </View>
@@ -178,7 +197,7 @@ const styles = StyleSheet.create({
   shieldPip: { width: 8, height: 8, borderRadius: 2, backgroundColor: COLORS.info },
   boosts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { height: 26, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  chipDot: { width: 6, height: 6, borderRadius: 3 },
+  chipIcon: { width: 18, height: 18 },
   chipName: { fontFamily: FONTS.regular, fontSize: 11, color: COLORS.text },
   chipTime: { fontFamily: FONTS.mono, fontSize: 11, color: COLORS.textSecondary },
   toast: { fontFamily: FONTS.regular, fontSize: 11, color: 'rgba(255,255,255,0.72)' },
