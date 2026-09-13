@@ -123,7 +123,7 @@ export const BOOSTS: Record<BoostType, { rarity: BoostRarity; duration: number }
 };
 
 /** Drop spawn and lifecycle constants (spec §5.1; legacy `SPAWN`). */
-export const DROP = { chance: 7, fall: 60, size: 600, ttl: 600 } as const;
+export const DROP = { chance: 3, fall: 60, size: 600, ttl: 600 } as const;
 
 /** Common boss model: spec §4.1. */
 export const BOSS = {

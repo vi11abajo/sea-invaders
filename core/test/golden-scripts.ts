@@ -124,8 +124,7 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   // The `wander` input trajectory on a boosted daily run: exercises boost pickups/effects end to
   // end. `wander` never dodges, so the run ends in game over well short of `ticks`; this seed was
   // picked (search, not the sim) for at least 5 boost_pickup events before Octopi dies. Re-picked
-  // for Phase 3A.1 lane C: the old seed (`golden-boosted-2293`) fell to 2 pickups once RICOCHET was
-  // removed and the RANDOM_CHAOS pool grew from 10 to 14 — both change every subsequent `rngBoosts`
-  // draw, so a fixed seed's specific drop/rarity rolls shift even though the odds themselves didn't.
-  boosted: { ticks: 10_800, makeInput: wander, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-908' },
+  // whenever the `rngBoosts` draw sequence changes (Phase 3A.1: RICOCHET removed, chaos pool 10 -> 14,
+  // drop chance 7 % -> 3 %): `golden-boosted-19` gives 7 pickups at the current rules.
+  boosted: { ticks: 10_800, makeInput: wander, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-19' },
 };

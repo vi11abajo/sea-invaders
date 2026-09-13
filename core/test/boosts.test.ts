@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BOOSTS, DAILY_RUN, DROP, INITIAL_INPUT, PRACTICE_RUN, activateBoost, createGame, hitCrabs, isActive, rollDrop, step, updateBoosts } from '../src';
 
 describe('boost drops', () => {
-  it('drops 7% of kills with the legacy rarity split', () => {
+  it('drops 3% of kills with the legacy rarity split', () => {
     const s = createGame('d', DAILY_RUN);
     const counts = { common: 0, rare: 0, epic: 0, legendary: 0 };
     let drops = 0;
@@ -11,7 +11,7 @@ describe('boost drops', () => {
       rollDrop(s, 1000, 1000);
       if (s.drops.length) { drops += 1; counts[BOOSTS[s.drops[0]!.boost].rarity] += 1; }
     }
-    expect(drops / 100_000).toBeGreaterThan(0.065); expect(drops / 100_000).toBeLessThan(0.075);
+    expect(drops / 100_000).toBeGreaterThan(0.025); expect(drops / 100_000).toBeLessThan(0.035);
     expect(counts.common / drops).toBeGreaterThan(0.47); expect(counts.legendary / drops).toBeLessThan(0.045);
   });
   it('never drops when boosts are off', () => {
