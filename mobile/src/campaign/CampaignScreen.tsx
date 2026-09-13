@@ -5,7 +5,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import Animated, {
-  Easing, useAnimatedStyle, useDerivedValue, useSharedValue, withRepeat, withTiming, type SharedValue,
+  Easing, interpolate, useAnimatedStyle, useDerivedValue, useSharedValue, withRepeat, withTiming, type SharedValue,
 } from 'react-native-reanimated';
 import {
   currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEFS, TYPE_COLOUR,
@@ -19,7 +19,8 @@ import { Sheet } from '../ui/Sheet';
 import { Txt } from '../ui/Txt';
 import { COLORS, MOTION, RADIUS } from '../ui/tokens';
 import {
-  BOSS_ABILITY, REEF_ACCENT, REEF_NAMES, REEF_NEW_KIND, REEF_WORLD, reefNewEnemyCopy, reefProgress,
+  BOSS_ABILITY, REEF_ACCENT, REEF_NAMES, REEF_NEW_KIND, REEF_WORLD, levelState, reefNewEnemyCopy, reefProgress,
+  type LevelState,
 } from './reefs';
 
 // The header reads "REEF n OF 6": a literal 6, not core's `REEFS` (5) — it counts the mock's
@@ -60,6 +61,18 @@ const GREYSCALE_MATRIX = [
   0.2126, 0.7152, 0.0722, 0, 0,
   0.2126, 0.7152, 0.0722, 0, 0,
   0.2126, 0.7152, 0.0722, 0, 0,
+  0, 0, 0, 1, 0,
+];
+
+/**
+ * CSS `saturate(.6)` as a colour matrix (W3C filter-effects formula, s = 0.6): the looming
+ * background boss (`CampaignMap.dc.html`: `filter: blur(1px) saturate(.6)`) is dimmed, not fully
+ * greyscaled — full desaturation (`GREYSCALE_MATRIX`) stays reserved for locked boss sprites.
+ */
+const LOOM_SATURATE_MATRIX = [
+  0.6852, 0.286, 0.0288, 0, 0,
+  0.0852, 0.886, 0.0288, 0, 0,
+  0.0852, 0.286, 0.6288, 0, 0,
   0, 0, 0, 1, 0,
 ];
 
@@ -234,7 +247,7 @@ function ReefWorld({ reef, bossSprite }: { reef: number; bossSprite: SkImage | n
       </Group>
       {bossSprite !== null && (
         <Image image={bossSprite} x={bossLeft} y={bossY} width={BOSS_LOOM_SIZE} height={BOSS_LOOM_SIZE} opacity={BOSS_LOOM_OPACITY} fit="contain">
-          <ColorMatrix matrix={GREYSCALE_MATRIX} />
+          <ColorMatrix matrix={LOOM_SATURATE_MATRIX} />
           <Blur blur={BOSS_LOOM_BLUR} mode="decal" />
         </Image>
       )}
@@ -293,13 +306,6 @@ function FloraBar({ w, h, durationMs, color }: { w: number; h: number; durationM
 // ---------------------------------------------------------------------------
 // Path: the dashed connector and the six nodes
 // ---------------------------------------------------------------------------
-
-type NodeState = 'locked' | 'current' | 'cleared';
-
-function nodeState(id: number, progress: CampaignProgress): NodeState {
-  if (id === currentLevelId(progress)) return 'current';
-  return progress.cleared[id - 1] ? 'cleared' : 'locked';
-}
 
 interface PathLayerProps {
   reef: number;
@@ -362,7 +368,7 @@ function PathLayer({ reef, progress, bossSprite, onOpenLevel, onOpenBoss }: Path
                 left={pos.x * scaleX}
                 top={pos.y * scaleY}
                 accent={accent}
-                state={nodeState(id, progress)}
+                state={levelState(progress, id)}
                 best={progress.best[id - 1] ?? 0}
                 bossSprite={isBoss ? bossSprite : null}
                 onPress={() => (isBoss ? onOpenBoss() : onOpenLevel(id))}
@@ -383,7 +389,7 @@ interface PathNodeProps {
   left: number;
   top: number;
   accent: string;
-  state: NodeState;
+  state: LevelState;
   best: number;
   bossSprite: SkImage | null;
   onPress: () => void;
@@ -398,7 +404,11 @@ function PathNode({ reef, index, isBoss, size, left, top, accent, state, best, b
     }
     pulse.value = withRepeat(withTiming(0.25, { duration: 800, easing: Easing.inOut(Easing.quad) }), -1, true);
   }, [state, pulse]);
-  const ringStyle = useAnimatedStyle(() => ({ opacity: state === 'current' ? pulse.value : 0 }));
+  // Matches `CampaignMap.dc.html`'s `ringPulse`: opacity 1->.25 and scale 1->1.12 move together.
+  const ringStyle = useAnimatedStyle(() => ({
+    opacity: state === 'current' ? pulse.value : 0,
+    transform: [{ scale: interpolate(pulse.value, [0.25, 1], [1.12, 1]) }],
+  }));
 
   const locked = state === 'locked';
   const radius = isBoss ? BOSS_RADIUS : NODE_RADIUS;
@@ -655,7 +665,9 @@ interface LevelSheetProps {
 function LevelSheetView({ id, progress, sprites, onPlay, onClose }: LevelSheetProps) {
   const level = useMemo(() => levelById(id), [id]);
   const reef = level.reef;
-  const cleared = progress.cleared[id - 1] ?? false;
+  // The shared rule, not a raw `cleared[]` read: a reef loss can reset `currentLevelId` onto an
+  // already-`cleared` level, and this level must still read (and play) as the level to start next.
+  const practice = levelState(progress, id) === 'cleared';
   const best = progress.best[id - 1] ?? 0;
   const newKind = REEF_NEW_KIND[reef - 1]!;
   const crabSprite = sprites?.crabs[TYPE_COLOUR[newKind.kind]] ?? null;
@@ -673,7 +685,7 @@ function LevelSheetView({ id, progress, sprites, onPlay, onClose }: LevelSheetPr
         <StatTile label="Enemy" value={newKind.name} />
         <StatTile label="Best" value={best > 0 ? formatInt(best) : '—'} />
       </View>
-      <PillButton label={cleared ? 'Replay · unranked' : 'Start level'} height={56} onPress={() => onPlay(id, cleared)} />
+      <PillButton label={practice ? 'Replay · unranked' : 'Start level'} height={56} onPress={() => onPlay(id, practice)} />
       <PillButton label="Back to map" kind="secondary" height={48} onPress={onClose} />
     </Sheet>
   );
@@ -689,7 +701,7 @@ interface BossSheetProps {
 
 function BossSheet({ reef, progress, sprites, onPlay, onClose }: BossSheetProps) {
   const id = reef * LEVELS_PER_REEF;
-  const cleared = progress.cleared[id - 1] ?? false;
+  const practice = levelState(progress, id) === 'cleared';
   const bossSprite = sprites?.bosses[reef - 1]?.[0] ?? null;
   const lives = livesForEntry(progress);
   const ability = BOSS_ABILITY[reef - 1];
@@ -707,7 +719,7 @@ function BossSheet({ reef, progress, sprites, onPlay, onClose }: BossSheetProps)
         <StatTile label="Ability" value={ability} />
         <StatTile label="Lives" value={String(lives)} />
       </View>
-      <PillButton label={cleared ? 'Replay boss' : 'Fight boss'} height={56} onPress={() => onPlay(id, cleared)} />
+      <PillButton label={practice ? 'Replay boss' : 'Fight boss'} height={56} onPress={() => onPlay(id, practice)} />
       <PillButton label="Back to map" kind="secondary" height={48} onPress={onClose} />
     </Sheet>
   );
