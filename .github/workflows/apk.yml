@@ -1,0 +1,88 @@
+name: Build APK
+
+# Builds the release APK for the Solana Seeker (arm64) on a GitHub runner, keeps it as a
+# workflow artifact and copies it to the VPS (/root/apk) so it can be pulled from there.
+# The app holds no secrets: every EXPO_PUBLIC_* value below is public configuration.
+on:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    name: Build the Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build the core
+        run: |
+          cd core
+          npm ci
+          npm run build
+
+      - name: Install the app
+        run: |
+          cd mobile
+          npm ci
+
+      - name: Create the app .env (public values)
+        run: |
+          cat > mobile/.env << EOF
+          EXPO_PUBLIC_API_URL=https://api.seainvaders.xyz
+          EXPO_PUBLIC_RPC_URL=https://api.devnet.solana.com
+          EXPO_PUBLIC_SOLANA_CLUSTER=devnet
+          EOF
+
+      - name: Generate the Android project
+        env:
+          CI: '1'
+          EXPO_NO_TELEMETRY: '1'
+        run: |
+          cd mobile
+          npx expo prebuild --platform android --no-install
+
+      - name: Assemble the release APK
+        run: |
+          cd mobile/android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
+
+      - name: Keep the APK as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sea-invaders-apk
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy the APK to the server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'mkdir -p /root/apk'
+          scp -P "$SSH_PORT" mobile/android/app/build/outputs/apk/release/app-release.apk "$SSH_USER@$SSH_HOST:/root/apk/sea-invaders-$SHORT_SHA.apk"
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "cp /root/apk/sea-invaders-$SHORT_SHA.apk /root/apk/latest.apk"
