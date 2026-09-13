@@ -1,4 +1,4 @@
-import { formatInt, type BossFrame } from '@sea-invaders/core';
+import { formatInt, type BoostType, type BossFrame } from '@sea-invaders/core';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Hearts } from '../ui/Hearts';
 import { GradientFill } from '../ui/GradientFill';
@@ -6,10 +6,13 @@ import { COLORS, FONTS, RADIUS } from '../ui/tokens';
 import { BOSS_NAMES } from './bossNames';
 
 export interface HudBoost {
+  type: BoostType;
   name: string;
   color: string;
   /** Seconds remaining, or -1 for a boost that lasts until consumed (no timer to show). */
   seconds: number;
+  /** SPEED_TAMER's stack count, shown instead of the "∞" a -1 `seconds` would otherwise render. */
+  count?: number;
 }
 
 /** Boss HP-bar tint per kind (1..5): spec §4.2 palette. */
@@ -36,7 +39,9 @@ interface GameHudProps {
 
 /** The in-run HUD over the world. Only the pause button takes touches. */
 export function GameHud({ mode, score, lives, combo, boosts, shield = 0, boss, toast, hint, onPause }: GameHudProps) {
-  const showBoosts = boosts !== undefined && boosts.length > 0;
+  // SHIELD_BARRIER is shown only by the dedicated "Shield ×N" chip below, never as its own "∞" entry.
+  const timedBoosts = boosts?.filter((b) => b.type !== 'SHIELD_BARRIER') ?? [];
+  const showBoosts = timedBoosts.length > 0;
   return (
     <View style={styles.root} pointerEvents="box-none">
       <View style={styles.top} pointerEvents="none">
@@ -55,11 +60,11 @@ export function GameHud({ mode, score, lives, combo, boosts, shield = 0, boss, t
         {boss != null && <BossBar boss={boss} />}
         {(showBoosts || shield > 0) && (
           <View style={styles.boosts}>
-            {boosts?.map((b) => (
-              <View key={b.name} style={[styles.glass, styles.pill, styles.chip]}>
+            {timedBoosts.map((b) => (
+              <View key={b.type} style={[styles.glass, styles.pill, styles.chip]}>
                 <View style={[styles.chipDot, { backgroundColor: b.color }]} />
                 <Text style={styles.chipName}>{b.name}</Text>
-                <Text style={styles.chipTime}>{b.seconds < 0 ? '∞' : `${b.seconds}s`}</Text>
+                <Text style={styles.chipTime}>{b.count !== undefined ? `×${b.count}` : b.seconds < 0 ? '∞' : `${b.seconds}s`}</Text>
               </View>
             ))}
             {shield > 0 && (

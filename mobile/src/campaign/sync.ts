@@ -25,6 +25,10 @@ function differs(a: CampaignProgress, b: CampaignProgress): boolean {
  *   `mergeProgress` the local and server copies (spec §6.2: per-level OR/max, position fields
  *   from the newer `updatedAt`); `replaceProgress` only if the merge differs from local (avoids a
  *   redundant write), then PUT the merged value once so the server has it too.
+ *   Readiness for the step below is tracked in state (not a ref), so a `progress` change that
+ *   lands while this round trip is still in flight — which re-runs the debounce effect below
+ *   while it is not yet ready and so arms no timer — is not lost: the state flip once the round
+ *   trip finishes re-runs that effect again and it then sends the up-to-date `progress`.
  * - After that initial round trip (success or failure), every later `progress` change starts a
  *   2 s debounce timer that PUTs the current progress; at most one PUT is in flight at a time. A
  *   change that arrives while one is in flight is not dropped: `sendPut` remembers only the
@@ -49,9 +53,15 @@ export function useCampaignSync(
   const [synced, setSynced] = useState(false);
 
   // The session the initial GET/merge/PUT has already been started for (guards it to run once
-  // per sign-in) and the session it has finished for (gates the debounce effect below).
+  // per sign-in; a ref is fine here since only the effect that owns it ever needs the value, and
+  // only at the moment it runs).
   const startedForRef = useRef<Session | null>(null);
-  const readyForRef = useRef<Session | null>(null);
+  // The session the initial GET/merge/PUT has *finished* for (gates the debounce effect below).
+  // State, not a ref: a progress change that lands mid-round-trip re-runs the debounce effect
+  // (below) while this is still not yet `session`, so it correctly bails and arms no timer; it
+  // must flip via a re-render once the round trip completes so that same effect runs again and
+  // catches that change, instead of silently sitting unsent until some unrelated later change.
+  const [readyFor, setReadyFor] = useState<Session | null>(null);
   // The last progress value confirmed with the server, so an update the sync itself just made
   // does not immediately re-trigger the debounced PUT.
   const lastSyncedRef = useRef<CampaignProgress | null>(null);
@@ -115,11 +125,13 @@ export function useCampaignSync(
   useEffect(() => {
     if (!session) {
       startedForRef.current = null;
-      readyForRef.current = null;
+      setReadyFor(null);
       lastSyncedRef.current = null;
       setSynced(false);
       return;
     }
+    // Checked here against the actual `progress` (for its narrowing), but the effect's own
+    // dependency below tracks only `progress !== null` — see the note by the dependency array.
     if (!progress || startedForRef.current === session) return;
     startedForRef.current = session;
     let cancelled = false;
@@ -144,23 +156,37 @@ export function useCampaignSync(
           console.warn('[sync] initial GET failed', e instanceof Error ? e.message : String(e));
         }
       } finally {
-        if (!cancelled) readyForRef.current = session;
+        if (!cancelled) setReadyFor(session);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [session, progress, replaceProgress, sendPut]);
+  }, [
+    session,
+    // `progress !== null`, not `progress` itself: this effect must rerun for the one
+    // null-to-loaded transition it waits for, but never again for a later same-session progress
+    // change (a level clearing while this round trip is still in flight, say). With the object
+    // itself as the dependency, such a change tears the effect down mid-flight (`cancelled = true`
+    // via the cleanup above) before its `finally` ever reaches `setReadyFor`, wedging `readyFor` at
+    // `null` for the rest of the session — worse than the one skipped change this fix and the
+    // debounce effect below exist to close. The round trip still merges against the `progress`
+    // value captured when it started; anything that changes afterward is the debounce effect's job
+    // once `readyFor` flips.
+    progress !== null,
+    replaceProgress,
+    sendPut,
+  ]);
 
   useEffect(() => {
     if (!session || !progress) return;
-    if (readyForRef.current !== session) return; // the initial sync above has not finished yet
+    if (readyFor !== session) return; // the initial sync above has not finished yet
     if (lastSyncedRef.current && !differs(progress, lastSyncedRef.current)) return; // nothing new
     const timer = setTimeout(() => {
       void sendPut(progress);
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [session, progress, sendPut]);
+  }, [session, progress, sendPut, readyFor]);
 
   return { synced };
 }

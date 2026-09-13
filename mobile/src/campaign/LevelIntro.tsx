@@ -54,7 +54,7 @@ export function LevelIntro({ level, practice, lives, onPlay, onBack }: LevelIntr
             <Txt variant="headline">{FORMATION_NAMES[level.formation]}</Txt>
             <Txt variant="body" tone="secondary">{`${level.waves} wave${level.waves === 1 ? '' : 's'}`}</Txt>
             <View style={styles.chips}>
-              {level.kinds.map((kind) => (
+              {[...new Set(level.kinds)].map((kind) => (
                 <View key={kind} style={styles.chip}>
                   <Txt variant="secondary">{CRAB_NAMES[kind]}</Txt>
                 </View>

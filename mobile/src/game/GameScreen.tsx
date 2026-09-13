@@ -46,15 +46,21 @@ function titleCase(type: string): string {
   return type.split('_').map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 }
 
-/** `Frame.boosts` (flat typeIndex/ticksLeft pairs) into HUD chips. */
-function boostsFromFrame(flat: number[]): HudBoost[] {
+/**
+ * `Frame.boosts` (flat typeIndex/ticksLeft pairs) into HUD chips. `tamerStacks` is read from the
+ * live `GameState` (not `Frame`, which never carries it: `activateBoost` pushes a `-1`-duration
+ * `active` entry once and re-applies `applyEffect` on every later pickup, so SPEED_TAMER's
+ * `ticksLeft` stays -1 forever and its real count lives only in `state.boosts.tamerStacks`).
+ */
+function boostsFromFrame(flat: number[], tamerStacks: number): HudBoost[] {
   const list: HudBoost[] = [];
   for (let i = 0; i < flat.length; i += 2) {
     const type = BOOST_BY_INDEX[flat[i]!];
     if (type === undefined) continue;
     const ticksLeft = flat[i + 1]!;
     const seconds = ticksLeft < 0 ? -1 : Math.ceil(ticksLeft / 60);
-    list.push({ name: titleCase(type), color: RARITY_COLOR[BOOSTS[type].rarity] ?? '#FFFFFF', seconds });
+    const count = type === 'SPEED_TAMER' ? tamerStacks : undefined;
+    list.push({ type, name: titleCase(type), color: RARITY_COLOR[BOOSTS[type].rarity] ?? '#FFFFFF', seconds, count });
   }
   return list;
 }
@@ -71,7 +77,7 @@ function sameBoss(a: BossFrame | null, b: BossFrame | null): boolean {
 function sameBoosts(a: HudBoost[], b: HudBoost[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (a[i]!.name !== b[i]!.name || a[i]!.seconds !== b[i]!.seconds || a[i]!.color !== b[i]!.color) return false;
+    if (a[i]!.type !== b[i]!.type || a[i]!.seconds !== b[i]!.seconds || a[i]!.count !== b[i]!.count) return false;
   }
   return true;
 }
@@ -148,10 +154,14 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
   const onRunOverRef = useRef(onRunOver);
   onRunOverRef.current = onRunOver;
+  // Read through a ref inside the loop below so a layout change (which rebuilds `prepared`, the
+  // pre-scaled sprites) never appears in the run effect's deps and never calls `createGame` again.
+  // `font` is not read here: nothing in this effect uses it (only the separate `dropOffsets` memo
+  // and the `picture` derived value do, both outside the run effect), so it needs no ref.
+  const preparedRef = useRef(prepared);
+  preparedRef.current = prepared;
 
   useEffect(() => {
-    // Sprites load once on mount; hold the loop until the pre-scaled set is ready (see the loading branch below).
-    if (prepared === null) return;
     // Practice seed: the app may use the clock; only the core must not.
     const runSeed = seed ?? `practice-${runIndex}-${Date.now()}`;
     const config = run ?? (mode === REPLAY_MODE.daily ? DAILY_RUN : PRACTICE_RUN);
@@ -175,6 +185,12 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     let toastFrames = 0;
 
     const loop = () => {
+      if (preparedRef.current === null) {
+        // Sprites not ready yet: hold the clock (no ticks, no stepper.advance) so none are lost or
+        // burst once they are (FixedStepper.advance only starts counting from its first call).
+        handle = requestAnimationFrame(loop);
+        return;
+      }
       const now = performance.now();
       if (paused.current) {
         // Restart the clock on every paused frame, so resuming does not replay the pause.
@@ -223,7 +239,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       const over = state.over || state.cleared || quit.current;
       const next: Hud = {
         score: state.score, lives: state.ship.lives, wave: state.wave, kills: state.kills, over, fps,
-        boss: f.boss, boosts: boostsFromFrame(f.boosts), shield: f.shield, banner: bannerText, toast: toastText,
+        boss: f.boss, boosts: boostsFromFrame(f.boosts, state.boosts.tamerStacks), shield: f.shield, banner: bannerText, toast: toastText,
       };
       if (
         next.score !== shown.score || next.lives !== shown.lives || next.wave !== shown.wave ||
@@ -247,7 +263,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     };
     handle = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(handle);
-  }, [runIndex, frame, seed, mode, prepared, run]);
+  }, [runIndex, frame, seed, mode, run]);
 
   const recorder = useMemo(() => Skia.PictureRecorder(), []);
   const paint = useMemo(() => Skia.Paint(), []);
