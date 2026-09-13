@@ -17,13 +17,14 @@ function rowToRun(row) {
     stateHash: row.state_hash,
     gameOver: row.game_over,
     status: row.status,
+    skin: row.skin,
   };
 }
 
-export async function insertRun({ id, userId, day, seed, coreVersion, startedAt }) {
+export async function insertRun({ id, userId, day, seed, coreVersion, startedAt, skin }) {
   await pool.query(
-    'INSERT INTO ranked_runs (id, user_id, day, seed, core_version, started_at) VALUES ($1, $2, $3, $4, $5, $6)',
-    [id, userId, day, seed, coreVersion, toIso(startedAt)],
+    'INSERT INTO ranked_runs (id, user_id, day, seed, core_version, started_at, skin) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+    [id, userId, day, seed, coreVersion, toIso(startedAt), skin ?? 0],
   );
 }
 
@@ -48,15 +49,15 @@ export async function finishRun(id, { finishedAt, ticks, score, stateHash, gameO
 
 export async function bestForDay(userId, day) {
   const result = await pool.query(
-    `SELECT id, score FROM ranked_runs WHERE user_id = $1 AND day = $2 AND status = 'verified' ORDER BY score DESC, finished_at ASC LIMIT 1`,
+    `SELECT id, score, skin FROM ranked_runs WHERE user_id = $1 AND day = $2 AND status = 'verified' ORDER BY score DESC, finished_at ASC LIMIT 1`,
     [userId, day],
   );
-  return result.rows[0] ? { score: result.rows[0].score, runId: result.rows[0].id } : null;
+  return result.rows[0] ? { score: result.rows[0].score, runId: result.rows[0].id, skin: result.rows[0].skin } : null;
 }
 
 export async function leaderboardForDay(day, limit) {
   const result = await pool.query(
-    `SELECT DISTINCT ON (r.user_id) r.user_id, u.username, u.wallet_address, r.score, r.id, r.finished_at
+    `SELECT DISTINCT ON (r.user_id) r.user_id, u.username, u.wallet_address, r.score, r.id, r.finished_at, r.skin
        FROM ranked_runs r JOIN users u ON u.id = r.user_id
       WHERE r.day = $1 AND r.status = 'verified'
       ORDER BY r.user_id, r.score DESC, r.finished_at ASC`,
@@ -65,7 +66,20 @@ export async function leaderboardForDay(day, limit) {
   return result.rows
     .sort((a, b) => b.score - a.score || new Date(a.finished_at) - new Date(b.finished_at))
     .slice(0, limit)
-    .map((row) => ({ userId: row.user_id, username: row.username, walletAddress: row.wallet_address, score: row.score, runId: row.id }));
+    .map((row) => ({ userId: row.user_id, username: row.username, walletAddress: row.wallet_address, score: row.score, runId: row.id, skin: row.skin }));
+}
+
+/** The skin of each `userIds` user's highest-scoring verified run among `days` (tie: earliest finished), in one query. */
+export async function bestSkinForUsers(userIds, days) {
+  if (!userIds || userIds.length === 0) return [];
+  const result = await pool.query(
+    `SELECT DISTINCT ON (user_id) user_id, skin
+       FROM ranked_runs
+      WHERE user_id = ANY($1) AND day = ANY($2) AND status = 'verified'
+      ORDER BY user_id, score DESC, finished_at ASC`,
+    [userIds, days],
+  );
+  return result.rows.map((row) => ({ userId: row.user_id, skin: row.skin }));
 }
 
 export async function verifiedRunsForDay(day, limit) {

@@ -6,7 +6,7 @@ import { buildTicketTx, buildSubmitDailyBestTx } from '../chain/txs.js';
 import * as recordsDb from '../db/records.js';
 import * as rankedRunsDb from '../db/rankedRuns.js';
 import { findUsersByWallets } from '../db/users.js';
-import { dayOf, weekEnd, weekOf, weekdayOf, isDayOpen } from './dailySeed.js';
+import { dayOf, weekEnd, weekFirstDay, weekOf, weekdayOf, isDayOpen } from './dailySeed.js';
 import { RankedRunError } from './rankedRuns.js';
 
 /** `create_player` (first ticket only) + `buy_ticket` for the current week, as one unsigned v0 tx. */
@@ -97,15 +97,23 @@ export async function weekView({ week, now }) {
   } else {
     const wallets = pool.top.map((entry) => entry.player);
     const users = await findUsersByWallets(wallets);
-    const usernameByWallet = new Map(users.map((u) => [u.wallet_address, u.username]));
+    const userByWallet = new Map(users.map((u) => [u.wallet_address, u]));
     const payoutBps = config ? config.payoutBps : [];
+
+    // The skin each top player's best ranked run of the week was played in (design doc §8), fetched
+    // once for every wallet here rather than per entry.
+    const weekDays = Array.from({ length: 7 }, (_, i) => weekFirstDay(week) + i);
+    const skinRows = await rankedRunsDb.bestSkinForUsers(users.map((u) => u.id), weekDays);
+    const skinByUserId = new Map(skinRows.map((row) => [row.userId, row.skin]));
 
     const entries = await Promise.all(pool.top.map(async (entry, i) => {
       const player = await getPlayer(entry.player);
       const days = player && player.week === week ? player.dayBests : new Array(7).fill(0);
       const bps = BigInt(payoutBps[i] ?? 0);
       const forecastSkr = Number((vaultBalance * bps) / 10_000n) / 1e6;
-      return { rank: i + 1, walletAddress: entry.player, username: usernameByWallet.get(entry.player) ?? null, total: entry.total, days, forecastSkr };
+      const user = userByWallet.get(entry.player);
+      const skin = user ? skinByUserId.get(user.id) ?? 0 : 0;
+      return { rank: i + 1, walletAddress: entry.player, username: user?.username ?? null, total: entry.total, days, forecastSkr, skin };
     }));
 
     result = { week, endsAt, poolSkr, entries, settled: pool.settled };

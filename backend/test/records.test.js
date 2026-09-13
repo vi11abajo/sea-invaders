@@ -220,8 +220,25 @@ describe('weekView', () => {
       endsAt: weekEnd(WEEK),
       poolSkr: 20,
       settled: false,
-      entries: [{ rank: 1, walletAddress: WALLET, username: user.username, total: 777, days: [1, 2, 3, 4, 5, 6, 7], forecastSkr: 10 }],
+      entries: [{ rank: 1, walletAddress: WALLET, username: user.username, total: 777, days: [1, 2, 3, 4, 5, 6, 7], forecastSkr: 10, skin: 0 }],
     });
+  });
+
+  it("carries the skin of the player's highest-scoring verified run among the week's days", async () => {
+    fakeChain.setWeekPool(WEEK, { vault: 'Vault1', top: [{ player: WALLET, total: 777, updatedAt: NOON }], settled: false });
+    await memory.insertRun({ id: 'run-low', userId: user.id, day: DAY, skin: 1 });
+    await memory.finishRun('run-low', { score: 100, finishedAt: NOON + 10, status: 'verified' });
+    await memory.insertRun({ id: 'run-high', userId: user.id, day: DAY + 1, skin: 4 });
+    await memory.finishRun('run-high', { score: 900, finishedAt: NOON + 20, status: 'verified' });
+
+    const result = await weekView({ week: WEEK, now: NOON });
+    expect(result.entries[0].skin).toBe(4);
+  });
+
+  it('falls back to skin 0 for a top entry with no verified run in the week', async () => {
+    fakeChain.setWeekPool(WEEK, { vault: 'Vault1', top: [{ player: WALLET, total: 777, updatedAt: NOON }], settled: false });
+    const result = await weekView({ week: WEEK, now: NOON });
+    expect(result.entries[0].skin).toBe(0);
   });
 
   it("zeroes a top entry's days when the player's on-chain record is from a different week", async () => {

@@ -8,11 +8,13 @@ import { tokenFor } from './helpers/jwt.js';
 import { confirmLimiter, sessionLimiter } from '../src/middleware/rateLimit.js';
 import * as fakeChain from './helpers/fakeChain.js';
 import * as memory from './helpers/memoryRankedRuns.js';
+import * as memoryLoadout from './helpers/memoryLoadout.js';
 import * as memoryRecords from './helpers/memoryRecords.js';
 import * as memoryUsers from './helpers/memoryUsers.js';
 import { playReplay } from './helpers/play.js';
 
 vi.mock('../src/db/rankedRuns.js', () => import('./helpers/memoryRankedRuns.js'));
+vi.mock('../src/db/loadout.js', () => import('./helpers/memoryLoadout.js'));
 vi.mock('../src/db/records.js', () => import('./helpers/memoryRecords.js'));
 vi.mock('../src/db/users.js', () => import('./helpers/memoryUsers.js'));
 vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
@@ -43,6 +45,7 @@ describe('/api/daily', () => {
   let app;
   beforeEach(() => {
     memory.reset();
+    memoryLoadout.reset();
     memoryRecords.reset();
     memoryUsers.reset();
     fakeChain.reset();
@@ -105,7 +108,17 @@ describe('/api/daily', () => {
     expect(finished.status).toBe(200);
     expect(finished.body).toMatchObject({ runId, score: played.score, isDayBest: true });
     const board = await request(app).get('/api/daily/leaderboard');
-    expect(board.body).toEqual({ day, entries: [{ rank: 1, username: 'Ab12...Cd34', walletAddress: user.wallet_address, score: played.score }] });
+    expect(board.body).toEqual({ day, entries: [{ rank: 1, username: 'Ab12...Cd34', walletAddress: user.wallet_address, score: played.score, skin: 0 }] });
+  });
+
+  it("carries the skin of the day's best run on the leaderboard", async () => {
+    await memoryLoadout.upsertLoadout(user.wallet_address, { activeSkin: 4 });
+    const started = await request(app).post('/api/daily/runs').set(auth);
+    const { runId, seed } = started.body;
+    const played = playReplay(seed, 300);
+    await request(app).post(`/api/daily/runs/${runId}/finish`).set(auth).send({ replay: played.base64 });
+    const board = await request(app).get('/api/daily/leaderboard');
+    expect(board.body.entries[0]).toMatchObject({ walletAddress: user.wallet_address, score: played.score, skin: 4 });
   });
 
   it('maps service errors to their status and code', async () => {

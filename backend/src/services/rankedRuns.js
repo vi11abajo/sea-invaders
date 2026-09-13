@@ -1,6 +1,7 @@
 import { CORE_VERSION, MAX_REPLAY_TICKS, REPLAY_MODE, OCTOPI, TICKS_PER_SECOND, decodeReplay, runReplay } from '@sea-invaders/core';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../db/rankedRuns.js';
+import * as loadoutDb from '../db/loadout.js';
 import { getConfig, getPlayer, getTokenBalance, getVaultBalance, getWeekPool } from '../chain/readers.js';
 import { currentCluster } from '../chain/config.js';
 import { dailySeed, dayOf, isDayOpen, secondsToNextDay, weekOf, weekdayOf } from './dailySeed.js';
@@ -89,6 +90,7 @@ export async function todayInfo({ userId, wallet, now }) {
     secondsToNextDay: secondsToNextDay(now),
     attemptsLeft: Math.max(0, attemptsAllowed - used),
     todayBest: best ? best.score : null,
+    todayBestSkin: best ? best.skin : 0,
     attemptsBought: boughtToday,
     freeAttempts: freeAttempts(),
     hasPlayerAccount: Boolean(player),
@@ -109,7 +111,11 @@ export async function startRun({ userId, wallet, now }) {
   const player = wallet ? await getCachedPlayer(wallet) : null;
   const attemptsAllowed = freeAttempts() + attemptsBoughtToday(player, day);
   if (used >= attemptsAllowed) throw new RankedRunError('no_attempts', 'No ranked attempts left today', { attemptsLeft: 0 });
-  const run = { id: uuidv4(), userId, day, seed: dailySeed(seedSecret(), day), coreVersion: CORE_VERSION, startedAt: now };
+  // The skin snapshotted here is the run's own record forever after - ownership was validated
+  // when it was equipped and items are never revoked (design doc §8).
+  const loadout = wallet ? await loadoutDb.getLoadout(wallet) : null;
+  const skin = loadout?.activeSkin ?? 0;
+  const run = { id: uuidv4(), userId, day, seed: dailySeed(seedSecret(), day), coreVersion: CORE_VERSION, startedAt: now, skin };
   await db.insertRun(run);
   return { runId: run.id, day, seed: run.seed, coreVersion: CORE_VERSION, attemptsLeft: attemptsAllowed - used - 1 };
 }

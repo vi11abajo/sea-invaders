@@ -48,4 +48,15 @@ describe('migration list', () => {
     expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS player_loadout/);
     expect(sql).toMatch(/wallet_address VARCHAR\(64\) PRIMARY KEY/);
   });
+
+  it('runs 009 after 008', () => {
+    const order = [...runner.matchAll(/'(\d{3}_[a-z_]+\.sql)'/g)].map((m) => m[1]);
+    expect(order.indexOf('009_run_skin.sql')).toBe(order.indexOf('008_loadout.sql') + 1);
+  });
+
+  it('009 adds a skin column to ranked_runs, defaulting to 0 and constrained to the loadout skin scale', () => {
+    const sql = readFileSync(new URL('../migrations/009_run_skin.sql', import.meta.url), 'utf8');
+    expect(sql).toMatch(/ALTER TABLE ranked_runs ADD COLUMN IF NOT EXISTS skin SMALLINT NOT NULL DEFAULT 0/);
+    expect(sql).toMatch(/CHECK \(skin BETWEEN 0 AND 4\)/);
+  });
 });

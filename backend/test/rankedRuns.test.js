@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dailySeed, dayOf, dayStart, GRACE_SECONDS } from '../src/services/dailySeed.js';
 import * as fakeChain from './helpers/fakeChain.js';
 import * as memory from './helpers/memoryRankedRuns.js';
+import * as memoryLoadout from './helpers/memoryLoadout.js';
 import { playReplay } from './helpers/play.js';
 
 vi.mock('../src/db/rankedRuns.js', () => import('./helpers/memoryRankedRuns.js'));
+vi.mock('../src/db/loadout.js', () => import('./helpers/memoryLoadout.js'));
 vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
 vi.mock('../src/chain/txs.js', () => import('./helpers/fakeChain.js'));
 
@@ -25,7 +27,7 @@ function tamperReplay(base64, overrides) {
 }
 
 describe('startRun', () => {
-  beforeEach(() => { memory.reset(); fakeChain.reset(); clearPlayerCache(); });
+  beforeEach(() => { memory.reset(); memoryLoadout.reset(); fakeChain.reset(); clearPlayerCache(); });
 
   it('returns the daily seed, the day and the attempts left', async () => {
     const run = await startRun({ userId: 7, now: NOON });
@@ -42,10 +44,26 @@ describe('startRun', () => {
     const tomorrow = await startRun({ userId: 7, now: dayStart(DAY + 1) + 10 });
     expect(tomorrow.day).toBe(DAY + 1);
   });
+
+  it('snapshots the equipped skin from the loadout at start', async () => {
+    await memoryLoadout.upsertLoadout('Wallet1', { activeSkin: 3 });
+    const { runId } = await startRun({ userId: 7, wallet: 'Wallet1', now: NOON });
+    expect((await memory.getRun(runId)).skin).toBe(3);
+  });
+
+  it('snapshots skin 0 when the wallet has no loadout row', async () => {
+    const { runId } = await startRun({ userId: 7, wallet: 'Wallet2', now: NOON });
+    expect((await memory.getRun(runId)).skin).toBe(0);
+  });
+
+  it('snapshots skin 0 when there is no wallet at all', async () => {
+    const { runId } = await startRun({ userId: 7, now: NOON });
+    expect((await memory.getRun(runId)).skin).toBe(0);
+  });
 });
 
 describe('finishRun', () => {
-  beforeEach(() => { memory.reset(); fakeChain.reset(); clearPlayerCache(); });
+  beforeEach(() => { memory.reset(); memoryLoadout.reset(); fakeChain.reset(); clearPlayerCache(); });
 
   it('verifies a genuine replay and reports the day best', async () => {
     const { runId, seed } = await startRun({ userId: 7, now: NOON });
@@ -56,6 +74,15 @@ describe('finishRun', () => {
     expect((await memory.getRun(runId)).status).toBe('verified');
     expect((await todayInfo({ userId: 7, now: NOON + 31 })).todayBest).toBe(played.score);
     expect((await todayInfo({ userId: null, now: NOON + 31 })).todayBest).toBeNull();
+  });
+
+  it("reports the day best run's skin on todayInfo, 0 when there is no best run yet", async () => {
+    expect((await todayInfo({ userId: 7, now: NOON })).todayBestSkin).toBe(0);
+    await memoryLoadout.upsertLoadout('Wallet1', { activeSkin: 2 });
+    const { runId, seed } = await startRun({ userId: 7, wallet: 'Wallet1', now: NOON });
+    const played = playReplay(seed, 600);
+    await finishRun({ userId: 7, runId, replayBase64: played.base64, now: NOON + 10 });
+    expect((await todayInfo({ userId: 7, now: NOON + 11 })).todayBestSkin).toBe(2);
   });
 
   it('rejects a daily replay whose header claims extra lives', async () => {
@@ -145,7 +172,7 @@ describe('finishRun', () => {
 });
 
 describe('leaderboardForDay tie-break', () => {
-  beforeEach(() => { memory.reset(); fakeChain.reset(); clearPlayerCache(); });
+  beforeEach(() => { memory.reset(); memoryLoadout.reset(); fakeChain.reset(); clearPlayerCache(); });
 
   it("picks the user's earlier-finished run when two verified runs tie on score", async () => {
     await memory.insertRun({ id: 'run-a', userId: 7, day: DAY });
@@ -159,7 +186,7 @@ describe('leaderboardForDay tie-break', () => {
 });
 
 describe('attemptsAllowed from on-chain tickets', () => {
-  beforeEach(() => { memory.reset(); fakeChain.reset(); clearPlayerCache(); });
+  beforeEach(() => { memory.reset(); memoryLoadout.reset(); fakeChain.reset(); clearPlayerCache(); });
 
   it('grants zero attempts when freeAttempts is 0 and there is no ticket', async () => {
     process.env.DAILY_FREE_ATTEMPTS = '0';

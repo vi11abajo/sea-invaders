@@ -9,7 +9,7 @@ export function reset() {
 }
 
 export async function insertRun(run) {
-  runs.set(run.id, { ...run, status: 'started' });
+  runs.set(run.id, { skin: 0, ...run, status: 'started' });
 }
 
 export async function getRun(id) {
@@ -28,7 +28,7 @@ export async function bestForDay(userId, day) {
   const best = [...runs.values()]
     .filter((r) => r.userId === userId && r.day === day && r.status === 'verified')
     .sort((a, b) => b.score - a.score || a.finishedAt - b.finishedAt)[0];
-  return best ? { score: best.score, runId: best.id } : null;
+  return best ? { score: best.score, runId: best.id, skin: best.skin ?? 0 } : null;
 }
 
 export async function leaderboardForDay(day, limit) {
@@ -40,7 +40,27 @@ export async function leaderboardForDay(day, limit) {
   return [...bestPerUser.values()]
     .sort((a, b) => b.score - a.score || a.finishedAt - b.finishedAt)
     .slice(0, limit)
-    .map((r) => ({ userId: r.userId, username: users.get(r.userId)?.username ?? '', walletAddress: users.get(r.userId)?.wallet_address ?? '', score: r.score, runId: r.id }));
+    .map((r) => ({
+      userId: r.userId,
+      username: users.get(r.userId)?.username ?? '',
+      walletAddress: users.get(r.userId)?.wallet_address ?? '',
+      score: r.score,
+      runId: r.id,
+      skin: r.skin ?? 0,
+    }));
+}
+
+/** The skin of each user's highest-scoring verified run among `days` (tie: earliest finished), for a batch of users at once. */
+export async function bestSkinForUsers(userIds, days) {
+  const idSet = new Set(userIds);
+  const daySet = new Set(days);
+  const bestPerUser = new Map();
+  for (const r of runs.values()) {
+    if (r.status !== 'verified' || !idSet.has(r.userId) || !daySet.has(r.day)) continue;
+    const cur = bestPerUser.get(r.userId);
+    if (!cur || r.score > cur.score || (r.score === cur.score && r.finishedAt < cur.finishedAt)) bestPerUser.set(r.userId, r);
+  }
+  return [...bestPerUser.entries()].map(([userId, r]) => ({ userId, skin: r.skin ?? 0 }));
 }
 
 export async function verifiedRunsForDay(day, limit) {

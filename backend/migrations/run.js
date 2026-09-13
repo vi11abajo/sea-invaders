@@ -29,7 +29,8 @@ async function runMigrations() {
       '005_solana_ranked_runs.sql',
       '006_chain_records.sql',
       '007_campaign_progress.sql',
-      '008_loadout.sql'
+      '008_loadout.sql',
+      '009_run_skin.sql'
     ];
 
     // Execute each migration
