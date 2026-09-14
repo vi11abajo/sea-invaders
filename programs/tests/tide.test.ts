@@ -1,5 +1,7 @@
 import { expect } from "chai";
-import { Ctx, setup, warpTo } from "./helpers";
+import { Keypair } from "@solana/web3.js";
+import { BN } from "@anchor-lang/core";
+import { airdrop, Ctx, setup, warpTo } from "./helpers";
 import {
   createPlayer,
   createWeekPool,
@@ -60,9 +62,9 @@ describe("revive (the Tide)", () => {
     for (let step = 0; step < 8; step++) {
       const treasuryBefore = await ctx.tokenBalance(ctx.admin.publicKey);
       const poolBefore = await ctx.tokenBalance(weekPda(ctx.programId, week));
-      const sig = await revive(ctx, ctx.alice, week);
-
       const price = LADDER[step];
+      const sig = await revive(ctx, ctx.alice, week, new BN(price));
+
       const { pool, treasury } = splitShares(price);
       expect(await ctx.tokenBalance(ctx.admin.publicKey)).to.equal(
         treasuryBefore + BigInt(treasury)
@@ -97,7 +99,7 @@ describe("revive (the Tide)", () => {
 
     await warpTo(ctx, tideAt + EBB_SECONDS);
     const treasuryBefore = await ctx.tokenBalance(ctx.admin.publicKey);
-    await revive(ctx, ctx.alice, week);
+    await revive(ctx, ctx.alice, week, new BN(LADDER[6]));
 
     // effective = 7 - min(7, 1) = 6 -> price = ladder[6]; new tide =
     // min(6 + 1, 7) = 7 (still at the cap).
@@ -113,7 +115,7 @@ describe("revive (the Tide)", () => {
     // bob starts fresh (tide 0, tide_at 0) and rises to tide 3 with three
     // immediate revives (no time passes between them).
     for (let i = 0; i < 3; i++) {
-      await revive(ctx, ctx.bob, week);
+      await revive(ctx, ctx.bob, week, new BN(LADDER[i]));
     }
     const mid = await fetchPlayer(ctx, ctx.bob);
     expect(mid.tide).to.equal(3);
@@ -121,7 +123,7 @@ describe("revive (the Tide)", () => {
 
     await warpTo(ctx, tideAt + 2 * EBB_SECONDS);
     const treasuryBefore = await ctx.tokenBalance(ctx.admin.publicKey);
-    await revive(ctx, ctx.bob, week);
+    await revive(ctx, ctx.bob, week, new BN(LADDER[1]));
 
     // effective = 3 - min(3, 2) = 1 -> price = ladder[1]; new tide =
     // min(1 + 1, 7) = 2.
@@ -131,6 +133,81 @@ describe("revive (the Tide)", () => {
     );
     const after = await fetchPlayer(ctx, ctx.bob);
     expect(after.tide).to.equal(2);
+  });
+
+  it("refuses a revive priced one base unit above max_price, leaving the balance and tide untouched", async () => {
+    const carol = Keypair.generate();
+    await airdrop(ctx.connection, carol.publicKey, 1_000_000_000);
+    await createPlayer(ctx, carol);
+    await ctx.mintTo(carol.publicKey, 1_000_000_000n); // 1000 SKR
+
+    // Fresh player: tide 0, tide_at 0 -> effective 0 -> price = LADDER[0],
+    // regardless of the current test-clock override (see effective_tide's
+    // tide_at == 0 branch).
+    const price = LADDER[0];
+    const balanceBefore = await ctx.tokenBalance(carol.publicKey);
+    const treasuryBefore = await ctx.tokenBalance(ctx.admin.publicKey);
+    const poolBefore = await ctx.tokenBalance(weekPda(ctx.programId, week));
+
+    let err = "";
+    try {
+      await revive(ctx, carol, week, new BN(price - 1));
+    } catch (e: any) {
+      err = e.message;
+    }
+    expect(err).to.contain("PriceChanged");
+
+    expect(await ctx.tokenBalance(carol.publicKey)).to.equal(balanceBefore);
+    expect(await ctx.tokenBalance(ctx.admin.publicKey)).to.equal(treasuryBefore);
+    expect(await ctx.tokenBalance(weekPda(ctx.programId, week))).to.equal(
+      poolBefore
+    );
+    const p = await fetchPlayer(ctx, carol);
+    expect(p.tide).to.equal(0);
+    expect(p.tideAt.toNumber()).to.equal(0);
+  });
+
+  it("succeeds when max_price equals the ladder price exactly", async () => {
+    const carol = Keypair.generate();
+    await airdrop(ctx.connection, carol.publicKey, 1_000_000_000);
+    await createPlayer(ctx, carol);
+    await ctx.mintTo(carol.publicKey, 1_000_000_000n); // 1000 SKR
+
+    const price = LADDER[0];
+    const balanceBefore = await ctx.tokenBalance(carol.publicKey);
+
+    await revive(ctx, carol, week, new BN(price));
+
+    expect(await ctx.tokenBalance(carol.publicKey)).to.equal(
+      balanceBefore - BigInt(price)
+    );
+    const p = await fetchPlayer(ctx, carol);
+    expect(p.tide).to.equal(1);
+  });
+
+  it("charges the ladder price, not max_price, when max_price is above it", async () => {
+    const carol = Keypair.generate();
+    await airdrop(ctx.connection, carol.publicKey, 1_000_000_000);
+    await createPlayer(ctx, carol);
+    await ctx.mintTo(carol.publicKey, 1_000_000_000n); // 1000 SKR
+
+    const price = LADDER[0];
+    const balanceBefore = await ctx.tokenBalance(carol.publicKey);
+    const treasuryBefore = await ctx.tokenBalance(ctx.admin.publicKey);
+
+    // max_price is well above the actual ladder price - the ceiling only
+    // ever caps what is charged, it never sets the price itself.
+    await revive(ctx, carol, week, new BN(price + 50_000_000));
+
+    expect(await ctx.tokenBalance(carol.publicKey)).to.equal(
+      balanceBefore - BigInt(price)
+    );
+    const { treasury } = splitShares(price);
+    expect(await ctx.tokenBalance(ctx.admin.publicKey)).to.equal(
+      treasuryBefore + BigInt(treasury)
+    );
+    const p = await fetchPlayer(ctx, carol);
+    expect(p.tide).to.equal(1);
   });
 
   it("refuses a revive while the program is paused", async () => {
@@ -146,7 +223,9 @@ describe("revive (the Tide)", () => {
         [ctx.admin]
       );
       try {
-        await revive(ctx, ctx.alice, week);
+        // max_price is irrelevant here - Paused is checked before the
+        // price ceiling, so a generous cap keeps this test about pausing.
+        await revive(ctx, ctx.alice, week, new BN(LADDER[7]));
       } catch (e: any) {
         err = e.message;
       }

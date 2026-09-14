@@ -368,13 +368,14 @@ export async function purchase(
 }
 
 // `revive` reuses `buy_ticket`'s account set verbatim (see `tide.rs`), so
-// this fixture mirrors `buyTicket` above exactly, just without an
-// instruction argument. Returns the transaction signature, like `purchase`
-// above, so callers can assert the `Revived` event payload.
-export async function revive(ctx: Ctx, who: Keypair, week: number) {
+// this fixture mirrors `buyTicket` above, plus the `max_price` ceiling
+// (mirrors `purchase`'s `maxPrice` argument above). Returns the
+// transaction signature, like `purchase` above, so callers can assert the
+// `Revived` event payload.
+export async function revive(ctx: Ctx, who: Keypair, week: number, maxPrice: BN) {
   const weekPool = weekPda(ctx.programId, week);
   const ix = await ctx.program.methods
-    .revive()
+    .revive(maxPrice)
     .accountsPartial({
       wallet: who.publicKey,
       weekPool,

@@ -75,7 +75,7 @@ pub mod sea_invaders {
         instructions::shop::purchase(ctx, item_id, max_price)
     }
 
-    pub fn revive(ctx: Context<BuyTicket>) -> Result<()> {
-        instructions::tide::revive(ctx)
+    pub fn revive(ctx: Context<BuyTicket>, max_price: u64) -> Result<()> {
+        instructions::tide::revive(ctx, max_price)
     }
 }

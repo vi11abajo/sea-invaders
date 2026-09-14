@@ -25,7 +25,13 @@ pub struct Revived {
 /// ("accounts like `BuyTicket` (no catalog)") and this program already
 /// reuses one `Accounts` struct across several instructions the same way
 /// (`AdminOnly` backs `update_config`, `set_paused` and `set_test_clock`).
-pub fn revive(ctx: Context<BuyTicket>) -> Result<()> {
+///
+/// Takes `max_price`, mirroring `purchase(item_id, max_price)` in shop.rs:
+/// the client quotes `cfg.revive_ladder[effective]` before sending the
+/// transaction, and `max_price` caps what the chain may actually charge if
+/// a concurrent revive (from another device) or an admin re-price raises
+/// the ladder step between quote and execution.
+pub fn revive(ctx: Context<BuyTicket>, max_price: u64) -> Result<()> {
     let cfg = &ctx.accounts.config;
     require!(!cfg.paused, SeaError::Paused);
     // Never call `Clock::get()` directly - `time::now` honours the
@@ -38,6 +44,7 @@ pub fn revive(ctx: Context<BuyTicket>) -> Result<()> {
     let tide_at = ctx.accounts.player.tide_at;
     let effective = effective_tide(tide, tide_at, now, cfg.ebb_seconds)?;
     let price = cfg.revive_ladder[effective as usize];
+    require!(price <= max_price, SeaError::PriceChanged);
 
     pay_split(
         &ctx.accounts.token_program,
