@@ -142,7 +142,8 @@ function OfferSheet({ quote, now, revivesLeft, connecting, onRevive, onRetryQuot
   // Handoff 10's `Price ladder 25 → 120 SKR · falls back over time`, with the range read from the
   // quote's on-chain ladder (never hardcoded), plus this level's remaining revives.
   const revives = `${revivesLeft} ${revivesLeft === 1 ? 'revive' : 'revives'} left`;
-  const ladder = quote.status === 'ready' && quote.quote.ladderSkr.length > 0 ? quote.quote.ladderSkr : null;
+  // `Array.isArray`: an API still answering without the ladder must not break the sheet.
+  const ladder = quote.status === 'ready' && Array.isArray(quote.quote.ladderSkr) && quote.quote.ladderSkr.length > 0 ? quote.quote.ladderSkr : null;
   const note = ladder !== null
     ? `Price ladder ${formatSkr(ladder[0]!)} → ${formatSkr(ladder[ladder.length - 1]!)} SKR · falls back over time · ${revives}`
     : `${revives} this level · price falls back over time`;
