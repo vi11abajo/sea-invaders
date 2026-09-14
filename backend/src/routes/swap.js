@@ -1,11 +1,15 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { sessionLimiter } from '../middleware/rateLimit.js';
+import { quoteLimiter } from '../middleware/rateLimit.js';
 import { quoteSwapPrice, SwapError, swapAvailable } from '../services/swap.js';
 
 const router = express.Router();
 
-router.post('/quote', authenticateToken, sessionLimiter, async (req, res, next) => {
+// quoteLimiter, not sessionLimiter: this route is a read-only price label, and GET /api/shop /
+// POST /api/revive/quote now price their own lists (services/shop.js's `withSolPrices`,
+// services/tide.js's `quoteRevive`) rather than calling it, so it no longer belongs to the same
+// budget as POST /api/shop/buy, /api/revive and PUT /api/profile/loadout (final re-review).
+router.post('/quote', authenticateToken, quoteLimiter, async (req, res, next) => {
   try {
     if (!swapAvailable()) {
       return res.status(409).json({ error: 'Swap', code: 'swap_unavailable', message: 'Swap is not available on this cluster' });

@@ -23,6 +23,7 @@ process.env.SKR_MINT = Keypair.generate().publicKey.toBase58();
 process.env.SERVER_AUTHORITY_SECRET = bs58.encode(serverAuthority.secretKey);
 
 const { effectiveTide, quoteRevive, issueRevive, confirmRevive } = await import('../src/services/tide.js');
+const { clearSwapPriceCache } = await import('../src/services/swap.js');
 const { ShopError } = await import('../src/services/shop.js');
 const { createApp } = await import('../src/createApp.js');
 const realTxs = await vi.importActual('../src/chain/txs.js');
@@ -79,7 +80,7 @@ const LADDER_SKR = [25, 30, 40, 50, 60, 75, 95, 120];
  * A full quote with the fields every case shares - the ladder, an empty wallet and no swap (this
  * file runs on devnet) - so each case only names the prices and steps it is actually about.
  */
-const quoted = (patch) => ({ ladderSkr: LADDER_SKR, balanceSkr: 0, swap: { available: false }, ...patch });
+const quoted = (patch) => ({ ladderSkr: LADDER_SKR, balanceSkr: 0, swap: { available: false }, priceSol: null, maxInLamports: null, ...patch });
 
 describe('quoteRevive', () => {
   beforeEach(() => {
@@ -189,6 +190,7 @@ describe('issueRevive with a swap', () => {
   beforeEach(() => {
     fakeChain.reset();
     setLadderConfig();
+    clearSwapPriceCache();
     jupiter = fixtureFetch(jupiterFixture(WALLET, process.env.SKR_MINT));
     vi.stubGlobal('fetch', jupiter);
   });
@@ -232,6 +234,25 @@ describe('issueRevive with a swap', () => {
     fakeChain.setBalance(WALLET, 5_500_000n);
     const quote = await quoteRevive({ wallet: WALLET, now: 0 });
     expect(quote).toMatchObject({ priceSkr: 25, balanceSkr: 5.5, swap: { available: true } });
+  });
+
+  // Important - "New Breakage in the Fix Diff": the Tide's SOL label travels with the quote itself
+  // (services/swap.js's cached quoteSwapPrice), so the app never has to call POST /api/swap/quote.
+  it('quotes the current price in SOL alongside the SKR quote, on mainnet', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    fakeChain.setBalance(WALLET, 5_500_000n);
+    const quote = await quoteRevive({ wallet: WALLET, now: 0 });
+    expect(quote).toMatchObject({ priceSol: 1_921_336 / 1e9, maxInLamports: 1_930_943 + 2_039_280 });
+    expect(jupiter.calls).toHaveLength(1);
+    expect(jupiter.calls[0].url).not.toContain('/swap-instructions');
+  });
+
+  it('leaves priceSol/maxInLamports null when the Jupiter quote fails, without failing the quote itself', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    vi.stubGlobal('fetch', async () => ({ ok: false, status: 503 }));
+    fakeChain.setBalance(WALLET, 5_500_000n);
+    const quote = await quoteRevive({ wallet: WALLET, now: 0 });
+    expect(quote).toMatchObject({ priceSkr: 25, priceSol: null, maxInLamports: null });
   });
 });
 
@@ -283,6 +304,7 @@ describe('/api/revive routes', () => {
     fakeChain.reset();
     memoryLoadout.reset();
     setLadderConfig();
+    clearSwapPriceCache();
     // sessionLimiter/confirmLimiter are singletons shared with every other route mounted on them
     // (routes/shop.js, routes/swap.js, routes/profile.js); reset the per-user key so an earlier
     // test's calls never carry a used-up budget into this one (daily.test.js does the same).
@@ -376,6 +398,16 @@ describe('/api/revive routes', () => {
       const res = await request(app).post('/api/revive').set(auth).send({ swap: true });
       expect(res.status).toBe(201);
       expect(res.body).toMatchObject({ transaction: expect.any(String), priceSkr: 25, swapped: true, swappedSkr: 25, inSol: 1_921_336 / 1e9, maxInLamports: 1_930_943 + 2_039_280 });
+    });
+
+    // Important - "New Breakage in the Fix Diff": POST /api/revive/quote carries the SOL label
+    // itself, so the app never has to follow up with POST /api/swap/quote.
+    it('POST /quote answers with priceSol/maxInLamports on mainnet, from the cached quote', async () => {
+      process.env.SOLANA_CLUSTER = 'mainnet';
+      stubJupiter();
+      const res = await request(app).post('/api/revive/quote').set(auth);
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ priceSkr: 25, priceSol: 1_921_336 / 1e9, maxInLamports: 1_930_943 + 2_039_280 });
     });
 
     it('maps a failing Jupiter call to 502 swap_quote_failed, not to a 500', async () => {

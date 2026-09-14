@@ -9,7 +9,7 @@ import * as memoryLoadout from './helpers/memoryLoadout.js';
 import * as fakeChain from './helpers/fakeChain.js';
 import { instructionsFromMessage, messageFrom, realPurchaseInstructions as sharedRealPurchaseInstructions, realReviveInstructions as sharedRealReviveInstructions } from './helpers/fixtureTx.js';
 import { fixtureFetch, jupiterFixture } from './helpers/jupiterFixture.js';
-import { confirmLimiter, sessionLimiter } from '../src/middleware/rateLimit.js';
+import { confirmLimiter, quoteLimiter, sessionLimiter } from '../src/middleware/rateLimit.js';
 
 vi.mock('../src/db/loadout.js', () => import('./helpers/memoryLoadout.js'));
 vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
@@ -27,8 +27,9 @@ process.env.SKR_MINT = Keypair.generate().publicKey.toBase58();
 process.env.SERVER_AUTHORITY_SECRET = bs58.encode(serverAuthority.secretKey);
 
 const {
-  readCatalog, readPlayerShop, issuePurchase, confirmPurchase, ownedItemIds, clearCatalogCache, ShopError,
+  readCatalog, readPlayerShop, issuePurchase, confirmPurchase, ownedItemIds, clearCatalogCache, withSolPrices, ShopError,
 } = await import('../src/services/shop.js');
+const { clearSwapPriceCache } = await import('../src/services/swap.js');
 const { createApp } = await import('../src/createApp.js');
 const realTxs = await vi.importActual('../src/chain/txs.js');
 
@@ -73,6 +74,52 @@ describe('readCatalog / readPlayerShop', () => {
   it('readPlayerShop reflects the on-chain inventory/tide/tideAt', async () => {
     fakeChain.setPlayer(WALLET, { inventory: (1n << 3n) | (1n << 0n), tide: 2, tideAt: 12345 });
     expect(await readPlayerShop(WALLET)).toEqual({ inventory: 9n, tide: 2, tideAt: 12345 });
+  });
+});
+
+// "New Breakage in the Fix Diff" of the final re-review: the Shop's `≈ X SOL` labels come with the
+// list itself (`withSolPrices`, used by `GET /api/shop`), never from one `POST /api/swap/quote` per item.
+describe('withSolPrices', () => {
+  const originalCluster = process.env.SOLANA_CLUSTER;
+  beforeEach(() => {
+    clearSwapPriceCache();
+  });
+  afterEach(() => {
+    process.env.SOLANA_CLUSTER = originalCluster;
+    vi.unstubAllGlobals();
+  });
+
+  it('is null for every item off mainnet, without calling Jupiter', async () => {
+    process.env.SOLANA_CLUSTER = 'devnet';
+    vi.stubGlobal('fetch', async () => {
+      throw new Error('must not be called');
+    });
+    const priced = await withSolPrices([{ priceSkr: 25 }, { priceSkr: 40 }]);
+    expect(priced).toEqual([
+      { priceSkr: 25, priceSol: null, maxInLamports: null },
+      { priceSkr: 40, priceSol: null, maxInLamports: null },
+    ]);
+  });
+
+  it('quotes once per distinct price for 7 items across 6 distinct prices, and never touches /swap-instructions', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    const jupiter = fixtureFetch(jupiterFixture(WALLET, process.env.SKR_MINT));
+    vi.stubGlobal('fetch', jupiter);
+    // The default catalog fixture's own shape (fakeChain.js's defaultCatalog): 40/60/90/25/25/35/50.
+    const items = [40, 60, 90, 25, 25, 35, 50].map((priceSkr) => ({ priceSkr }));
+
+    const priced = await withSolPrices(items);
+
+    expect(jupiter.calls).toHaveLength(6);
+    expect(jupiter.calls.every((call) => !call.url.includes('/swap-instructions'))).toBe(true);
+    expect(priced.every((item) => item.priceSol === 1_921_336 / 1e9 && item.maxInLamports === 1_930_943 + 2_039_280)).toBe(true);
+  });
+
+  it('leaves priceSol/maxInLamports null for an item whose quote fails, without throwing', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    vi.stubGlobal('fetch', async () => ({ ok: false, status: 503 }));
+    const priced = await withSolPrices([{ priceSkr: 25 }]);
+    expect(priced).toEqual([{ priceSkr: 25, priceSol: null, maxInLamports: null }]);
   });
 });
 
@@ -308,11 +355,13 @@ describe('/api/shop routes', () => {
     fakeChain.reset();
     memoryLoadout.reset();
     clearCatalogCache();
-    // sessionLimiter/confirmLimiter are singletons shared with every other route mounted on them
-    // (services/tide.js, routes/swap.js, routes/profile.js); reset the per-user key so an earlier
-    // test's calls never carry a used-up budget into this one (daily.test.js does the same).
+    clearSwapPriceCache();
+    // sessionLimiter/confirmLimiter/quoteLimiter are singletons shared with every other route
+    // mounted on them (services/tide.js, routes/swap.js, routes/profile.js); reset the per-user key
+    // so an earlier test's calls never carry a used-up budget into this one (daily.test.js does the same).
     sessionLimiter.resetKey(`user:${user.id}`);
     confirmLimiter.resetKey(`user:${user.id}`);
+    quoteLimiter.resetKey(`user:${user.id}`);
     app = createApp();
   });
 
@@ -328,7 +377,7 @@ describe('/api/shop routes', () => {
     expect(res.status).toBe(200);
     expect(res.body.balanceSkr).toBe(30);
     expect(res.body.swap).toEqual({ available: false }); // devnet in this test file
-    expect(res.body.items).toContainEqual({ id: LIME, kind: 'skin', name: 'Lime', priceSkr: 25, owned: false });
+    expect(res.body.items).toContainEqual({ id: LIME, kind: 'skin', name: 'Lime', priceSkr: 25, priceSol: null, maxInLamports: null, owned: false });
     expect(res.body.items.every((it) => !('priceBaseUnits' in it) && !('active' in it))).toBe(true);
   });
 
@@ -347,7 +396,7 @@ describe('/api/shop routes', () => {
     fakeChain.setPlayer(WALLET, { inventory: 1n << 5n });
     const res = await request(app).get('/api/shop').set(auth);
     expect(res.body.items.find((it) => it.id === LIME)).toBeUndefined();
-    expect(res.body.items).toContainEqual({ id: 5, kind: 'skin', name: 'Ember', priceSkr: 35, owned: true });
+    expect(res.body.items).toContainEqual({ id: 5, kind: 'skin', name: 'Ember', priceSkr: 35, priceSol: null, maxInLamports: null, owned: true });
   });
 
   it('POST /buy answers 409 not_enough_skr with needSkr/haveSkr through the router error handler', async () => {
@@ -377,6 +426,22 @@ describe('/api/shop routes', () => {
     expect(res.body).toMatchObject({ error: 'TooManySessions' });
   });
 
+  // "New Breakage in the Fix Diff" of the final re-review: POST /api/swap/quote used to share
+  // sessionLimiter with POST /buy, so a Shop open's price fan-out could 429 the purchase itself.
+  // It now carries its own quoteLimiter (backend/src/routes/swap.js), so 10 quotes leave POST /buy's
+  // budget untouched.
+  it('does not let POST /api/swap/quote fan-out starve POST /buy (separate limiters)', async () => {
+    fakeChain.setBalance(WALLET, 25_000_000n);
+    for (let i = 0; i < 10; i++) {
+      // devnet in this test file: swapAvailable() answers 409 before any Jupiter call, exactly
+      // like `swap.test.js`'s own quoteLimiter test - only the limiter bucket matters here.
+      const quote = await request(app).post('/api/swap/quote').set(auth).send({ outSkr: 25 });
+      expect(quote.status).toBe(409);
+    }
+    const res = await request(app).post('/api/shop/buy').set(auth).send({ item: LIME });
+    expect(res.status).toBe(201);
+  });
+
   it('rate-limits POST /confirm (confirmLimiter, 60/min per user)', async () => {
     for (let i = 0; i < 60; i++) {
       const res = await request(app).post('/api/shop/confirm').set(auth).send({ signature: 'missing-sig', item: LIME });
@@ -404,6 +469,33 @@ describe('/api/shop routes', () => {
       const res = await request(app).post('/api/shop/buy').set(auth).send({ item: LIME, swap: true });
       expect(res.status).toBe(409);
       expect(res.body).toMatchObject({ error: 'Shop', code: 'not_enough_skr', needSkr: 25, haveSkr: 0 });
+    });
+
+    // Important - "New Breakage in the Fix Diff": the whole catalogue is priced in one GET, with
+    // one Jupiter call per distinct price (the default 7-item fixture has 6), never one per item.
+    it('GET / prices every item in SOL on mainnet, one Jupiter call per distinct price', async () => {
+      process.env.SOLANA_CLUSTER = 'mainnet';
+      const jupiter = fixtureFetch(jupiterFixture(WALLET, process.env.SKR_MINT));
+      vi.stubGlobal('fetch', jupiter);
+      fakeChain.setBalance(WALLET, 30_000_000n);
+
+      const res = await request(app).get('/api/shop').set(auth);
+      expect(res.status).toBe(200);
+      expect(res.body.swap).toEqual({ available: true });
+      expect(res.body.items).toHaveLength(7);
+      expect(res.body.items.every((it) => it.priceSol === 1_921_336 / 1e9 && it.maxInLamports === 1_930_943 + 2_039_280)).toBe(true);
+      expect(jupiter.calls).toHaveLength(6); // 40/60/90/25/25/35/50 - 6 distinct prices
+      expect(jupiter.calls.every((call) => !call.url.includes('/swap-instructions'))).toBe(true);
+    });
+
+    it('GET / leaves priceSol/maxInLamports null when the Jupiter quote fails, keeping the list 200', async () => {
+      process.env.SOLANA_CLUSTER = 'mainnet';
+      vi.stubGlobal('fetch', async () => ({ ok: false, status: 503 }));
+      fakeChain.setBalance(WALLET, 30_000_000n);
+
+      const res = await request(app).get('/api/shop').set(auth);
+      expect(res.status).toBe(200);
+      expect(res.body.items).toContainEqual(expect.objectContaining({ id: LIME, priceSol: null, maxInLamports: null }));
     });
 
     it('answers 201 with swapped and the SOL amount on mainnet', async () => {

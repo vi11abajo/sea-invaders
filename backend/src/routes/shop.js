@@ -3,7 +3,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import { confirmLimiter, sessionLimiter } from '../middleware/rateLimit.js';
 import { getTokenBalance } from '../chain/readers.js';
 import * as loadoutDb from '../db/loadout.js';
-import { confirmPurchase, issuePurchase, ownedItemIds, readCatalog, readPlayerShop, ShopError } from '../services/shop.js';
+import { confirmPurchase, issuePurchase, ownedItemIds, readCatalog, readPlayerShop, ShopError, withSolPrices } from '../services/shop.js';
 import { SwapError, swapAvailable } from '../services/swap.js';
 
 const router = express.Router();
@@ -16,12 +16,14 @@ router.get('/', authenticateToken, async (req, res, next) => {
     await loadoutDb.upsertLoadout(wallet, { inventory: shop.inventory, tide: shop.tide, tideAt: shop.tideAt });
 
     const owned = new Set(ownedItemIds(shop.inventory));
+    // An inactive item the wallet does not own is dropped (nothing to buy); an inactive item it
+    // already owns stays listed, since owning it never goes away (owner decision, spec §3 omits `active`).
+    const visible = catalog.filter((it) => it.active || owned.has(it.id));
+    const priced = await withSolPrices(visible);
     res.json({
-      // An inactive item the wallet does not own is dropped (nothing to buy); an inactive item it
-      // already owns stays listed, since owning it never goes away (owner decision, spec §3 omits `active`).
-      items: catalog
-        .filter((it) => it.active || owned.has(it.id))
-        .map(({ id, kind, name, priceSkr }) => ({ id, kind, name, priceSkr, owned: owned.has(id) })),
+      items: priced.map(({ id, kind, name, priceSkr, priceSol, maxInLamports }) => (
+        { id, kind, name, priceSkr, priceSol, maxInLamports, owned: owned.has(id) }
+      )),
       balanceSkr: Number(balance) / 1e6,
       swap: { available: swapAvailable() },
     });

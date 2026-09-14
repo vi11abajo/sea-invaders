@@ -5,7 +5,7 @@ import { ActivityIndicator, BackHandler, Pressable, RefreshControl, ScrollView, 
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { CLUSTER } from '../api/config';
 import { requestFaucet } from '../api/daily';
-import { buyItem, confirmPurchase, getShop, quoteSwapSol, type ShopInfo, type ShopItem } from '../api/shop';
+import { buyItem, confirmPurchase, getShop, type ShopInfo, type ShopItem } from '../api/shop';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
 import { Toast } from '../ui/Toast';
@@ -59,7 +59,6 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
   const [shop, setShop] = useState<ShopInfo | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [solLamports, setSolLamports] = useState<number | null>(null);
-  const [solQuotes, setSolQuotes] = useState<Readonly<Record<number, number>>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [faucetBusy, setFaucetBusy] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
@@ -103,25 +102,6 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
     await load();
     if (alive.current) setRefreshing(false);
   }, [load]);
-
-  // Mainnet only: SOL quotes for the items the SKR balance cannot cover (the handoff's "≈ 0.476 SOL").
-  useEffect(() => {
-    if (shop === null || !shop.swap.available) return undefined;
-    let active = true;
-    for (const item of shop.items) {
-      if (item.owned || item.priceSkr <= shop.balanceSkr) continue;
-      quoteSwapSol(item.priceSkr)
-        .then((sol) => {
-          if (active) setSolQuotes((q) => ({ ...q, [item.id]: sol }));
-        })
-        .catch(() => {
-          // No quote: the price stays in SKR.
-        });
-    }
-    return () => {
-      active = false;
-    };
-  }, [shop]);
 
   // Mainnet only: the backend swaps SOL for the missing SKR when the balance cannot cover the
   // price, and ignores the offer when it can. Elsewhere the gate answers and the not-enough-SKR
@@ -247,7 +227,7 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
               </View>
             )
           ) : (
-            <Catalogue shop={shop} solQuotes={solQuotes} disabled={busy} onBuy={(item) => void buy(item)} />
+            <Catalogue shop={shop} disabled={busy} onBuy={(item) => void buy(item)} />
           )}
         </ScrollView>
       </Animated.View>
@@ -278,18 +258,16 @@ function BalancePill({ skr, solLamports }: { skr: number; solLamports: number | 
 
 interface CatalogueProps {
   shop: ShopInfo;
-  /** Mainnet SOL quotes by item id, for items the SKR balance cannot cover. */
-  solQuotes: Readonly<Record<number, number>>;
   disabled: boolean;
   onBuy: (item: ShopItem) => void;
 }
 
-function Catalogue({ shop, solQuotes, disabled, onBuy }: CatalogueProps) {
+function Catalogue({ shop, disabled, onBuy }: CatalogueProps) {
   const short = (item: ShopItem) => shop.swap.available && !item.owned && item.priceSkr > shop.balanceSkr;
   const priceLabel = (item: ShopItem): string => {
     if (item.owned) return 'Owned';
-    const sol = short(item) ? solQuotes[item.id] : undefined;
-    return sol === undefined ? `${formatSkr(item.priceSkr)} SKR` : `≈ ${formatSolPrice(sol)} SOL`;
+    const sol = short(item) ? item.priceSol : null;
+    return sol === null ? `${formatSkr(item.priceSkr)} SKR` : `≈ ${formatSolPrice(sol)} SOL`;
   };
   const variants = shop.items.filter((item) => item.kind === 'variant');
   const skins = shop.items.filter((item) => item.kind === 'skin');

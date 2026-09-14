@@ -99,6 +99,22 @@ export const sessionLimiter = rateLimit({
   keyGenerator: getUserKey, // Per-user limiting
 });
 
+// Limiter for the swap price-quote label route (POST /api/swap/quote): a read-only Jupiter lookup,
+// not a chain write, so it gets its own generous bucket instead of sharing sessionLimiter's 10/min -
+// otherwise a client still calling the route directly could exhaust the same budget purchases,
+// revives and loadout saves depend on (final re-review, "New Breakage in the Fix Diff"). The Shop
+// and the Tide no longer call this route at all - GET /api/shop and POST /api/revive/quote price
+// their lists/quotes themselves - so this limiter is a safety margin for any caller that still does.
+export const quoteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // maximum 60 price quotes per minute
+  message: {
+    error: 'TooManyQuotes',
+    message: 'Too many price quotes requested. Please wait.'
+  },
+  keyGenerator: getUserKey, // Per-user limiting
+});
+
 // Limiter for confirmation polls (read-only chain lookups; the mobile client polls every
 // 2s for up to 60s, i.e. up to 30 requests per confirmation flow) — kept separate from
 // sessionLimiter so a confirm poll never eats into the budget for creating new sessions.
@@ -130,6 +146,7 @@ export default {
   authLimiter,
   scoreSubmitLimiter,
   sessionLimiter,
+  quoteLimiter,
   confirmLimiter,
   leaderboardLimiter
 };

@@ -7,7 +7,7 @@ import { buildPurchaseTx } from '../chain/txs.js';
 import { hasPurchase } from '../chain/verify.js';
 import * as loadoutDb from '../db/loadout.js';
 import { dayOf, weekOf } from './dailySeed.js';
-import { planSwap, swapEnvelope } from './swap.js';
+import { planSwap, quoteSwapPrice, swapAvailable, swapEnvelope } from './swap.js';
 
 const STATUS = {
   unknown_item: 404, item_inactive: 409, already_owned: 409, not_enough_skr: 409,
@@ -53,6 +53,23 @@ export async function readCatalog() {
 /** Clears the cached catalogue (tests only - the on-chain catalogue itself changes rarely, via `set_catalog`). */
 export function clearCatalogCache() {
   catalogCache = null;
+}
+
+/**
+ * `items` with `priceSol`/`maxInLamports` attached from the cached `quoteSwapPrice` (`services/swap.js`) -
+ * the Shop's `≈ X SOL` labels, priced with the list itself rather than one `POST /api/swap/quote`
+ * per item (final re-review, "New Breakage in the Fix Diff"). Both fields are `null` for every item
+ * when the cluster has no Jupiter to quote against (`swapAvailable()` false, e.g. devnet), and `null`
+ * for any one item whose quote failed - a failed quote must never fail the Shop list itself.
+ *
+ * `quoteSwapPrice` already caches and de-dupes by exact price, so items sharing a catalogue price
+ * (`quoteSwapPrice`'s in-flight promise is installed synchronously, before this function's first
+ * `await`) cost exactly one Jupiter call between them, not one per item.
+ */
+export async function withSolPrices(items) {
+  if (!swapAvailable()) return items.map((item) => ({ ...item, priceSol: null, maxInLamports: null }));
+  const quotes = await Promise.all(items.map((item) => quoteSwapPrice({ outSkr: item.priceSkr }).catch(() => null)));
+  return items.map((item, i) => ({ ...item, priceSol: quotes[i]?.inSol ?? null, maxInLamports: quotes[i]?.maxInLamports ?? null }));
 }
 
 /** A wallet's on-chain shop state, `{ inventory, tide, tideAt }` - zeros for a wallet with no `Player` account yet. */

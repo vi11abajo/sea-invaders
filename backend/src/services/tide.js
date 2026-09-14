@@ -9,7 +9,7 @@ import { hasRevive } from '../chain/verify.js';
 import * as loadoutDb from '../db/loadout.js';
 import { dayOf, weekOf } from './dailySeed.js';
 import { ShopError } from './shop.js';
-import { planSwap, swapAvailable, swapEnvelope } from './swap.js';
+import { planSwap, quoteSwapPrice, swapAvailable, swapEnvelope } from './swap.js';
 
 /**
  * The tide step actually in effect `now`, after ebbing back from `tide` by one step per full
@@ -52,14 +52,26 @@ function quoteFromPlayer(player, config, now) {
 
 /**
  * The revive price for `wallet` at `now`, plus what the Tide sheet needs to decide how to offer it:
- * `balanceSkr` (the wallet's SKR, read from the chain like the Shop's own balance) and
- * `swap: { available }`, the same gate `GET /api/shop` reports. Together they are what turns the
- * primary into `Revive · ≈ X SOL` (design doc §5 "Swap") instead of the SKR price - on devnet the
- * gate is false and nothing about the sheet changes.
+ * `balanceSkr` (the wallet's SKR, read from the chain like the Shop's own balance), `swap: { available }`,
+ * the same gate `GET /api/shop` reports, and `priceSol`/`maxInLamports` - the current price's SOL
+ * cost from the cached `quoteSwapPrice` (`services/swap.js`), exactly as `withSolPrices` prices the
+ * Shop's list. Both are `null` off mainnet or when the quote fails - a failed quote must not fail
+ * the Tide quote itself. Together they are what turns the primary into `Revive · ≈ X SOL` (design
+ * doc §5 "Swap") instead of the SKR price - on devnet the gate is false and nothing about the sheet
+ * changes.
  */
 export async function quoteRevive({ wallet, now }) {
   const [player, config, balance] = await Promise.all([getPlayer(wallet), getConfig(), getTokenBalance(wallet)]);
-  return { ...quoteFromPlayer(player, config, now), balanceSkr: Number(balance) / 1e6, swap: { available: swapAvailable() } };
+  const quote = quoteFromPlayer(player, config, now);
+  const available = swapAvailable();
+  const priced = available ? await quoteSwapPrice({ outSkr: quote.priceSkr }).catch(() => null) : null;
+  return {
+    ...quote,
+    balanceSkr: Number(balance) / 1e6,
+    swap: { available },
+    priceSol: priced?.inSol ?? null,
+    maxInLamports: priced?.maxInLamports ?? null,
+  };
 }
 
 /**

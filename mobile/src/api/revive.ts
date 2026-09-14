@@ -20,6 +20,10 @@ export interface ReviveQuote {
   balanceSkr: number;
   /** Whether SOL -> SKR swap quotes exist on this cluster (mainnet only), exactly as `GET /api/shop` reports it. */
   swap: { available: boolean };
+  /** `priceSkr` converted to SOL by the backend's cached Jupiter quote; null off mainnet or when that quote failed - the price then only shows in SKR. */
+  priceSol: number | null;
+  /** The most lamports a swap for this revive would take (slippage ceiling plus the temporary wSOL account's rent); null alongside `priceSol`. */
+  maxInLamports: number | null;
 }
 
 /** The current revive price (`POST /api/revive/quote`). */

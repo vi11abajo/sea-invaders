@@ -5,7 +5,6 @@ import { PollCancelled, readSignature, EXPIRY_MARGIN_BLOCKS, type SignatureVerdi
 import { ApiError } from '../api/client';
 import { requestFaucet } from '../api/daily';
 import { confirmRevive, issueRevive, quoteRevive, type ReviveQuote } from '../api/revive';
-import { quoteSwapSol } from '../api/shop';
 import { COLORS } from '../ui/tokens';
 import { DECLINED_TOAST, usePurchase } from '../wallet/usePurchase';
 
@@ -123,8 +122,6 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
   const [stage, setStage] = useState<TideStage>({ kind: 'offer' });
   const [now, setNow] = useState(() => Date.now());
   const [faucetBusy, setFaucetBusy] = useState(false);
-  /** What the revive costs in SOL when it has to be swapped for; null while unknown, or wherever there is no swap. */
-  const [solPrice, setSolPrice] = useState<number | null>(null);
 
   const alive = useRef(true);
   useEffect(
@@ -173,30 +170,13 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
 
   // Mainnet only (the quote carries the same `swap.available` gate `GET /api/shop` reports), and
   // only while the wallet cannot cover the price in SKR: what the revive costs in SOL, for the
-  // primary's `Revive · ≈ X SOL` (design doc §5 "Swap"). On devnet the gate is false, no quote is
-  // asked for and the sheet keeps its SKR price and the faucet hint exactly as they were.
+  // primary's `Revive · ≈ X SOL` (design doc §5 "Swap"). `priceSol` travels with the quote itself
+  // (`POST /api/revive/quote`, the backend's own cached Jupiter quote) - no separate call needed
+  // here. Null on devnet (the gate) or when that quote failed, in which case the sheet keeps its
+  // SKR price and the faucet hint exactly as they were.
   const ready = quote.status === 'ready' ? quote.quote : null;
   const swapAvailable = ready !== null && ready.swap?.available === true;
-  const swapPriceSkr = swapAvailable && ready.balanceSkr < ready.priceSkr ? ready.priceSkr : null;
-
-  useEffect(() => {
-    if (swapPriceSkr === null) {
-      setSolPrice(null);
-      return undefined;
-    }
-    let active = true;
-    quoteSwapSol(swapPriceSkr)
-      .then((sol) => {
-        if (active) setSolPrice(sol);
-      })
-      .catch(() => {
-        // No quote: the primary stays in SKR.
-        if (active) setSolPrice(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [swapPriceSkr]);
+  const solPrice = swapAvailable && ready.balanceSkr < ready.priceSkr ? ready.priceSol : null;
 
   // The price falls a step when the countdown runs out: fetch the new one.
   const dropAt = quote.status === 'ready' && quote.quote.nextStep !== null ? quote.at + quote.quote.nextStep.inSeconds * 1000 : null;

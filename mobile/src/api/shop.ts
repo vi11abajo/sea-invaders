@@ -11,6 +11,10 @@ export interface ShopItem {
   name: string;
   /** The on-chain price in SKR (SKR has 6 decimals, so this can be fractional). */
   priceSkr: number;
+  /** `priceSkr` converted to SOL by the backend's cached Jupiter quote; null off mainnet or when that quote failed - the price then only shows in SKR. */
+  priceSol: number | null;
+  /** The most lamports a swap for this item would take (slippage ceiling plus the temporary wSOL account's rent); null alongside `priceSol`. */
+  maxInLamports: number | null;
   owned: boolean;
 }
 
@@ -60,10 +64,4 @@ export interface ConfirmPurchaseResult {
  */
 export function confirmPurchase(signature: string, item: number): Promise<ConfirmPurchaseResult> {
   return apiFetch('/api/shop/confirm', { method: 'POST', auth: true, body: { signature, item } });
-}
-
-/** SOL needed to swap into exactly `outSkr` SKR. Mainnet only: elsewhere the backend answers 409 `swap_unavailable`. */
-export async function quoteSwapSol(outSkr: number): Promise<number> {
-  const quote = await apiFetch<{ inSol: number }>('/api/swap/quote', { method: 'POST', auth: true, body: { outSkr } });
-  return quote.inSol;
 }

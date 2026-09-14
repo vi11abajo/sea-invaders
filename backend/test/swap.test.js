@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tokenFor } from './helpers/jwt.js';
 import * as memory from './helpers/memoryRankedRuns.js';
 import { fixtureFetch, jupiterFixture } from './helpers/jupiterFixture.js';
-import { sessionLimiter } from '../src/middleware/rateLimit.js';
+import { quoteLimiter } from '../src/middleware/rateLimit.js';
 
 const serverAuthority = Keypair.generate();
 process.env.SOLANA_CLUSTER = process.env.SOLANA_CLUSTER || 'devnet';
@@ -207,7 +207,7 @@ describe('POST /api/swap/quote', () => {
   const originalCluster = process.env.SOLANA_CLUSTER;
   beforeEach(() => {
     clearSwapPriceCache();
-    sessionLimiter.resetKey(`user:${user.id}`);
+    quoteLimiter.resetKey(`user:${user.id}`);
   });
   afterEach(() => {
     process.env.SOLANA_CLUSTER = originalCluster;
@@ -249,17 +249,19 @@ describe('POST /api/swap/quote', () => {
     expect(urls[0]).toContain('maxAccounts=32');
   });
 
-  // Important #3: sessionLimiter (shared with routes/shop.js, routes/revive.js, routes/profile.js).
-  it('rate-limits POST /quote (sessionLimiter, 10/min per user)', async () => {
+  // "New Breakage in the Fix Diff" of the final re-review: this route now carries its own
+  // quoteLimiter, not the shared sessionLimiter (backend/src/routes/swap.js), so a Shop/Tide price
+  // fan-out can never 429 POST /api/shop/buy, /api/revive or PUT /api/profile/loadout.
+  it('rate-limits POST /quote on its own budget (quoteLimiter, 60/min per user)', async () => {
     process.env.SOLANA_CLUSTER = 'devnet'; // the 409 gate answers before any Jupiter call is made
     const app = createApp();
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 60; i++) {
       const res = await request(app).post('/api/swap/quote').set(auth).send({ outSkr: 25 });
       expect(res.status).toBe(409);
     }
     const res = await request(app).post('/api/swap/quote').set(auth).send({ outSkr: 25 });
     expect(res.status).toBe(429);
-    expect(res.body).toMatchObject({ error: 'TooManySessions' });
+    expect(res.body).toMatchObject({ error: 'TooManyQuotes' });
   });
 
   // Important #4's other half: cut the per-item fan-out. A Shop open asks for one price per
