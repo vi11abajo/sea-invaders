@@ -139,7 +139,13 @@ interface OfferSheetProps {
 
 /** Handoff 10: `THE TIDE` / `Octopi is down`, the price card, the ladder, the note, Revive / End level. */
 function OfferSheet({ quote, now, revivesLeft, connecting, onRevive, onRetryQuote, onConnect, onEndLevel }: OfferSheetProps) {
-  const note = `${revivesLeft} ${revivesLeft === 1 ? 'revive' : 'revives'} left this level · price falls back over time`;
+  // Handoff 10's `Price ladder 25 → 120 SKR · falls back over time`, with the range read from the
+  // quote's on-chain ladder (never hardcoded), plus this level's remaining revives.
+  const revives = `${revivesLeft} ${revivesLeft === 1 ? 'revive' : 'revives'} left`;
+  const ladder = quote.status === 'ready' && quote.quote.ladderSkr.length > 0 ? quote.quote.ladderSkr : null;
+  const note = ladder !== null
+    ? `Price ladder ${formatSkr(ladder[0]!)} → ${formatSkr(ladder[ladder.length - 1]!)} SKR · falls back over time · ${revives}`
+    : `${revives} this level · price falls back over time`;
   let primary: ReactNode;
   if (quote.status === 'signed_out') {
     primary = <PillButton label={connecting ? 'Connecting…' : 'Connect wallet'} onPress={onConnect} disabled={connecting} />;

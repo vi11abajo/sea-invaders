@@ -14,6 +14,8 @@ export interface ReviveQuote {
   priceSkr: number;
   /** When the price next falls a step, and to what; null at the bottom step. */
   nextStep: { priceSkr: number; inSeconds: number } | null;
+  /** The whole on-chain ladder in SKR, bottom step first (eight prices), for the note's range. */
+  ladderSkr: number[];
 }
 
 /** The current revive price (`POST /api/revive/quote`). */
