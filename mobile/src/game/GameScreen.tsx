@@ -130,7 +130,7 @@ export interface RunOutcome {
 /** A run held at the loss of its last life (see `onDown`). The first of `revive`/`end` settles it; later calls do nothing. */
 export interface DownedRun {
   /**
-   * Revives Octopi through the core (`revive(state)`: `REVIVE_LIVES` lives, 2 s invulnerability, enemy shots
+   * Revives Octopi through the core (`revive(state)`: `TIDE_REVIVE_LIVES` lives, 2 s invulnerability, enemy shots
    * cleared) and resumes the run. True when the run is playing again.
    */
   revive: () => boolean;
