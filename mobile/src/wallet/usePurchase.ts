@@ -222,6 +222,9 @@ export function usePurchase() {
       // Set once a split payment's swap half is confirmed on chain. From then on every failure means
       // the same thing - the SKR is in the wallet and nothing was bought - and must say so.
       let swapLanded = false;
+      // Set once the payment half itself was signed and sent: from then on a failure is the ordinary
+      // "sent, not confirmed yet" case, never an orphaned swap.
+      let paymentSent = false;
       const fail = (error: PurchaseError): PurchaseOutcome<R> => {
         update({ phase: 'error', order, error, costLamports: cost });
         return { status: 'error', error };
@@ -243,7 +246,10 @@ export function usePurchase() {
         for (let i = 0; i < parts.length; i += 1) {
           signature = await signAndSend({ ...prepared, transaction: parts[i]! });
           sent = true;
-          if (i === parts.length - 1) break;
+          if (i === parts.length - 1) {
+            paymentSent = true;
+            break;
+          }
           update({ phase: 'confirming', order, error: null, costLamports: cost });
           const verdict = await awaitLanded(connection, signature, {
             lastValidBlockHeight: prepared.lastValidBlockHeight,
@@ -303,10 +309,11 @@ export function usePurchase() {
         // the wallet's SKR is untouched. Its own message says which of the two it was.
         if (error instanceof SwapHalted) return fail({ code: 'failed', message: error.message, apiCode: 'swap_halted' });
         if (error instanceof PollCancelled) return { status: 'abandoned' };
-        // Past a landed swap every failure means the same thing, declines included: the SKR arrived
-        // and nothing was bought with it. Never report that as "declined — nothing changed", and
-        // always leave the host an error to act on, so it reloads the balance.
-        if (swapLanded) {
+        // Past a landed swap, until the payment half is sent, every failure means the same thing,
+        // declines included: the SKR arrived and nothing was bought with it. Never report that as
+        // "declined — nothing changed", and always leave the host an error to act on, so it reloads
+        // the balance. Once the payment is sent, a failure is the usual "not confirmed yet" below.
+        if (swapLanded && !paymentSent) {
           console.warn('[purchase] the swap landed but the payment did not', kind, messageOf(error));
           return fail({ code: 'failed', message: SWAP_ORPHANED_TOAST, apiCode: 'swap_orphaned' });
         }
