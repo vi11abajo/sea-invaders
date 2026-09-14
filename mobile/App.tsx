@@ -1,7 +1,7 @@
 import { MobileWalletProvider } from '@wallet-ui/react-native-web3js';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
-import { Linking } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Linking, StyleSheet, View } from 'react-native';
 import { WalletDeclined, pollUntilConfirmed, sendWithBlockhashRetry, useSignAndSend } from './src/api/chain';
 import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
 import { confirmTicket, requestFaucet, requestTicket } from './src/api/daily';
@@ -14,6 +14,7 @@ import { DailyRunScreen } from './src/daily/DailyRunScreen';
 import { LeaderboardScreen } from './src/daily/LeaderboardScreen';
 import { GameScreen } from './src/game/GameScreen';
 import { EquippedOctopiContext, SkinContext } from './src/game/skins';
+import { Splash } from './src/ui/Splash';
 import { HomeScreen } from './src/home/HomeScreen';
 import { useHomeModel } from './src/home/useHomeModel';
 import { VARIANT_OCTOPI } from './src/loadout/items';
@@ -61,13 +62,33 @@ function routeFor(url: string | null): Route {
 function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
   const auth = useSession();
   const loadout = useLoadout(auth.session, auth.restoring);
+  const splashOver = useSplashGate(!auth.restoring && loadout.loadout.ready);
   return (
     <SkinContext.Provider value={loadout.loadout.activeSkin}>
       <EquippedOctopiContext.Provider value={VARIANT_OCTOPI[loadout.loadout.activeVariant]}>
-        <Screens initialLevelId={initialLevelId} auth={auth} loadout={loadout} />
+        <View style={styles.app}>
+          <Screens initialLevelId={initialLevelId} auth={auth} loadout={loadout} />
+          <Splash visible={!splashOver} />
+        </View>
       </EquippedOctopiContext.Provider>
     </SkinContext.Provider>
   );
+}
+
+/** The splash stays up at least this long, so a fast start does not flash the key art. */
+const SPLASH_MIN_MS = 1400;
+
+/** True once the app is ready AND the splash has been shown for `SPLASH_MIN_MS`. */
+function useSplashGate(ready: boolean): boolean {
+  const shownAt = useRef(Date.now());
+  const [over, setOver] = useState(false);
+  useEffect(() => {
+    if (!ready || over) return;
+    const wait = Math.max(0, shownAt.current + SPLASH_MIN_MS - Date.now());
+    const timer = setTimeout(() => setOver(true), wait);
+    return () => clearTimeout(timer);
+  }, [ready, over]);
+  return over;
 }
 
 interface ScreensProps {
@@ -284,3 +305,7 @@ export default function App() {
     </MobileWalletProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  app: { flex: 1 },
+});
