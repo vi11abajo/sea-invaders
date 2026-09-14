@@ -1,4 +1,4 @@
-import { VersionedTransaction } from '@solana/web3.js';
+import { VersionedTransaction, type Connection, type SignatureStatus } from '@solana/web3.js';
 import { useMobileWallet } from '@wallet-ui/react-native-web3js';
 import { toUint8Array } from 'js-base64';
 import { useCallback } from 'react';
@@ -24,8 +24,12 @@ export interface PreparedPayment extends Omit<PreparedTx, 'transaction'> {
   transactions?: string[];
   /** True when the backend paid the missing SKR by swapping SOL inside this payment. */
   swapped?: boolean;
-  /** The SOL that swap spends. Present only with `swapped`. */
+  /** The SKR that swap buys — the part of the price the wallet could not cover. Present only with `swapped`. */
+  swappedSkr?: number;
+  /** The SOL that swap spends at the quoted price. Present only with `swapped`. */
   inSol?: number;
+  /** The most lamports the wallet must hold for that swap: its slippage ceiling plus the temporary wrapped-SOL account's rent. Present only with `swapped`. */
+  maxInLamports?: number;
 }
 
 /** Every transaction of `prepared`, in the order the wallet must send them. */
@@ -150,6 +154,71 @@ export async function pollUntilConfirmed<T extends { confirmed: boolean }>(
     if (result.confirmed) return result;
     if (isCancelled?.()) throw new PollCancelled();
     if (Date.now() >= deadline) throw new PollTimeout();
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
+/** What one RPC read says about a sent signature; `null` = this RPC has no record of it, which alone proves nothing. */
+export type SignatureVerdict = 'confirmed' | 'dead' | 'unknown';
+
+/**
+ * One RPC-only read of a sent signature. `err === null` at `confirmed` or `finalized` counts as
+ * confirmed; a definite on-chain `err` counts as `dead`, since a failed transaction moves no tokens.
+ * `null` means this RPC alone has never seen it — callers pair that with the transaction's own last
+ * valid block height before calling it dead.
+ */
+export async function readSignature(connection: Connection, signature: string): Promise<SignatureVerdict | null> {
+  let status: SignatureStatus | null;
+  try {
+    ({ value: status } = await connection.getSignatureStatus(signature, { searchTransactionHistory: true }));
+  } catch {
+    return 'unknown';
+  }
+  if (status === null) return null;
+  if (status.err !== null) return 'dead';
+  return status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized' ? 'confirmed' : 'unknown';
+}
+
+/**
+ * Blocks past a transaction's last valid height before an unseen one counts as dead: a public RPC
+ * endpoint balances across nodes, so the node answering the status may trail the one that answered
+ * the height, and either can lag the network under load. 150 blocks is about a minute of slack.
+ */
+export const EXPIRY_MARGIN_BLOCKS = 150;
+
+/** How `awaitLanded` ended. `unknown` = the transaction neither landed nor provably died inside the wait. */
+export type LandedVerdict = 'landed' | 'failed' | 'unknown';
+
+interface AwaitLandedOptions extends PollOptions {
+  /** The last block height the transaction's blockhash is valid for, from the envelope that built it. */
+  lastValidBlockHeight: number;
+}
+
+/**
+ * Waits for a sent transaction to land. `landed` once the RPC reports it confirmed without error;
+ * `failed` once it provably cannot land (it errored on chain, or the chain is well past its
+ * blockhash's last valid height and the RPC still has no record of it); `unknown` if neither became
+ * true inside `timeoutMs`. Throws `PollCancelled` once `isCancelled` reports the caller has gone
+ * away. Nothing that depends on this transaction may be sent unless the answer is `landed`.
+ */
+export async function awaitLanded(
+  connection: Connection,
+  signature: string,
+  { lastValidBlockHeight, intervalMs = 2000, timeoutMs = 60000, isCancelled }: AwaitLandedOptions,
+): Promise<LandedVerdict> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (isCancelled?.()) throw new PollCancelled();
+    const verdict = await readSignature(connection, signature);
+    if (verdict === 'confirmed') return 'landed';
+    if (verdict === 'dead') return 'failed';
+    if (verdict === null) {
+      // No record of it anywhere: dead only once the chain is past the blockhash it was built on.
+      const height = await connection.getBlockHeight('confirmed').catch(() => null);
+      if (height !== null && height > lastValidBlockHeight + EXPIRY_MARGIN_BLOCKS) return 'failed';
+    }
+    if (isCancelled?.()) throw new PollCancelled();
+    if (Date.now() >= deadline) return 'unknown';
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 }

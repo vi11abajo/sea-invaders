@@ -1,7 +1,7 @@
-import type { Connection, SignatureStatus } from '@solana/web3.js';
+import type { Connection } from '@solana/web3.js';
 import { useMobileWallet } from '@wallet-ui/react-native-web3js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PollCancelled } from '../api/chain';
+import { PollCancelled, readSignature, EXPIRY_MARGIN_BLOCKS, type SignatureVerdict } from '../api/chain';
 import { ApiError } from '../api/client';
 import { requestFaucet } from '../api/daily';
 import { confirmRevive, issueRevive, quoteRevive, type ReviveQuote } from '../api/revive';
@@ -13,13 +13,6 @@ import { DECLINED_TOAST, usePurchase } from '../wallet/usePurchase';
 export const PENDING_LONG_MS = 60_000;
 /** How often a sent revive is checked while it is pending. */
 const CHECK_MS = 2_000;
-/**
- * Blocks past a transaction's last valid height before an unseen one counts as dead: a public RPC
- * endpoint balances across nodes, so the node answering the status may trail the one that answered
- * the height, and either can lag the network under load. 150 blocks is about a minute of slack,
- * still well inside the pending sheet's own 60 s long state.
- */
-const EXPIRY_MARGIN_BLOCKS = 150;
 /** What the signing sheet says is being paid for (handoff "Wallet & error states"). */
 const WHAT = 'Revive · the Tide';
 /** A sent revive that can no longer land: the wallet paid no SKR for it. */
@@ -38,7 +31,7 @@ export type TideStage =
   | { kind: 'pending'; since: number };
 
 /** What a sent revive turned into, as far as can be told right now. */
-type Verdict = 'confirmed' | 'dead' | 'unknown';
+type Verdict = SignatureVerdict;
 
 /** The sent transaction can no longer land (failed on chain, or its blockhash expired unseen). */
 class ReviveNotLanded extends Error {
@@ -59,26 +52,6 @@ function isSignedOut(error: unknown): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * One RPC-only read of the sent signature: used when the backend cannot be asked (a session that
- * expired while the revive was pending) and to back up the height-based expiry check below. `err
- * === null` with `confirmationStatus` `confirmed` or `finalized` counts as confirmed — the 3-per-
- * attempt limit and applying the revive are client-side rules anyway. A definite on-chain `err`
- * counts as failed (a failed transaction moves no SKR): `dead` either way, no need to wait on the
- * margin below. `null` means this RPC alone has no record of it, which by itself proves nothing.
- */
-async function rpcVerdict(connection: Connection, signature: string): Promise<Verdict | null> {
-  let status: SignatureStatus | null;
-  try {
-    ({ value: status } = await connection.getSignatureStatus(signature, { searchTransactionHistory: true }));
-  } catch {
-    return 'unknown';
-  }
-  if (status === null) return null;
-  if (status.err !== null) return 'dead';
-  return status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized' ? 'confirmed' : 'unknown';
 }
 
 /**
@@ -108,7 +81,7 @@ async function verdictOf(connection: Connection, signature: string, lastValidBlo
   const expired = height !== null && lastValidBlockHeight !== null && height > lastValidBlockHeight + EXPIRY_MARGIN_BLOCKS;
   /** Not confirmed by the backend: dead only once the RPC also has no record of it, past the margin. */
   const rpcOrExpiry = async (): Promise<Verdict> => {
-    const verdict = await rpcVerdict(connection, signature);
+    const verdict = await readSignature(connection, signature);
     return verdict ?? (expired ? 'dead' : 'unknown');
   };
   try {
@@ -299,7 +272,10 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
           if (outcome.error.code !== 'failed') return;
           reset();
           if (sent === null) {
-            // Nothing reached the chain (the backend refused, or the wallet failed before sending).
+            // Either nothing reached the chain (the backend refused, or the wallet failed before
+            // sending), or a split payment's swap landed while the revive it was to pay for never
+            // got signed. `outcome.error.message` says which; both leave the run un-revived, and
+            // re-reading the quote picks up the SKR a landed swap put in the wallet.
             setStage({ kind: 'offer' });
             toastRef.current(outcome.error.message, COLORS.warning);
             void loadQuote(true);

@@ -9,7 +9,7 @@ import { hasRevive } from '../chain/verify.js';
 import * as loadoutDb from '../db/loadout.js';
 import { dayOf, weekOf } from './dailySeed.js';
 import { ShopError } from './shop.js';
-import { planSwap, swapAvailable } from './swap.js';
+import { planSwap, swapAvailable, swapEnvelope } from './swap.js';
 
 /**
  * The tide step actually in effect `now`, after ebbing back from `tide` by one step per full
@@ -70,7 +70,8 @@ export async function quoteRevive({ wallet, now }) {
  *
  * With `swap` (the app's `swap: true`) that short balance is paid in SOL instead, on mainnet only:
  * Jupiter swaps exactly the missing SKR inside the same transaction and the envelope gains
- * `swapped: true` and `inSol` - the Shop's `issuePurchase` does the identical thing for an item.
+ * `swapped`/`swappedSkr`/`inSol`/`maxInLamports` (`swapEnvelope`) - the Shop's `issuePurchase` does
+ * the identical thing for an item.
  */
 export async function issueRevive({ wallet, now, swap = false }) {
   const [player, balance, config] = await Promise.all([getPlayer(wallet), getTokenBalance(wallet), getConfig()]);
@@ -85,7 +86,7 @@ export async function issueRevive({ wallet, now, swap = false }) {
   const week = weekOf(dayOf(now));
   const createsPlayer = !player;
   const envelope = await buildReviveTx(wallet, { week, treasury: config.treasury, createPlayer: createsPlayer, swap: plan });
-  return { ...envelope, priceSkr: quote.priceSkr, createsPlayer, ...(plan === null ? {} : { swapped: true, inSol: plan.inSol }) };
+  return { ...envelope, priceSkr: quote.priceSkr, createsPlayer, ...swapEnvelope(plan) };
 }
 
 /**

@@ -125,7 +125,9 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
 
   // Mainnet only: the backend swaps SOL for the missing SKR when the balance cannot cover the
   // price, and ignores the offer when it can. Elsewhere the gate answers and the not-enough-SKR
-  // sheet with its devnet faucet is what shows, exactly as before.
+  // sheet with its devnet faucet is what shows, exactly as before. Offered on availability alone,
+  // never gated on the balance on screen - see `PurchasePayload.swapAvailable` for why that is
+  // deliberate: the backend decides by the balance it reads from the chain.
   const swapAvailable = shop?.swap.available === true;
 
   const buy = useCallback(

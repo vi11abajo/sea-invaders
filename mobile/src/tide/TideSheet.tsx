@@ -147,16 +147,9 @@ function OfferSheet({ quote, now, solPrice, revivesLeft, connecting, onRevive, o
   const revives = `${revivesLeft} ${revivesLeft === 1 ? 'revive' : 'revives'} left`;
   // `Array.isArray`: an API still answering without the ladder must not break the sheet.
   const ladder = quote.status === 'ready' && Array.isArray(quote.quote.ladderSkr) && quote.quote.ladderSkr.length > 0 ? quote.quote.ladderSkr : null;
-  let note: string;
-  if (solPrice !== null) {
-    // The Shop's low-SKR note, in the one line the sheet has room for: the price card still shows
-    // what the revive costs in SKR, the primary what it costs in SOL.
-    note = `SKR balance is low · the swap runs automatically in one signature · ${revives}`;
-  } else if (ladder !== null) {
-    note = `Price ladder ${formatSkr(ladder[0]!)} → ${formatSkr(ladder[ladder.length - 1]!)} SKR · falls back over time · ${revives}`;
-  } else {
-    note = `${revives} this level · price falls back over time`;
-  }
+  const note = ladder !== null
+    ? `Price ladder ${formatSkr(ladder[0]!)} → ${formatSkr(ladder[ladder.length - 1]!)} SKR · falls back over time · ${revives}`
+    : `${revives} this level · price falls back over time`;
   let primary: ReactNode;
   if (quote.status === 'signed_out') {
     primary = <PillButton label={connecting ? 'Connecting…' : 'Connect wallet'} onPress={onConnect} disabled={connecting} />;
@@ -181,6 +174,13 @@ function OfferSheet({ quote, now, solPrice, revivesLeft, connecting, onRevive, o
       ) : (
         <>
           <PriceCard quote={quote} now={now} />
+          {/* The Shop's low-SKR note, as its own line under the price card: the card keeps the price
+              in SKR and the ladder note keeps its range, so nothing the sheet already said is lost. */}
+          {solPrice !== null && (
+            <Txt variant="secondary" tone="secondary" style={styles.swapNote}>
+              SKR balance is low · the swap runs automatically when you revive
+            </Txt>
+          )}
           <LadderBar step={quote.status === 'ready' ? quote.quote.effective : null} />
         </>
       )}
@@ -285,6 +285,7 @@ const styles = StyleSheet.create({
   segment: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.12)' },
   segmentFilled: { backgroundColor: 'transparent' },
   note: { fontSize: 11, marginTop: -6 },
+  swapNote: { fontSize: 12, marginTop: -6 },
   pendingHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   pendingText: { flex: 1, minWidth: 0 },
   pendingTitle: { fontFamily: FONTS.medium, fontSize: 18, letterSpacing: -0.36 },

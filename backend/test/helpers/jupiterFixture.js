@@ -63,13 +63,20 @@ export function lookupTableCandidates(built) {
  * A `fetchImpl` for `quoteSwap` that answers the quote and swap-instructions calls from `fixture`
  * and records the calls it received - the same stub style `test/swap.test.js` already uses, so no
  * test in this suite ever reaches the network.
+ *
+ * The quote's `outAmount` is echoed back from the `amount` the request asked for, because that is
+ * what an ExactOut quote does - so one fixture serves any shortfall a test sets up. `inAmount`
+ * stays at the fixture's recorded value regardless, which is why tests assert the SOL figure
+ * against that constant rather than against the SKR they asked for.
  */
 export function fixtureFetch({ quote, built }) {
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url: String(url), init });
     if (String(url).includes('/swap-instructions')) return { ok: true, json: async () => built };
-    return { ok: true, json: async () => quote };
+    const asked = new URL(String(url)).searchParams.get('amount');
+    const answer = asked === null ? quote : { ...quote, outAmount: asked };
+    return { ok: true, json: async () => answer };
   };
   fetchImpl.calls = calls;
   return fetchImpl;

@@ -8,7 +8,7 @@ import * as memory from './helpers/memoryRankedRuns.js';
 import * as memoryLoadout from './helpers/memoryLoadout.js';
 import * as fakeChain from './helpers/fakeChain.js';
 import { realPurchaseInstructions as sharedRealPurchaseInstructions, realReviveInstructions as sharedRealReviveInstructions } from './helpers/fixtureTx.js';
-import { jupiterFixture } from './helpers/jupiterFixture.js';
+import { fixtureFetch, jupiterFixture } from './helpers/jupiterFixture.js';
 
 vi.mock('../src/db/loadout.js', () => import('./helpers/memoryLoadout.js'));
 vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
@@ -179,17 +179,14 @@ describe('issueRevive', () => {
 // Mainnet only, and Jupiter is a stubbed global `fetch` - nothing here reaches the network.
 describe('issueRevive with a swap', () => {
   const originalCluster = process.env.SOLANA_CLUSTER;
-  let urls;
+  /** The stubbed Jupiter; `jupiter.calls` is what proves a test did (or did not) reach it. */
+  let jupiter;
 
   beforeEach(() => {
     fakeChain.reset();
     setLadderConfig();
-    urls = [];
-    vi.stubGlobal('fetch', async (url) => {
-      urls.push(String(url));
-      const { quote, built } = jupiterFixture(WALLET, process.env.SKR_MINT);
-      return { ok: true, json: async () => (String(url).includes('/swap-instructions') ? built : quote) };
-    });
+    jupiter = fixtureFetch(jupiterFixture(WALLET, process.env.SKR_MINT));
+    vi.stubGlobal('fetch', jupiter);
   });
 
   afterEach(() => {
@@ -201,7 +198,7 @@ describe('issueRevive with a swap', () => {
     process.env.SOLANA_CLUSTER = 'devnet';
     fakeChain.setBalance(WALLET, 5_000_000n);
     await expect(issueRevive({ wallet: WALLET, now: 0, swap: true })).rejects.toMatchObject({ code: 'not_enough_skr', status: 409 });
-    expect(urls).toEqual([]);
+    expect(jupiter.calls).toEqual([]);
   });
 
   it('buys exactly the SKR the wallet is short of, at the tide price in effect', async () => {
@@ -210,8 +207,8 @@ describe('issueRevive with a swap', () => {
     fakeChain.setBalance(WALLET, 5_000_000n);
     const result = await issueRevive({ wallet: WALLET, now: 0, swap: true });
 
-    expect(urls[0]).toContain('amount=35000000'); // 40 - 5 SKR, in base units
-    expect(result).toMatchObject({ swapped: true, inSol: 1_921_336 / 1e9, priceSkr: 40 });
+    expect(jupiter.calls[0].url).toContain('amount=35000000'); // 40 - 5 SKR, in base units
+    expect(result).toMatchObject({ swapped: true, swappedSkr: 35, inSol: 1_921_336 / 1e9, maxInLamports: 1_930_943 + 2_039_280, priceSkr: 40 });
     expect(fakeChain.state.calls.buildReviveTx[0].swap.instructions).toHaveLength(6);
   });
 
@@ -220,8 +217,9 @@ describe('issueRevive with a swap', () => {
     fakeChain.setBalance(WALLET, 25_000_000n);
     const result = await issueRevive({ wallet: WALLET, now: 0, swap: true });
 
-    expect(urls).toEqual([]);
+    expect(jupiter.calls).toEqual([]);
     expect(result.swapped).toBeUndefined();
+    expect(result.swappedSkr).toBeUndefined();
     expect(fakeChain.state.calls.buildReviveTx[0].swap).toBeNull();
   });
 
@@ -318,10 +316,7 @@ describe('/api/revive routes', () => {
     });
 
     function stubJupiter() {
-      vi.stubGlobal('fetch', async (url) => {
-        const { quote, built } = jupiterFixture(WALLET, process.env.SKR_MINT);
-        return { ok: true, json: async () => (String(url).includes('/swap-instructions') ? built : quote) };
-      });
+      vi.stubGlobal('fetch', fixtureFetch(jupiterFixture(WALLET, process.env.SKR_MINT)));
     }
 
     it('answers 409 not_enough_skr unchanged on devnet (the gate)', async () => {
@@ -338,7 +333,7 @@ describe('/api/revive routes', () => {
       fakeChain.setBalance(WALLET, 0n);
       const res = await request(app).post('/api/revive').set(auth).send({ swap: true });
       expect(res.status).toBe(201);
-      expect(res.body).toMatchObject({ transaction: expect.any(String), priceSkr: 25, swapped: true, inSol: 1_921_336 / 1e9 });
+      expect(res.body).toMatchObject({ transaction: expect.any(String), priceSkr: 25, swapped: true, swappedSkr: 25, inSol: 1_921_336 / 1e9, maxInLamports: 1_930_943 + 2_039_280 });
     });
 
     it('maps a failing Jupiter call to 502 swap_quote_failed, not to a 500', async () => {

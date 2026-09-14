@@ -63,8 +63,12 @@ function AmountTile({ label, value, short = false }: { label: string; value: str
   );
 }
 
-/** "Waiting for signature" (handoff 11): spinner, title, what is being paid, and the mono amount + fee row. Not dismissible. */
-function SigningSheet({ title, what, amount, fee }: { title: string; what: string; amount: string; fee: string | null }) {
+/**
+ * "Waiting for signature" (handoff 11): spinner, title, what is being paid, and the mono amount +
+ * fee row. `swap` adds a second line naming what an auto-swap contributes, under - never instead
+ * of - the price, so the SKR the wallet already holds is never hidden. Not dismissible.
+ */
+function SigningSheet({ title, what, amount, fee, swap }: { title: string; what: string; amount: string; fee: string | null; swap: string | null }) {
   return (
     <Sheet kind="modal">
       <View style={styles.signHead}>
@@ -74,21 +78,32 @@ function SigningSheet({ title, what, amount, fee }: { title: string; what: strin
           <Txt variant="body" tone="secondary">{what}</Txt>
         </View>
       </View>
-      <View style={styles.amountRow}>
-        <Txt style={styles.amountText} numberOfLines={1}>{amount}</Txt>
-        {fee !== null && <Txt style={styles.amountText} numberOfLines={1}>{fee}</Txt>}
+      <View style={styles.amountBox}>
+        <View style={styles.amountRow}>
+          <Txt style={styles.amountText} numberOfLines={1}>{amount}</Txt>
+          {fee !== null && <Txt style={styles.amountText} numberOfLines={1}>{fee}</Txt>}
+        </View>
+        {swap !== null && <Txt style={[styles.amountText, styles.amountNote]} numberOfLines={1}>{swap}</Txt>}
       </View>
     </Sheet>
   );
 }
 
-/** "Not enough SOL for fees" (handoff 13). The design's "Top up in wallet" only closes the sheet: the app cannot fund a wallet. */
-function NoSolSheet({ requiredLamports, haveLamports, onClose }: { requiredLamports: number; haveLamports: number; onClose: () => void }) {
+/**
+ * "Not enough SOL for fees" (handoff 13). The design's "Top up in wallet" only closes the sheet:
+ * the app cannot fund a wallet. With `swapping`, `requiredLamports` also covers the SOL the
+ * auto-swap spends, so the copy says so rather than calling all of it a network fee.
+ */
+function NoSolSheet({ requiredLamports, haveLamports, swapping, onClose }: {
+  requiredLamports: number; haveLamports: number; swapping: boolean; onClose: () => void;
+}) {
   return (
     <Sheet kind="modal" onDismiss={onClose}>
-      <Txt variant="headline">Not enough SOL for fees</Txt>
+      <Txt variant="headline">{swapping ? 'Not enough SOL' : 'Not enough SOL for fees'}</Txt>
       <Txt variant="body" tone="secondary" style={styles.copy}>
-        This transaction needs a small amount of SOL for the network fee.
+        {swapping
+          ? 'This payment swaps SOL for the SKR your wallet is short of, and needs a little more for the network fee.'
+          : 'This transaction needs a small amount of SOL for the network fee.'}
       </Txt>
       <View style={styles.tiles}>
         <AmountTile label="Required" value={`${formatSolAmount(requiredLamports, 'up')} SOL`} />
@@ -147,15 +162,18 @@ export function PurchaseSheets({ purchase, onFaucet, faucetBusy = false }: Purch
       <SigningSheet
         title={phase === 'confirming' ? 'Confirming on Solana' : 'Waiting for signature'}
         what={order.what}
-        // An auto-swap is paid in SOL, so the amount row shows the SOL it spends rather than the
-        // SKR price the wallet does not hold; `what` already says the swap is happening.
-        amount={order.swapSol === undefined ? `${formatSkr(order.amountSkr)} SKR` : `≈ ${formatSolPrice(order.swapSol)} SOL`}
+        // The price is always the price, in SKR. An auto-swap only pays the part of it the wallet
+        // cannot cover, and says so on its own line - the rest still comes out of the SKR balance.
+        amount={`${formatSkr(order.amountSkr)} SKR`}
         fee={costLamports === null ? null : `fee ≈ ${formatSolAmount(costLamports, 'up')} SOL`}
+        swap={order.swappedSkr === undefined || order.swapSol === undefined
+          ? null
+          : `incl. ${formatSkr(order.swappedSkr)} SKR swapped from ≈ ${formatSolPrice(order.swapSol)} SOL`}
       />
     );
   }
   if (phase === 'error' && error?.code === 'no_sol') {
-    return <NoSolSheet requiredLamports={error.requiredLamports} haveLamports={error.haveLamports} onClose={reset} />;
+    return <NoSolSheet requiredLamports={error.requiredLamports} haveLamports={error.haveLamports} swapping={order.swapSol !== undefined} onClose={reset} />;
   }
   if (phase === 'error' && error?.code === 'no_skr') {
     return <NoSkrSheet needSkr={error.needSkr} haveSkr={error.haveSkr} onFaucet={onFaucet} faucetBusy={faucetBusy} onClose={reset} />;
@@ -171,11 +189,13 @@ const styles = StyleSheet.create({
   signHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   signText: { flex: 1, minWidth: 0 },
   signTitle: { fontFamily: FONTS.medium, fontSize: 18, letterSpacing: -0.36, color: COLORS.text },
-  amountRow: {
-    flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingHorizontal: 14, paddingVertical: 12,
+  amountBox: {
+    gap: 6, paddingHorizontal: 14, paddingVertical: 12,
     borderRadius: RADIUS.tile, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(236,228,253,0.12)',
   },
+  amountRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   amountText: { fontFamily: FONTS.mono, fontSize: 12, color: 'rgba(255,255,255,0.72)' },
+  amountNote: { fontSize: 11, color: 'rgba(255,255,255,0.56)' },
   tiles: { flexDirection: 'row', gap: 8 },
   tile: {
     flex: 1, paddingHorizontal: 14, paddingVertical: 12, borderRadius: RADIUS.tile,

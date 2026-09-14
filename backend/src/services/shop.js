@@ -7,7 +7,7 @@ import { buildPurchaseTx } from '../chain/txs.js';
 import { hasPurchase } from '../chain/verify.js';
 import * as loadoutDb from '../db/loadout.js';
 import { dayOf, weekOf } from './dailySeed.js';
-import { planSwap } from './swap.js';
+import { planSwap, swapEnvelope } from './swap.js';
 
 const STATUS = {
   unknown_item: 404, item_inactive: 409, already_owned: 409, not_enough_skr: 409,
@@ -88,8 +88,9 @@ async function activeCatalogEntry(itemId) {
  *
  * With `swap` (the app's `swap: true`) a short balance is paid in SOL instead, on mainnet only
  * (design doc §5 "Swap"): Jupiter swaps exactly the missing SKR inside the same transaction and the
- * envelope gains `swapped: true` and `inSol`. Everywhere else - no `swap`, a cluster with no
- * Jupiter, or a wallet that holds the price already - the behaviour is exactly what it was.
+ * envelope gains `swapped`/`swappedSkr`/`inSol`/`maxInLamports` (see `swapEnvelope`). Everywhere
+ * else - no `swap`, a cluster with no Jupiter, or a wallet that holds the price already - the
+ * behaviour is exactly what it was.
  */
 export async function issuePurchase({ wallet, item, now, swap = false }) {
   const itemId = Number(item);
@@ -109,7 +110,7 @@ export async function issuePurchase({ wallet, item, now, swap = false }) {
   const week = weekOf(dayOf(now));
   const createsPlayer = !player;
   const envelope = await buildPurchaseTx(wallet, { itemId, maxPrice: entry.priceBaseUnits, week, treasury: config?.treasury, createPlayer: createsPlayer, swap: plan });
-  return { ...envelope, createsPlayer, ...(plan === null ? {} : { swapped: true, inSol: plan.inSol }) };
+  return { ...envelope, createsPlayer, ...swapEnvelope(plan) };
 }
 
 /**

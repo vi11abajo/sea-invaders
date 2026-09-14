@@ -8,6 +8,15 @@ const JUPITER_SWAP_INSTRUCTIONS_URL = 'https://api.jup.ag/swap/v1/swap-instructi
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 // Caps the accounts Jupiter's route may use, leaving room in the composed v0 tx for our own payment instruction under the 1232-byte limit (parent design §2.2); tune once measured on mainnet.
 const JUPITER_MAX_ACCOUNTS = 32;
+/**
+ * Rent the temporary wrapped-SOL account has to hold while the swap runs, before Jupiter's cleanup
+ * instruction closes it and gives it back. An SPL token account is 165 bytes, and Solana's
+ * rent-exempt minimum is `(128 + size) * 3480 lamports_per_byte_year * 2 exemption_threshold`
+ * = `293 * 6960` = 2_039_280. Counted into `maxInLamports` so the app's "not enough SOL" check
+ * cannot pass a wallet that would then fail at the wallet or on chain. Conservative by design: a
+ * wallet that already holds a wrapped-SOL account does not actually need it.
+ */
+const WSOL_ACCOUNT_RENT_LAMPORTS = 2_039_280n;
 
 export class SwapError extends Error {
   constructor(code, message, status = 502) {
@@ -21,6 +30,25 @@ export class SwapError extends Error {
 /** True once the deployment has moved to mainnet - the one cluster Jupiter can quote a real swap against. */
 export function swapAvailable() {
   return currentCluster() === 'mainnet';
+}
+
+/**
+ * `value` as a positive `bigint`, or a `SwapError` naming `field`. Jupiter reports amounts as
+ * decimal strings; anything missing, fractional or non-numeric would otherwise become a `NaN` that
+ * serialises to `null` in our own response, or a transaction built against an amount nobody read.
+ */
+function amountOf(value, field) {
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw new SwapError('swap_quote_invalid', `Jupiter quote is missing ${field}`);
+  }
+  let amount;
+  try {
+    amount = BigInt(value);
+  } catch {
+    throw new SwapError('swap_quote_invalid', `Jupiter quote has a non-numeric ${field}`);
+  }
+  if (amount <= 0n) throw new SwapError('swap_quote_invalid', `Jupiter quote has a non-positive ${field}`);
+  return amount;
 }
 
 function jupiterHeaders() {
@@ -39,6 +67,12 @@ function jupiterHeaders() {
  * from the server env and sent as `x-api-key`; it is never part of the returned value. `fetchImpl`
  * defaults to the global `fetch` so tests can inject a stub - this function never touches the
  * network in a test run otherwise.
+ *
+ * The quote is checked before it is built on: amounts must be readable positive integers and the
+ * route must actually deliver the SKR asked for, so a bad quote becomes a clean `SwapError` rather
+ * than a `NaN` in our own response or a transaction that fails on chain with the fee already spent.
+ * Besides `inSol` (what the quote costs) the result carries `maxInLamports` - the most the wallet
+ * must hold for the swap - so the app never has to guess the slippage or rent margins.
  */
 export async function quoteSwap({ outSkr, outBaseUnits, wallet, fetchImpl = fetch }) {
   const { skrMint } = chainConfig();
@@ -57,6 +91,22 @@ export async function quoteSwap({ outSkr, outBaseUnits, wallet, fetchImpl = fetc
   if (!quoteResponse.ok) throw new SwapError('swap_quote_failed', `Jupiter quote failed with status ${quoteResponse.status}`);
   const quote = await quoteResponse.json();
 
+  // ExactOut should return exactly what was asked for. A route that would deliver less leaves the
+  // payment short and fails on chain after the fee is spent, so it is refused here instead.
+  const inAmount = amountOf(quote?.inAmount, 'inAmount');
+  const outAmount = amountOf(quote?.outAmount, 'outAmount');
+  if (outAmount < BigInt(amount)) {
+    throw new SwapError('swap_quote_short', `Jupiter quoted ${outAmount} SKR base units for a swap of ${amount}`);
+  }
+  // For an ExactOut quote `otherAmountThreshold` is the most input the swap may take at the quoted
+  // slippage (the fixture's 1_930_943 is exactly 50 bps over its 1_921_336 `inAmount`). A quote
+  // that omits it, or names less than it actually costs, falls back to the quoted input.
+  let maxIn = inAmount;
+  if (quote?.otherAmountThreshold !== undefined && quote?.otherAmountThreshold !== null) {
+    const threshold = amountOf(quote.otherAmountThreshold, 'otherAmountThreshold');
+    if (threshold > maxIn) maxIn = threshold;
+  }
+
   const instructionsResponse = await fetchImpl(JUPITER_SWAP_INSTRUCTIONS_URL, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
@@ -73,7 +123,9 @@ export async function quoteSwap({ outSkr, outBaseUnits, wallet, fetchImpl = fetc
   ].filter(Boolean);
 
   return {
-    inSol: Number(quote.inAmount) / 1e9,
+    inSol: Number(inAmount) / 1e9,
+    /** The most SOL, in lamports, the wallet has to hold for this swap: its slippage ceiling plus the wrapped-SOL account's rent. */
+    maxInLamports: Number(maxIn + WSOL_ACCOUNT_RENT_LAMPORTS),
     instructions,
     addressLookupTables: built.addressLookupTableAddresses ?? [],
   };
@@ -89,5 +141,15 @@ export async function quoteSwap({ outSkr, outBaseUnits, wallet, fetchImpl = fetc
  */
 export async function planSwap({ requested, wallet, price, balance, fetchImpl }) {
   if (!requested || !swapAvailable()) return null;
-  return quoteSwap({ outBaseUnits: price - balance, wallet, fetchImpl });
+  const shortfall = price - balance;
+  const quote = await quoteSwap({ outBaseUnits: shortfall, wallet, fetchImpl });
+  // `swappedSkr` is what the signing sheet names: the SKR this swap buys, which is only part of the
+  // price when the wallet already holds some - the rest is paid out of that balance.
+  return { ...quote, swappedSkr: Number(shortfall) / 1e6 };
+}
+
+/** The fields a swap-composed payment adds to its envelope, or nothing at all when `plan` is null. Shared by `issuePurchase` and `issueRevive` so both answer in the same shape. */
+export function swapEnvelope(plan) {
+  if (plan === null) return {};
+  return { swapped: true, swappedSkr: plan.swappedSkr, inSol: plan.inSol, maxInLamports: plan.maxInLamports };
 }

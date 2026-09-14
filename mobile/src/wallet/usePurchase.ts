@@ -2,7 +2,7 @@ import { LAMPORTS_PER_SOL, PublicKey, VersionedTransaction, type Connection } fr
 import { useMobileWallet } from '@wallet-ui/react-native-web3js';
 import { toUint8Array } from 'js-base64';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BlockhashExpired, PollCancelled, pollUntilConfirmed, transactionsOf, useSignAndSend, WalletDeclined, type PreparedPayment } from '../api/chain';
+import { awaitLanded, BlockhashExpired, PollCancelled, pollUntilConfirmed, transactionsOf, useSignAndSend, WalletDeclined, type PreparedPayment } from '../api/chain';
 import { ApiError } from '../api/client';
 import { loadSession } from '../api/session';
 
@@ -33,9 +33,11 @@ export interface PurchasePayload<R extends { confirmed: boolean }> {
   amountSkr: number;
   /**
    * True when this cluster offers the SOL -> SKR swap (`swap.available` from the Shop or the Tide
-   * quote). The request then carries `swap: true` and the backend swaps only if the wallet's SKR
-   * really is short - so a balance that moved since the screen last read it cannot strand the
-   * purchase on a 409 the swap could have paid.
+   * quote). The request then carries `swap: true` **whenever the cluster allows it**, not only when
+   * the screen believes the balance is short — deliberate, and reviewed as such: the backend decides
+   * by the balance it reads from the chain in the same request, so a balance that moved since the
+   * screen last read it cannot strand the payment on a 409 the swap could have paid, and a wallet
+   * that can pay in SKR never causes a Jupiter call. Do not "fix" this by gating on the local balance.
    */
   swapAvailable?: boolean;
   /** Asks the backend for the payment, offering the swap when `swap`. Called again once if the wallet reports an expired blockhash. */
@@ -48,7 +50,9 @@ export interface PurchaseOrder {
   kind: PurchaseKind;
   what: string;
   amountSkr: number;
-  /** The SOL an auto-swap spends for this payment; the signing sheet shows it instead of the SKR amount. */
+  /** The SKR an auto-swap buys for this payment — the part of the price the wallet could not cover. */
+  swappedSkr?: number;
+  /** The SOL that swap spends. The signing sheet names both, under the SKR price, never instead of it. */
   swapSol?: number;
 }
 
@@ -69,6 +73,26 @@ export type PurchaseOutcome<R> =
 
 /** The toast every host shows when the wallet declines (handoff "Wallet & error states"), with the warning dot. */
 export const DECLINED_TOAST = 'Signature declined — nothing changed';
+
+/** The swap half of a split payment failed on chain or expired: the payment half was never signed. */
+export const SWAP_NOT_LANDED_TOAST = 'The SOL swap did not go through — nothing was bought';
+/** The swap half is still unconfirmed after the wait: it may yet land, so nothing more is signed now. */
+export const SWAP_UNCONFIRMED_TOAST = 'The SOL swap is still confirming — nothing was bought; try again in a moment';
+/** The swap landed but the payment that was to spend it did not: the SKR sits unspent in the wallet. */
+export const SWAP_ORPHANED_TOAST = 'The SOL swap landed but the payment was not signed — your SKR is in the wallet, so try again without a swap';
+/** A backend swap failure, as short copy: the raw Jupiter/HTTP detail belongs in the log, never in a toast. */
+export const SWAP_FAILED_TOAST = 'The swap is not available right now — try again or pay in SKR';
+
+/** Backend error codes that mean "the swap itself went wrong", all of which get `SWAP_FAILED_TOAST`. */
+const SWAP_ERROR_CODES = new Set(['swap_quote_failed', 'swap_instructions_failed', 'swap_quote_invalid', 'swap_quote_short', 'swap_unavailable']);
+
+/** The swap half of a split payment did not land, so the payment half was deliberately never signed. */
+class SwapHalted extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SwapHalted';
+  }
+}
 
 interface PurchaseState {
   phase: PurchasePhase;
@@ -114,13 +138,26 @@ const SWAP_NOTE = 'SOL → SKR auto-swap';
 function withPrepared(base: PurchaseOrder, prepared: PreparedPurchase): PurchaseOrder {
   const amountSkr = typeof prepared.priceSkr === 'number' ? prepared.priceSkr : base.amountSkr;
   if (prepared.swapped !== true) return amountSkr === base.amountSkr ? base : { ...base, amountSkr };
-  return { ...base, amountSkr, what: `${base.what} · ${SWAP_NOTE}`, swapSol: prepared.inSol };
+  return { ...base, amountSkr, what: `${base.what} · ${SWAP_NOTE}`, swappedSkr: prepared.swappedSkr, swapSol: prepared.inSol };
 }
 
-/** Lamports the auto-swap itself takes from the wallet, on top of the fees; 0 when nothing is swapped. */
+function finiteOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/**
+ * Lamports the auto-swap itself takes from the wallet, on top of the fees; 0 when nothing is
+ * swapped. The backend's `maxInLamports` is the number to use — the swap's slippage ceiling plus
+ * the rent the temporary wrapped-SOL account holds — so the app never has to guess either margin.
+ */
 function swapLamportsOf(prepared: PreparedPurchase): number {
-  if (prepared.swapped !== true || typeof prepared.inSol !== 'number' || !Number.isFinite(prepared.inSol)) return 0;
-  return Math.ceil(prepared.inSol * LAMPORTS_PER_SOL);
+  if (prepared.swapped !== true) return 0;
+  const max = finiteOrNull(prepared.maxInLamports);
+  if (max !== null) return Math.ceil(max);
+  // A backend that predates `maxInLamports`: the quoted input understates both margins, but it is a
+  // real number from the quote rather than an invented one.
+  const quoted = finiteOrNull(prepared.inSol);
+  return quoted === null ? 0 : Math.ceil(quoted * LAMPORTS_PER_SOL);
 }
 
 /**
@@ -182,6 +219,9 @@ export function usePurchase() {
       // Nothing may be re-sent once any half of a split payment has left the wallet: a blind retry
       // would run the swap a second time and spend the SOL twice.
       let sent = false;
+      // Set once a split payment's swap half is confirmed on chain. From then on every failure means
+      // the same thing - the SKR is in the wallet and nothing was bought - and must say so.
+      let swapLanded = false;
       const fail = (error: PurchaseError): PurchaseOutcome<R> => {
         update({ phase: 'error', order, error, costLamports: cost });
         return { status: 'error', error };
@@ -190,12 +230,28 @@ export function usePurchase() {
        * Signs and sends every transaction of `prepared` in order - a split swap payment is the swap
        * first, then the payment out of the SKR it delivered, each opening the wallet once. Resolves
        * with the LAST signature, which is always our own purchase/revive: the one `confirm` polls.
+       *
+       * Every transaction but the last is waited on until the chain confirms it, because the next
+       * one spends what it delivers: the SKR account our `purchase`/`revive` pays from is created by
+       * Jupiter's own setup instructions, in the swap half. Sending the payment against a swap that
+       * has merely been submitted would fail on chain and burn its fee, so a swap that fails, expires
+       * or stays unconfirmed stops here and the payment is never signed.
        */
       const send = async (prepared: PreparedPurchase): Promise<string> => {
+        const parts = transactionsOf(prepared);
         let signature = '';
-        for (const transaction of transactionsOf(prepared)) {
-          signature = await signAndSend({ ...prepared, transaction });
+        for (let i = 0; i < parts.length; i += 1) {
+          signature = await signAndSend({ ...prepared, transaction: parts[i]! });
           sent = true;
+          if (i === parts.length - 1) break;
+          update({ phase: 'confirming', order, error: null, costLamports: cost });
+          const verdict = await awaitLanded(connection, signature, {
+            lastValidBlockHeight: prepared.lastValidBlockHeight,
+            isCancelled: () => !alive.current,
+          });
+          if (verdict !== 'landed') throw new SwapHalted(verdict === 'failed' ? SWAP_NOT_LANDED_TOAST : SWAP_UNCONFIRMED_TOAST);
+          swapLanded = true;
+          update({ phase: 'signing', order, error: null, costLamports: cost });
         }
         return signature;
       };
@@ -243,13 +299,28 @@ export function usePurchase() {
         update({ phase: 'done', order, error: null, costLamports: cost });
         return { status: 'done', result };
       } catch (error) {
+        // The swap half never landed, so the payment half was never signed: nothing was bought and
+        // the wallet's SKR is untouched. Its own message says which of the two it was.
+        if (error instanceof SwapHalted) return fail({ code: 'failed', message: error.message, apiCode: 'swap_halted' });
+        if (error instanceof PollCancelled) return { status: 'abandoned' };
+        // Past a landed swap every failure means the same thing, declines included: the SKR arrived
+        // and nothing was bought with it. Never report that as "declined — nothing changed", and
+        // always leave the host an error to act on, so it reloads the balance.
+        if (swapLanded) {
+          console.warn('[purchase] the swap landed but the payment did not', kind, messageOf(error));
+          return fail({ code: 'failed', message: SWAP_ORPHANED_TOAST, apiCode: 'swap_orphaned' });
+        }
         if (error instanceof WalletDeclined) {
           update(IDLE);
           return { status: 'declined' };
         }
-        if (error instanceof PollCancelled) return { status: 'abandoned' };
         if (error instanceof ApiError && error.code === 'not_enough_skr') {
           return fail({ code: 'no_skr', needSkr: numberOr(error.details?.needSkr, payload.amountSkr), haveSkr: numberOr(error.details?.haveSkr, 0) });
+        }
+        // A swap the backend could not build. The Jupiter/HTTP detail is diagnostic, not user copy.
+        if (error instanceof ApiError && error.code !== undefined && SWAP_ERROR_CODES.has(error.code)) {
+          console.warn('[purchase] swap unavailable', kind, error.code, error.message);
+          return fail({ code: 'failed', message: SWAP_FAILED_TOAST, apiCode: error.code });
         }
         if (cost !== null && have !== null && INSUFFICIENT_SOL.test(messageOf(error))) {
           return fail({ code: 'no_sol', requiredLamports: cost + swapLamports, haveLamports: have });
