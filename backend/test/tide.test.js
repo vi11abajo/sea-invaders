@@ -70,6 +70,9 @@ describe('effectiveTide', () => {
   });
 });
 
+/** The fixture ladder in SKR (`config.reviveLadder` base units / 1e6), as every quote reports it. */
+const LADDER_SKR = [25, 30, 40, 50, 60, 75, 95, 120];
+
 describe('quoteRevive', () => {
   beforeEach(() => {
     fakeChain.reset();
@@ -78,32 +81,32 @@ describe('quoteRevive', () => {
 
   it('quotes ladder[0] with no nextStep for a wallet that has never revived (tide_at = 0)', async () => {
     const quote = await quoteRevive({ wallet: WALLET, now: 1_000_000 });
-    expect(quote).toEqual({ tide: 0, effective: 0, priceSkr: 25, nextStep: null });
+    expect(quote).toEqual({ tide: 0, effective: 0, priceSkr: 25, nextStep: null, ladderSkr: LADDER_SKR });
   });
 
   it('quotes the current step and the time until it ebbs by one, at a fixed clock', async () => {
     fakeChain.setPlayer(WALLET, { tide: 3, tideAt: 1_000 });
     const now = 1_000 + 3_600; // half-way through the first ebb window
     const quote = await quoteRevive({ wallet: WALLET, now });
-    expect(quote).toEqual({ tide: 3, effective: 3, priceSkr: 50, nextStep: { priceSkr: 40, inSeconds: 3_600 } });
+    expect(quote).toEqual({ tide: 3, effective: 3, priceSkr: 50, nextStep: { priceSkr: 40, inSeconds: 3_600 }, ladderSkr: LADDER_SKR });
   });
 
   it('ebbs one step exactly at the window boundary', async () => {
     fakeChain.setPlayer(WALLET, { tide: 3, tideAt: 1_000 });
     const quote = await quoteRevive({ wallet: WALLET, now: 1_000 + 7_200 });
-    expect(quote).toEqual({ tide: 3, effective: 2, priceSkr: 40, nextStep: { priceSkr: 30, inSeconds: 7_200 } });
+    expect(quote).toEqual({ tide: 3, effective: 2, priceSkr: 40, nextStep: { priceSkr: 30, inSeconds: 7_200 }, ladderSkr: LADDER_SKR });
   });
 
   it('has no nextStep once effective is already 0 after a long gap', async () => {
     fakeChain.setPlayer(WALLET, { tide: 3, tideAt: 1_000 });
     const quote = await quoteRevive({ wallet: WALLET, now: 1_000 + 100 * 7_200 });
-    expect(quote).toEqual({ tide: 3, effective: 0, priceSkr: 25, nextStep: null });
+    expect(quote).toEqual({ tide: 3, effective: 0, priceSkr: 25, nextStep: null, ladderSkr: LADDER_SKR });
   });
 
   it('caps effective at the ladder length - 1 (tide 7, no elapsed time)', async () => {
     fakeChain.setPlayer(WALLET, { tide: 7, tideAt: 1_000 });
     const quote = await quoteRevive({ wallet: WALLET, now: 1_000 });
-    expect(quote).toEqual({ tide: 7, effective: 7, priceSkr: 120, nextStep: { priceSkr: 95, inSeconds: 7_200 } });
+    expect(quote).toEqual({ tide: 7, effective: 7, priceSkr: 120, nextStep: { priceSkr: 95, inSeconds: 7_200 }, ladderSkr: LADDER_SKR });
   });
 
   it('computes nextStep.inSeconds correctly when now is more than one window behind tideAt (clock skew)', async () => {
@@ -112,13 +115,13 @@ describe('quoteRevive', () => {
     // unclamped -1 elapsed steps and report 8000s instead of the true 15200s.
     fakeChain.setPlayer(WALLET, { tide: 3, tideAt: 10_000 });
     const quote = await quoteRevive({ wallet: WALLET, now: 2_000 });
-    expect(quote).toEqual({ tide: 3, effective: 3, priceSkr: 50, nextStep: { priceSkr: 40, inSeconds: 15_200 } });
+    expect(quote).toEqual({ tide: 3, effective: 3, priceSkr: 50, nextStep: { priceSkr: 40, inSeconds: 15_200 }, ladderSkr: LADDER_SKR });
   });
 
   it('reports no nextStep when tide > 0 but tide_at = 0 (cannot occur on chain, but the price must not appear to ebb without a timestamp)', async () => {
     fakeChain.setPlayer(WALLET, { tide: 3, tideAt: 0 });
     const quote = await quoteRevive({ wallet: WALLET, now: 500 });
-    expect(quote).toEqual({ tide: 3, effective: 3, priceSkr: 50, nextStep: null });
+    expect(quote).toEqual({ tide: 3, effective: 3, priceSkr: 50, nextStep: null, ladderSkr: LADDER_SKR });
   });
 });
 
@@ -225,7 +228,7 @@ describe('/api/revive routes', () => {
   it('POST /quote returns the quote shape at a fixed clock (tide_at = 0)', async () => {
     const res = await request(app).post('/api/revive/quote').set(auth);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ tide: 0, effective: 0, priceSkr: 25, nextStep: null });
+    expect(res.body).toEqual({ tide: 0, effective: 0, priceSkr: 25, nextStep: null, ladderSkr: LADDER_SKR });
   });
 
   it('POST / answers 409 not_enough_skr with needSkr/haveSkr through the router error handler', async () => {

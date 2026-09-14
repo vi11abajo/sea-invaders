@@ -43,7 +43,10 @@ function quoteFromPlayer(player, config, now) {
     nextStep = { priceSkr: Number(ladder[effective - 1]) / 1e6, inSeconds: boundary - now };
   }
 
-  return { tide, effective, priceSkr, nextStep };
+  // The whole ladder in SKR, so the app can show its range (design: `Price ladder 25 -> 120 SKR`) without hardcoding prices.
+  const ladderSkr = ladder.map((v) => Number(v) / 1e6);
+
+  return { tide, effective, priceSkr, nextStep, ladderSkr };
 }
 
 export async function quoteRevive({ wallet, now }) {
