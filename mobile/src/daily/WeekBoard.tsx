@@ -1,9 +1,10 @@
 import { formatInt, shortAddress } from '@sea-invaders/core';
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 import type { WeekBoard as WeekBoardData } from '../api/daily';
+import { OctopiAvatar } from '../game/OctopiArt';
 import { Glass } from '../ui/Glass';
 import { Txt } from '../ui/Txt';
-import { COLORS, RADIUS } from '../ui/tokens';
+import { COLORS, RADIUS, SIZE } from '../ui/tokens';
 import { boardStyles } from './boardStyles';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -48,6 +49,7 @@ export function WeekBoard({ data, error, mine }: WeekBoardProps) {
           renderItem={({ item }) => (
             <Glass radius={RADIUS.row} style={[boardStyles.row, item.walletAddress === mine && boardStyles.mine]}>
               <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
+              <OctopiAvatar skin={item.skin} size={SIZE.avatar} />
               <View style={boardStyles.who}>
                 <Txt variant="body">{item.username ?? shortAddress(item.walletAddress)}</Txt>
                 <Txt variant="monoSmall" tone="tertiary">{dayLine(item.days)}</Txt>

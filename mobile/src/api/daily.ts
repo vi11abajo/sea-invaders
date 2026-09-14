@@ -1,4 +1,5 @@
 import { fromUint8Array } from 'js-base64';
+import { isSkinIndex, type SkinIndex } from '../loadout/items';
 import type { PreparedTx } from './chain';
 import { apiFetch } from './client';
 import type { Cluster } from './config';
@@ -52,6 +53,8 @@ export interface LeaderboardEntry {
   username: string;
   walletAddress: string;
   score: number;
+  /** The skin the run that set this score was played in (design doc §8); 0 is Octopi's own colours. */
+  skin: SkinIndex;
 }
 
 export interface WeekEntry {
@@ -62,6 +65,13 @@ export interface WeekEntry {
   /** Mon..Sun totals; 0 means no record that day. */
   days: number[];
   forecastSkr: number;
+  /** The skin of this player's best run of the week (design doc §8); 0 is Octopi's own colours. */
+  skin: SkinIndex;
+}
+
+/** `entry.skin` normalized to a valid `SkinIndex`, 0 (Octopi's own colours) for an older API that omits it. */
+function normalizeSkin(skin: unknown): SkinIndex {
+  return isSkinIndex(skin) ? skin : 0;
 }
 
 export interface WeekBoard {
@@ -85,12 +95,18 @@ export function finishRun(runId: string, replay: Uint8Array): Promise<FinishedRu
   return apiFetch<FinishedRun>(`/api/daily/runs/${runId}/finish`, { method: 'POST', auth: true, body: { replay: fromUint8Array(replay) } });
 }
 
-export function getLeaderboard(day?: number): Promise<{ day: number; entries: LeaderboardEntry[] }> {
-  return apiFetch(`/api/daily/leaderboard${day === undefined ? '' : `?day=${day}`}`);
+export async function getLeaderboard(day?: number): Promise<{ day: number; entries: LeaderboardEntry[] }> {
+  const board = await apiFetch<{ day: number; entries: (Omit<LeaderboardEntry, 'skin'> & { skin?: unknown })[] }>(
+    `/api/daily/leaderboard${day === undefined ? '' : `?day=${day}`}`,
+  );
+  return { day: board.day, entries: board.entries.map((e) => ({ ...e, skin: normalizeSkin(e.skin) })) };
 }
 
-export function getWeek(week?: number): Promise<WeekBoard> {
-  return apiFetch(`/api/daily/week${week === undefined ? '' : `?week=${week}`}`);
+export async function getWeek(week?: number): Promise<WeekBoard> {
+  const board = await apiFetch<Omit<WeekBoard, 'entries'> & { entries: (Omit<WeekEntry, 'skin'> & { skin?: unknown })[] }>(
+    `/api/daily/week${week === undefined ? '' : `?week=${week}`}`,
+  );
+  return { ...board, entries: board.entries.map((e) => ({ ...e, skin: normalizeSkin(e.skin) })) };
 }
 
 /** Prepares the on-chain ticket purchase transaction for the caller to sign and send. */

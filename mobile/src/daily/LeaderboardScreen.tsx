@@ -3,11 +3,12 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, BackHandler, FlatList, StyleSheet, View } from 'react-native';
 import { getLeaderboard, getWeek, type LeaderboardEntry, type WeekBoard as WeekBoardData } from '../api/daily';
 import { loadSession } from '../api/session';
+import { OctopiAvatar } from '../game/OctopiArt';
 import { Backdrop } from '../ui/Backdrop';
 import { Glass } from '../ui/Glass';
 import { PillButton } from '../ui/PillButton';
 import { Txt } from '../ui/Txt';
-import { COLORS, RADIUS } from '../ui/tokens';
+import { COLORS, RADIUS, SIZE } from '../ui/tokens';
 import { boardStyles } from './boardStyles';
 import { WeekBoard } from './WeekBoard';
 
@@ -86,6 +87,7 @@ export function LeaderboardScreen({ onBack }: { onBack: () => void }) {
             renderItem={({ item }) => (
               <Glass radius={RADIUS.row} style={[boardStyles.row, item.walletAddress === mine && boardStyles.mine]}>
                 <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
+                <OctopiAvatar skin={item.skin} size={SIZE.avatar} />
                 <View style={boardStyles.who}>
                   <Txt variant="body">{item.username}</Txt>
                   <Txt variant="monoSmall" tone="tertiary">{shortAddress(item.walletAddress)}</Txt>

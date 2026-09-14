@@ -1,7 +1,9 @@
 import { Canvas, FilterMode, Image, MipmapMode } from '@shopify/react-native-skia';
 import type { OctopiVariant } from '@sea-invaders/core';
-import { View } from 'react-native';
-import { useOctopiTint } from './skins';
+import { StyleSheet, View } from 'react-native';
+import type { SkinIndex } from '../loadout/items';
+import { Glass } from '../ui/Glass';
+import { SKIN_TINTS, useOctopiTint } from './skins';
 import { useOctopiArt } from './sprites';
 
 /** The snapshot is already at the screen's physical size, so a plain linear draw lands it 1:1. */
@@ -25,3 +27,29 @@ export function ActiveOctopi({ size, octopi }: { size: number; octopi?: OctopiVa
     </View>
   );
 }
+
+/**
+ * A leaderboard row's avatar (design doc §8, handoff 08): Octopi in `skin`'s colour, fitted into a
+ * round `size` dp glass circle. `skin` here is the raw selector of the entry's own run, not the
+ * viewer's active skin, so it goes straight to `SKIN_TINTS` rather than through `useOctopiTint`
+ * (which reads the current player's loadout/run context). Draws through the same `useOctopiArt`
+ * snapshot cache as every other UI Octopi — keyed by tint + physical size, so every row on both
+ * boards sharing a skin shares one snapshot; a board of 50 rows across 5 skins decodes at most 5
+ * snapshots, never one per row.
+ */
+export function OctopiAvatar({ skin, size }: { skin: SkinIndex; size: number }) {
+  const art = useOctopiArt(SKIN_TINTS[skin] ?? null, size);
+  return (
+    <Glass radius={size / 2} style={[styles.avatar, { width: size, height: size }]}>
+      {art !== null && (
+        <Canvas style={StyleSheet.absoluteFill}>
+          <Image image={art} x={0} y={0} width={size} height={size} fit="contain" sampling={SAMPLING} />
+        </Canvas>
+      )}
+    </Glass>
+  );
+}
+
+const styles = StyleSheet.create({
+  avatar: { alignItems: 'center', justifyContent: 'center' },
+});
