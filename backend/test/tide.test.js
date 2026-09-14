@@ -165,6 +165,9 @@ describe('issueRevive', () => {
     const now = 1_000_000;
     await issueRevive({ wallet: WALLET, now });
     expect(fakeChain.state.calls.buildReviveTx[0]).toMatchObject({ week: weekOf(dayOf(now)), treasury: fakeChain.state.config.treasury });
+    // The quoted price travels as the chain's ceiling: ladder[effective] in base units.
+    const quote = await quoteRevive({ wallet: WALLET, now });
+    expect(fakeChain.state.calls.buildReviveTx[0].maxPrice).toBe(LADDER[quote.effective]);
   });
 
   it('throws not_enough_skr with needSkr/haveSkr when the balance is short', async () => {

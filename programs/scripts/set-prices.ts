@@ -23,7 +23,7 @@ const SKR = 1_000_000;
 /** The Daily Run ticket (3 attempts), in SKR. */
 const TICKET_SKR = 10;
 /** The Tide's revive price by step 0..7, in SKR; must never decrease from one step to the next. */
-const LADDER_SKR = [25, 30, 40, 50, 60, 75, 95, 120];
+const LADDER_SKR = [5, 6, 8, 10, 12, 15, 19, 24]; // the original 25..120 ladder divided by 5 (owner, 2026-09-15)
 
 function toBase(skr: number): BN {
   // Prices may carry decimals (e.g. 2.5 SKR); base units stay integers.

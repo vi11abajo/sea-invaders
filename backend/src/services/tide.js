@@ -85,7 +85,8 @@ export async function issueRevive({ wallet, now, swap = false }) {
 
   const week = weekOf(dayOf(now));
   const createsPlayer = !player;
-  const envelope = await buildReviveTx(wallet, { week, treasury: config.treasury, createPlayer: createsPlayer, swap: plan });
+  // `maxPrice` = the quoted price: the chain refuses (`PriceChanged`) rather than charging more.
+  const envelope = await buildReviveTx(wallet, { week, treasury: config.treasury, maxPrice: priceBaseUnits, createPlayer: createsPlayer, swap: plan });
   return { ...envelope, priceSkr: quote.priceSkr, createsPlayer, ...swapEnvelope(plan) };
 }
 

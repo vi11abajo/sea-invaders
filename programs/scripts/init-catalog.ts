@@ -1,8 +1,10 @@
 /**
  * Creates the devnet `Catalog` with the seven shop items: ids 0-2 are the campaign octopi
- * (Harpoon 40, Anchor 60, Trident 90 SKR), ids 3-6 the Octopi skins (Lime 25, Lilac 25,
- * Ember 35, Abyss 50 SKR). Prices are stored on chain in SKR base units (6 decimals); the
- * backend and the app read them from there, never from this file.
+ * (Harpoon, Anchor, Trident - priced at $1, $2 and $3 in SKR, rounded UP to a whole SKR at the
+ * rate of the day the list was set: $0.01808/SKR on 2026-09-15 -> 56, 111, 166 SKR), ids 3-6 the
+ * Octopi skins (Lime 25, Lilac 25, Ember 35, Abyss 50 SKR). Prices are stored on chain in SKR base
+ * units (6 decimals); the backend and the app read them from there, never from this file. To
+ * follow the rate, edit the three variant prices and run with `--update`.
  *
  * Idempotent: when the catalog already exists and matches `ITEMS`, it prints the stored items
  * and exits 0. When it exists but differs, it prints both lists and exits 1, unless run with
@@ -35,9 +37,9 @@ interface Item {
 
 /** The catalogue of the shop design: one-time purchases, ids are the inventory bits. */
 const ITEMS: Item[] = [
-  { id: 0, kind: VARIANT, price: new BN(40 * SKR), active: true }, // Harpoon
-  { id: 1, kind: VARIANT, price: new BN(60 * SKR), active: true }, // Anchor
-  { id: 2, kind: VARIANT, price: new BN(90 * SKR), active: true }, // Trident
+  { id: 0, kind: VARIANT, price: new BN(56 * SKR), active: true }, // Harpoon ($1)
+  { id: 1, kind: VARIANT, price: new BN(111 * SKR), active: true }, // Anchor ($2)
+  { id: 2, kind: VARIANT, price: new BN(166 * SKR), active: true }, // Trident ($3)
   { id: 3, kind: SKIN, price: new BN(25 * SKR), active: true }, // Lime
   { id: 4, kind: SKIN, price: new BN(25 * SKR), active: true }, // Lilac
   { id: 5, kind: SKIN, price: new BN(35 * SKR), active: true }, // Ember

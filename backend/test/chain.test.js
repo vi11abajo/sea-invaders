@@ -365,21 +365,30 @@ describe('buildReviveTx', () => {
     const connection = new FakeConnection();
     const wallet = Keypair.generate().publicKey;
     const treasury = Keypair.generate().publicKey;
-    const result = await buildReviveTx(wallet, { week: 42, treasury, connection });
+    const result = await buildReviveTx(wallet, { week: 42, treasury, maxPrice: 25_000_000n, connection });
 
     const tx = decode(result.transaction);
     expect(tx.message.staticAccountKeys[0].toBase58()).toBe(wallet.toBase58());
     const ix = onlyInstruction(tx);
     expect(tx.message.staticAccountKeys[ix.programIdIndex].toBase58()).toBe(programId.toBase58());
     expect(Buffer.from(ix.data.subarray(0, 8))).toEqual(discriminatorOf('revive'));
+    // `max_price` follows the discriminator as a little-endian u64: the quoted price the chain may not exceed.
+    expect(Buffer.from(ix.data.subarray(8, 16)).readBigUInt64LE()).toBe(25_000_000n);
+    expect(ix.data).toHaveLength(16);
     for (const sig of tx.signatures) expect(sig.every((byte) => byte === 0)).toBe(true);
+  });
+
+  it('refuses to build a revive without maxPrice', async () => {
+    const connection = new FakeConnection();
+    const wallet = Keypair.generate().publicKey;
+    await expect(buildReviveTx(wallet, { week: 42, treasury: Keypair.generate().publicKey, connection })).rejects.toThrow(/maxPrice/);
   });
 
   it('composes create_player before revive when createPlayer is true, for a wallet with no Player PDA yet', async () => {
     const connection = new FakeConnection();
     const wallet = Keypair.generate().publicKey;
     const treasury = Keypair.generate().publicKey;
-    const result = await buildReviveTx(wallet, { week: 42, treasury, createPlayer: true, connection });
+    const result = await buildReviveTx(wallet, { week: 42, treasury, maxPrice: 25_000_000n, createPlayer: true, connection });
 
     const tx = decode(result.transaction);
     expect(tx.message.compiledInstructions).toHaveLength(2);
@@ -392,7 +401,7 @@ describe('buildReviveTx', () => {
     const connection = new FakeConnection();
     const wallet = Keypair.generate().publicKey;
     const treasury = Keypair.generate().publicKey;
-    const result = await buildReviveTx(wallet, { week: 42, treasury, connection });
+    const result = await buildReviveTx(wallet, { week: 42, treasury, maxPrice: 25_000_000n, connection });
     expect(decode(result.transaction).message.compiledInstructions).toHaveLength(1);
   });
 });
@@ -435,7 +444,7 @@ describe('chain/verify', () => {
 
   async function reviveInstructions(wallet) {
     const treasury = Keypair.generate().publicKey;
-    const { transaction } = await buildReviveTx(wallet, { week: 1, treasury, connection: new FakeConnection() });
+    const { transaction } = await buildReviveTx(wallet, { maxPrice: 25_000_000n, week: 1, treasury, connection: new FakeConnection() });
     return (await getConfirmedInstructions('sig', {
       getTransaction: async () => ({ meta: { err: null }, transaction: { message: decode(transaction).message } }),
     })).instructions;

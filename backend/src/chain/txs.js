@@ -133,12 +133,12 @@ export async function buildBuyTicketTx(wallet, { week, treasury, connection = de
  * `player`, `week_pool`, `vault`, `treasury`, `wallet_token`, `skr_mint`, `token_program`) with no
  * args - `buy_ticket` and `revive` both do (see `instructions/tide.rs`).
  */
-async function buyTicketLikeInstruction(connection, methodName, walletKey, { week, treasury }) {
+async function buyTicketLikeInstruction(connection, methodName, walletKey, { week, treasury }, args = []) {
   const { skrMint } = chainConfig();
   const treasuryKey = treasury ? toPublicKey(treasury) : toPublicKey((await getConfig(connection)).treasury);
   const weekPoolKey = weekPda(week);
   return buildProgram(connection)
-    .methods[methodName]()
+    .methods[methodName](...args)
     .accountsPartial({
       wallet: walletKey,
       config: configPda(),
@@ -214,14 +214,17 @@ export async function buildPurchaseTx(wallet, { itemId, maxPrice, week, treasury
 }
 
 /**
- * `create_player` (when `createPlayer` is true) + `revive()`, composed the same way `buildPurchaseTx`
- * composes `create_player` + `purchase` - `revive` reuses `buy_ticket`'s account set (no catalog),
- * see `instructions/tide.rs`. Unsigned; fee payer = wallet. A `swap` plan goes in front of both,
- * exactly as it does for a purchase.
+ * `create_player` (when `createPlayer` is true) + `revive(max_price)`, composed the same way
+ * `buildPurchaseTx` composes `create_player` + `purchase` - `revive` reuses `buy_ticket`'s account set
+ * (no catalog), see `instructions/tide.rs`. `maxPrice` (base units, bigint) is the price the player
+ * was quoted: the program refuses with `PriceChanged` if the ladder charges more by the time the
+ * transaction lands. Unsigned; fee payer = wallet. A `swap` plan goes in front of both, exactly as it
+ * does for a purchase.
  */
-export async function buildReviveTx(wallet, { week, treasury, createPlayer, swap = null, connection = defaultConnection() } = {}) {
+export async function buildReviveTx(wallet, { week, treasury, maxPrice, createPlayer, swap = null, connection = defaultConnection() } = {}) {
+  if (typeof maxPrice !== 'bigint') throw new TypeError('buildReviveTx needs maxPrice in base units (bigint)');
   const walletKey = toPublicKey(wallet);
-  const ix = await buyTicketLikeInstruction(connection, 'revive', walletKey, { week, treasury });
+  const ix = await buyTicketLikeInstruction(connection, 'revive', walletKey, { week, treasury }, [new BN(maxPrice.toString())]);
   const instructions = [];
   if (createPlayer) instructions.push(await createPlayerInstruction(connection, walletKey));
   instructions.push(ix);

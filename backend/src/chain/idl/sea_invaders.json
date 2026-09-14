@@ -828,7 +828,12 @@
           "name": "token_program"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "max_price",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "set_catalog",

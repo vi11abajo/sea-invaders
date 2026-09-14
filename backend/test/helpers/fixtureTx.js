@@ -44,7 +44,7 @@ export async function realPurchaseInstructions(realTxs, wallet, { itemId = 3, ma
 }
 
 /** Same as `realPurchaseInstructions`, for a `revive` transaction. */
-export async function realReviveInstructions(realTxs, wallet, { week, treasury } = {}) {
-  const envelope = await realTxs.buildReviveTx(wallet, { week, treasury, connection: new FakeConnection() });
+export async function realReviveInstructions(realTxs, wallet, { week, treasury, maxPrice = 25_000_000n } = {}) {
+  const envelope = await realTxs.buildReviveTx(wallet, { week, treasury, maxPrice, connection: new FakeConnection() });
   return instructionsFromMessage(decodeTx(envelope.transaction).message);
 }

@@ -50,8 +50,9 @@ All four scripts share their bootstrap (`loadKeypair`, `configPda`,
   an absolute value, since the vault is a shared pool - running this
   script more than once in the same week keeps adding to it).
 - **`init-catalog.ts`** - creates the `Catalog` PDA with the seven shop
-  items (ids 0-2 the campaign octopi Harpoon 40, Anchor 60, Trident 90
-  SKR; ids 3-6 the skins Lime 25, Lilac 25, Ember 35, Abyss 50 SKR) and
+  items (ids 0-2 the campaign octopi Harpoon, Anchor, Trident at $1/$2/$3
+  in SKR rounded up - 56, 111, 166 SKR at $0.01808/SKR; ids 3-6 the skins
+  Lime 25, Lilac 25, Ember 35, Abyss 50 SKR) and
   reads it back. Idempotent: an up-to-date catalog is printed and left
   alone; a different one is reported (exit 1) unless the script runs with
   `--update`, which calls `setCatalog` - the way to change prices later.
