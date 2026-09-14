@@ -30,16 +30,20 @@ function jupiterHeaders() {
 }
 
 /**
- * Quotes a SOL -> SKR swap for exactly `outSkr` SKR (`swapMode=ExactOut`) via Jupiter, then asks
- * Jupiter to build the actual swap instructions for `wallet` against that quote - the app composes
- * these into one v0 tx with the payment instruction (parent design §2.2). `JUPITER_API_KEY` is read
- * only from the server env and sent as `x-api-key`; it is never part of the returned value.
- * `fetchImpl` defaults to the global `fetch` so tests can inject a stub - this function never
- * touches the network in a test run otherwise.
+ * Quotes a SOL -> SKR swap for exactly the SKR asked for (`swapMode=ExactOut`) via Jupiter, then
+ * asks Jupiter to build the actual swap instructions for `wallet` against that quote - `chain/txs.js`
+ * composes these into one v0 tx with the payment instruction (design doc §5 "Swap").
+ * `outBaseUnits` (a `bigint` of the exact on-chain `u64`) is what the purchase/revive path passes,
+ * so the swap buys precisely the SKR the wallet is short of; `outSkr` (a decimal, 6 places) is what
+ * `POST /api/swap/quote` passes for the Shop's `≈ X SOL` labels. `JUPITER_API_KEY` is read only
+ * from the server env and sent as `x-api-key`; it is never part of the returned value. `fetchImpl`
+ * defaults to the global `fetch` so tests can inject a stub - this function never touches the
+ * network in a test run otherwise.
  */
-export async function quoteSwap({ outSkr, wallet, fetchImpl = fetch }) {
+export async function quoteSwap({ outSkr, outBaseUnits, wallet, fetchImpl = fetch }) {
   const { skrMint } = chainConfig();
-  const amount = Math.round(outSkr * 1e6); // SKR has 6 decimals
+  // SKR has 6 decimals; `outBaseUnits` is already in them and must not round-trip through a float.
+  const amount = outBaseUnits === undefined ? Math.round(outSkr * 1e6) : outBaseUnits;
 
   const quoteUrl = new URL(JUPITER_QUOTE_URL);
   quoteUrl.searchParams.set('inputMint', SOL_MINT);
@@ -73,4 +77,17 @@ export async function quoteSwap({ outSkr, wallet, fetchImpl = fetch }) {
     instructions,
     addressLookupTables: built.addressLookupTableAddresses ?? [],
   };
+}
+
+/**
+ * The swap plan for a payment `wallet` cannot cover in SKR - `price` and `balance` in base units -
+ * or `null` when no swap is wanted or possible, in which case the caller keeps its own
+ * `not_enough_skr` behaviour. Both conditions have to hold: the caller asked for it (`requested`,
+ * the app's `swap: true`) and the deployment is on the one cluster Jupiter can quote against.
+ * The swap buys exactly the missing SKR, never the whole price: whatever the wallet already holds
+ * is spent first.
+ */
+export async function planSwap({ requested, wallet, price, balance, fetchImpl }) {
+  if (!requested || !swapAvailable()) return null;
+  return quoteSwap({ outBaseUnits: price - balance, wallet, fetchImpl });
 }

@@ -13,12 +13,13 @@
 //  - `buildCreateWeekPoolTx` and `buildSettleWeekTx` are backend-maintenance
 //    instructions with no player wallet involved: fee payer is the server
 //    authority, which fully signs before the caller sends it.
-import { ComputeBudgetProgram, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
+import { ComputeBudgetProgram, PACKET_DATA_SIZE, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getOrCreateAssociatedTokenAccount, mintTo } from '@solana/spl-token';
 import { BN } from '@anchor-lang/core';
 import { program as buildProgram } from './program.js';
 import { connection as defaultConnection } from './connection.js';
 import { chainConfig } from './config.js';
+import { lookupTableAccounts, toInstruction } from './jupiter.js';
 import { catalogPda, configPda, playerPda, weekPda, ata } from './pdas.js';
 import { getConfig } from './readers.js';
 import { weekOf } from '../services/dailySeed.js';
@@ -44,6 +45,58 @@ async function buildEnvelope(connection, payerKey, instructions) {
 
 function finalize(envelope) {
   return { ...envelope, transaction: Buffer.from(envelope.transaction.serialize()).toString('base64') };
+}
+
+/**
+ * `transaction` as base64 if it still fits one 1232-byte packet, `null` if it does not. Two ways to
+ * be too big, and both mean the same thing here: web3.js encodes a v0 message into a buffer of
+ * exactly `PACKET_DATA_SIZE` and throws `RangeError` once the message alone overruns it, while a
+ * message that does fit can still push the whole transaction past the limit once its (here zeroed,
+ * but full-length) signature is prepended.
+ */
+function base64IfItFits(transaction) {
+  let serialized;
+  try {
+    serialized = transaction.serialize();
+  } catch (error) {
+    if (error instanceof RangeError) return null;
+    throw error;
+  }
+  return serialized.length > PACKET_DATA_SIZE ? null : Buffer.from(serialized).toString('base64');
+}
+
+/**
+ * `paymentInstructions` paid for by swapping SOL -> SKR first (design doc §5 "Swap"): Jupiter's own
+ * instructions - compute budget, setup, swap, cleanup, in the order `services/swap.js` collected
+ * them - in front of ours, compiled into ONE v0 message against the route's address lookup tables,
+ * fee payer = wallet, so the player signs once.
+ *
+ * `swap` is `{ instructions, addressLookupTables }` as `quoteSwap` returns it. The whole payment
+ * must reach a validator in a single 1232-byte packet (`PACKET_DATA_SIZE`); a route too wide for
+ * that even after the lookup tables comes back as `{ transactions: [swapTx, paymentTx] }` instead,
+ * two transactions the app signs back to back, swap first - the payment half then pays out of the
+ * SKR the swap half just delivered. The size is measured on the serialized transaction, signatures
+ * included (zeroed here, the same length once signed), because that is what has to fit the packet.
+ */
+async function buildWithSwap(connection, walletKey, swap, paymentInstructions) {
+  const swapInstructions = (swap.instructions ?? []).map(toInstruction);
+  const tables = await lookupTableAccounts(connection, swap.addressLookupTables ?? []);
+  const { context, value } = await connection.getLatestBlockhashAndContext();
+  const envelope = { blockhash: value.blockhash, lastValidBlockHeight: value.lastValidBlockHeight, minContextSlot: context.slot };
+  const compile = (instructions, lookups) => new VersionedTransaction(
+    new TransactionMessage({ payerKey: walletKey, recentBlockhash: value.blockhash, instructions }).compileToV0Message(lookups),
+  );
+
+  const composed = base64IfItFits(compile([...swapInstructions, ...paymentInstructions], tables));
+  if (composed !== null) return { ...envelope, transaction: composed };
+  // Our own instructions never touch the route's accounts, so the payment half needs no lookup table.
+  const swapOnly = base64IfItFits(compile(swapInstructions, tables));
+  const paymentOnly = base64IfItFits(compile(paymentInstructions, []));
+  // A route too wide even on its own cannot be paid for at all: say so, rather than letting the
+  // encoder's RangeError reach the caller as an unexplained 500. `maxAccounts` in `services/swap.js`
+  // is what keeps Jupiter's half this side of the limit.
+  if (swapOnly === null || paymentOnly === null) throw new Error('The swap route does not fit a Solana transaction');
+  return { ...envelope, transactions: [swapOnly, paymentOnly] };
 }
 
 /**
@@ -130,8 +183,10 @@ export async function buildTicketTx(wallet, { createPlayer, week, treasury, conn
  * would otherwise fail on chain after paying the fee (`shop.rs`'s `Purchase`, `ticket.rs`'s
  * `BuyTicket` which `revive` reuses) - exactly the gap `buildTicketTx` already closes for tickets.
  * Unsigned; fee payer = wallet. `treasury` may be passed in to skip the `getConfig` round trip.
+ * With a `swap` plan (`quoteSwap`'s `{ instructions, addressLookupTables }`) Jupiter's SOL -> SKR
+ * instructions go in front of both, through `buildWithSwap`.
  */
-export async function buildPurchaseTx(wallet, { itemId, maxPrice, week, treasury, createPlayer, connection = defaultConnection() } = {}) {
+export async function buildPurchaseTx(wallet, { itemId, maxPrice, week, treasury, createPlayer, swap = null, connection = defaultConnection() } = {}) {
   const walletKey = toPublicKey(wallet);
   const { skrMint } = chainConfig();
   const treasuryKey = treasury ? toPublicKey(treasury) : toPublicKey((await getConfig(connection)).treasury);
@@ -154,20 +209,23 @@ export async function buildPurchaseTx(wallet, { itemId, maxPrice, week, treasury
   const instructions = [];
   if (createPlayer) instructions.push(await createPlayerInstruction(connection, walletKey));
   instructions.push(ix);
+  if (swap) return buildWithSwap(connection, walletKey, swap, instructions);
   return finalize(await buildEnvelope(connection, walletKey, instructions));
 }
 
 /**
  * `create_player` (when `createPlayer` is true) + `revive()`, composed the same way `buildPurchaseTx`
  * composes `create_player` + `purchase` - `revive` reuses `buy_ticket`'s account set (no catalog),
- * see `instructions/tide.rs`. Unsigned; fee payer = wallet.
+ * see `instructions/tide.rs`. Unsigned; fee payer = wallet. A `swap` plan goes in front of both,
+ * exactly as it does for a purchase.
  */
-export async function buildReviveTx(wallet, { week, treasury, createPlayer, connection = defaultConnection() } = {}) {
+export async function buildReviveTx(wallet, { week, treasury, createPlayer, swap = null, connection = defaultConnection() } = {}) {
   const walletKey = toPublicKey(wallet);
   const ix = await buyTicketLikeInstruction(connection, 'revive', walletKey, { week, treasury });
   const instructions = [];
   if (createPlayer) instructions.push(await createPlayerInstruction(connection, walletKey));
   instructions.push(ix);
+  if (swap) return buildWithSwap(connection, walletKey, swap, instructions);
   return finalize(await buildEnvelope(connection, walletKey, instructions));
 }
 

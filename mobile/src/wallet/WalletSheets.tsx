@@ -5,7 +5,7 @@ import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
 import { Txt } from '../ui/Txt';
 import { COLORS, FONTS, MOTION, RADIUS } from '../ui/tokens';
-import { formatSkr, formatSolAmount } from './format';
+import { formatSkr, formatSolAmount, formatSolPrice } from './format';
 import type { Purchase } from './usePurchase';
 
 // The wallet sheets of the handoff ("Wallet & error states", screens 11, 13, 16): modal sheets
@@ -147,7 +147,9 @@ export function PurchaseSheets({ purchase, onFaucet, faucetBusy = false }: Purch
       <SigningSheet
         title={phase === 'confirming' ? 'Confirming on Solana' : 'Waiting for signature'}
         what={order.what}
-        amount={`${formatSkr(order.amountSkr)} SKR`}
+        // An auto-swap is paid in SOL, so the amount row shows the SOL it spends rather than the
+        // SKR price the wallet does not hold; `what` already says the swap is happening.
+        amount={order.swapSol === undefined ? `${formatSkr(order.amountSkr)} SKR` : `≈ ${formatSolPrice(order.swapSol)} SOL`}
         fee={costLamports === null ? null : `fee ≈ ${formatSolAmount(costLamports, 'up')} SOL`}
       />
     );

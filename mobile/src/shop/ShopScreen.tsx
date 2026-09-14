@@ -123,12 +123,18 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
     };
   }, [shop]);
 
+  // Mainnet only: the backend swaps SOL for the missing SKR when the balance cannot cover the
+  // price, and ignores the offer when it can. Elsewhere the gate answers and the not-enough-SKR
+  // sheet with its devnet faucet is what shows, exactly as before.
+  const swapAvailable = shop?.swap.available === true;
+
   const buy = useCallback(
     async (item: ShopItem) => {
       const outcome = await start('item', {
         what: item.name,
         amountSkr: item.priceSkr,
-        prepare: () => buyItem(item.id),
+        swapAvailable,
+        prepare: (swap) => buyItem(item.id, swap),
         confirm: (signature) => confirmPurchase(signature, item.id),
       });
       if (!alive.current) return;
@@ -156,7 +162,7 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
           break;
       }
     },
-    [start, reset, show, load],
+    [start, reset, show, load, swapAvailable],
   );
 
   const faucet = useCallback(async () => {

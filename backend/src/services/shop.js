@@ -7,6 +7,7 @@ import { buildPurchaseTx } from '../chain/txs.js';
 import { hasPurchase } from '../chain/verify.js';
 import * as loadoutDb from '../db/loadout.js';
 import { dayOf, weekOf } from './dailySeed.js';
+import { planSwap } from './swap.js';
 
 const STATUS = {
   unknown_item: 404, item_inactive: 409, already_owned: 409, not_enough_skr: 409,
@@ -84,8 +85,13 @@ async function activeCatalogEntry(itemId) {
  * `create_player` first when the wallet has no `Player` PDA yet (`purchase` requires one, exactly
  * like `buy_ticket`; see `issueTicket` in `services/records.js`). Throws `already_owned` if the
  * wallet already owns it, or `not_enough_skr` (with `needSkr`/`haveSkr`) if its SKR balance is short.
+ *
+ * With `swap` (the app's `swap: true`) a short balance is paid in SOL instead, on mainnet only
+ * (design doc §5 "Swap"): Jupiter swaps exactly the missing SKR inside the same transaction and the
+ * envelope gains `swapped: true` and `inSol`. Everywhere else - no `swap`, a cluster with no
+ * Jupiter, or a wallet that holds the price already - the behaviour is exactly what it was.
  */
-export async function issuePurchase({ wallet, item, now }) {
+export async function issuePurchase({ wallet, item, now, swap = false }) {
   const itemId = Number(item);
   const [entry, player, balance, config] = await Promise.all([
     activeCatalogEntry(itemId), getPlayer(wallet), getTokenBalance(wallet), getConfig(),
@@ -94,14 +100,16 @@ export async function issuePurchase({ wallet, item, now }) {
   const inventory = player ? player.inventory : 0n;
   if (ownedItemIds(inventory).includes(itemId)) throw new ShopError('already_owned', 'Item already owned');
 
+  let plan = null;
   if (balance < entry.priceBaseUnits) {
-    throw new ShopError('not_enough_skr', 'Not enough SKR to buy this item', { needSkr: entry.priceSkr, haveSkr: Number(balance) / 1e6 });
+    plan = await planSwap({ requested: swap, wallet, price: entry.priceBaseUnits, balance });
+    if (plan === null) throw new ShopError('not_enough_skr', 'Not enough SKR to buy this item', { needSkr: entry.priceSkr, haveSkr: Number(balance) / 1e6 });
   }
 
   const week = weekOf(dayOf(now));
   const createsPlayer = !player;
-  const envelope = await buildPurchaseTx(wallet, { itemId, maxPrice: entry.priceBaseUnits, week, treasury: config?.treasury, createPlayer: createsPlayer });
-  return { ...envelope, createsPlayer };
+  const envelope = await buildPurchaseTx(wallet, { itemId, maxPrice: entry.priceBaseUnits, week, treasury: config?.treasury, createPlayer: createsPlayer, swap: plan });
+  return { ...envelope, createsPlayer, ...(plan === null ? {} : { swapped: true, inSol: plan.inSol }) };
 }
 
 /**

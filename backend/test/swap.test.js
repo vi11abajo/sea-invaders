@@ -101,6 +101,16 @@ describe('quoteSwap', () => {
     expect(fetchImpl.calls[0].init.headers['x-api-key']).toBeUndefined();
   });
 
+  it('asks for exactly the base units it was given, without a float round trip', async () => {
+    const fetchImpl = fakeFetch({
+      quote: { inAmount: '123456789', outAmount: '14999999' },
+      built: { computeBudgetInstructions: [], setupInstructions: [], swapInstruction: {}, cleanupInstruction: null, addressLookupTableAddresses: [] },
+    });
+    // 14.999999 SKR: a price the decimal path could only reach through 14.999999 * 1e6, which floats cannot hold exactly.
+    await quoteSwap({ outBaseUnits: 14_999_999n, wallet: Keypair.generate().publicKey.toBase58(), fetchImpl });
+    expect(fetchImpl.calls[0].url).toContain('amount=14999999');
+  });
+
   it('throws SwapError when the quote request fails', async () => {
     const fetchImpl = async () => ({ ok: false, status: 500 });
     await expect(quoteSwap({ outSkr: 25, wallet: Keypair.generate().publicKey.toBase58(), fetchImpl })).rejects.toBeInstanceOf(SwapError);

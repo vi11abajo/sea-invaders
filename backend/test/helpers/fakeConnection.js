@@ -1,14 +1,18 @@
-import { PublicKey } from '@solana/web3.js';
+import { AddressLookupTableAccount, PublicKey } from '@solana/web3.js';
 
 function toKey(pubkey) {
   return pubkey instanceof PublicKey ? pubkey.toBase58() : new PublicKey(pubkey).toBase58();
 }
 
+/** A lookup table that never deactivates, as `Connection#getAddressLookupTable` would return it. */
+const ACTIVE_TABLE = 2n ** 64n - 1n;
+
 /**
  * Minimal in-memory stand-in for @solana/web3.js's Connection, covering just
  * the surface chain/*.js touches: a fixed blockhash/slot for building
- * transactions (chain/txs.js), and a settable account store for reading
- * accounts back (chain/readers.js, and @solana/spl-token's getAccount).
+ * transactions (chain/txs.js), a settable account store for reading accounts
+ * back (chain/readers.js, and @solana/spl-token's getAccount), and the address
+ * lookup tables a swap-composed transaction resolves (chain/jupiter.js).
  */
 export class FakeConnection {
   constructor({
@@ -20,6 +24,23 @@ export class FakeConnection {
     this.lastValidBlockHeight = lastValidBlockHeight;
     this.slot = slot;
     this.accounts = new Map();
+    this.lookupTables = new Map();
+  }
+
+  /** Seeds an address lookup table: `address` holds `addresses` (base58 strings or `PublicKey`s). */
+  setLookupTable(address, addresses) {
+    this.lookupTables.set(toKey(address), addresses.map((a) => new PublicKey(toKey(a))));
+  }
+
+  async getAddressLookupTable(address) {
+    const addresses = this.lookupTables.get(toKey(address));
+    const value = addresses === undefined
+      ? null
+      : new AddressLookupTableAccount({
+        key: new PublicKey(toKey(address)),
+        state: { deactivationSlot: ACTIVE_TABLE, lastExtendedSlot: this.slot, lastExtendedSlotStartIndex: 0, addresses },
+      });
+    return { context: { slot: this.slot }, value };
   }
 
   /** Seeds the fake account store. `info` is `{ data: Buffer, owner: PublicKey, lamports?, executable?, rentEpoch? }`. */

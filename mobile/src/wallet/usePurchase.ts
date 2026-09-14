@@ -1,8 +1,8 @@
-import { PublicKey, VersionedTransaction, type Connection } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL, PublicKey, VersionedTransaction, type Connection } from '@solana/web3.js';
 import { useMobileWallet } from '@wallet-ui/react-native-web3js';
 import { toUint8Array } from 'js-base64';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BlockhashExpired, PollCancelled, pollUntilConfirmed, useSignAndSend, WalletDeclined, type PreparedTx } from '../api/chain';
+import { BlockhashExpired, PollCancelled, pollUntilConfirmed, transactionsOf, useSignAndSend, WalletDeclined, type PreparedPayment } from '../api/chain';
 import { ApiError } from '../api/client';
 import { loadSession } from '../api/session';
 
@@ -14,8 +14,8 @@ export type PurchaseKind = 'ticket' | 'item' | 'revive';
 
 export type PurchasePhase = 'idle' | 'building' | 'signing' | 'confirming' | 'done' | 'error';
 
-/** A backend-built transaction; `createsPlayer` when it opens with `create_player` (the wallet also pays that account's rent). */
-export type PreparedPurchase = PreparedTx & {
+/** A backend-built payment; `createsPlayer` when it opens with `create_player` (the wallet also pays that account's rent). */
+export type PreparedPurchase = PreparedPayment & {
   createsPlayer?: boolean;
   /**
    * What this transaction actually moves, when the backend can build it at a different price than
@@ -31,8 +31,15 @@ export interface PurchasePayload<R extends { confirmed: boolean }> {
   what: string;
   /** The SKR the transaction transfers, for the signing sheet's amount row. */
   amountSkr: number;
-  /** Asks the backend for the transaction. Called again once if the wallet reports an expired blockhash. */
-  prepare: () => Promise<PreparedPurchase>;
+  /**
+   * True when this cluster offers the SOL -> SKR swap (`swap.available` from the Shop or the Tide
+   * quote). The request then carries `swap: true` and the backend swaps only if the wallet's SKR
+   * really is short - so a balance that moved since the screen last read it cannot strand the
+   * purchase on a 409 the swap could have paid.
+   */
+  swapAvailable?: boolean;
+  /** Asks the backend for the payment, offering the swap when `swap`. Called again once if the wallet reports an expired blockhash. */
+  prepare: (swap: boolean) => Promise<PreparedPurchase>;
   /** One confirmation poll: `{ confirmed: false }` while the transaction is not visible yet. */
   confirm: (signature: string) => Promise<R>;
 }
@@ -41,6 +48,8 @@ export interface PurchaseOrder {
   kind: PurchaseKind;
   what: string;
   amountSkr: number;
+  /** The SOL an auto-swap spends for this payment; the signing sheet shows it instead of the SKR amount. */
+  swapSol?: number;
 }
 
 export type PurchaseError =
@@ -93,27 +102,49 @@ function numberOr(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-/** `order` with its `amountSkr` corrected to `prepared`'s own price, when it declares one that differs. */
-function withPreparedAmount(order: PurchaseOrder, prepared: PreparedPurchase): PurchaseOrder {
-  return typeof prepared.priceSkr === 'number' && prepared.priceSkr !== order.amountSkr
-    ? { ...order, amountSkr: prepared.priceSkr }
-    : order;
+/** What the signing sheet appends to `what` when the payment swaps SOL for the missing SKR (handoff 11). */
+const SWAP_NOTE = 'SOL → SKR auto-swap';
+
+/**
+ * `order` rebuilt from the base for `prepared`: its `amountSkr` corrected to `prepared`'s own price
+ * when it declares one that differs, and - once the backend answered with an auto-swap - the
+ * swap wording and the SOL that swap spends. Always derived from `base`, never from a previous
+ * result, so a second `prepare()` (an expired blockhash) cannot stack the wording twice.
+ */
+function withPrepared(base: PurchaseOrder, prepared: PreparedPurchase): PurchaseOrder {
+  const amountSkr = typeof prepared.priceSkr === 'number' ? prepared.priceSkr : base.amountSkr;
+  if (prepared.swapped !== true) return amountSkr === base.amountSkr ? base : { ...base, amountSkr };
+  return { ...base, amountSkr, what: `${base.what} · ${SWAP_NOTE}`, swapSol: prepared.inSol };
 }
 
-/** Lamports `prepared` costs its fee payer: the network fee for its message, plus rent for the player account it creates. */
-async function solCost(connection: Connection, prepared: PreparedPurchase): Promise<number> {
-  const message = VersionedTransaction.deserialize(toUint8Array(prepared.transaction)).message;
-  const [fee, rent] = await Promise.all([
-    connection.getFeeForMessage(message, COMMITMENT).then((r) => r.value ?? message.header.numRequiredSignatures * LAMPORTS_PER_SIGNATURE),
-    prepared.createsPlayer ? connection.getMinimumBalanceForRentExemption(PLAYER_ACCOUNT_BYTES) : Promise.resolve(0),
-  ]);
-  return fee + rent;
+/** Lamports the auto-swap itself takes from the wallet, on top of the fees; 0 when nothing is swapped. */
+function swapLamportsOf(prepared: PreparedPurchase): number {
+  if (prepared.swapped !== true || typeof prepared.inSol !== 'number' || !Number.isFinite(prepared.inSol)) return 0;
+  return Math.ceil(prepared.inSol * LAMPORTS_PER_SOL);
 }
 
 /**
- * One on-chain purchase at a time: `start(kind, payload)` fetches the transaction from the backend,
- * checks the wallet can pay the SOL fee, has the wallet sign and send it through MWA (one fresh
- * prepare-and-retry on an expired blockhash), then polls `confirm` every 2 s for up to 60 s.
+ * Lamports of fee `prepared` costs its fee payer: the network fee for every transaction it is made
+ * of (a split swap payment is two), plus rent for the player account it creates. The SOL an
+ * auto-swap spends is deliberately not counted here - this is what the sheet labels `fee ≈`.
+ */
+async function solCost(connection: Connection, prepared: PreparedPurchase): Promise<number> {
+  const messages = transactionsOf(prepared).map((tx) => VersionedTransaction.deserialize(toUint8Array(tx)).message);
+  const [fees, rent] = await Promise.all([
+    Promise.all(messages.map((message) => connection
+      .getFeeForMessage(message, COMMITMENT)
+      .then((r) => r.value ?? message.header.numRequiredSignatures * LAMPORTS_PER_SIGNATURE))),
+    prepared.createsPlayer ? connection.getMinimumBalanceForRentExemption(PLAYER_ACCOUNT_BYTES) : Promise.resolve(0),
+  ]);
+  return fees.reduce((total, fee) => total + fee, 0) + rent;
+}
+
+/**
+ * One on-chain purchase at a time: `start(kind, payload)` fetches the payment from the backend,
+ * checks the wallet can pay the SOL fee (plus the SOL an auto-swap spends), has the wallet sign and
+ * send it through MWA - two signatures in order when a swap could not share one packet with the
+ * payment, and one fresh prepare-and-retry on a blockhash that expired before anything was sent -
+ * then polls `confirm` every 2 s for up to 60 s on our own instruction's signature.
  * `phase`/`order`/`error`/`costLamports` drive `PurchaseSheets`; `start` also resolves the outcome
  * so the host can toast and refresh. A decline returns to `idle` (the host shows `DECLINED_TOAST`);
  * a `no_sol`/`no_skr` error stays up as a sheet until `reset()`.
@@ -142,18 +173,38 @@ export function usePurchase() {
     async <R extends { confirmed: boolean }>(kind: PurchaseKind, payload: PurchasePayload<R>): Promise<PurchaseOutcome<R>> => {
       if (busy.current) return { status: 'abandoned' };
       busy.current = true;
-      let order: PurchaseOrder = { kind, what: payload.what, amountSkr: payload.amountSkr };
+      const base: PurchaseOrder = { kind, what: payload.what, amountSkr: payload.amountSkr };
+      const offerSwap = payload.swapAvailable === true;
+      let order: PurchaseOrder = base;
       let cost: number | null = null;
+      let swapLamports = 0;
       let have: number | null = null;
+      // Nothing may be re-sent once any half of a split payment has left the wallet: a blind retry
+      // would run the swap a second time and spend the SOL twice.
+      let sent = false;
       const fail = (error: PurchaseError): PurchaseOutcome<R> => {
         update({ phase: 'error', order, error, costLamports: cost });
         return { status: 'error', error };
       };
+      /**
+       * Signs and sends every transaction of `prepared` in order - a split swap payment is the swap
+       * first, then the payment out of the SKR it delivered, each opening the wallet once. Resolves
+       * with the LAST signature, which is always our own purchase/revive: the one `confirm` polls.
+       */
+      const send = async (prepared: PreparedPurchase): Promise<string> => {
+        let signature = '';
+        for (const transaction of transactionsOf(prepared)) {
+          signature = await signAndSend({ ...prepared, transaction });
+          sent = true;
+        }
+        return signature;
+      };
 
       update({ phase: 'building', order, error: null, costLamports: null });
       try {
-        let prepared = await payload.prepare();
-        order = withPreparedAmount(order, prepared);
+        let prepared = await payload.prepare(offerSwap);
+        order = withPrepared(base, prepared);
+        swapLamports = swapLamportsOf(prepared);
 
         // Check the SOL side before the wallet opens, so a short wallet gets sheet 13 instead of a
         // wallet-side failure. An RPC hiccup here skips the check: the wallet still refuses an
@@ -170,17 +221,21 @@ export function usePurchase() {
           cost = null;
           have = null;
         }
-        if (cost !== null && have !== null && have < cost) return fail({ code: 'no_sol', requiredLamports: cost, haveLamports: have });
+        // An auto-swap spends SOL on top of the fees, so the wallet has to cover both.
+        if (cost !== null && have !== null && have < cost + swapLamports) {
+          return fail({ code: 'no_sol', requiredLamports: cost + swapLamports, haveLamports: have });
+        }
 
         update({ phase: 'signing', order, error: null, costLamports: cost });
         let signature: string;
         try {
-          signature = await signAndSend(prepared);
+          signature = await send(prepared);
         } catch (error) {
-          if (!(error instanceof BlockhashExpired)) throw error;
-          prepared = await payload.prepare();
-          order = withPreparedAmount(order, prepared);
-          signature = await signAndSend(prepared);
+          if (!(error instanceof BlockhashExpired) || sent) throw error;
+          prepared = await payload.prepare(offerSwap);
+          order = withPrepared(base, prepared);
+          swapLamports = swapLamportsOf(prepared);
+          signature = await send(prepared);
         }
 
         update({ phase: 'confirming', order, error: null, costLamports: cost });
@@ -197,7 +252,7 @@ export function usePurchase() {
           return fail({ code: 'no_skr', needSkr: numberOr(error.details?.needSkr, payload.amountSkr), haveSkr: numberOr(error.details?.haveSkr, 0) });
         }
         if (cost !== null && have !== null && INSUFFICIENT_SOL.test(messageOf(error))) {
-          return fail({ code: 'no_sol', requiredLamports: cost, haveLamports: have });
+          return fail({ code: 'no_sol', requiredLamports: cost + swapLamports, haveLamports: have });
         }
         // Release builds have no debugger: keep the stack in logcat so a device failure is diagnosable.
         console.error('[purchase] failed', kind, error instanceof Error ? (error.stack ?? error.message) : error);

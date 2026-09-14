@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { ShopError } from '../services/shop.js';
+import { SwapError } from '../services/swap.js';
 import { confirmRevive, issueRevive, quoteRevive } from '../services/tide.js';
 
 const router = express.Router();
@@ -16,7 +17,10 @@ router.post('/quote', authenticateToken, async (req, res, next) => {
 
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    res.status(201).json(await issueRevive({ wallet: req.user.walletAddress, now: nowSeconds() }));
+    // `swap: true` only offers the SOL -> SKR swap; the service still decides whether it is needed
+    // (the balance is short) and possible (mainnet), and answers 409 not_enough_skr when it is not.
+    const swap = req.body?.swap === true;
+    res.status(201).json(await issueRevive({ wallet: req.user.walletAddress, now: nowSeconds(), swap }));
   } catch (error) {
     next(error);
   }
@@ -33,10 +37,13 @@ router.post('/confirm', authenticateToken, async (req, res, next) => {
   }
 });
 
-/** Maps ShopError to its HTTP status; everything else falls through to the app's error handler. */
+/** Maps ShopError (and a failing swap, which only `POST /` can raise) to its HTTP status; everything else falls through to the app's error handler. */
 router.use((err, req, res, next) => {
   if (err instanceof ShopError) {
     return res.status(err.status).json({ error: 'Tide', code: err.code, message: err.message, ...err.extra });
+  }
+  if (err instanceof SwapError) {
+    return res.status(err.status).json({ error: 'Swap', code: err.code, message: err.message });
   }
   next(err);
 });

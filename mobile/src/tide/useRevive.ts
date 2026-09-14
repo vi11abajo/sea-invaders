@@ -5,6 +5,7 @@ import { PollCancelled } from '../api/chain';
 import { ApiError } from '../api/client';
 import { requestFaucet } from '../api/daily';
 import { confirmRevive, issueRevive, quoteRevive, type ReviveQuote } from '../api/revive';
+import { quoteSwapSol } from '../api/shop';
 import { COLORS } from '../ui/tokens';
 import { DECLINED_TOAST, usePurchase } from '../wallet/usePurchase';
 
@@ -149,6 +150,8 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
   const [stage, setStage] = useState<TideStage>({ kind: 'offer' });
   const [now, setNow] = useState(() => Date.now());
   const [faucetBusy, setFaucetBusy] = useState(false);
+  /** What the revive costs in SOL when it has to be swapped for; null while unknown, or wherever there is no swap. */
+  const [solPrice, setSolPrice] = useState<number | null>(null);
 
   const alive = useRef(true);
   useEffect(
@@ -195,6 +198,33 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
     else if (!connecting) void loadQuote();
   }, [signedIn, connecting, loadQuote]);
 
+  // Mainnet only (the quote carries the same `swap.available` gate `GET /api/shop` reports), and
+  // only while the wallet cannot cover the price in SKR: what the revive costs in SOL, for the
+  // primary's `Revive · ≈ X SOL` (design doc §5 "Swap"). On devnet the gate is false, no quote is
+  // asked for and the sheet keeps its SKR price and the faucet hint exactly as they were.
+  const ready = quote.status === 'ready' ? quote.quote : null;
+  const swapAvailable = ready !== null && ready.swap?.available === true;
+  const swapPriceSkr = swapAvailable && ready.balanceSkr < ready.priceSkr ? ready.priceSkr : null;
+
+  useEffect(() => {
+    if (swapPriceSkr === null) {
+      setSolPrice(null);
+      return undefined;
+    }
+    let active = true;
+    quoteSwapSol(swapPriceSkr)
+      .then((sol) => {
+        if (active) setSolPrice(sol);
+      })
+      .catch(() => {
+        // No quote: the primary stays in SKR.
+        if (active) setSolPrice(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [swapPriceSkr]);
+
   // The price falls a step when the countdown runs out: fetch the new one.
   const dropAt = quote.status === 'ready' && quote.quote.nextStep !== null ? quote.at + quote.quote.nextStep.inSeconds * 1000 : null;
   const dropped = dropAt !== null && now >= dropAt;
@@ -220,9 +250,13 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
   // `pay` and `payAgain` call each other (a queued Retry pays again when the sent one cannot land).
   const payAgainRef = useRef<() => Promise<void>>(async () => undefined);
 
-  /** Pays for one revive at `amountSkr` (the price on screen; the transaction carries the chain's price). */
+  /**
+   * Pays for one revive at `amountSkr` (the price on screen; the transaction carries the chain's
+   * price). `canSwap` comes from the same quote as the price, so a retry that re-read the quote
+   * offers the swap on exactly the terms that quote reported.
+   */
   const pay = useCallback(
-    async (amountSkr: number) => {
+    async (amountSkr: number, canSwap: boolean) => {
       if (applied.current || inFlight.current) return;
       inFlight.current = true;
       retryQueued.current = false;
@@ -233,8 +267,9 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
       const outcome = await start('revive', {
         what: WHAT,
         amountSkr,
-        prepare: async () => {
-          const prepared = await issueRevive();
+        swapAvailable: canSwap,
+        prepare: async (swap) => {
+          const prepared = await issueRevive(swap);
           lastValid = prepared.lastValidBlockHeight;
           return prepared;
         },
@@ -299,15 +334,15 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
       setStage({ kind: 'offer' });
       return;
     }
-    await pay(fresh.priceSkr);
+    await pay(fresh.priceSkr, fresh.swap?.available === true);
   }, [loadQuote, pay]);
   payAgainRef.current = payAgain;
 
   /** The offer's primary: pays the quoted price. */
   const revive = useCallback(() => {
     if (quote.status !== 'ready' || stageRef.current.kind !== 'offer') return;
-    void pay(quote.quote.priceSkr);
-  }, [quote, pay]);
+    void pay(quote.quote.priceSkr, swapAvailable);
+  }, [quote, swapAvailable, pay]);
 
   /**
    * Retry (after `PENDING_LONG_MS`): a new transaction at once when the sent one can no longer land;
@@ -341,7 +376,7 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
   }, [reset, loadQuote]);
 
   return {
-    quote, stage, now, purchase, faucetBusy,
+    quote, stage, now, purchase, faucetBusy, solPrice,
     revive, retry, faucet, reloadQuote: () => void loadQuote(),
   };
 }

@@ -1,0 +1,145 @@
+{
+  "_comment": [
+    "PROVENANCE: this is a documented-shape SAMPLE, not a live capture. It was assembled by hand on",
+    "2026-09-14 from Jupiter's own published response shape, not recorded from a real mainnet call:",
+    "the top-level field names come from developers.jup.ag/docs/swap/migration/metis-to-build.md",
+    "(the /swap-instructions -> /build response mapping table lists computeBudgetInstructions,",
+    "setupInstructions, swapInstruction, cleanupInstruction, addressLookupTableAddresses), and the",
+    "per-instruction shape { programId, accounts: [{ pubkey, isSigner, isWritable }], data: base64 }",
+    "comes from the toInstruction helper published on developers.jup.ag/docs/swap/build. Only those",
+    "field names are documentation-verified; tokenLedgerInstruction, otherInstructions,",
+    "prioritizationFeeLamports, computeUnitLimit and the quote's routePlan/contextSlot/timeTaken are",
+    "plausible extras nothing in the backend reads - they are here so the parser is exercised against",
+    "a response carrying fields it must ignore.",
+    "The route it describes matches the one the project measured live on 2026-09-10 for an ExactOut",
+    "SOL -> SKR quote (SOL -> USDC on a Raydium CLMM pool, USDC -> SKR on an Orca whirlpool; 10 SKR",
+    "for about 1_921_336 lamports). Program ids and mints are the real mainnet ones; pool, vault and",
+    "lookup-table accounts are stand-ins generated for this fixture. USER_WALLET, USER_WSOL_ATA,",
+    "USER_USDC_ATA, USER_SKR_ATA and SKR_MINT are placeholders that test/helpers/jupiterFixture.js",
+    "substitutes with the values of the test's own wallet and environment.",
+    "Amounts are therefore realistic but never authoritative: nothing in the app may treat this file",
+    "as a price, and only mainnet can prove the real route still fits a single transaction."
+  ],
+  "quote": {
+    "inputMint": "So11111111111111111111111111111111111111112",
+    "inAmount": "1921336",
+    "outputMint": "SKR_MINT",
+    "outAmount": "10000000",
+    "otherAmountThreshold": "1930943",
+    "swapMode": "ExactOut",
+    "slippageBps": 50,
+    "platformFee": null,
+    "priceImpactPct": "0.0012",
+    "routePlan": [
+      {
+        "swapInfo": {
+          "ammKey": "2tY8AhXNVmzoFSrzx5go3Ako7bgtMVVWEQZhYBujtoQ2",
+          "label": "Raydium CLMM",
+          "inputMint": "So11111111111111111111111111111111111111112",
+          "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "inAmount": "1921336",
+          "outAmount": "412755",
+          "feeAmount": "480",
+          "feeMint": "So11111111111111111111111111111111111111112"
+        },
+        "percent": 100
+      },
+      {
+        "swapInfo": {
+          "ammKey": "DHpuHuuFofjsWnh64xVwAxgAGQVBEKMzKQBxZfA1K5YC",
+          "label": "Whirlpool",
+          "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "outputMint": "SKR_MINT",
+          "inAmount": "412755",
+          "outAmount": "10000000",
+          "feeAmount": "1238",
+          "feeMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        },
+        "percent": 100
+      }
+    ],
+    "contextSlot": 291847362,
+    "timeTaken": 0.0184
+  },
+  "swapInstructions": {
+    "tokenLedgerInstruction": null,
+    "computeBudgetInstructions": [
+      {
+        "programId": "ComputeBudget111111111111111111111111111111",
+        "accounts": [],
+        "data": "AuCTBAA="
+      },
+      {
+        "programId": "ComputeBudget111111111111111111111111111111",
+        "accounts": [],
+        "data": "A6CGAQAAAAAA"
+      }
+    ],
+    "setupInstructions": [
+      {
+        "programId": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "accounts": [
+          { "pubkey": "USER_WALLET", "isSigner": true, "isWritable": true },
+          { "pubkey": "USER_WSOL_ATA", "isSigner": false, "isWritable": true },
+          { "pubkey": "USER_WALLET", "isSigner": false, "isWritable": false },
+          { "pubkey": "So11111111111111111111111111111111111111112", "isSigner": false, "isWritable": false },
+          { "pubkey": "11111111111111111111111111111111", "isSigner": false, "isWritable": false },
+          { "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "isSigner": false, "isWritable": false }
+        ],
+        "data": "AQ=="
+      },
+      {
+        "programId": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "accounts": [
+          { "pubkey": "USER_WALLET", "isSigner": true, "isWritable": true },
+          { "pubkey": "USER_SKR_ATA", "isSigner": false, "isWritable": true },
+          { "pubkey": "USER_WALLET", "isSigner": false, "isWritable": false },
+          { "pubkey": "SKR_MINT", "isSigner": false, "isWritable": false },
+          { "pubkey": "11111111111111111111111111111111", "isSigner": false, "isWritable": false },
+          { "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "isSigner": false, "isWritable": false }
+        ],
+        "data": "AQ=="
+      }
+    ],
+    "swapInstruction": {
+      "programId": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+      "accounts": [
+        { "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "isSigner": false, "isWritable": false },
+        { "pubkey": "USER_WALLET", "isSigner": true, "isWritable": false },
+        { "pubkey": "USER_WSOL_ATA", "isSigner": false, "isWritable": true },
+        { "pubkey": "USER_USDC_ATA", "isSigner": false, "isWritable": true },
+        { "pubkey": "USER_SKR_ATA", "isSigner": false, "isWritable": true },
+        { "pubkey": "2tY8AhXNVmzoFSrzx5go3Ako7bgtMVVWEQZhYBujtoQ2", "isSigner": false, "isWritable": true },
+        { "pubkey": "3wWdsDijtWs8M6PNBKSVXE3hJc95mf5S1MARG6GfCPk7", "isSigner": false, "isWritable": true },
+        { "pubkey": "5Q4fGpzfg8Hgj452GsaFEns6qdCmLeyUPNhiSBPyjXdQ", "isSigner": false, "isWritable": true },
+        { "pubkey": "BiTYwDTKdFG5sjzJ3BS2reEQCSFDbF5MfGEwKmb4rLs9", "isSigner": false, "isWritable": true },
+        { "pubkey": "7pFdfi3bV8rc475N9YJpTr22xvZ7D5y1Nc2Jr1forZQx", "isSigner": false, "isWritable": false },
+        { "pubkey": "DHpuHuuFofjsWnh64xVwAxgAGQVBEKMzKQBxZfA1K5YC", "isSigner": false, "isWritable": true },
+        { "pubkey": "2SxuytcPMEbt9znox1NnXfNsADBLgPqX25mt99yv4Nna", "isSigner": false, "isWritable": true },
+        { "pubkey": "94ENAggzE8qsifqodyB3qXWVRhu7hwPCk6r25L15kmET", "isSigner": false, "isWritable": true },
+        { "pubkey": "DHs7wvHgUsrqc78P3mT2dN2BZaFTRfz3dRUenq74humm", "isSigner": false, "isWritable": true },
+        { "pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "isSigner": false, "isWritable": false },
+        { "pubkey": "SKR_MINT", "isSigner": false, "isWritable": false },
+        { "pubkey": "C516E5P5bHxujGLgVgfo4ZCEAWBHCs5s9fHJq5eWqAb7", "isSigner": false, "isWritable": false },
+        { "pubkey": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4", "isSigner": false, "isWritable": false }
+      ],
+      "data": "wSCbM0HWnIEAAgAAZAAAAQBkAAA4UR0AAAAAAICWmAAAAAAAMgAA"
+    },
+    "cleanupInstruction": {
+      "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "accounts": [
+        { "pubkey": "USER_WSOL_ATA", "isSigner": false, "isWritable": true },
+        { "pubkey": "USER_WALLET", "isSigner": false, "isWritable": true },
+        { "pubkey": "USER_WALLET", "isSigner": true, "isWritable": false }
+      ],
+      "data": "CQ=="
+    },
+    "otherInstructions": [],
+    "addressLookupTableAddresses": [
+      "Cn8FZKpKn72Stuxi5cNNUtVAKYtzxs4Qa38UWwHemC99",
+      "JC6U9W8h41y3L1X1R2N17SHvQ3gtm8fZG8ZDVV5CXxmi"
+    ],
+    "prioritizationFeeLamports": 30000,
+    "computeUnitLimit": 300000
+  }
+}

@@ -1,13 +1,14 @@
 import { Keypair, SystemProgram } from '@solana/web3.js';
 import bs58 from 'bs58';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tokenFor } from './helpers/jwt.js';
 import { dayOf, weekOf } from '../src/services/dailySeed.js';
 import * as memory from './helpers/memoryRankedRuns.js';
 import * as memoryLoadout from './helpers/memoryLoadout.js';
 import * as fakeChain from './helpers/fakeChain.js';
 import { instructionsFromMessage, messageFrom, realPurchaseInstructions as sharedRealPurchaseInstructions, realReviveInstructions as sharedRealReviveInstructions } from './helpers/fixtureTx.js';
+import { jupiterFixture } from './helpers/jupiterFixture.js';
 
 vi.mock('../src/db/loadout.js', () => import('./helpers/memoryLoadout.js'));
 vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
@@ -142,6 +143,93 @@ describe('issuePurchase', () => {
   });
 });
 
+// design doc §5 "Swap": a wallet short on SKR pays with SOL instead, by swapping exactly the
+// missing SKR through Jupiter in the same transaction. Mainnet only - everything below flips
+// SOLANA_CLUSTER per test and restores it, and Jupiter is a stubbed global `fetch`, never the network.
+describe('issuePurchase with a swap', () => {
+  const originalCluster = process.env.SOLANA_CLUSTER;
+  const fixture = () => jupiterFixture(WALLET, process.env.SKR_MINT);
+  let urls;
+
+  beforeEach(() => {
+    fakeChain.reset();
+    clearCatalogCache();
+    urls = [];
+    vi.stubGlobal('fetch', async (url) => {
+      urls.push(String(url));
+      const { quote, built } = fixture();
+      return { ok: true, json: async () => (String(url).includes('/swap-instructions') ? built : quote) };
+    });
+  });
+
+  afterEach(() => {
+    process.env.SOLANA_CLUSTER = originalCluster;
+    vi.unstubAllGlobals();
+  });
+
+  it('still refuses on devnet, where there is no Jupiter to quote against', async () => {
+    process.env.SOLANA_CLUSTER = 'devnet';
+    fakeChain.setBalance(WALLET, 10_000_000n);
+    await expect(issuePurchase({ wallet: WALLET, item: LIME, now: 0, swap: true })).rejects.toMatchObject({
+      code: 'not_enough_skr', status: 409, extra: { needSkr: 25, haveSkr: 10 },
+    });
+    expect(urls).toEqual([]);
+  });
+
+  it('still refuses on mainnet when the caller did not ask for a swap', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    fakeChain.setBalance(WALLET, 10_000_000n);
+    await expect(issuePurchase({ wallet: WALLET, item: LIME, now: 0 })).rejects.toMatchObject({ code: 'not_enough_skr', status: 409 });
+    expect(urls).toEqual([]);
+  });
+
+  it('buys exactly the missing SKR, in base units, and reports the SOL it costs', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    fakeChain.setBalance(WALLET, 10_000_000n); // 10 SKR of the 25 the item costs
+    const result = await issuePurchase({ wallet: WALLET, item: LIME, now: 0, swap: true });
+
+    expect(urls[0]).toContain('amount=15000000');
+    expect(urls[0]).toContain('swapMode=ExactOut');
+    expect(result).toMatchObject({ swapped: true, inSol: 1_921_336 / 1e9, createsPlayer: true });
+  });
+
+  it('hands the tx builder Jupiter\'s instructions and lookup tables, alongside the unchanged purchase args', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    fakeChain.setBalance(WALLET, 10_000_000n);
+    await issuePurchase({ wallet: WALLET, item: LIME, now: 1_000_000, swap: true });
+
+    const call = fakeChain.state.calls.buildPurchaseTx[0];
+    expect(call).toMatchObject({ itemId: LIME, maxPrice: 25_000_000n, week: weekOf(dayOf(1_000_000)), createPlayer: true });
+    expect(call.swap.instructions).toHaveLength(6); // 2 compute budget + 2 setup + swap + cleanup
+    expect(call.swap.addressLookupTables).toEqual(fixture().built.addressLookupTableAddresses);
+  });
+
+  it('never swaps when the wallet already holds the price', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    fakeChain.setBalance(WALLET, 25_000_000n);
+    const result = await issuePurchase({ wallet: WALLET, item: LIME, now: 0, swap: true });
+
+    expect(urls).toEqual([]);
+    expect(result.swapped).toBeUndefined();
+    expect(result.inSol).toBeUndefined();
+    expect(fakeChain.state.calls.buildPurchaseTx[0].swap).toBeNull();
+  });
+
+  it('checks ownership before the swap: an owned item never asks Jupiter for a quote', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    fakeChain.setPlayer(WALLET, { inventory: 1n << BigInt(LIME) });
+    await expect(issuePurchase({ wallet: WALLET, item: LIME, now: 0, swap: true })).rejects.toMatchObject({ code: 'already_owned' });
+    expect(urls).toEqual([]);
+  });
+
+  it('surfaces a failing Jupiter quote as a SwapError, not as not_enough_skr', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    vi.stubGlobal('fetch', async () => ({ ok: false, status: 503 }));
+    fakeChain.setBalance(WALLET, 10_000_000n);
+    await expect(issuePurchase({ wallet: WALLET, item: LIME, now: 0, swap: true })).rejects.toMatchObject({ name: 'SwapError', code: 'swap_quote_failed' });
+  });
+});
+
 describe('confirmPurchase', () => {
   beforeEach(() => {
     fakeChain.reset();
@@ -254,6 +342,47 @@ describe('/api/shop routes', () => {
     const res = await request(app).post('/api/shop/buy').set(auth).send({ item: LIME });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ transaction: expect.any(String) });
+  });
+
+  describe('with swap: true', () => {
+    const originalCluster = process.env.SOLANA_CLUSTER;
+    afterEach(() => {
+      process.env.SOLANA_CLUSTER = originalCluster;
+      vi.unstubAllGlobals();
+    });
+
+    function stubJupiter() {
+      vi.stubGlobal('fetch', async (url) => {
+        const { quote, built } = jupiterFixture(WALLET, process.env.SKR_MINT);
+        return { ok: true, json: async () => (String(url).includes('/swap-instructions') ? built : quote) };
+      });
+    }
+
+    it('answers 409 not_enough_skr unchanged on devnet (the gate), with the faucet hint\'s numbers', async () => {
+      stubJupiter();
+      fakeChain.setBalance(WALLET, 0n);
+      const res = await request(app).post('/api/shop/buy').set(auth).send({ item: LIME, swap: true });
+      expect(res.status).toBe(409);
+      expect(res.body).toMatchObject({ error: 'Shop', code: 'not_enough_skr', needSkr: 25, haveSkr: 0 });
+    });
+
+    it('answers 201 with swapped and the SOL amount on mainnet', async () => {
+      process.env.SOLANA_CLUSTER = 'mainnet';
+      stubJupiter();
+      fakeChain.setBalance(WALLET, 10_000_000n);
+      const res = await request(app).post('/api/shop/buy').set(auth).send({ item: LIME, swap: true });
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ transaction: expect.any(String), swapped: true, inSol: 1_921_336 / 1e9 });
+    });
+
+    it('maps a failing Jupiter call to 502 swap_quote_failed, not to a 500', async () => {
+      process.env.SOLANA_CLUSTER = 'mainnet';
+      vi.stubGlobal('fetch', async () => ({ ok: false, status: 503 }));
+      fakeChain.setBalance(WALLET, 10_000_000n);
+      const res = await request(app).post('/api/shop/buy').set(auth).send({ item: LIME, swap: true });
+      expect(res.status).toBe(502);
+      expect(res.body).toMatchObject({ error: 'Swap', code: 'swap_quote_failed' });
+    });
   });
 
   it('POST /confirm answers 202 while pending and 200 once confirmed', async () => {

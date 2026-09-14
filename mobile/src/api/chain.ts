@@ -11,6 +11,29 @@ export interface PreparedTx {
   minContextSlot: number;
 }
 
+/**
+ * A payment the backend built. Normally one transaction, but a SKR price the wallet cannot cover is
+ * paid by swapping SOL in the same payment (design doc §5 "Swap"), and a swap route too wide to
+ * share one 1232-byte packet with our own instruction comes back as `transactions` instead: the
+ * swap first, then the payment out of the SKR it delivered, signed and sent in that order.
+ */
+export interface PreparedPayment extends Omit<PreparedTx, 'transaction'> {
+  /** The single transaction to sign; absent exactly when `transactions` is present. */
+  transaction?: string;
+  /** The two halves of a split payment, in the order they must be sent. */
+  transactions?: string[];
+  /** True when the backend paid the missing SKR by swapping SOL inside this payment. */
+  swapped?: boolean;
+  /** The SOL that swap spends. Present only with `swapped`. */
+  inSol?: number;
+}
+
+/** Every transaction of `prepared`, in the order the wallet must send them. */
+export function transactionsOf(prepared: PreparedPayment): string[] {
+  if (prepared.transactions !== undefined) return prepared.transactions;
+  return prepared.transaction === undefined ? [] : [prepared.transaction];
+}
+
 /** The wallet declined to sign, or the user backed out of the authorization prompt. */
 export class WalletDeclined extends Error {
   constructor() {

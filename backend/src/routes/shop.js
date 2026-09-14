@@ -3,7 +3,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import { getTokenBalance } from '../chain/readers.js';
 import * as loadoutDb from '../db/loadout.js';
 import { confirmPurchase, issuePurchase, ownedItemIds, readCatalog, readPlayerShop, ShopError } from '../services/shop.js';
-import { swapAvailable } from '../services/swap.js';
+import { SwapError, swapAvailable } from '../services/swap.js';
 
 const router = express.Router();
 const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -33,7 +33,10 @@ router.post('/buy', authenticateToken, async (req, res, next) => {
   try {
     const item = Number.parseInt(req.body?.item, 10);
     if (!Number.isInteger(item) || item < 0) return res.status(400).json({ error: 'BadRequest', message: 'item is required' });
-    res.status(201).json(await issuePurchase({ wallet: req.user.walletAddress, item, now: nowSeconds() }));
+    // `swap: true` only offers the SOL -> SKR swap; the service still decides whether it is needed
+    // (the balance is short) and possible (mainnet), and answers 409 not_enough_skr when it is not.
+    const swap = req.body?.swap === true;
+    res.status(201).json(await issuePurchase({ wallet: req.user.walletAddress, item, now: nowSeconds(), swap }));
   } catch (error) {
     next(error);
   }
@@ -51,10 +54,13 @@ router.post('/confirm', authenticateToken, async (req, res, next) => {
   }
 });
 
-/** Maps ShopError to its HTTP status; everything else falls through to the app's error handler. */
+/** Maps ShopError (and a failing swap, which only `POST /buy` can raise) to its HTTP status; everything else falls through to the app's error handler. */
 router.use((err, req, res, next) => {
   if (err instanceof ShopError) {
     return res.status(err.status).json({ error: 'Shop', code: err.code, message: err.message, ...err.extra });
+  }
+  if (err instanceof SwapError) {
+    return res.status(err.status).json({ error: 'Swap', code: err.code, message: err.message });
   }
   next(err);
 });

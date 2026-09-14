@@ -1,13 +1,14 @@
 import { Keypair } from '@solana/web3.js';
 import bs58 from 'bs58';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tokenFor } from './helpers/jwt.js';
 import { dayOf, weekOf } from '../src/services/dailySeed.js';
 import * as memory from './helpers/memoryRankedRuns.js';
 import * as memoryLoadout from './helpers/memoryLoadout.js';
 import * as fakeChain from './helpers/fakeChain.js';
 import { realPurchaseInstructions as sharedRealPurchaseInstructions, realReviveInstructions as sharedRealReviveInstructions } from './helpers/fixtureTx.js';
+import { jupiterFixture } from './helpers/jupiterFixture.js';
 
 vi.mock('../src/db/loadout.js', () => import('./helpers/memoryLoadout.js'));
 vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
@@ -73,6 +74,12 @@ describe('effectiveTide', () => {
 /** The fixture ladder in SKR (`config.reviveLadder` base units / 1e6), as every quote reports it. */
 const LADDER_SKR = [25, 30, 40, 50, 60, 75, 95, 120];
 
+/**
+ * A full quote with the fields every case shares - the ladder, an empty wallet and no swap (this
+ * file runs on devnet) - so each case only names the prices and steps it is actually about.
+ */
+const quoted = (patch) => ({ ladderSkr: LADDER_SKR, balanceSkr: 0, swap: { available: false }, ...patch });
+
 describe('quoteRevive', () => {
   beforeEach(() => {
     fakeChain.reset();
@@ -81,32 +88,32 @@ describe('quoteRevive', () => {
 
   it('quotes ladder[0] with no nextStep for a wallet that has never revived (tide_at = 0)', async () => {
     const quote = await quoteRevive({ wallet: WALLET, now: 1_000_000 });
-    expect(quote).toEqual({ tide: 0, effective: 0, priceSkr: 25, nextStep: null, ladderSkr: LADDER_SKR });
+    expect(quote).toEqual(quoted({ tide: 0, effective: 0, priceSkr: 25, nextStep: null }));
   });
 
   it('quotes the current step and the time until it ebbs by one, at a fixed clock', async () => {
     fakeChain.setPlayer(WALLET, { tide: 3, tideAt: 1_000 });
     const now = 1_000 + 3_600; // half-way through the first ebb window
     const quote = await quoteRevive({ wallet: WALLET, now });
-    expect(quote).toEqual({ tide: 3, effective: 3, priceSkr: 50, nextStep: { priceSkr: 40, inSeconds: 3_600 }, ladderSkr: LADDER_SKR });
+    expect(quote).toEqual(quoted({ tide: 3, effective: 3, priceSkr: 50, nextStep: { priceSkr: 40, inSeconds: 3_600 } }));
   });
 
   it('ebbs one step exactly at the window boundary', async () => {
     fakeChain.setPlayer(WALLET, { tide: 3, tideAt: 1_000 });
     const quote = await quoteRevive({ wallet: WALLET, now: 1_000 + 7_200 });
-    expect(quote).toEqual({ tide: 3, effective: 2, priceSkr: 40, nextStep: { priceSkr: 30, inSeconds: 7_200 }, ladderSkr: LADDER_SKR });
+    expect(quote).toEqual(quoted({ tide: 3, effective: 2, priceSkr: 40, nextStep: { priceSkr: 30, inSeconds: 7_200 } }));
   });
 
   it('has no nextStep once effective is already 0 after a long gap', async () => {
     fakeChain.setPlayer(WALLET, { tide: 3, tideAt: 1_000 });
     const quote = await quoteRevive({ wallet: WALLET, now: 1_000 + 100 * 7_200 });
-    expect(quote).toEqual({ tide: 3, effective: 0, priceSkr: 25, nextStep: null, ladderSkr: LADDER_SKR });
+    expect(quote).toEqual(quoted({ tide: 3, effective: 0, priceSkr: 25, nextStep: null }));
   });
 
   it('caps effective at the ladder length - 1 (tide 7, no elapsed time)', async () => {
     fakeChain.setPlayer(WALLET, { tide: 7, tideAt: 1_000 });
     const quote = await quoteRevive({ wallet: WALLET, now: 1_000 });
-    expect(quote).toEqual({ tide: 7, effective: 7, priceSkr: 120, nextStep: { priceSkr: 95, inSeconds: 7_200 }, ladderSkr: LADDER_SKR });
+    expect(quote).toEqual(quoted({ tide: 7, effective: 7, priceSkr: 120, nextStep: { priceSkr: 95, inSeconds: 7_200 } }));
   });
 
   it('computes nextStep.inSeconds correctly when now is more than one window behind tideAt (clock skew)', async () => {
@@ -115,13 +122,13 @@ describe('quoteRevive', () => {
     // unclamped -1 elapsed steps and report 8000s instead of the true 15200s.
     fakeChain.setPlayer(WALLET, { tide: 3, tideAt: 10_000 });
     const quote = await quoteRevive({ wallet: WALLET, now: 2_000 });
-    expect(quote).toEqual({ tide: 3, effective: 3, priceSkr: 50, nextStep: { priceSkr: 40, inSeconds: 15_200 }, ladderSkr: LADDER_SKR });
+    expect(quote).toEqual(quoted({ tide: 3, effective: 3, priceSkr: 50, nextStep: { priceSkr: 40, inSeconds: 15_200 } }));
   });
 
   it('reports no nextStep when tide > 0 but tide_at = 0 (cannot occur on chain, but the price must not appear to ebb without a timestamp)', async () => {
     fakeChain.setPlayer(WALLET, { tide: 3, tideAt: 0 });
     const quote = await quoteRevive({ wallet: WALLET, now: 500 });
-    expect(quote).toEqual({ tide: 3, effective: 3, priceSkr: 50, nextStep: null, ladderSkr: LADDER_SKR });
+    expect(quote).toEqual(quoted({ tide: 3, effective: 3, priceSkr: 50, nextStep: null }));
   });
 });
 
@@ -165,6 +172,64 @@ describe('issueRevive', () => {
     await expect(issueRevive({ wallet: WALLET, now: 0 })).rejects.toMatchObject({
       code: 'not_enough_skr', status: 409, extra: { needSkr: 40, haveSkr: 5 },
     });
+  });
+});
+
+// design doc §5 "Swap", the Tide half: the revive is paid in SOL when the wallet is short on SKR.
+// Mainnet only, and Jupiter is a stubbed global `fetch` - nothing here reaches the network.
+describe('issueRevive with a swap', () => {
+  const originalCluster = process.env.SOLANA_CLUSTER;
+  let urls;
+
+  beforeEach(() => {
+    fakeChain.reset();
+    setLadderConfig();
+    urls = [];
+    vi.stubGlobal('fetch', async (url) => {
+      urls.push(String(url));
+      const { quote, built } = jupiterFixture(WALLET, process.env.SKR_MINT);
+      return { ok: true, json: async () => (String(url).includes('/swap-instructions') ? built : quote) };
+    });
+  });
+
+  afterEach(() => {
+    process.env.SOLANA_CLUSTER = originalCluster;
+    vi.unstubAllGlobals();
+  });
+
+  it('still refuses on devnet, where there is no Jupiter to quote against', async () => {
+    process.env.SOLANA_CLUSTER = 'devnet';
+    fakeChain.setBalance(WALLET, 5_000_000n);
+    await expect(issueRevive({ wallet: WALLET, now: 0, swap: true })).rejects.toMatchObject({ code: 'not_enough_skr', status: 409 });
+    expect(urls).toEqual([]);
+  });
+
+  it('buys exactly the SKR the wallet is short of, at the tide price in effect', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    fakeChain.setPlayer(WALLET, { tide: 2, tideAt: 0 }); // ladder[2] = 40 SKR
+    fakeChain.setBalance(WALLET, 5_000_000n);
+    const result = await issueRevive({ wallet: WALLET, now: 0, swap: true });
+
+    expect(urls[0]).toContain('amount=35000000'); // 40 - 5 SKR, in base units
+    expect(result).toMatchObject({ swapped: true, inSol: 1_921_336 / 1e9, priceSkr: 40 });
+    expect(fakeChain.state.calls.buildReviveTx[0].swap.instructions).toHaveLength(6);
+  });
+
+  it('never swaps when the wallet already holds the price', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    fakeChain.setBalance(WALLET, 25_000_000n);
+    const result = await issueRevive({ wallet: WALLET, now: 0, swap: true });
+
+    expect(urls).toEqual([]);
+    expect(result.swapped).toBeUndefined();
+    expect(fakeChain.state.calls.buildReviveTx[0].swap).toBeNull();
+  });
+
+  it('reports the SKR balance and the swap gate on the quote, so the sheet knows what to offer', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    fakeChain.setBalance(WALLET, 5_500_000n);
+    const quote = await quoteRevive({ wallet: WALLET, now: 0 });
+    expect(quote).toMatchObject({ priceSkr: 25, balanceSkr: 5.5, swap: { available: true } });
   });
 });
 
@@ -228,7 +293,7 @@ describe('/api/revive routes', () => {
   it('POST /quote returns the quote shape at a fixed clock (tide_at = 0)', async () => {
     const res = await request(app).post('/api/revive/quote').set(auth);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ tide: 0, effective: 0, priceSkr: 25, nextStep: null, ladderSkr: LADDER_SKR });
+    expect(res.body).toEqual(quoted({ tide: 0, effective: 0, priceSkr: 25, nextStep: null }));
   });
 
   it('POST / answers 409 not_enough_skr with needSkr/haveSkr through the router error handler', async () => {
@@ -243,6 +308,47 @@ describe('/api/revive routes', () => {
     const res = await request(app).post('/api/revive').set(auth).send({});
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ transaction: expect.any(String), priceSkr: 25 });
+  });
+
+  describe('with swap: true', () => {
+    const originalCluster = process.env.SOLANA_CLUSTER;
+    afterEach(() => {
+      process.env.SOLANA_CLUSTER = originalCluster;
+      vi.unstubAllGlobals();
+    });
+
+    function stubJupiter() {
+      vi.stubGlobal('fetch', async (url) => {
+        const { quote, built } = jupiterFixture(WALLET, process.env.SKR_MINT);
+        return { ok: true, json: async () => (String(url).includes('/swap-instructions') ? built : quote) };
+      });
+    }
+
+    it('answers 409 not_enough_skr unchanged on devnet (the gate)', async () => {
+      stubJupiter();
+      fakeChain.setBalance(WALLET, 0n);
+      const res = await request(app).post('/api/revive').set(auth).send({ swap: true });
+      expect(res.status).toBe(409);
+      expect(res.body).toMatchObject({ error: 'Tide', code: 'not_enough_skr', needSkr: 25, haveSkr: 0 });
+    });
+
+    it('answers 201 with swapped and the SOL amount on mainnet', async () => {
+      process.env.SOLANA_CLUSTER = 'mainnet';
+      stubJupiter();
+      fakeChain.setBalance(WALLET, 0n);
+      const res = await request(app).post('/api/revive').set(auth).send({ swap: true });
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ transaction: expect.any(String), priceSkr: 25, swapped: true, inSol: 1_921_336 / 1e9 });
+    });
+
+    it('maps a failing Jupiter call to 502 swap_quote_failed, not to a 500', async () => {
+      process.env.SOLANA_CLUSTER = 'mainnet';
+      vi.stubGlobal('fetch', async () => ({ ok: false, status: 503 }));
+      fakeChain.setBalance(WALLET, 0n);
+      const res = await request(app).post('/api/revive').set(auth).send({ swap: true });
+      expect(res.status).toBe(502);
+      expect(res.body).toMatchObject({ error: 'Swap', code: 'swap_quote_failed' });
+    });
   });
 
   it('POST /confirm answers 202 while pending and 200 once confirmed', async () => {

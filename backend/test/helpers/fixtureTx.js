@@ -8,9 +8,18 @@ import { FakeConnection } from './fakeConnection.js';
 
 const DEFAULT_BLOCKHASH = '9BFbBLgQ5FLdTsg3D96oXTQmuGaEjkCJVAeDN9nWzPqi';
 
-/** Delegates to the same production `flattenInstructions` `chain/readers.js#getConfirmedInstructions` uses - no copied flattening logic. `chain/flatten.js` is never mocked, so this stays the real implementation even in test files that mock `chain/readers.js`/`chain/txs.js`. */
-export function instructionsFromMessage(message) {
-  return flattenInstructions(message, message.getAccountKeys());
+/**
+ * Delegates to the same production `flattenInstructions` `chain/readers.js#getConfirmedInstructions` uses -
+ * no copied flattening logic. `chain/flatten.js` is never mocked, so this stays the real implementation
+ * even in test files that mock `chain/readers.js`/`chain/txs.js`. `lookupTables` (the
+ * `AddressLookupTableAccount`s a swap-composed message compiled against) stands in for the
+ * `meta.loadedAddresses` a real RPC reports, so a looked-up account key resolves the same way.
+ */
+export function instructionsFromMessage(message, lookupTables = []) {
+  const keys = lookupTables.length > 0
+    ? message.getAccountKeys({ addressLookupTableAccounts: lookupTables })
+    : message.getAccountKeys();
+  return flattenInstructions(message, keys);
 }
 
 /** Compiles a v0 message for `instructions`, fee payer `payerKey` - for building fixtures not covered by any `chain/txs.js` builder (e.g. a foreign-program instruction). */

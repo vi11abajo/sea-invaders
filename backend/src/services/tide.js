@@ -9,6 +9,7 @@ import { hasRevive } from '../chain/verify.js';
 import * as loadoutDb from '../db/loadout.js';
 import { dayOf, weekOf } from './dailySeed.js';
 import { ShopError } from './shop.js';
+import { planSwap, swapAvailable } from './swap.js';
 
 /**
  * The tide step actually in effect `now`, after ebbing back from `tide` by one step per full
@@ -49,9 +50,16 @@ function quoteFromPlayer(player, config, now) {
   return { tide, effective, priceSkr, nextStep, ladderSkr };
 }
 
+/**
+ * The revive price for `wallet` at `now`, plus what the Tide sheet needs to decide how to offer it:
+ * `balanceSkr` (the wallet's SKR, read from the chain like the Shop's own balance) and
+ * `swap: { available }`, the same gate `GET /api/shop` reports. Together they are what turns the
+ * primary into `Revive · ≈ X SOL` (design doc §5 "Swap") instead of the SKR price - on devnet the
+ * gate is false and nothing about the sheet changes.
+ */
 export async function quoteRevive({ wallet, now }) {
-  const [player, config] = await Promise.all([getPlayer(wallet), getConfig()]);
-  return quoteFromPlayer(player, config, now);
+  const [player, config, balance] = await Promise.all([getPlayer(wallet), getConfig(), getTokenBalance(wallet)]);
+  return { ...quoteFromPlayer(player, config, now), balanceSkr: Number(balance) / 1e6, swap: { available: swapAvailable() } };
 }
 
 /**
@@ -59,19 +67,25 @@ export async function quoteRevive({ wallet, now }) {
  * when the wallet has no `Player` PDA yet (`revive` reuses `buy_ticket`'s accounts, which require
  * one; see `issueTicket` in `services/records.js`). Throws `not_enough_skr` (with `needSkr`/`haveSkr`)
  * if the wallet's SKR balance is short.
+ *
+ * With `swap` (the app's `swap: true`) that short balance is paid in SOL instead, on mainnet only:
+ * Jupiter swaps exactly the missing SKR inside the same transaction and the envelope gains
+ * `swapped: true` and `inSol` - the Shop's `issuePurchase` does the identical thing for an item.
  */
-export async function issueRevive({ wallet, now }) {
+export async function issueRevive({ wallet, now, swap = false }) {
   const [player, balance, config] = await Promise.all([getPlayer(wallet), getTokenBalance(wallet), getConfig()]);
   const quote = quoteFromPlayer(player, config, now);
   const priceBaseUnits = config.reviveLadder[quote.effective];
+  let plan = null;
   if (balance < priceBaseUnits) {
-    throw new ShopError('not_enough_skr', 'Not enough SKR to revive', { needSkr: quote.priceSkr, haveSkr: Number(balance) / 1e6 });
+    plan = await planSwap({ requested: swap, wallet, price: priceBaseUnits, balance });
+    if (plan === null) throw new ShopError('not_enough_skr', 'Not enough SKR to revive', { needSkr: quote.priceSkr, haveSkr: Number(balance) / 1e6 });
   }
 
   const week = weekOf(dayOf(now));
   const createsPlayer = !player;
-  const envelope = await buildReviveTx(wallet, { week, treasury: config.treasury, createPlayer: createsPlayer });
-  return { ...envelope, priceSkr: quote.priceSkr, createsPlayer };
+  const envelope = await buildReviveTx(wallet, { week, treasury: config.treasury, createPlayer: createsPlayer, swap: plan });
+  return { ...envelope, priceSkr: quote.priceSkr, createsPlayer, ...(plan === null ? {} : { swapped: true, inSol: plan.inSol }) };
 }
 
 /**

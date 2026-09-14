@@ -1,4 +1,4 @@
-import type { PreparedTx } from './chain';
+import type { PreparedPayment } from './chain';
 import { apiFetch } from './client';
 
 /** 'variant' = a campaign octopi (Harpoon, Anchor, Trident); 'skin' = a cosmetic recolour of Octopi. */
@@ -33,9 +33,13 @@ export function getShop(): Promise<ShopInfo> {
  * `create_player` in front when the wallet has no player account yet (`createsPlayer`). Rejects with
  * `ApiError`: 409 `not_enough_skr` (`details.needSkr` / `details.haveSkr`), 409 `already_owned`,
  * 409 `item_inactive`, 404 `unknown_item`.
+ *
+ * `swap` offers to pay a short SKR balance in SOL. The backend only takes the offer when the wallet
+ * really is short and the cluster has a Jupiter to swap through (mainnet); anywhere else this
+ * changes nothing and a short balance is still `not_enough_skr`.
  */
-export function buyItem(item: number): Promise<PreparedTx & { createsPlayer: boolean }> {
-  return apiFetch('/api/shop/buy', { method: 'POST', auth: true, body: { item } });
+export function buyItem(item: number, swap = false): Promise<PreparedPayment & { createsPlayer: boolean }> {
+  return apiFetch('/api/shop/buy', { method: 'POST', auth: true, body: { item, swap } });
 }
 
 export interface ConfirmPurchaseResult {

@@ -8,7 +8,7 @@ import { Sheet } from '../ui/Sheet';
 import { Toast } from '../ui/Toast';
 import { Txt } from '../ui/Txt';
 import { COLORS, FONTS, RADIUS, SIGNATURE_GRADIENT, SIZE } from '../ui/tokens';
-import { formatSkr } from '../wallet/format';
+import { formatSkr, formatSolPrice } from '../wallet/format';
 import { ConnectSheet, PurchaseSheets, Spinner } from '../wallet/WalletSheets';
 import { PENDING_LONG_MS, useRevive, type TideQuote } from './useRevive';
 
@@ -56,7 +56,7 @@ export function TideSheet({ revivesLeft, signedIn, connecting, signInError, onCo
     setToast((t) => ({ id: (t?.id ?? 0) + 1, text, dot }));
   }, []);
   const tide = useRevive({ signedIn, connecting, onRevived, toast: show });
-  const { purchase, stage, quote, now } = tide;
+  const { purchase, stage, quote, now, solPrice } = tide;
 
   // Only a sign-in that fails while the sheet is open; an older error is not replayed.
   const lastSignInError = useRef(signInError);
@@ -108,6 +108,7 @@ export function TideSheet({ revivesLeft, signedIn, connecting, signInError, onCo
       <OfferSheet
         quote={quote}
         now={now}
+        solPrice={solPrice}
         revivesLeft={revivesLeft}
         connecting={connecting}
         onRevive={tide.revive}
@@ -129,6 +130,8 @@ export function TideSheet({ revivesLeft, signedIn, connecting, signInError, onCo
 interface OfferSheetProps {
   quote: TideQuote;
   now: number;
+  /** The SOL a swapped revive costs, when the wallet is short on SKR and this cluster can swap; null otherwise. */
+  solPrice: number | null;
   revivesLeft: number;
   connecting: boolean;
   onRevive: () => void;
@@ -138,22 +141,32 @@ interface OfferSheetProps {
 }
 
 /** Handoff 10: `THE TIDE` / `Octopi is down`, the price card, the ladder, the note, Revive / End level. */
-function OfferSheet({ quote, now, revivesLeft, connecting, onRevive, onRetryQuote, onConnect, onEndLevel }: OfferSheetProps) {
+function OfferSheet({ quote, now, solPrice, revivesLeft, connecting, onRevive, onRetryQuote, onConnect, onEndLevel }: OfferSheetProps) {
   // Handoff 10's `Price ladder 25 → 120 SKR · falls back over time`, with the range read from the
   // quote's on-chain ladder (never hardcoded), plus this level's remaining revives.
   const revives = `${revivesLeft} ${revivesLeft === 1 ? 'revive' : 'revives'} left`;
   // `Array.isArray`: an API still answering without the ladder must not break the sheet.
   const ladder = quote.status === 'ready' && Array.isArray(quote.quote.ladderSkr) && quote.quote.ladderSkr.length > 0 ? quote.quote.ladderSkr : null;
-  const note = ladder !== null
-    ? `Price ladder ${formatSkr(ladder[0]!)} → ${formatSkr(ladder[ladder.length - 1]!)} SKR · falls back over time · ${revives}`
-    : `${revives} this level · price falls back over time`;
+  let note: string;
+  if (solPrice !== null) {
+    // The Shop's low-SKR note, in the one line the sheet has room for: the price card still shows
+    // what the revive costs in SKR, the primary what it costs in SOL.
+    note = `SKR balance is low · the swap runs automatically in one signature · ${revives}`;
+  } else if (ladder !== null) {
+    note = `Price ladder ${formatSkr(ladder[0]!)} → ${formatSkr(ladder[ladder.length - 1]!)} SKR · falls back over time · ${revives}`;
+  } else {
+    note = `${revives} this level · price falls back over time`;
+  }
   let primary: ReactNode;
   if (quote.status === 'signed_out') {
     primary = <PillButton label={connecting ? 'Connecting…' : 'Connect wallet'} onPress={onConnect} disabled={connecting} />;
   } else if (quote.status === 'error') {
     primary = <PillButton label="Try again" onPress={onRetryQuote} />;
   } else if (quote.status === 'ready') {
-    primary = <PillButton label={`Revive · ${formatSkr(quote.quote.priceSkr)} SKR`} onPress={onRevive} />;
+    // Design doc §5 "Swap": short on SKR, on a cluster that can swap, the primary is priced in SOL -
+    // the auto-swap pays the difference in the same signature.
+    const price = solPrice === null ? `${formatSkr(quote.quote.priceSkr)} SKR` : `≈ ${formatSolPrice(solPrice)} SOL`;
+    primary = <PillButton label={`Revive · ${price}`} onPress={onRevive} />;
   } else {
     primary = <PillButton label="Revive" disabled />;
   }
