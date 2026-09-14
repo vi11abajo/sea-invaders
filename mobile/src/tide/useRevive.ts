@@ -88,8 +88,22 @@ async function rpcVerdict(connection: Connection, signature: string): Promise<Ve
  * network error) is `unknown`, which keeps the run waiting rather than risking a double charge. The
  * height read never gates the backend confirmation: a failing RPC only skips the dead check.
  */
+/** How long one block-height read may take before it is treated as unavailable. */
+const HEIGHT_READ_TIMEOUT_MS = 5_000;
+
+/** `promise`, or a rejection once `ms` have passed; the timer never outlives the race. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('timed out')), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
 async function verdictOf(connection: Connection, signature: string, lastValidBlockHeight: number | null): Promise<Verdict> {
-  const height = lastValidBlockHeight === null ? null : await connection.getBlockHeight('confirmed').catch(() => null);
+  // A public RPC that hangs must not hold up the backend confirm: the height read is bounded, and a
+  // missing height only skips the expiry judgement (never a 'dead').
+  const height = lastValidBlockHeight === null ? null : await withTimeout(connection.getBlockHeight('confirmed'), HEIGHT_READ_TIMEOUT_MS).catch(() => null);
   const expired = height !== null && lastValidBlockHeight !== null && height > lastValidBlockHeight + EXPIRY_MARGIN_BLOCKS;
   /** Not confirmed by the backend: dead only once the RPC also has no record of it, past the margin. */
   const rpcOrExpiry = async (): Promise<Verdict> => {
