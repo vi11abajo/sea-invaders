@@ -86,10 +86,12 @@ interface CampaignLevelScreenProps {
  * The reef lives a finished level hands back to the progress. An octopi's extra life (Anchor's, added
  * by the core at `createGame`) belongs to that one level: a hit spends it first, and one still unspent
  * at the end does not carry over, so a clean Anchor run returns the lives it came in with (owner
- * ruling 2026-09-14). Lives won from HEALTH_BOOST still carry.
+ * ruling 2026-09-14). Lives won from HEALTH_BOOST still carry; after a Tide revive nothing is deducted.
  */
-function reefLivesAfter(livesLeft: number, run: RunConfig | null): number {
+function reefLivesAfter(livesLeft: number, run: RunConfig | null, revived: boolean): number {
   if (run === null) return livesLeft;
+  // A revive replaced the lives outright, so the bonus life it came in with is long spent.
+  if (revived) return livesLeft;
   const bonus = bonusLivesFor(run.octopi);
   return bonus > 0 && livesLeft > run.lives ? livesLeft - Math.min(bonus, livesLeft - run.lives) : livesLeft;
 }
@@ -124,7 +126,7 @@ export function CampaignLevelScreen({
   };
 
   const handleRunOver = (outcome: RunOutcome) => {
-    const livesLeft = reefLivesAfter(outcome.livesLeft, phase.kind === 'intro' ? null : phase.run);
+    const livesLeft = reefLivesAfter(outcome.livesLeft, phase.kind === 'intro' ? null : phase.run, revivesUsed.current > 0);
     finishLevel({ levelId, practice, cleared: outcome.cleared, livesLeft, score: outcome.score })
       .then(({ outcome: kind, next }) => setResult({ outcome, kind, next }))
       .catch(() => setResult({ outcome, kind: 'error' }));
@@ -227,7 +229,7 @@ export function CampaignLevelScreen({
         const stats = [
           { label: 'Score', value: formatInt(outcome.score) },
           { label: 'Best', value: formatInt(best) },
-          { label: 'Lives left', value: String(reefLivesAfter(outcome.livesLeft, phase.run)) },
+          { label: 'Lives left', value: String(reefLivesAfter(outcome.livesLeft, phase.run, revivesUsed.current > 0)) },
         ];
         const toMap = { label: 'Map', onPress: () => onDone(kind) };
 

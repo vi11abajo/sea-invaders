@@ -78,7 +78,8 @@ async function main() {
   const after = await program.account.config.fetch(pda);
   console.log("Prices now:");
   console.log(describe(after.ticketPrice, after.reviveLadder));
-  if (!after.ticketPrice.eq(wantTicket)) throw new Error("ticket price read back does not match");
+  const ladderOk = after.reviveLadder.every((v: BN, i: number) => v.eq(wantLadder[i]));
+  if (!after.ticketPrice.eq(wantTicket) || !ladderOk) throw new Error("prices read back do not match");
 }
 
 main().catch((err) => {
