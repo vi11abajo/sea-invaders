@@ -202,6 +202,9 @@ export const BOSS_SHOT = { speed: 110, radius: 96 } as const;
  */
 export const ARRIVAL = { ticks: 30, drop: 1500, speed: 50 } as const;
 
+/** The Tide (spec §4, owner ruling 2026-09-15): a paid revive brings Octopi back with this many lives. */
+export const REVIVE_LIVES = 3;
+
 /** HEALTH_BOOST's life cap (spec C9, legacy `game-constants.js` `MAX_LIVES`). */
 export const MAX_LIVES = 100;
 

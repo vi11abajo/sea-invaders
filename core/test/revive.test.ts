@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OCTOPI, PRACTICE_RUN, createGame, hashState, loseLife, revive } from '../src';
+import { OCTOPI, PRACTICE_RUN, REVIVE_LIVES, createGame, hashState, loseLife, revive } from '../src';
 
 describe('revive', () => {
   it('does nothing while the run is still going (precondition not met)', () => {
@@ -28,7 +28,7 @@ describe('revive', () => {
     expect(s.events).toEqual([]);
   });
 
-  it('revives Octopi after the last life is lost: over clears, 1 life, invulnerability, enemy shots cleared, a revived event', () => {
+  it('revives Octopi after the last life is lost: over clears, REVIVE_LIVES lives, invulnerability, enemy shots cleared, a revived event', () => {
     const s = createGame('t', PRACTICE_RUN);
     for (let i = 0; i < OCTOPI.lives; i++) loseLife(s);
     expect(s.over).toBe(true);
@@ -40,7 +40,8 @@ describe('revive', () => {
     revive(s);
 
     expect(s.over).toBe(false);
-    expect(s.octopi.lives).toBe(1);
+    expect(s.octopi.lives).toBe(REVIVE_LIVES);
+    expect(REVIVE_LIVES).toBe(3);
     expect(s.octopi.invuln).toBe(OCTOPI.invulnTicks);
     expect(s.enemyShots).toEqual([]);
     expect(s.events).toContainEqual({ tick: 42, type: 'revived' });
