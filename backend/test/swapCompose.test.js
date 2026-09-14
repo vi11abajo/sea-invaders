@@ -161,7 +161,7 @@ describe('buildReviveTx with a swap plan', () => {
   it('puts our revive last, after Jupiter\'s instructions', async () => {
     const connection = connectionWithTables();
     const plan = await fixturePlan();
-    const built = await buildReviveTx(WALLET, { week: WEEK, treasury: TREASURY, createPlayer: false, swap: plan, connection });
+    const built = await buildReviveTx(WALLET, { maxPrice: 25_000_000n, week: WEEK, treasury: TREASURY, createPlayer: false, swap: plan, connection });
     const tables = await lookupTableAccounts(connection, TABLES);
     const instructions = instructionsFromMessage(decodeTx(built.transaction).message, tables);
     expect(instructions.map((ix) => ix.programId)).toEqual([
@@ -215,7 +215,7 @@ describe('the 1232-byte split', () => {
   });
 
   it('splits a revive the same way', async () => {
-    const built = await buildReviveTx(WALLET, { week: WEEK, treasury: TREASURY, createPlayer: false, swap: oversizePlan(), connection: new FakeConnection() });
+    const built = await buildReviveTx(WALLET, { maxPrice: 25_000_000n, week: WEEK, treasury: TREASURY, createPlayer: false, swap: oversizePlan(), connection: new FakeConnection() });
     expect(built.transactions).toHaveLength(2);
     const [, paymentTx] = built.transactions.map((tx) => instructionsFromMessage(decodeTx(tx).message));
     expect(paymentTx.map((ix) => ix.programId)).toEqual([PROGRAM_ID]);
@@ -234,7 +234,7 @@ describe('the confirm verifier against a swap-composed transaction', () => {
 
   it('finds our revive after Jupiter\'s instructions', async () => {
     const connection = connectionWithTables();
-    const built = await buildReviveTx(WALLET, { week: WEEK, treasury: TREASURY, createPlayer: false, swap: await fixturePlan(), connection });
+    const built = await buildReviveTx(WALLET, { maxPrice: 25_000_000n, week: WEEK, treasury: TREASURY, createPlayer: false, swap: await fixturePlan(), connection });
     const tables = await lookupTableAccounts(connection, TABLES);
     const instructions = instructionsFromMessage(decodeTx(built.transaction).message, tables);
     expect(hasRevive(instructions, { wallet: WALLET })).toBe(true);
