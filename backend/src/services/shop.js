@@ -86,6 +86,10 @@ async function activeCatalogEntry(itemId) {
  * like `buy_ticket`; see `issueTicket` in `services/records.js`). Throws `already_owned` if the
  * wallet already owns it, or `not_enough_skr` (with `needSkr`/`haveSkr`) if its SKR balance is short.
  *
+ * The envelope also carries `priceSkr` – the catalogue price this transaction was actually built
+ * at – so the signing sheet (`usePurchase`’s `withPrepared`) can correct a stale price fetched
+ * before an admin re-price landed, exactly as `issueRevive` already does.
+ *
  * With `swap` (the app's `swap: true`) a short balance is paid in SOL instead, on mainnet only
  * (design doc §5 "Swap"): Jupiter swaps exactly the missing SKR inside the same transaction and the
  * envelope gains `swapped`/`swappedSkr`/`inSol`/`maxInLamports` (see `swapEnvelope`). Everywhere
@@ -110,7 +114,7 @@ export async function issuePurchase({ wallet, item, now, swap = false }) {
   const week = weekOf(dayOf(now));
   const createsPlayer = !player;
   const envelope = await buildPurchaseTx(wallet, { itemId, maxPrice: entry.priceBaseUnits, week, treasury: config?.treasury, createPlayer: createsPlayer, swap: plan });
-  return { ...envelope, createsPlayer, ...swapEnvelope(plan) };
+  return { ...envelope, priceSkr: entry.priceSkr, createsPlayer, ...swapEnvelope(plan) };
 }
 
 /**

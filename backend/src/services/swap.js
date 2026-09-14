@@ -57,28 +57,22 @@ function jupiterHeaders() {
   return headers;
 }
 
-/**
- * Quotes a SOL -> SKR swap for exactly the SKR asked for (`swapMode=ExactOut`) via Jupiter, then
- * asks Jupiter to build the actual swap instructions for `wallet` against that quote - `chain/txs.js`
- * composes these into one v0 tx with the payment instruction (design doc §5 "Swap").
- * `outBaseUnits` (a `bigint` of the exact on-chain `u64`) is what the purchase/revive path passes,
- * so the swap buys precisely the SKR the wallet is short of; `outSkr` (a decimal, 6 places) is what
- * `POST /api/swap/quote` passes for the Shop's `≈ X SOL` labels. `JUPITER_API_KEY` is read only
- * from the server env and sent as `x-api-key`; it is never part of the returned value. `fetchImpl`
- * defaults to the global `fetch` so tests can inject a stub - this function never touches the
- * network in a test run otherwise.
- *
- * The quote is checked before it is built on: amounts must be readable positive integers and the
- * route must actually deliver the SKR asked for, so a bad quote becomes a clean `SwapError` rather
- * than a `NaN` in our own response or a transaction that fails on chain with the fee already spent.
- * Besides `inSol` (what the quote costs) the result carries `maxInLamports` - the most the wallet
- * must hold for the swap - so the app never has to guess the slippage or rent margins.
- */
-export async function quoteSwap({ outSkr, outBaseUnits, wallet, fetchImpl = fetch }) {
-  const { skrMint } = chainConfig();
-  // SKR has 6 decimals; `outBaseUnits` is already in them and must not round-trip through a float.
-  const amount = outBaseUnits === undefined ? Math.round(outSkr * 1e6) : outBaseUnits;
+/** `outBaseUnits` when given (a `bigint` of the exact on-chain `u64`), otherwise `outSkr` (a decimal, 6 places) rounded into base units - never round-tripped through a float when the caller already has the exact integer. */
+function resolveAmount(outSkr, outBaseUnits) {
+  return outBaseUnits === undefined ? Math.round(outSkr * 1e6) : outBaseUnits;
+}
 
+/**
+ * The Jupiter `GET /quote` call alone (`swapMode=ExactOut`, capped to `JUPITER_MAX_ACCOUNTS`), with
+ * its answer checked before anything is built on it: amounts must be readable positive integers and
+ * the route must actually deliver `amount` of SKR, so a bad quote becomes a clean `SwapError` rather
+ * than a `NaN` in our own response or a transaction that fails on chain with the fee already spent.
+ * Returns the raw `quote` (Jupiter's `/swap-instructions` needs it verbatim) alongside `inAmount` and
+ * `maxIn` - the quote's `otherAmountThreshold` when it names one higher than `inAmount`, otherwise
+ * `inAmount` itself - the most the wallet must actually hold for the swap at its slippage ceiling.
+ */
+async function requestQuote(amount, fetchImpl) {
+  const { skrMint } = chainConfig();
   const quoteUrl = new URL(JUPITER_QUOTE_URL);
   quoteUrl.searchParams.set('inputMint', SOL_MINT);
   quoteUrl.searchParams.set('outputMint', skrMint.toBase58());
@@ -86,8 +80,7 @@ export async function quoteSwap({ outSkr, outBaseUnits, wallet, fetchImpl = fetc
   quoteUrl.searchParams.set('swapMode', 'ExactOut');
   quoteUrl.searchParams.set('maxAccounts', String(JUPITER_MAX_ACCOUNTS));
 
-  const headers = jupiterHeaders();
-  const quoteResponse = await fetchImpl(quoteUrl.toString(), { headers });
+  const quoteResponse = await fetchImpl(quoteUrl.toString(), { headers: jupiterHeaders() });
   if (!quoteResponse.ok) throw new SwapError('swap_quote_failed', `Jupiter quote failed with status ${quoteResponse.status}`);
   const quote = await quoteResponse.json();
 
@@ -106,10 +99,31 @@ export async function quoteSwap({ outSkr, outBaseUnits, wallet, fetchImpl = fetc
     const threshold = amountOf(quote.otherAmountThreshold, 'otherAmountThreshold');
     if (threshold > maxIn) maxIn = threshold;
   }
+  return { quote, inAmount, maxIn };
+}
+
+/**
+ * Quotes a SOL -> SKR swap for exactly the SKR asked for (`swapMode=ExactOut`) via Jupiter, then
+ * asks Jupiter to build the actual swap instructions for `wallet` against that quote - `chain/txs.js`
+ * composes these into one v0 tx with the payment instruction (design doc §5 "Swap"). Used only by
+ * `planSwap`, i.e. the payment composition path (`issuePurchase`/`issueRevive` with `swap: true`):
+ * the price label path (`POST /api/swap/quote`, the Shop's `≈ X SOL`) uses the cheaper `quoteSwapPrice`
+ * below instead, which never calls `/swap-instructions` at all.
+ *
+ * `outBaseUnits` (a `bigint` of the exact on-chain `u64`) is what the purchase/revive path passes,
+ * so the swap buys precisely the SKR the wallet is short of. `JUPITER_API_KEY` is read only from the
+ * server env and sent as `x-api-key`; it is never part of the returned value. `fetchImpl` defaults to
+ * the global `fetch` so tests can inject a stub - this function never touches the network in a test
+ * run otherwise. Besides `inSol` (what the quote costs) the result carries `maxInLamports` - the most
+ * SOL the wallet must hold - so the app never has to guess the slippage or rent margins.
+ */
+export async function quoteSwap({ outSkr, outBaseUnits, wallet, fetchImpl = fetch }) {
+  const amount = resolveAmount(outSkr, outBaseUnits);
+  const { quote, inAmount, maxIn } = await requestQuote(amount, fetchImpl);
 
   const instructionsResponse = await fetchImpl(JUPITER_SWAP_INSTRUCTIONS_URL, {
     method: 'POST',
-    headers: { ...headers, 'Content-Type': 'application/json' },
+    headers: { ...jupiterHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ quoteResponse: quote, userPublicKey: wallet }),
   });
   if (!instructionsResponse.ok) throw new SwapError('swap_instructions_failed', `Jupiter swap-instructions failed with status ${instructionsResponse.status}`);
@@ -129,6 +143,47 @@ export async function quoteSwap({ outSkr, outBaseUnits, wallet, fetchImpl = fetc
     instructions,
     addressLookupTables: built.addressLookupTableAddresses ?? [],
   };
+}
+
+// A label-only quote's price rarely moves fast enough to matter inside one Shop visit, and the
+// catalogue itself is cached this long (`services/shop.js`'s `CATALOG_TTL_MS`) - matching it here
+// means a quote never outlives the prices it was quoted for.
+const QUOTE_PRICE_TTL_MS = 60_000;
+/** amount (base units, as a string) -> { promise, expiresAt }. A pending entry is shared by every caller that asks for the same price before it resolves, so concurrent callers never double-fetch. */
+let quotePriceCache = new Map();
+
+/** Clears the cached SOL-price quotes (tests only - in production a price simply expires after 60s). */
+export function clearSwapPriceCache() {
+  quotePriceCache = new Map();
+}
+
+/**
+ * The SOL price of buying `outSkr` SKR - `{ inSol, maxInLamports }` only, from Jupiter's `GET /quote`
+ * alone. This is the label path: `POST /api/swap/quote` serves the Shop's and the Tide's `≈ X SOL`
+ * figures from it, and nothing here ever touches `/swap-instructions` - the expensive,
+ * `userPublicKey`-bound call that builds real instructions and resolves lookup tables belongs solely
+ * to `quoteSwap` (the payment composition path), which nothing in the label path needs: the label
+ * discards everything but the SOL figure.
+ *
+ * Distinct prices are cached for `QUOTE_PRICE_TTL_MS` (60s, the catalogue's own TTL) and a price
+ * already in flight is shared rather than re-fetched, so a Shop screen asking for several items'
+ * prices - many of which share a catalogue price - costs at most one Jupiter call per distinct price,
+ * not one per item.
+ */
+export async function quoteSwapPrice({ outSkr, fetchImpl = fetch }) {
+  const amount = resolveAmount(outSkr, undefined);
+  const key = String(amount);
+  const cached = quotePriceCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
+
+  const promise = requestQuote(amount, fetchImpl).then(({ inAmount, maxIn }) => ({
+    inSol: Number(inAmount) / 1e9,
+    maxInLamports: Number(maxIn + WSOL_ACCOUNT_RENT_LAMPORTS),
+  }));
+  quotePriceCache.set(key, { promise, expiresAt: Date.now() + QUOTE_PRICE_TTL_MS });
+  // A failed quote must not poison the cache for the next caller - only a genuine answer is worth 60s.
+  promise.catch(() => quotePriceCache.delete(key));
+  return promise;
 }
 
 /**

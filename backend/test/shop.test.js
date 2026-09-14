@@ -9,6 +9,7 @@ import * as memoryLoadout from './helpers/memoryLoadout.js';
 import * as fakeChain from './helpers/fakeChain.js';
 import { instructionsFromMessage, messageFrom, realPurchaseInstructions as sharedRealPurchaseInstructions, realReviveInstructions as sharedRealReviveInstructions } from './helpers/fixtureTx.js';
 import { fixtureFetch, jupiterFixture } from './helpers/jupiterFixture.js';
+import { confirmLimiter, sessionLimiter } from '../src/middleware/rateLimit.js';
 
 vi.mock('../src/db/loadout.js', () => import('./helpers/memoryLoadout.js'));
 vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
@@ -92,6 +93,21 @@ describe('issuePurchase', () => {
     fakeChain.setBalance(WALLET, 25_000_000n);
     const result = await issuePurchase({ wallet: WALLET, item: LIME, now: 0 });
     expect(result).toMatchObject({ transaction: expect.any(String), minContextSlot: 1234 });
+  });
+
+  // Important #2 of the final review: issuePurchase must return priceSkr, exactly like issueRevive
+  // already does, so the signing sheet (usePurchase's withPrepared) never shows a stale price.
+  it('returns priceSkr - the catalogue price this transaction was actually built at', async () => {
+    fakeChain.setBalance(WALLET, 25_000_000n);
+    const result = await issuePurchase({ wallet: WALLET, item: LIME, now: 0 });
+    expect(result.priceSkr).toBe(25);
+  });
+
+  it('reports the catalogue price in effect now, not one read before a re-price', async () => {
+    fakeChain.setBalance(WALLET, 1_000_000_000n);
+    fakeChain.setCatalog([{ id: LIME, kind: 1, price: 60_000_000n, active: true }]);
+    const result = await issuePurchase({ wallet: WALLET, item: LIME, now: 0 });
+    expect(result.priceSkr).toBe(60);
   });
 
   it('composes create_player (createsPlayer: true) for a wallet with no Player account yet', async () => {
@@ -187,7 +203,7 @@ describe('issuePurchase with a swap', () => {
 
     expect(jupiter.calls[0].url).toContain('amount=15000000');
     expect(jupiter.calls[0].url).toContain('swapMode=ExactOut');
-    expect(result).toMatchObject({ swapped: true, swappedSkr: 15, inSol: 1_921_336 / 1e9, maxInLamports: 1_930_943 + 2_039_280, createsPlayer: true });
+    expect(result).toMatchObject({ swapped: true, swappedSkr: 15, inSol: 1_921_336 / 1e9, maxInLamports: 1_930_943 + 2_039_280, createsPlayer: true, priceSkr: 25 });
   });
 
   it('hands the tx builder Jupiter\'s instructions and lookup tables, alongside the unchanged purchase args', async () => {
@@ -292,6 +308,11 @@ describe('/api/shop routes', () => {
     fakeChain.reset();
     memoryLoadout.reset();
     clearCatalogCache();
+    // sessionLimiter/confirmLimiter are singletons shared with every other route mounted on them
+    // (services/tide.js, routes/swap.js, routes/profile.js); reset the per-user key so an earlier
+    // test's calls never carry a used-up budget into this one (daily.test.js does the same).
+    sessionLimiter.resetKey(`user:${user.id}`);
+    confirmLimiter.resetKey(`user:${user.id}`);
     app = createApp();
   });
 
@@ -336,11 +357,34 @@ describe('/api/shop routes', () => {
     expect(res.body).toMatchObject({ error: 'Shop', code: 'not_enough_skr', needSkr: 25, haveSkr: 0 });
   });
 
-  it('POST /buy answers 201 with a transaction when affordable', async () => {
+  it('POST /buy answers 201 with a transaction and priceSkr when affordable', async () => {
     fakeChain.setBalance(WALLET, 25_000_000n);
     const res = await request(app).post('/api/shop/buy').set(auth).send({ item: LIME });
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ transaction: expect.any(String) });
+    expect(res.body).toMatchObject({ transaction: expect.any(String), priceSkr: 25 });
+  });
+
+  // Important #3 of the final review: every new chain/money route carries a per-route limiter,
+  // matching the pre-existing routes of this class (backend/src/routes/daily.js).
+  it('rate-limits POST /buy (sessionLimiter, 10/min per user)', async () => {
+    fakeChain.setBalance(WALLET, 25_000_000n);
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app).post('/api/shop/buy').set(auth).send({ item: LIME });
+      expect(res.status).toBe(201);
+    }
+    const res = await request(app).post('/api/shop/buy').set(auth).send({ item: LIME });
+    expect(res.status).toBe(429);
+    expect(res.body).toMatchObject({ error: 'TooManySessions' });
+  });
+
+  it('rate-limits POST /confirm (confirmLimiter, 60/min per user)', async () => {
+    for (let i = 0; i < 60; i++) {
+      const res = await request(app).post('/api/shop/confirm').set(auth).send({ signature: 'missing-sig', item: LIME });
+      expect(res.status).toBe(202);
+    }
+    const res = await request(app).post('/api/shop/confirm').set(auth).send({ signature: 'missing-sig', item: LIME });
+    expect(res.status).toBe(429);
+    expect(res.body).toMatchObject({ error: 'TooManyConfirmations' });
   });
 
   describe('with swap: true', () => {

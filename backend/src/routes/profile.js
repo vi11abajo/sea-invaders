@@ -3,6 +3,7 @@
 // but the active selection only ever lives here, mirrored into the mobile app's AsyncStorage.
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
+import { sessionLimiter } from '../middleware/rateLimit.js';
 import * as loadoutDb from '../db/loadout.js';
 import { ownedItemIds, readPlayerShop } from '../services/shop.js';
 
@@ -37,7 +38,7 @@ router.get('/loadout', authenticateToken, async (req, res, next) => {
   }
 });
 
-router.put('/loadout', authenticateToken, async (req, res, next) => {
+router.put('/loadout', authenticateToken, sessionLimiter, async (req, res, next) => {
   try {
     const wallet = req.user.walletAddress;
     const current = await currentState(wallet);

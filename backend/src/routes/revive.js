@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
+import { confirmLimiter, sessionLimiter } from '../middleware/rateLimit.js';
 import { ShopError } from '../services/shop.js';
 import { SwapError } from '../services/swap.js';
 import { confirmRevive, issueRevive, quoteRevive } from '../services/tide.js';
@@ -7,7 +8,7 @@ import { confirmRevive, issueRevive, quoteRevive } from '../services/tide.js';
 const router = express.Router();
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
-router.post('/quote', authenticateToken, async (req, res, next) => {
+router.post('/quote', authenticateToken, sessionLimiter, async (req, res, next) => {
   try {
     res.json(await quoteRevive({ wallet: req.user.walletAddress, now: nowSeconds() }));
   } catch (error) {
@@ -15,7 +16,7 @@ router.post('/quote', authenticateToken, async (req, res, next) => {
   }
 });
 
-router.post('/', authenticateToken, async (req, res, next) => {
+router.post('/', authenticateToken, sessionLimiter, async (req, res, next) => {
   try {
     // `swap: true` only offers the SOL -> SKR swap; the service still decides whether it is needed
     // (the balance is short) and possible (mainnet), and answers 409 not_enough_skr when it is not.
@@ -26,7 +27,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
   }
 });
 
-router.post('/confirm', authenticateToken, async (req, res, next) => {
+router.post('/confirm', authenticateToken, confirmLimiter, async (req, res, next) => {
   try {
     const signature = typeof req.body?.signature === 'string' ? req.body.signature : '';
     if (!signature) return res.status(400).json({ error: 'BadRequest', message: 'signature is required' });

@@ -6,6 +6,7 @@ import { tokenFor } from './helpers/jwt.js';
 import * as memory from './helpers/memoryRankedRuns.js';
 import * as memoryLoadout from './helpers/memoryLoadout.js';
 import * as fakeChain from './helpers/fakeChain.js';
+import { sessionLimiter } from '../src/middleware/rateLimit.js';
 
 vi.mock('../src/db/loadout.js', () => import('./helpers/memoryLoadout.js'));
 vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
@@ -31,6 +32,10 @@ describe('/api/profile/loadout', () => {
   beforeEach(() => {
     fakeChain.reset();
     memoryLoadout.reset();
+    // sessionLimiter is a singleton shared with every other route mounted on it (routes/shop.js,
+    // routes/revive.js, routes/swap.js); reset the per-user key so this file's own repeated PUT
+    // calls (and any earlier test) never carry a used-up budget into the next test.
+    sessionLimiter.resetKey(`user:${user.id}`);
     app = createApp();
   });
 
@@ -104,5 +109,17 @@ describe('/api/profile/loadout', () => {
     const res = await request(app).put('/api/profile/loadout').set(auth).send({ activeSkin: 1 });
     expect(res.status).toBe(409);
     expect(res.body).toMatchObject({ code: 'not_owned' });
+  });
+
+  // Important #3 of the final review: every new chain/money route carries a per-route limiter,
+  // matching the pre-existing routes of this class (backend/src/routes/daily.js).
+  it('rate-limits PUT /loadout (sessionLimiter, 10/min per user)', async () => {
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app).put('/api/profile/loadout').set(auth).send({ activeSkin: 0, activeVariant: 0 });
+      expect(res.status).toBe(200);
+    }
+    const res = await request(app).put('/api/profile/loadout').set(auth).send({ activeSkin: 0, activeVariant: 0 });
+    expect(res.status).toBe(429);
+    expect(res.body).toMatchObject({ error: 'TooManySessions' });
   });
 });

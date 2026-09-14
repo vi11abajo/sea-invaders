@@ -37,8 +37,12 @@ export function getShop(): Promise<ShopInfo> {
  * `swap` offers to pay a short SKR balance in SOL. The backend only takes the offer when the wallet
  * really is short and the cluster has a Jupiter to swap through (mainnet); anywhere else this
  * changes nothing and a short balance is still `not_enough_skr`.
+ *
+ * `priceSkr` is the catalogue price this transaction was actually built at, exactly as `issueRevive`
+ * already reports it - `usePurchase`'s `withPrepared` uses it to correct the signing sheet if an
+ * admin re-price landed after the Shop's list was fetched.
  */
-export function buyItem(item: number, swap = false): Promise<PreparedPayment & { createsPlayer: boolean }> {
+export function buyItem(item: number, swap = false): Promise<PreparedPayment & { priceSkr: number; createsPlayer: boolean }> {
   return apiFetch('/api/shop/buy', { method: 'POST', auth: true, body: { item, swap } });
 }
 

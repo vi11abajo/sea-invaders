@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
+import { confirmLimiter, sessionLimiter } from '../middleware/rateLimit.js';
 import { getTokenBalance } from '../chain/readers.js';
 import * as loadoutDb from '../db/loadout.js';
 import { confirmPurchase, issuePurchase, ownedItemIds, readCatalog, readPlayerShop, ShopError } from '../services/shop.js';
@@ -29,7 +30,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
   }
 });
 
-router.post('/buy', authenticateToken, async (req, res, next) => {
+router.post('/buy', authenticateToken, sessionLimiter, async (req, res, next) => {
   try {
     const item = Number.parseInt(req.body?.item, 10);
     if (!Number.isInteger(item) || item < 0) return res.status(400).json({ error: 'BadRequest', message: 'item is required' });
@@ -42,7 +43,7 @@ router.post('/buy', authenticateToken, async (req, res, next) => {
   }
 });
 
-router.post('/confirm', authenticateToken, async (req, res, next) => {
+router.post('/confirm', authenticateToken, confirmLimiter, async (req, res, next) => {
   try {
     const signature = typeof req.body?.signature === 'string' ? req.body.signature : '';
     const item = Number.parseInt(req.body?.item, 10);

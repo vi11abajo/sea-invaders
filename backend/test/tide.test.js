@@ -9,6 +9,7 @@ import * as memoryLoadout from './helpers/memoryLoadout.js';
 import * as fakeChain from './helpers/fakeChain.js';
 import { realPurchaseInstructions as sharedRealPurchaseInstructions, realReviveInstructions as sharedRealReviveInstructions } from './helpers/fixtureTx.js';
 import { fixtureFetch, jupiterFixture } from './helpers/jupiterFixture.js';
+import { confirmLimiter, sessionLimiter } from '../src/middleware/rateLimit.js';
 
 vi.mock('../src/db/loadout.js', () => import('./helpers/memoryLoadout.js'));
 vi.mock('../src/chain/readers.js', () => import('./helpers/fakeChain.js'));
@@ -279,6 +280,11 @@ describe('/api/revive routes', () => {
     fakeChain.reset();
     memoryLoadout.reset();
     setLadderConfig();
+    // sessionLimiter/confirmLimiter are singletons shared with every other route mounted on them
+    // (routes/shop.js, routes/swap.js, routes/profile.js); reset the per-user key so an earlier
+    // test's calls never carry a used-up budget into this one (daily.test.js does the same).
+    sessionLimiter.resetKey(`user:${user.id}`);
+    confirmLimiter.resetKey(`user:${user.id}`);
     app = createApp();
   });
 
@@ -306,6 +312,39 @@ describe('/api/revive routes', () => {
     const res = await request(app).post('/api/revive').set(auth).send({});
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ transaction: expect.any(String), priceSkr: 25 });
+  });
+
+  // Important #3 of the final review: every new chain/money route carries a per-route limiter,
+  // matching the pre-existing routes of this class (backend/src/routes/daily.js).
+  it('rate-limits POST /quote (sessionLimiter, 10/min per user)', async () => {
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app).post('/api/revive/quote').set(auth);
+      expect(res.status).toBe(200);
+    }
+    const res = await request(app).post('/api/revive/quote').set(auth);
+    expect(res.status).toBe(429);
+    expect(res.body).toMatchObject({ error: 'TooManySessions' });
+  });
+
+  it('rate-limits POST / (sessionLimiter, 10/min per user)', async () => {
+    fakeChain.setBalance(WALLET, 25_000_000n);
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app).post('/api/revive').set(auth).send({});
+      expect(res.status).toBe(201);
+    }
+    const res = await request(app).post('/api/revive').set(auth).send({});
+    expect(res.status).toBe(429);
+    expect(res.body).toMatchObject({ error: 'TooManySessions' });
+  });
+
+  it('rate-limits POST /confirm (confirmLimiter, 60/min per user)', async () => {
+    for (let i = 0; i < 60; i++) {
+      const res = await request(app).post('/api/revive/confirm').set(auth).send({ signature: 'missing-sig' });
+      expect(res.status).toBe(202);
+    }
+    const res = await request(app).post('/api/revive/confirm').set(auth).send({ signature: 'missing-sig' });
+    expect(res.status).toBe(429);
+    expect(res.body).toMatchObject({ error: 'TooManyConfirmations' });
   });
 
   describe('with swap: true', () => {

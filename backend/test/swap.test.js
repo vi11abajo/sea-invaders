@@ -4,6 +4,8 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tokenFor } from './helpers/jwt.js';
 import * as memory from './helpers/memoryRankedRuns.js';
+import { fixtureFetch, jupiterFixture } from './helpers/jupiterFixture.js';
+import { sessionLimiter } from '../src/middleware/rateLimit.js';
 
 const serverAuthority = Keypair.generate();
 process.env.SOLANA_CLUSTER = process.env.SOLANA_CLUSTER || 'devnet';
@@ -12,7 +14,9 @@ process.env.PROGRAM_ID = Keypair.generate().publicKey.toBase58();
 process.env.SKR_MINT = Keypair.generate().publicKey.toBase58();
 process.env.SERVER_AUTHORITY_SECRET = bs58.encode(serverAuthority.secretKey);
 
-const { swapAvailable, quoteSwap, planSwap, SwapError } = await import('../src/services/swap.js');
+const {
+  swapAvailable, quoteSwap, quoteSwapPrice, clearSwapPriceCache, planSwap, SwapError,
+} = await import('../src/services/swap.js');
 const { createApp } = await import('../src/createApp.js');
 const user = memory.TEST_USER;
 const auth = { Authorization: `Bearer ${tokenFor(user)}` };
@@ -201,6 +205,10 @@ describe('planSwap', () => {
 
 describe('POST /api/swap/quote', () => {
   const originalCluster = process.env.SOLANA_CLUSTER;
+  beforeEach(() => {
+    clearSwapPriceCache();
+    sessionLimiter.resetKey(`user:${user.id}`);
+  });
   afterEach(() => {
     process.env.SOLANA_CLUSTER = originalCluster;
     vi.unstubAllGlobals();
@@ -220,22 +228,135 @@ describe('POST /api/swap/quote', () => {
     expect(res.body).toMatchObject({ error: 'Swap', code: 'swap_unavailable' });
   });
 
-  it('quotes on mainnet, never touching the real network (fetch is stubbed)', async () => {
+  // Important #4 of the final review: the label route calls Jupiter's /quote ONLY - the expensive
+  // /swap-instructions call (real instructions, resolved lookup tables) belongs solely to the
+  // payment composition path (planSwap, used by issuePurchase/issueRevive).
+  it('quotes on mainnet from /quote alone, never touching /swap-instructions', async () => {
     process.env.SOLANA_CLUSTER = 'mainnet';
     const urls = [];
     vi.stubGlobal('fetch', async (url) => {
       urls.push(String(url));
-      if (String(url).includes('/swap-instructions')) {
-        return { ok: true, json: async () => ({ computeBudgetInstructions: [], setupInstructions: [], swapInstruction: { data: 'ix' }, cleanupInstruction: null, addressLookupTableAddresses: [] }) };
-      }
       return { ok: true, json: async () => ({ inAmount: '250000000', outAmount: '25000000' }) };
     });
     const app = createApp();
     const res = await request(app).post('/api/swap/quote').set(auth).send({ outSkr: 25 });
     expect(res.status).toBe(200);
-    // `maxInLamports` is additive to spec §3's `{ inSol, instructions, addressLookupTables }`: the
-    // quote has no `otherAmountThreshold`, so it is the quoted input plus the wSOL account's rent.
-    expect(res.body).toEqual({ inSol: 0.25, maxInLamports: 250_000_000 + 2_039_280, instructions: [{ data: 'ix' }], addressLookupTables: [] });
+    // No instructions/addressLookupTables any more: nothing downstream of this route ever
+    // consumed them (mobile/src/api/shop.ts's quoteSwapSol only ever read inSol).
+    expect(res.body).toEqual({ inSol: 0.25, maxInLamports: 250_000_000 + 2_039_280 });
+    expect(urls).toHaveLength(1);
+    expect(urls[0]).toContain('https://api.jup.ag/swap/v1/quote');
     expect(urls[0]).toContain('maxAccounts=32');
+  });
+
+  // Important #3: sessionLimiter (shared with routes/shop.js, routes/revive.js, routes/profile.js).
+  it('rate-limits POST /quote (sessionLimiter, 10/min per user)', async () => {
+    process.env.SOLANA_CLUSTER = 'devnet'; // the 409 gate answers before any Jupiter call is made
+    const app = createApp();
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app).post('/api/swap/quote').set(auth).send({ outSkr: 25 });
+      expect(res.status).toBe(409);
+    }
+    const res = await request(app).post('/api/swap/quote').set(auth).send({ outSkr: 25 });
+    expect(res.status).toBe(429);
+    expect(res.body).toMatchObject({ error: 'TooManySessions' });
+  });
+
+  // Important #4's other half: cut the per-item fan-out. A Shop open asks for one price per
+  // unowned item - up to 7 - but many items share a catalogue price, so the label route must only
+  // ever call Jupiter once per distinct price.
+  it('quotes once per distinct price for a Shop open with 7 items across 6 distinct prices', async () => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    const jupiter = fixtureFetch(jupiterFixture(Keypair.generate().publicKey.toBase58(), process.env.SKR_MINT));
+    vi.stubGlobal('fetch', jupiter);
+    const app = createApp();
+
+    // 7 items, 6 distinct prices (25 SKR shared by two of them) - sequential on purpose, so the
+    // second 25 SKR request always lands after the first one has already been cached.
+    const prices = [25, 25, 30, 40, 50, 60, 75];
+    for (const outSkr of prices) {
+      const res = await request(app).post('/api/swap/quote').set(auth).send({ outSkr });
+      expect(res.status).toBe(200);
+    }
+
+    expect(jupiter.calls).toHaveLength(6);
+    expect(jupiter.calls.every((call) => !call.url.includes('/swap-instructions'))).toBe(true);
+  });
+});
+
+describe('quoteSwapPrice', () => {
+  const originalCluster = process.env.SOLANA_CLUSTER;
+  beforeEach(() => {
+    process.env.SOLANA_CLUSTER = 'mainnet';
+    clearSwapPriceCache();
+  });
+  afterEach(() => {
+    process.env.SOLANA_CLUSTER = originalCluster;
+  });
+
+  it('calls Jupiter\'s /quote alone and never /swap-instructions', async () => {
+    const fetchImpl = fakeFetch({
+      quote: { inAmount: '250000000', outAmount: '25000000' },
+      built: { computeBudgetInstructions: [], setupInstructions: [], swapInstruction: {}, cleanupInstruction: null, addressLookupTableAddresses: [] },
+    });
+    const result = await quoteSwapPrice({ outSkr: 25, fetchImpl });
+    expect(result).toEqual({ inSol: 0.25, maxInLamports: 250_000_000 + 2_039_280 });
+    expect(fetchImpl.calls).toHaveLength(1);
+  });
+
+  // A concurrent fan-out for the SAME price (the Shop's several items firing at once) must not
+  // double-fetch: the second caller shares the first caller's in-flight promise.
+  it('shares one in-flight Jupiter call between concurrent requests for the same price', async () => {
+    const calls = [];
+    let resolveFetch;
+    const pending = new Promise((resolve) => {
+      resolveFetch = resolve;
+    });
+    const fetchImpl = async (url) => {
+      calls.push(String(url));
+      await pending;
+      return { ok: true, json: async () => ({ inAmount: '250000000', outAmount: '25000000' }) };
+    };
+
+    const first = quoteSwapPrice({ outSkr: 25, fetchImpl });
+    const second = quoteSwapPrice({ outSkr: 25, fetchImpl });
+    resolveFetch();
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(calls).toHaveLength(1);
+    expect(a).toEqual(b);
+  });
+
+  it('re-quotes once the 60s cache has expired', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = fakeFetch({
+        quote: { inAmount: '250000000', outAmount: '25000000' },
+        built: { computeBudgetInstructions: [], setupInstructions: [], swapInstruction: {}, cleanupInstruction: null, addressLookupTableAddresses: [] },
+      });
+      await quoteSwapPrice({ outSkr: 25, fetchImpl });
+      expect(fetchImpl.calls).toHaveLength(1);
+
+      await quoteSwapPrice({ outSkr: 25, fetchImpl });
+      expect(fetchImpl.calls).toHaveLength(1); // still cached, well within 60s
+
+      vi.advanceTimersByTime(60_001);
+      await quoteSwapPrice({ outSkr: 25, fetchImpl });
+      expect(fetchImpl.calls).toHaveLength(2); // the cache entry has expired
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not cache a failed quote, so the next caller can retry', async () => {
+    let attempt = 0;
+    const fetchImpl = async () => {
+      attempt += 1;
+      return attempt === 1 ? { ok: false, status: 503 } : { ok: true, json: async () => ({ inAmount: '250000000', outAmount: '25000000' }) };
+    };
+
+    await expect(quoteSwapPrice({ outSkr: 25, fetchImpl })).rejects.toBeInstanceOf(SwapError);
+    await expect(quoteSwapPrice({ outSkr: 25, fetchImpl })).resolves.toEqual({ inSol: 0.25, maxInLamports: 250_000_000 + 2_039_280 });
+    expect(attempt).toBe(2);
   });
 });
