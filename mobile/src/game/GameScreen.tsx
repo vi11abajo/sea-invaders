@@ -251,6 +251,10 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           settled = true;
           revive(state);
           held.current = false;
+          // A revive always resumes into a running state, never a paused one, regardless of how
+          // `paused`/`showPause` got set (`pause()` itself now refuses while held).
+          paused.current = false;
+          setShowPause(false);
           return !state.over;
         },
         end: () => {
@@ -376,6 +380,9 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   };
 
   const pause = () => {
+    // A tap in the single frame between the loss and the host's overlay mounting must not pause: the
+    // run would then stay paused after a revive, with nothing left to show a Resume button.
+    if (held.current) return;
     paused.current = true;
     setShowPause(true);
   };

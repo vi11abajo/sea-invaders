@@ -15,7 +15,16 @@ export type PurchaseKind = 'ticket' | 'item' | 'revive';
 export type PurchasePhase = 'idle' | 'building' | 'signing' | 'confirming' | 'done' | 'error';
 
 /** A backend-built transaction; `createsPlayer` when it opens with `create_player` (the wallet also pays that account's rent). */
-export type PreparedPurchase = PreparedTx & { createsPlayer?: boolean };
+export type PreparedPurchase = PreparedTx & {
+  createsPlayer?: boolean;
+  /**
+   * What this transaction actually moves, when the backend can build it at a different price than
+   * what was quoted before `prepare()` ran (the Tide's price can fall a step in between). When
+   * present and different from the order's amount, the signing sheet is corrected to it before the
+   * wallet opens, so it never shows a stale price.
+   */
+  priceSkr?: number;
+};
 
 export interface PurchasePayload<R extends { confirmed: boolean }> {
   /** What is being paid for, shown under "Waiting for signature": an item name, "Revive · the Tide". */
@@ -84,6 +93,13 @@ function numberOr(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+/** `order` with its `amountSkr` corrected to `prepared`'s own price, when it declares one that differs. */
+function withPreparedAmount(order: PurchaseOrder, prepared: PreparedPurchase): PurchaseOrder {
+  return typeof prepared.priceSkr === 'number' && prepared.priceSkr !== order.amountSkr
+    ? { ...order, amountSkr: prepared.priceSkr }
+    : order;
+}
+
 /** Lamports `prepared` costs its fee payer: the network fee for its message, plus rent for the player account it creates. */
 async function solCost(connection: Connection, prepared: PreparedPurchase): Promise<number> {
   const message = VersionedTransaction.deserialize(toUint8Array(prepared.transaction)).message;
@@ -126,7 +142,7 @@ export function usePurchase() {
     async <R extends { confirmed: boolean }>(kind: PurchaseKind, payload: PurchasePayload<R>): Promise<PurchaseOutcome<R>> => {
       if (busy.current) return { status: 'abandoned' };
       busy.current = true;
-      const order: PurchaseOrder = { kind, what: payload.what, amountSkr: payload.amountSkr };
+      let order: PurchaseOrder = { kind, what: payload.what, amountSkr: payload.amountSkr };
       let cost: number | null = null;
       let have: number | null = null;
       const fail = (error: PurchaseError): PurchaseOutcome<R> => {
@@ -137,6 +153,7 @@ export function usePurchase() {
       update({ phase: 'building', order, error: null, costLamports: null });
       try {
         let prepared = await payload.prepare();
+        order = withPreparedAmount(order, prepared);
 
         // Check the SOL side before the wallet opens, so a short wallet gets sheet 13 instead of a
         // wallet-side failure. An RPC hiccup here skips the check: the wallet still refuses an
@@ -162,6 +179,7 @@ export function usePurchase() {
         } catch (error) {
           if (!(error instanceof BlockhashExpired)) throw error;
           prepared = await payload.prepare();
+          order = withPreparedAmount(order, prepared);
           signature = await signAndSend(prepared);
         }
 

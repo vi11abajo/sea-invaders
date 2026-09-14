@@ -1,4 +1,4 @@
-import type { Connection } from '@solana/web3.js';
+import type { Connection, SignatureStatus } from '@solana/web3.js';
 import { useMobileWallet } from '@wallet-ui/react-native-web3js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PollCancelled } from '../api/chain';
@@ -15,9 +15,10 @@ const CHECK_MS = 2_000;
 /**
  * Blocks past a transaction's last valid height before an unseen one counts as dead: a public RPC
  * endpoint balances across nodes, so the node answering the status may trail the one that answered
- * the height; about 13 s of slack covers that.
+ * the height, and either can lag the network under load. 150 blocks is about a minute of slack,
+ * still well inside the pending sheet's own 60 s long state.
  */
-const EXPIRY_MARGIN_BLOCKS = 32;
+const EXPIRY_MARGIN_BLOCKS = 150;
 /** What the signing sheet says is being paid for (handoff "Wallet & error states"). */
 const WHAT = 'Revive · the Tide';
 /** A sent revive that can no longer land: the wallet paid no SKR for it. */
@@ -60,22 +61,50 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * One look at a sent revive. `confirmed` once the backend has verified it on chain. `dead` once it
- * provably never will be: it failed on chain (a failed transaction moves no SKR), or the chain is
- * well past its blockhash's last valid height and neither the backend nor the RPC has any record of
- * it. Anything else (not visible yet, a network error) is `unknown`. The height is read before the
- * status, so a transaction that landed in the last valid block is always seen.
+ * One RPC-only read of the sent signature: used when the backend cannot be asked (a session that
+ * expired while the revive was pending) and to back up the height-based expiry check below. `err
+ * === null` with `confirmationStatus` `confirmed` or `finalized` counts as confirmed — the 3-per-
+ * attempt limit and applying the revive are client-side rules anyway. A definite on-chain `err`
+ * counts as failed (a failed transaction moves no SKR): `dead` either way, no need to wait on the
+ * margin below. `null` means this RPC alone has no record of it, which by itself proves nothing.
+ */
+async function rpcVerdict(connection: Connection, signature: string): Promise<Verdict | null> {
+  let status: SignatureStatus | null;
+  try {
+    ({ value: status } = await connection.getSignatureStatus(signature, { searchTransactionHistory: true }));
+  } catch {
+    return 'unknown';
+  }
+  if (status === null) return null;
+  if (status.err !== null) return 'dead';
+  return status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized' ? 'confirmed' : 'unknown';
+}
+
+/**
+ * One look at a sent revive. `confirmed` once the backend — or, when it cannot be asked, the app's
+ * own RPC — has seen it land. `dead` once it provably never will: it failed on chain, or the chain
+ * is well past its blockhash's last valid height AND the RPC has no record of it either — both
+ * checks must agree before the player is told no SKR was taken. Anything else (not visible yet, a
+ * network error) is `unknown`, which keeps the run waiting rather than risking a double charge. The
+ * height read never gates the backend confirmation: a failing RPC only skips the dead check.
  */
 async function verdictOf(connection: Connection, signature: string, lastValidBlockHeight: number | null): Promise<Verdict> {
+  const height = lastValidBlockHeight === null ? null : await connection.getBlockHeight('confirmed').catch(() => null);
+  const expired = height !== null && lastValidBlockHeight !== null && height > lastValidBlockHeight + EXPIRY_MARGIN_BLOCKS;
+  /** Not confirmed by the backend: dead only once the RPC also has no record of it, past the margin. */
+  const rpcOrExpiry = async (): Promise<Verdict> => {
+    const verdict = await rpcVerdict(connection, signature);
+    return verdict ?? (expired ? 'dead' : 'unknown');
+  };
   try {
-    const height = lastValidBlockHeight === null ? null : await connection.getBlockHeight('confirmed');
     const result = await confirmRevive(signature);
     if (result.confirmed) return 'confirmed';
-    if (height === null || lastValidBlockHeight === null || height <= lastValidBlockHeight + EXPIRY_MARGIN_BLOCKS) return 'unknown';
-    const { value } = await connection.getSignatureStatus(signature, { searchTransactionHistory: true });
-    return value === null || value.err !== null ? 'dead' : 'unknown';
+    return expired ? rpcOrExpiry() : 'unknown';
   } catch (error) {
     if (error instanceof ApiError && (error.code === 'revive_failed' || error.code === 'invalid_transaction')) return 'dead';
+    // A session that expired mid-revive (also a 401/403) means confirmRevive can no longer be
+    // asked at all: fall back to the app's own RPC so a landed revive still applies to this run.
+    if (isSignedOut(error)) return rpcOrExpiry();
     return 'unknown';
   }
 }
