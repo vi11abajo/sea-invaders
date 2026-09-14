@@ -9,6 +9,7 @@ npx ts-node scripts/devnet-init.ts        # or: npm run devnet:init
 npx ts-node scripts/create-week-pools.ts  # or: npm run devnet:pools
 npx ts-node scripts/smoke-test.ts         # or: npm run devnet:smoke
 npx ts-node scripts/init-catalog.ts       # or: npm run devnet:catalog
+npx ts-node scripts/set-prices.ts         # or: npm run devnet:prices
 ```
 
 Run in that order: `devnet-init.ts` creates `Config` (and the test SKR
@@ -56,6 +57,11 @@ All four scripts share their bootstrap (`loadKeypair`, `configPda`,
   `--update`, which calls `setCatalog` - the way to change prices later.
   `setCatalog` replaces the whole list, so the script always sends all
   seven items.
+- **`set-prices.ts`** - changes the ticket price and the Tide's revive
+  ladder in `Config` (`updateConfig`, every other field re-sent unchanged
+  from the chain). Edit `TICKET_SKR`/`LADDER_SKR` at the top and run it;
+  idempotent when the stored prices already match. Shop item prices are
+  changed through `init-catalog.ts --update` instead.
 
 ## Deployed devnet addresses
 

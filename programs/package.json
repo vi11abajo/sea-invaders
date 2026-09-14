@@ -6,7 +6,8 @@
     "devnet:init": "ts-node scripts/devnet-init.ts",
     "devnet:pools": "ts-node scripts/create-week-pools.ts",
     "devnet:smoke": "ts-node scripts/smoke-test.ts",
-    "devnet:catalog": "ts-node scripts/init-catalog.ts"
+    "devnet:catalog": "ts-node scripts/init-catalog.ts",
+    "devnet:prices": "ts-node scripts/set-prices.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "^1.2.0",
