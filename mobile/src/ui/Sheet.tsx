@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { playSfx } from '../audio/sfx';
 import { COLORS, MOTION, RADIUS } from './tokens';
 
 interface SheetProps {
@@ -20,6 +21,12 @@ export function Sheet({ children, kind = 'world', onDismiss, onLayout }: SheetPr
   useEffect(() => {
     shown.value = withTiming(1, { duration: MOTION.riseMs, easing: Easing.out(Easing.cubic) });
   }, [shown]);
+  // Every sheet in the app (world and modal alike) shares this component, so this one effect
+  // covers the "a sheet opens or closes" row of the sound design doc for all of them at once.
+  useEffect(() => {
+    playSfx('ui_sheet');
+    return () => playSfx('ui_sheet');
+  }, []);
   const rise = useAnimatedStyle(() => ({
     opacity: shown.value,
     transform: [{ translateY: (1 - shown.value) * MOTION.riseOffset }],

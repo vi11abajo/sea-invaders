@@ -1,5 +1,6 @@
 import { useMobileWallet } from '@wallet-ui/react-native-web3js';
 import { useCallback, useEffect, useState } from 'react';
+import { playSfx } from '../audio/sfx';
 import { signInWithWallet, signOut as apiSignOut } from './auth';
 import { ApiError } from './client';
 import { loadSession, type Session } from './session';
@@ -37,10 +38,12 @@ export function useSession() {
       // every sign-in a fresh one that carries the signature.
       await forgetWalletAuthorization();
       setSession(await signInWithWallet(walletSignIn));
+      playSfx('wallet_connected');
     } catch (e) {
       // Release builds have no debugger: keep the stack in logcat so a failure on a device is diagnosable.
       console.error('[auth] wallet sign-in failed', e instanceof Error ? (e.stack ?? e.message) : e);
       setError(e instanceof ApiError ? e.message : `Wallet sign-in failed: ${e instanceof Error ? e.message : String(e)}`);
+      playSfx('ui_error');
     } finally {
       setLoading(false);
     }

@@ -4,6 +4,7 @@ import {
 } from '@sea-invaders/core';
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { playSfx } from '../audio/sfx';
 import { GameScreen, type DownedRun, type RunOutcome } from '../game/GameScreen';
 import { VARIANT_OCTOPI } from '../loadout/items';
 import type { LoadoutApi } from '../loadout/useLoadout';
@@ -128,7 +129,13 @@ export function CampaignLevelScreen({
   const handleRunOver = (outcome: RunOutcome) => {
     const livesLeft = reefLivesAfter(outcome.livesLeft, phase.kind === 'intro' ? null : phase.run, revivesUsed.current > 0);
     finishLevel({ levelId, practice, cleared: outcome.cleared, livesLeft, score: outcome.score })
-      .then(({ outcome: kind, next }) => setResult({ outcome, kind, next }))
+      .then(({ outcome: kind, next }) => {
+        // `cleared` is the only outcome that opens something new on the map: the next level, or (on
+        // a reef's last level) the next reef itself. `campaign_complete` finishes the run with
+        // nothing left to unlock, so it does not get this chime.
+        if (kind === 'cleared') playSfx('reef_unlocked');
+        setResult({ outcome, kind, next });
+      })
       .catch(() => setResult({ outcome, kind: 'error' }));
   };
 

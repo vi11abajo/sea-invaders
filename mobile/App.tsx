@@ -6,6 +6,7 @@ import { WalletDeclined, pollUntilConfirmed, sendWithBlockhashRetry, useSignAndS
 import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
 import { confirmTicket, requestFaucet, requestTicket } from './src/api/daily';
 import { useSession } from './src/api/useSession';
+import { playSfx } from './src/audio/sfx';
 import { CampaignLevelScreen } from './src/campaign/CampaignLevelScreen';
 import { CampaignScreen } from './src/campaign/CampaignScreen';
 import { useCampaignSync } from './src/campaign/sync';
@@ -158,12 +159,16 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
     setTicketBusy(true);
     try {
       const { signature } = await sendWithBlockhashRetry(requestTicket, signAndSend);
+      playSfx('tx_sent');
       await pollUntilConfirmed(() => confirmTicket(signature));
       setTicketMessage('Ticket bought');
+      playSfx('tx_confirmed');
+      playSfx('ticket_bought');
       refresh();
       return true;
     } catch (e) {
       if (!(e instanceof WalletDeclined)) setTicketMessage(e instanceof Error ? e.message : 'Purchase failed');
+      playSfx('ui_error');
       return false;
     } finally {
       setTicketBusy(false);

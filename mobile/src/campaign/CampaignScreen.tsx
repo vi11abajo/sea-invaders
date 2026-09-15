@@ -11,6 +11,7 @@ import {
   currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEFS, TYPE_COLOUR,
   type CampaignProgress,
 } from '@sea-invaders/core';
+import { playSfx } from '../audio/sfx';
 import { BOSS_NAMES } from '../game/bossNames';
 import { useSprites, type Sprites } from '../game/sprites';
 import { ArtSlot } from '../ui/ArtSlot';
@@ -310,7 +311,10 @@ function PathNode({ reef, index, isBoss, size, left, top, accent, state, best, b
         accessibilityLabel={a11yLabel}
         accessibilityState={{ disabled: locked }}
         disabled={locked}
-        onPress={onPress}
+        onPress={() => {
+          playSfx('node_tap');
+          onPress();
+        }}
         style={[
           styles.node,
           { width: size, height: size, borderRadius: radius, borderWidth, borderColor, backgroundColor: bg },

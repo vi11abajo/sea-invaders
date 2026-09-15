@@ -2,11 +2,13 @@ import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
   BOOST_INDEX, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
   OCTOPI, createGame, fitField, formatInt, revive, snapshot, step, touchToInput,
-  type BoostType, type BossFrame, type Frame, type Input, type OctopiVariant, type Replay, type ReplayMode, type RunConfig,
+  type BoostType, type BossFrame, type Crab, type Frame, type GameEvent, type Input, type OctopiVariant, type Replay, type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
+import { startAmbience, stopAmbience } from '../audio/music';
+import { playSfx, type SfxId } from '../audio/sfx';
 import { ITEM_NAMES, itemOfOctopi } from '../loadout/items';
 import { ITEM_TINT, tintWithAlpha } from '../shop/tints';
 import { Backdrop } from '../ui/Backdrop';
@@ -44,6 +46,54 @@ const BOOST_BY_INDEX = Object.entries(BOOST_INDEX).reduce<BoostType[]>((arr, [ty
 /** "RAPID_FIRE" -> "Rapid Fire". */
 function titleCase(type: string): string {
   return type.split('_').map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
+}
+
+/**
+ * `GameEvent.type` -> sound id, for every event that plays the same sound every time (sound design
+ * doc, table A). `boss_ability` and `boost_pickup` carry a payload that picks between several
+ * sounds, so they are handled separately in the frame loop below rather than through this map.
+ */
+const SFX_FOR_EVENT: Partial<Record<GameEvent['type'], SfxId>> = {
+  player_hit: 'player_hit',
+  shield_break: 'shield_break',
+  wave_start: 'wave_start',
+  wave_cleared: 'wave_cleared',
+  level_cleared: 'level_cleared',
+  boss_spawn: 'boss_spawn',
+  boss_phase: 'boss_phase',
+  boss_dead: 'boss_dead',
+  boss_teleport: 'boss_teleport',
+  boss_clone: 'boss_clone',
+  meteor_warning: 'meteor_warning',
+  boost_drop: 'boost_drop',
+  boost_expire: 'boost_expire',
+  player_freeze: 'player_freeze',
+  revived: 'revived',
+};
+
+/** `boss_ability`'s `name` -> sound id (table A). */
+const BOSS_ABILITY_SFX: Record<'regen' | 'shield' | 'meteor' | 'rage' | 'freeze', SfxId> = {
+  regen: 'boss_regen',
+  shield: 'boss_shield',
+  meteor: 'meteor_impact',
+  rage: 'boss_rage',
+  freeze: 'boss_freeze',
+};
+
+/** A `boost_pickup`'s boost type -> the stinger layered over the generic `boost_pickup` pop (table A rows 35-38). Boosts absent here get the pop alone. */
+const BOOST_STINGER: Partial<Record<BoostType, SfxId>> = {
+  INVINCIBILITY: 'boost_invincibility',
+  ICE_FREEZE: 'boost_ice',
+  WAVE_BLAST: 'boost_blast',
+  COIN_SHOWER: 'boost_coins',
+  SCORE_MULTIPLIER: 'boost_coins',
+};
+
+/** Armored crabs sitting at 1 hp (one hit taken, one more to kill) - the only crabs that can ever "survive a hit", since every other type has 1 hp and dies on the first. Comparing this count frame to frame is how `crab_armored_tok` is detected without per-crab identity tracking. */
+function armoredAtHalfHp(crabs: readonly Crab[]): number {
+  let count = 0;
+  for (const c of crabs) if (c.type === 'armored' && c.hp === 1) count += 1;
+  return count;
 }
 
 /**
@@ -213,6 +263,14 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     if (sprites !== null) primeOctopiArt(sprites.octopi.front, tint, RESULT_POSE_SIZE);
   }, [sprites, tint]);
 
+  // The reef ambience loop plays under every run (design doc table A row 42 / section F), from
+  // practice, Daily and campaign alike, since they all mount this same screen; it fades out again
+  // once the run is left (including through the result screen, which is still this component).
+  useEffect(() => {
+    startAmbience();
+    return () => stopAmbience();
+  }, []);
+
   useEffect(() => {
     // Practice seed: the app may use the clock; only the core must not.
     const runSeed = seed ?? `practice-${runIndex}-${Date.now()}`;
@@ -241,6 +299,17 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     let bannerFrames = 0;
     let toastText: string | null = null;
     let toastFrames = 0;
+    // Sound triggers read as state deltas (table A): the value at the end of the previous rendered
+    // frame, compared against the value after this frame's ticks. Seeded from the just-created state
+    // rather than 0/null so a run that somehow starts non-empty never fires a spurious first sound.
+    let prevShotsLen = state.shots.length;
+    let prevEnemyShotsLen = state.enemyShots.length;
+    let prevKillsCount = state.kills;
+    let prevBossHp: number | null = state.boss?.hp ?? null;
+    let prevArmoredHalfHp = armoredAtHalfHp(state.crabs);
+    // Set once `game_over` has played for this run, so the single frame where the loop stops can
+    // never be revisited and replay it.
+    let gameOverPlayed = false;
 
     /** Offers this loss to the host; true when the host holds the run. */
     const offerDown = (): boolean => {
@@ -295,6 +364,9 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         bannerFrames = BANNER_FRAMES;
         prevWave = state.wave;
       }
+      // Sounds this frame, collected here and played once each after the loop below (never inside
+      // the tick loop above, and never more than once per id per frame) — design doc section F.
+      const sounds: SfxId[] = [];
       for (const ev of state.events) {
         if (ev.type === 'boss_phase') {
           bannerText = `PHASE ${state.boss?.phase ?? 0}`;
@@ -305,8 +377,31 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           // Only emitted when the blast actually fired (with no crabs the drop is not consumed).
           if (ev.boost === 'WAVE_BLAST') blast.value = { tick: ev.tick, x: state.octopi.x, y: state.octopi.y };
         }
+        if (ev.type === 'boss_ability') {
+          sounds.push(BOSS_ABILITY_SFX[ev.name]);
+        } else if (ev.type === 'boost_pickup') {
+          sounds.push('boost_pickup');
+          const stinger = BOOST_STINGER[ev.boost];
+          if (stinger !== undefined) sounds.push(stinger);
+        } else {
+          const sound = SFX_FOR_EVENT[ev.type];
+          if (sound !== undefined) sounds.push(sound);
+        }
       }
       state.events.length = 0;
+      // State deltas (table A): read once per rendered frame, across however many ticks it just ran.
+      if (state.shots.length > prevShotsLen) sounds.push('octopi_shot');
+      if (state.enemyShots.length > prevEnemyShotsLen) sounds.push('crab_shot');
+      if (state.kills > prevKillsCount) sounds.push('crab_hit');
+      const bossHpNow = state.boss?.hp ?? null;
+      if (prevBossHp !== null && bossHpNow !== null && bossHpNow < prevBossHp) sounds.push('boss_hit');
+      const armoredHalfHpNow = armoredAtHalfHp(state.crabs);
+      if (armoredHalfHpNow > prevArmoredHalfHp) sounds.push('crab_armored_tok');
+      prevShotsLen = state.shots.length;
+      prevEnemyShotsLen = state.enemyShots.length;
+      prevKillsCount = state.kills;
+      prevBossHp = bossHpNow;
+      prevArmoredHalfHp = armoredHalfHpNow;
       if (bannerFrames > 0) {
         bannerFrames -= 1;
         if (bannerFrames === 0) bannerText = null;
@@ -331,6 +426,14 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         held.current = offerDown();
       }
       const over = (state.over && !held.current) || state.cleared || quit.current;
+      // The run truly ended with no Tide offered — not a clear (its own fanfare) and not a quit
+      // (the player's own choice). `over` already folds in whether the host is holding for a
+      // revive, and once it is true this loop never runs again for this effect, so this can only
+      // fire once; `gameOverPlayed` is just belt-and-suspenders against a future refactor.
+      if (over && !state.cleared && !quit.current && !gameOverPlayed) {
+        gameOverPlayed = true;
+        sounds.push('game_over');
+      }
       const next: Hud = {
         score: state.score, lives: state.octopi.lives, wave: state.wave, kills: state.kills, over, fps,
         boss: f.boss, boosts: boostsFromFrame(f.boosts, state.boosts.tamerStacks), shield: f.shield, banner: bannerText, toast: toastText,
@@ -352,6 +455,12 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         };
         setOutcome(result);
         onRunOverRef.current?.(result);
+      }
+      // Played after the step loop, never inside it; de-duped so an id fired from more than one
+      // source this frame (unlikely, but e.g. `state.events` holding two of the same type across a
+      // multi-tick frame) still plays once.
+      if (sounds.length > 0) {
+        for (const id of new Set(sounds)) playSfx(id);
       }
       if (!over) handle = requestAnimationFrame(loop);
     };

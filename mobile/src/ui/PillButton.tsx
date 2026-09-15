@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { playSfx } from '../audio/sfx';
 import { Txt } from './Txt';
 import { COLORS, RADIUS, SIZE } from './tokens';
 
@@ -42,13 +43,21 @@ export function PillButton({ label, onPress, kind = 'primary', height, disabled 
     ? Math.min(Math.max((FIT_BASE_SIZE * room * FIT_SLACK) / natural, FIT_MIN_SIZE), h * FIT_MAX_HEIGHT_SHARE)
     : null;
 
+  // A pill has no notion of "back" beyond its own label — "Back to level"/"Back to map" are the
+  // only ones in the app today (verified against every `PillButton` call site) — so the label text
+  // is the one signal available to tell those apart from an ordinary tap.
+  const onPressWithSound = () => {
+    playSfx(label.trim().toLowerCase().startsWith('back') ? 'ui_back' : 'ui_tap');
+    onPress?.();
+  };
+
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
       disabled={disabled}
-      onPress={onPress}
+      onPress={onPressWithSound}
       hitSlop={slop}
       onLayout={fitLabel ? (e) => setRoom(e.nativeEvent.layout.width - 2 * PADDING_X) : undefined}
       style={({ pressed }) => [styles.base, KIND[kind], { height: h }, pressed && styles.pressed, disabled && styles.disabled]}

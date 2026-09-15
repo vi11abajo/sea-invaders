@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { pollUntilConfirmed, sendWithBlockhashRetry, useSignAndSend, PollCancelled, PollTimeout, WalletDeclined } from '../api/chain';
 import { ApiError } from '../api/client';
 import { confirmRecord, requestRecord } from '../api/daily';
+import { playSfx } from '../audio/sfx';
 
 export type RecordPhase =
   | { kind: 'idle'; message?: string }
@@ -65,25 +66,31 @@ export function useRecordScore(onRecorded: (signature: string) => void): { phase
         let signature: string;
         try {
           ({ signature } = await sendWithBlockhashRetry(() => requestRecord(day), signAndSend));
+          playSfx('tx_sent');
         } catch (error) {
           if (error instanceof WalletDeclined) {
             if (alive.current) setPhase({ kind: 'idle', message: 'Not recorded' });
+            playSfx('ui_error');
             return;
           }
           if (error instanceof ApiError && error.code === 'already_recorded') {
             if (alive.current) setPhase({ kind: 'done' });
+            playSfx('record_saved');
             // The record is already on chain regardless of whether this component still exists —
             // still tell the caller so Home refreshes, but never touch this component's state above.
             onRecorded('');
             return;
           }
           if (alive.current) setPhase({ kind: 'error', ...describeRecordError(error) });
+          playSfx('ui_error');
           return;
         }
         if (alive.current) setPhase({ kind: 'confirming' });
         try {
           await pollUntilConfirmed(() => confirmRecord(signature, day), { isCancelled: () => !alive.current });
           if (alive.current) setPhase({ kind: 'done' });
+          playSfx('tx_confirmed');
+          playSfx('record_saved');
           // Same reasoning as the `already_recorded` branch above: the transaction did confirm, so
           // Home should still refresh even if nothing is listening to `phase` any more.
           onRecorded(signature);
@@ -92,6 +99,7 @@ export function useRecordScore(onRecorded: (signature: string) => void): { phase
           // confirmed to report yet, so unlike the branches above, `onRecorded` does not fire here.
           if (error instanceof PollCancelled) return;
           if (alive.current) setPhase({ kind: 'error', ...describeRecordError(error) });
+          playSfx('ui_error');
         }
       })();
     },

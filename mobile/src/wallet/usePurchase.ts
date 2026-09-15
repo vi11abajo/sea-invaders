@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { awaitLanded, BlockhashExpired, PollCancelled, pollUntilConfirmed, transactionsOf, useSignAndSend, WalletDeclined, type PreparedPayment } from '../api/chain';
 import { ApiError } from '../api/client';
 import { loadSession } from '../api/session';
+import { playSfx, type SfxId } from '../audio/sfx';
 
 /**
  * What a purchase pays for. Tickets and the Tide's revives fit this hook's shape (a backend-built
@@ -85,6 +86,18 @@ export const SWAP_FAILED_TOAST = 'The swap is not available right now — try ag
 
 /** Backend error codes that mean "the swap itself went wrong", all of which get `SWAP_FAILED_TOAST`. */
 const SWAP_ERROR_CODES = new Set(['swap_quote_failed', 'swap_instructions_failed', 'swap_quote_invalid', 'swap_quote_short', 'swap_unavailable']);
+
+/**
+ * The extra chime layered over the generic `tx_confirmed` shell chime once a purchase confirms, by
+ * kind (sound design doc table C). `revive` has none here: the Tide's own `revived` sound (played
+ * from the run's frame loop, `GameScreen.tsx`, when the core's `revive()` actually resumes play)
+ * already marks that moment. Ticket purchases do not run through this hook today (see `App.tsx`'s
+ * `buyTicket`, wired separately) — kept here anyway so nothing has to change if that ever moves.
+ */
+const PURCHASE_DONE_SFX: Partial<Record<PurchaseKind, SfxId>> = {
+  item: 'purchase_done',
+  ticket: 'ticket_bought',
+};
 
 /** The swap half of a split payment did not land, so the payment half was deliberately never signed. */
 class SwapHalted extends Error {
@@ -227,6 +240,7 @@ export function usePurchase() {
       let paymentSent = false;
       const fail = (error: PurchaseError): PurchaseOutcome<R> => {
         update({ phase: 'error', order, error, costLamports: cost });
+        playSfx('ui_error');
         return { status: 'error', error };
       };
       /**
@@ -246,6 +260,7 @@ export function usePurchase() {
         for (let i = 0; i < parts.length; i += 1) {
           signature = await signAndSend({ ...prepared, transaction: parts[i]! });
           sent = true;
+          playSfx('tx_sent');
           if (i === parts.length - 1) {
             paymentSent = true;
             break;
@@ -303,6 +318,9 @@ export function usePurchase() {
         update({ phase: 'confirming', order, error: null, costLamports: cost });
         const result = await pollUntilConfirmed(() => payload.confirm(signature), { isCancelled: () => !alive.current });
         update({ phase: 'done', order, error: null, costLamports: cost });
+        playSfx('tx_confirmed');
+        const kindSound = PURCHASE_DONE_SFX[kind];
+        if (kindSound !== undefined) playSfx(kindSound);
         return { status: 'done', result };
       } catch (error) {
         // The swap half never landed, so the payment half was never signed: nothing was bought and
@@ -319,6 +337,7 @@ export function usePurchase() {
         }
         if (error instanceof WalletDeclined) {
           update(IDLE);
+          playSfx('ui_error');
           return { status: 'declined' };
         }
         if (error instanceof ApiError && error.code === 'not_enough_skr') {

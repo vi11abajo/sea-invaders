@@ -3,6 +3,7 @@ import { PollCancelled, PollTimeout, WalletDeclined, pollUntilConfirmed, sendWit
 import { ApiError } from '../api/client';
 import type { Session } from '../api/session';
 import { confirmSeekerLink, getSeeker, issueSeekerLink } from '../api/seeker';
+import { playSfx } from '../audio/sfx';
 import { DECLINED_TOAST } from '../wallet/usePurchase';
 
 export type SeekerStatus = 'unknown' | 'unlinked' | 'linked' | 'no_token' | 'unavailable';
@@ -107,10 +108,12 @@ export function useSeeker(session: Session | null): SeekerState {
       let signature: string;
       try {
         ({ signature } = await sendWithBlockhashRetry(issueSeekerLink, signAndSend));
+        playSfx('tx_sent');
       } catch (error) {
         busy.current = false;
         if (error instanceof WalletDeclined) {
           if (alive.current) setPhase({ kind: 'idle', message: DECLINED_TOAST });
+          playSfx('ui_error');
           return;
         }
         if (error instanceof ApiError && error.code === 'no_seeker_token') {
@@ -146,6 +149,7 @@ export function useSeeker(session: Session | null): SeekerState {
           setSgtMint(result.sgtMint ?? null);
           setPhase({ kind: 'idle' });
         }
+        playSfx('tx_confirmed');
       } catch (error) {
         busy.current = false;
         // Cancelled means the whole shell went away before confirmation was observed - nothing left to report.
