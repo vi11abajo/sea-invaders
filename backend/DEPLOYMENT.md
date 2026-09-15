@@ -23,9 +23,9 @@ the API only.
   - `sea-invaders-api` — the Express API, `fork` mode, **one instance** (the SIWS nonce
     store and the leaderboard cache are in-process, so a second instance would not share
     them), listening on **port 5439**.
-  - `weekly-crank` — runs `src/jobs/weekly.js` on the cron schedule `20 0 * * 1` (Monday
-    00:20 UTC) and exits; `autorestart: false` is intentional, so `pm2 status` showing it
-    as *stopped* between Mondays is expected, not a crash. See "Weekly crank" below.
+  - `weekly-crank` — runs `src/jobs/weekly.js` on the cron schedule `20 * * * *` (every
+    hour at :20) and exits; `autorestart: false` is intentional, so `pm2 status` showing it
+    as *stopped* between runs is expected, not a crash. See "Weekly crank" below.
 - **Reverse proxy:** Nginx serves `api.seainvaders.xyz` and proxies to
   `127.0.0.1:5439`. The site sits behind Cloudflare, which terminates TLS.
 - **Database:** PostgreSQL database `sea_invaders_api`, role `sea_invaders_user`
@@ -229,12 +229,9 @@ The crank runs as the `weekly-crank` app in `backend/ecosystem.api.config.cjs`, 
 pm2 start backend/ecosystem.api.config.cjs --only weekly-crank
 ```
 
-- `cron_restart: '20 0 * * 1'` fires Monday 00:20 UTC - shortly after the week closes and its 900s (00:15) grace period ends. **The server clock must be set to UTC**, or the crank fires at the wrong local time. Check with:
-  ```bash
-  timedatectl
-  # "Time zone" should read something like "UTC (UTC, +0000)"
-  ```
-- `autorestart: false` is intentional: the job runs once and exits, so `pm2 status` correctly shows `weekly-crank` as **stopped** between Monday runs - that is expected, not a crash.
+- `cron_restart: '20 * * * *'` fires every hour at :20. PM2 evaluates the schedule in the server's local time zone (the VPS keeps Europe/Berlin), so a single Monday-00:20 slot fired at 22:20 UTC on Sunday - before the week's 00:15 UTC close (00:00 + 900s grace) - and the week only settled at the next deploy. Hourly, the first run after the close settles it whatever the zone; every other run finds nothing to do and exits after a few RPC reads.
+- `autorestart: false` is intentional: the job runs once and exits, so `pm2 status` correctly shows `weekly-crank` as **stopped** between runs - that is expected, not a crash.
+- A deploy starts the crank process and the API (whose startup also runs the crank) in the same second, so the two race to create the next pool; the loser's `create_week_pool` fails with the System Program's "already in use" (`custom program error: 0x0`) and `runWeekly` treats a pool that exists on re-read as done. That log line is expected on deploy days.
 - Run it manually at any time with:
   ```bash
   npm run crank

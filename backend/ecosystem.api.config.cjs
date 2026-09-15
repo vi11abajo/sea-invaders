@@ -28,7 +28,12 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       autorestart: false,
-      cron_restart: '20 0 * * 1', // Monday 00:20 UTC - after the week's 00:15 (00:00 + 900s grace) close
+      // Every hour at :20, in whatever time zone the server keeps: the first run after Monday
+      // 00:15 UTC (the week's 00:00 close + 900s grace) settles the week, every other run is an
+      // idempotent no-op costing a few RPC reads. A single Monday-00:20 slot fired at 22:20 UTC
+      // Sunday on the Europe/Berlin VPS - before the close - and the week only settled at the
+      // next deploy (2026-09-14).
+      cron_restart: '20 * * * *',
       env: { NODE_ENV: 'production' },
       error_file: './logs/crank-err.log',
       out_file: './logs/crank-out.log',

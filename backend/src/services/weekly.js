@@ -34,7 +34,17 @@ export async function runWeekly({ now, chain = defaultChain, log = console }) {
     const pool = await chain.getWeekPool(week);
     if (pool) continue;
     const prepared = await chain.buildCreateWeekPoolTx(week);
-    await chain.sendSigned(prepared);
+    try {
+      await chain.sendSigned(prepared);
+    } catch (error) {
+      // Two cranks race on every deploy (the `weekly-crank` process and the API's own startup run
+      // start in the same second): when the other one created the pool meanwhile, the System
+      // Program refuses ours with "already in use" (custom program error 0x0). The pool existing
+      // is all that matters; anything else is a real failure.
+      if (!(await chain.getWeekPool(week))) throw error;
+      log.log(`Weekly crank: week pool ${week} was created by a concurrent run`);
+      continue;
+    }
     createdPools.push(week);
     log.log(`Weekly crank: created week pool ${week}`);
   }

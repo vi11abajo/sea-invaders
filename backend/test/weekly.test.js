@@ -33,6 +33,35 @@ describe('runWeekly', () => {
     expect(result.settled).toEqual([]);
   });
 
+  it('treats a pool another run created while ours was in flight as done', async () => {
+    // A deploy starts the crank process and the API's startup run in the same second: the loser's
+    // create_week_pool fails at the System Program (already in use) but the pool is there.
+    let racedOnce = false;
+    const chain = {
+      ...fakeChain,
+      sendSigned: async (prepared) => {
+        if (racedOnce) return fakeChain.sendSigned(prepared);
+        racedOnce = true;
+        fakeChain.setWeekPool(WEEK, {});
+        throw new Error('Transaction simulation failed: Error processing Instruction 0: custom program error: 0x0');
+      },
+    };
+    const log = silentLog();
+    const result = await runWeekly({ now: NOW, chain, log });
+    expect(result.createdPools).toEqual([WEEK + 1]);
+    expect(log.log).toHaveBeenCalledWith(`Weekly crank: week pool ${WEEK} was created by a concurrent run`);
+  });
+
+  it('still fails when a pool create is refused and the pool is not there', async () => {
+    const chain = {
+      ...fakeChain,
+      sendSigned: async () => {
+        throw new Error('Transaction simulation failed: Error processing Instruction 0: custom program error: 0x0');
+      },
+    };
+    await expect(runWeekly({ now: NOW, chain, log: silentLog() })).rejects.toThrow('custom program error: 0x0');
+  });
+
   it('creates both the current and next week pools when neither exists', async () => {
     const result = await runWeekly({ now: NOW, chain: fakeChain, log: silentLog() });
     expect(result.createdPools).toEqual([WEEK, WEEK + 1]);
