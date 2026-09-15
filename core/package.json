@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Deterministic game core shared by the Sea Invaders app and server",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "react-native": "src/index.ts",

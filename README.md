@@ -115,4 +115,4 @@ Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE)
+All rights reserved. The source is published for reading and evaluation; see [LICENSE](LICENSE).

@@ -19,7 +19,8 @@
     "leaderboard"
   ],
   "author": "vi11abajo",
-  "license": "MIT",
+  "license": "UNLICENSED",
+  "private": true,
   "dependencies": {
     "@anchor-lang/core": "^1.2.0",
     "@sea-invaders/core": "file:../core",
