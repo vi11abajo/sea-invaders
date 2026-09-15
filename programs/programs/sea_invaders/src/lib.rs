@@ -78,4 +78,8 @@ pub mod sea_invaders {
     pub fn revive(ctx: Context<BuyTicket>, max_price: u64) -> Result<()> {
         instructions::tide::revive(ctx, max_price)
     }
+
+    pub fn link_seeker(ctx: Context<LinkSeeker>, sgt_mint: Pubkey) -> Result<()> {
+        instructions::seeker::link_seeker(ctx, sgt_mint)
+    }
 }

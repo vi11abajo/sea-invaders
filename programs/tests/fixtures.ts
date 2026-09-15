@@ -389,6 +389,52 @@ export async function revive(ctx: Ctx, who: Keypair, week: number, maxPrice: BN)
   return ctx.send([ix], [who]);
 }
 
+export const seekerLinkPda = (pid: PublicKey, sgtMint: PublicKey) =>
+  PublicKey.findProgramAddressSync(
+    [Buffer.from("seeker"), sgtMint.toBuffer()],
+    pid
+  )[0];
+
+// `seeker_link`'s seeds read `sgt_mint` - a bare instruction arg passed to
+// `linkSeeker` itself (unlike `week_pool`'s self-referential seed above), so
+// - like `create_week_pool`'s own `week` arg - Anchor's client resolves the
+// PDA from the argument alone; only `server_authority` (a second signer,
+// not derivable from any account/arg) is passed explicitly here.
+export async function linkSeekerIx(
+  ctx: Ctx,
+  who: Keypair,
+  sgtMint: PublicKey,
+  serverAuthority: PublicKey = ctx.server.publicKey
+) {
+  return ctx.program.methods
+    .linkSeeker(sgtMint)
+    .accountsPartial({
+      wallet: who.publicKey,
+      serverAuthority,
+    })
+    .instruction();
+}
+
+// Signs with both the wallet and the server authority, matching
+// `link_seeker`'s dual-signature shape (see `instructions/seeker.rs`).
+// Returns the transaction signature, like `purchase`/`revive` above, so
+// callers can assert the `SeekerLinked` event payload.
+export async function linkSeeker(
+  ctx: Ctx,
+  who: Keypair,
+  sgtMint: PublicKey,
+  serverAuthority: Keypair = ctx.server
+) {
+  const ix = await linkSeekerIx(ctx, who, sgtMint, serverAuthority.publicKey);
+  return ctx.send([ix], [who, serverAuthority]);
+}
+
+export async function fetchSeekerLink(ctx: Ctx, sgtMint: PublicKey) {
+  return ctx.program.account.seekerLink.fetch(
+    seekerLinkPda(ctx.programId, sgtMint)
+  );
+}
+
 // Fetches `signature`'s confirmed transaction and decodes the first log
 // event named `eventName` (undefined if none matches) - used to assert
 // `ItemPurchased`/`Revived` payloads, the backend's interface contract for

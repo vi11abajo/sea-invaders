@@ -36,4 +36,6 @@ pub enum SeaError {
     ItemInactive,
     #[msg("Price has changed since it was quoted")]
     PriceChanged,
+    #[msg("Player has already linked a Seeker Genesis Token")]
+    SeekerAlreadyLinked,
 }

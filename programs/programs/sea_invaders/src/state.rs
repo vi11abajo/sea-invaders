@@ -55,6 +55,20 @@ pub struct Player {
     pub bump: u8,
 }
 
+/// One per Seeker Genesis Token mint (design §2): links that mint to the
+/// player who holds it. Seeds `["seeker", sgt_mint]` mean the chain itself
+/// enforces one mint -> at most one player - a second `link_seeker` for the
+/// same mint fails at `init` because the account already exists. There is
+/// no unlink.
+#[account]
+#[derive(InitSpace)]
+pub struct SeekerLink {
+    pub sgt_mint: Pubkey,
+    pub player: Pubkey, // the linked wallet
+    pub linked_at: i64,
+    pub bump: u8,
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Default, InitSpace, PartialEq, Eq, Debug)]
 pub struct TopEntry {
     pub player: Pubkey,
