@@ -20,6 +20,7 @@ import { useHomeModel } from './src/home/useHomeModel';
 import { VARIANT_OCTOPI } from './src/loadout/items';
 import { useLoadout, type LoadoutApi } from './src/loadout/useLoadout';
 import { ProfileScreen } from './src/profile/ProfileScreen';
+import { useSeeker } from './src/profile/useSeeker';
 import { SelfTestScreen } from './src/selftest/SelfTestScreen';
 import { ShopScreen } from './src/shop/ShopScreen';
 import { Backdrop } from './src/ui/Backdrop';
@@ -109,7 +110,10 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
   const campaign = useCampaign();
   // The campaign map's new design has no sync indicator; the sync itself still needs to run.
   useCampaignSync(session, campaign.progress, campaign.replaceProgress);
-  const { model, refresh, error: homeError } = useHomeModel(session, campaign.progress);
+  // One Seeker status for the whole shell (Phase 3C): Home's wallet pill and the Profile's Seeker
+  // row read the same hook, so they can never disagree.
+  const seeker = useSeeker(session);
+  const { model, refresh, error: homeError } = useHomeModel(session, campaign.progress, seeker.status === 'linked');
   const signAndSend = useSignAndSend();
   const [ticketBusy, setTicketBusy] = useState(false);
   const [ticketMessage, setTicketMessage] = useState<string | null>(null);
@@ -260,6 +264,7 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
           signInError={error}
           onDisconnect={() => void signOut()}
           onBack={home}
+          seeker={seeker}
         />
       );
     default:

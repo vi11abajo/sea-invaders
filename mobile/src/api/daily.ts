@@ -27,6 +27,8 @@ export interface TodayInfo {
   weekRank: number | null;
   skrBalance: number;
   cluster: Cluster;
+  /** Whether the signed-in wallet has a linked Seeker Genesis Token (Phase 3C); false when signed out, unlinked, or on an older API that omits it. */
+  seeker: boolean;
 }
 
 export interface StartedRun {
@@ -55,6 +57,8 @@ export interface LeaderboardEntry {
   score: number;
   /** The skin the run that set this score was played in (design doc §8); 0 is Octopi's own colours. */
   skin: SkinIndex;
+  /** Whether this player's wallet has a linked Seeker Genesis Token (Phase 3C): shows the `SEEKER` badge next to their name. */
+  seeker: boolean;
 }
 
 export interface WeekEntry {
@@ -67,11 +71,18 @@ export interface WeekEntry {
   forecastSkr: number;
   /** The skin of this player's best run of the week (design doc §8); 0 is Octopi's own colours. */
   skin: SkinIndex;
+  /** Whether this player's wallet has a linked Seeker Genesis Token (Phase 3C): shows the `SEEKER` badge next to their name. */
+  seeker: boolean;
 }
 
 /** `entry.skin` normalized to a valid `SkinIndex`, 0 (Octopi's own colours) for an older API that omits it. */
 function normalizeSkin(skin: unknown): SkinIndex {
   return isSkinIndex(skin) ? skin : 0;
+}
+
+/** `entry.seeker` normalized to a boolean, false for an older API that omits it. */
+function normalizeSeeker(seeker: unknown): boolean {
+  return seeker === true;
 }
 
 export interface WeekBoard {
@@ -83,8 +94,9 @@ export interface WeekBoard {
   settled: boolean;
 }
 
-export function getToday(signedIn: boolean): Promise<TodayInfo> {
-  return apiFetch<TodayInfo>('/api/daily/today', { auth: signedIn });
+export async function getToday(signedIn: boolean): Promise<TodayInfo> {
+  const info = await apiFetch<Omit<TodayInfo, 'seeker'> & { seeker?: unknown }>('/api/daily/today', { auth: signedIn });
+  return { ...info, seeker: normalizeSeeker(info.seeker) };
 }
 
 export function startRun(): Promise<StartedRun> {
@@ -96,17 +108,17 @@ export function finishRun(runId: string, replay: Uint8Array): Promise<FinishedRu
 }
 
 export async function getLeaderboard(day?: number): Promise<{ day: number; entries: LeaderboardEntry[] }> {
-  const board = await apiFetch<{ day: number; entries: (Omit<LeaderboardEntry, 'skin'> & { skin?: unknown })[] }>(
+  const board = await apiFetch<{ day: number; entries: (Omit<LeaderboardEntry, 'skin' | 'seeker'> & { skin?: unknown; seeker?: unknown })[] }>(
     `/api/daily/leaderboard${day === undefined ? '' : `?day=${day}`}`,
   );
-  return { day: board.day, entries: board.entries.map((e) => ({ ...e, skin: normalizeSkin(e.skin) })) };
+  return { day: board.day, entries: board.entries.map((e) => ({ ...e, skin: normalizeSkin(e.skin), seeker: normalizeSeeker(e.seeker) })) };
 }
 
 export async function getWeek(week?: number): Promise<WeekBoard> {
-  const board = await apiFetch<Omit<WeekBoard, 'entries'> & { entries: (Omit<WeekEntry, 'skin'> & { skin?: unknown })[] }>(
+  const board = await apiFetch<Omit<WeekBoard, 'entries'> & { entries: (Omit<WeekEntry, 'skin' | 'seeker'> & { skin?: unknown; seeker?: unknown })[] }>(
     `/api/daily/week${week === undefined ? '' : `?week=${week}`}`,
   );
-  return { ...board, entries: board.entries.map((e) => ({ ...e, skin: normalizeSkin(e.skin) })) };
+  return { ...board, entries: board.entries.map((e) => ({ ...e, skin: normalizeSkin(e.skin), seeker: normalizeSeeker(e.seeker) })) };
 }
 
 /** Prepares the on-chain ticket purchase transaction for the caller to sign and send. */

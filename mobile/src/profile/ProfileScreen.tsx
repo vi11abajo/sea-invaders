@@ -13,11 +13,13 @@ import type { LoadoutState } from '../loadout/useLoadout';
 import { ItemArt } from '../shop/ItemArt';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
+import { SeekerBadge } from '../ui/SeekerBadge';
 import { Toast } from '../ui/Toast';
 import { Txt } from '../ui/Txt';
 import { COLORS, FONTS, MOTION, RADIUS } from '../ui/tokens';
 import { formatSkr, formatSolBalance } from '../wallet/format';
-import { ConnectSheet } from '../wallet/WalletSheets';
+import { ConnectSheet, SigningSheet } from '../wallet/WalletSheets';
+import type { SeekerState } from './useSeeker';
 
 /** Handoff 09 sizes, in dp. */
 const AVATAR = 52;
@@ -111,15 +113,17 @@ interface ProfileScreenProps {
   /** Forgets the wallet authorization and the session (the app's sign-out). */
   onDisconnect: () => void;
   onBack: () => void;
+  /** The shell's one Seeker status (Phase 3C), shared with Home's wallet pill. */
+  seeker: SeekerState;
 }
 
 /**
- * The Profile (handoff 09): the wallet card with the SKR and SOL balances and Disconnect, or the
- * no-wallet card with Connect; then the inventory, where owned items are equipped. The Seeker row
- * belongs to Phase 3C and is not shown. Pull down to refresh the balances and the inventory.
+ * The Profile (handoff 09): the wallet card with the Seeker row, the SKR and SOL balances and
+ * Disconnect, or the no-wallet card with Connect; then the inventory, where owned items are
+ * equipped. Pull down to refresh the balances and the inventory.
  */
 export function ProfileScreen({
-  walletAddress, loadout, onEquip, onReloadLoadout, onConnect, connecting, signInError, onDisconnect, onBack,
+  walletAddress, loadout, onEquip, onReloadLoadout, onConnect, connecting, signInError, onDisconnect, onBack, seeker,
 }: ProfileScreenProps) {
   const { connection } = useMobileWallet();
   const [skr, setSkr] = useState<number | null>(null);
@@ -187,6 +191,18 @@ export function ProfileScreen({
     lastSignInError.current = signInError;
   }, [signInError, show]);
 
+  // The Seeker link's decline/error toast (its own message, e.g. "Signature declined — nothing
+  // changed"); a structural outcome (linked, no_token, unavailable) is not toasted - the row's own
+  // copy already says so. Same diff-by-reference pattern as `signInError` above.
+  const seekerPhase = seeker.phase;
+  const lastSeekerMessage = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const message = seekerPhase.kind === 'idle' ? seekerPhase.message : undefined;
+    if (message !== undefined && message !== lastSeekerMessage.current) show(message, COLORS.warning);
+    lastSeekerMessage.current = message;
+  }, [seekerPhase, show]);
+  const seekerBusy = seekerPhase.kind === 'signing' || seekerPhase.kind === 'confirming';
+
   const equip = useCallback(
     async (change: LoadoutChange) => {
       setEquipping(true);
@@ -201,15 +217,21 @@ export function ProfileScreen({
     [onEquip, show],
   );
 
-  // System Back closes the Connect sheet first, otherwise returns Home. Registered once, so it
-  // stays under the sheet's own handler however often the shell re-renders.
+  // System Back closes the Connect sheet first; while a Seeker link is confirming, it stays on the
+  // Profile (the same rule `ShopScreen` uses for a purchase's own confirm) since the poll would
+  // otherwise keep running behind a screen with nothing to show for it; while it is signing, Back
+  // is left to pass through - the wallet sits on top then. Otherwise Back returns Home. Registered
+  // once, so it stays under the sheet's own handler however often the shell re-renders.
   const onBackRef = useRef(onBack);
   onBackRef.current = onBack;
   const connectOpenRef = useRef(connectOpen);
   connectOpenRef.current = connectOpen;
+  const seekerConfirmingRef = useRef(false);
+  seekerConfirmingRef.current = seekerPhase.kind === 'confirming';
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (connectOpenRef.current) setConnectOpen(false);
+      else if (seekerConfirmingRef.current) return true;
       else onBackRef.current();
       return true;
     });
@@ -266,6 +288,7 @@ export function ProfileScreen({
                   <Txt variant="secondary" tone="secondary" numberOfLines={1}>Mobile Wallet Adapter · connected</Txt>
                 </View>
               </View>
+              <SeekerRow seeker={seeker} busy={seekerBusy} />
               <View style={styles.balances}>
                 <Balance label="SKR" value={skr === null ? UNKNOWN : formatSkr(skr)} />
                 <Balance label="SOL" value={solLamports === null ? UNKNOWN : formatSolBalance(solLamports)} />
@@ -314,6 +337,15 @@ export function ProfileScreen({
         }}
         onClose={closeConnect}
       />
+      {seekerBusy && (
+        <SigningSheet
+          title={seekerPhase.kind === 'confirming' ? 'Confirming on Solana' : 'Waiting for signature'}
+          what="Verify Seeker"
+          amount={null}
+          fee={null}
+          swap="One wallet signature · no fee beyond network"
+        />
+      )}
       {toast !== null && <Toast key={toast.id} text={toast.text} dot={toast.dot} onHide={() => setToast(null)} />}
     </View>
   );
@@ -336,6 +368,36 @@ function Balance({ label, value }: { label: string; value: string }) {
     <View style={styles.balance}>
       <Txt variant="secondary" tone="tertiary" style={styles.balanceLabel}>{label}</Txt>
       <Txt style={styles.balanceValue} numberOfLines={1}>{value}</Txt>
+    </View>
+  );
+}
+
+/**
+ * The Seeker row (handoff 09, design §1): nested in the wallet card between identity and balances.
+ * `unknown` (signed out, or the first read has not resolved) renders nothing. `linked` shows the
+ * `SEEKER` badge in a dark tile next to its confirmation copy; the other three states share a
+ * prompt with the `Verify Seeker` pill - enabled for a first try or a `no_token` retry, disabled
+ * while `unavailable` or while a link is already signing/confirming.
+ */
+function SeekerRow({ seeker, busy }: { seeker: SeekerState; busy: boolean }) {
+  if (seeker.status === 'unknown') return null;
+  if (seeker.status === 'linked') {
+    return (
+      <View style={styles.seekerTile}>
+        <SeekerBadge />
+        <Txt variant="secondary" tone="secondary" style={styles.seekerTileText}>Seeker verified · badge shown on leaderboards</Txt>
+      </View>
+    );
+  }
+  const copy = seeker.status === 'no_token'
+    ? 'No Seeker Genesis Token found on this wallet.'
+    : seeker.status === 'unavailable'
+      ? 'Seeker verification is not available right now.'
+      : 'Holders of a Seeker Genesis Token get the SEEKER badge on the leaderboards.';
+  return (
+    <View style={styles.seekerPrompt}>
+      <Txt variant="body" tone="secondary" style={styles.copy}>{copy}</Txt>
+      <PillButton kind="secondary" label="Verify Seeker" onPress={seeker.link} disabled={busy || seeker.status === 'unavailable'} />
     </View>
   );
 }
@@ -406,6 +468,15 @@ const styles = StyleSheet.create({
   avatar: { width: AVATAR, height: AVATAR },
   identityText: { flex: 1, minWidth: 0 },
   address: { fontFamily: FONTS.mono, fontSize: 16, color: COLORS.text },
+  // The Seeker row's `linked` tile: the darker inset used for the signing sheets' amount box
+  // (`rgba(0,0,0,.35)` over the card's own lighter glass), so the badge's confirmation reads as a
+  // nested state rather than another balance.
+  seekerTile: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: RADIUS.tile,
+    backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(236,228,253,0.12)',
+  },
+  seekerTileText: { flex: 1 },
+  seekerPrompt: { gap: 10 },
   balances: { flexDirection: 'row', gap: 6 },
   balance: { flex: 1, minWidth: 0 },
   balanceLabel: { fontSize: 11 },

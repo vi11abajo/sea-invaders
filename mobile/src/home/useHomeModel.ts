@@ -33,8 +33,12 @@ function rankedFrom(today: TodayInfo, fetchedAt: number): RankedInfo {
   };
 }
 
-/** Builds the HomeModel from the session and the server's view of today. Ranked data needs a session. */
-export function useHomeModel(session: Session | null, progress: CampaignProgress | null): { model: HomeModel; refresh: () => void; error: string | null } {
+/**
+ * Builds the HomeModel from the session and the server's view of today. Ranked data needs a
+ * session. `seekerLinked` comes from the app shell's single `useSeeker` (Phase 3C), shared with the
+ * Profile, so the wallet pill's `SEEKER` badge and the Profile's Seeker row never disagree.
+ */
+export function useHomeModel(session: Session | null, progress: CampaignProgress | null, seekerLinked: boolean): { model: HomeModel; refresh: () => void; error: string | null } {
   const [ranked, setRanked] = useState<RankedInfo | null>(null);
   const [skrBalance, setSkrBalance] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +70,6 @@ export function useHomeModel(session: Session | null, progress: CampaignProgress
     };
   }, [session, version]);
 
-  const wallet = session === null ? null : { address: session.walletAddress, seeker: false, skr: skrBalance };
+  const wallet = session === null ? null : { address: session.walletAddress, seeker: seekerLinked, skr: skrBalance };
   return { model: { wallet, ranked, campaign: campaignFrom(progress) }, refresh, error };
 }

@@ -7,6 +7,7 @@ import { OctopiAvatar } from '../game/OctopiArt';
 import { Backdrop } from '../ui/Backdrop';
 import { Glass } from '../ui/Glass';
 import { PillButton } from '../ui/PillButton';
+import { SeekerBadge } from '../ui/SeekerBadge';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS, SIZE } from '../ui/tokens';
 import { boardStyles } from './boardStyles';
@@ -89,7 +90,10 @@ export function LeaderboardScreen({ onBack }: { onBack: () => void }) {
                 <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
                 <OctopiAvatar skin={item.skin} size={SIZE.avatar} />
                 <View style={boardStyles.who}>
-                  <Txt variant="body">{item.username}</Txt>
+                  <View style={boardStyles.nameRow}>
+                    <Txt variant="body" numberOfLines={1} style={boardStyles.name}>{item.username}</Txt>
+                    {item.seeker && <SeekerBadge />}
+                  </View>
                   <Txt variant="monoSmall" tone="tertiary">{shortAddress(item.walletAddress)}</Txt>
                 </View>
                 <Txt variant="mono">{formatInt(item.score)}</Txt>

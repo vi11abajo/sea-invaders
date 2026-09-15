@@ -10,5 +10,7 @@ export const boardStyles = StyleSheet.create({
   mine: { borderColor: COLORS.success },
   rank: { width: 28, textAlign: 'right' },
   who: { flex: 1, gap: 2 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  name: { flexShrink: 1 },
   center: { textAlign: 'center', marginTop: 40 },
 });

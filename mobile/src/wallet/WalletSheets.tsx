@@ -66,9 +66,13 @@ function AmountTile({ label, value, short = false }: { label: string; value: str
 /**
  * "Waiting for signature" (handoff 11): spinner, title, what is being paid, and the mono amount +
  * fee row. `swap` adds a second line naming what an auto-swap contributes, under - never instead
- * of - the price, so the SKR the wallet already holds is never hidden. Not dismissible.
+ * of - the price, so the SKR the wallet already holds is never hidden. `amount` is null for a
+ * signature that pays nothing (Phase 3C's Seeker link): the amount row is skipped and `swap` (a
+ * plain note in that case, e.g. "One wallet signature · no fee beyond network") stands alone. Not
+ * dismissible. Exported so other signature flows outside a purchase (Seeker link) reuse the same
+ * sheet rather than growing their own.
  */
-function SigningSheet({ title, what, amount, fee, swap }: { title: string; what: string; amount: string; fee: string | null; swap: string | null }) {
+export function SigningSheet({ title, what, amount, fee, swap }: { title: string; what: string; amount: string | null; fee: string | null; swap: string | null }) {
   return (
     <Sheet kind="modal">
       <View style={styles.signHead}>
@@ -78,13 +82,17 @@ function SigningSheet({ title, what, amount, fee, swap }: { title: string; what:
           <Txt variant="body" tone="secondary">{what}</Txt>
         </View>
       </View>
-      <View style={styles.amountBox}>
-        <View style={styles.amountRow}>
-          <Txt style={styles.amountText} numberOfLines={1}>{amount}</Txt>
-          {fee !== null && <Txt style={styles.amountText} numberOfLines={1}>{fee}</Txt>}
+      {(amount !== null || swap !== null) && (
+        <View style={styles.amountBox}>
+          {amount !== null && (
+            <View style={styles.amountRow}>
+              <Txt style={styles.amountText} numberOfLines={1}>{amount}</Txt>
+              {fee !== null && <Txt style={styles.amountText} numberOfLines={1}>{fee}</Txt>}
+            </View>
+          )}
+          {swap !== null && <Txt style={[styles.amountText, styles.amountNote]} numberOfLines={1}>{swap}</Txt>}
         </View>
-        {swap !== null && <Txt style={[styles.amountText, styles.amountNote]} numberOfLines={1}>{swap}</Txt>}
-      </View>
+      )}
     </Sheet>
   );
 }

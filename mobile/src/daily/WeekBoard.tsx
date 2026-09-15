@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 import type { WeekBoard as WeekBoardData } from '../api/daily';
 import { OctopiAvatar } from '../game/OctopiArt';
 import { Glass } from '../ui/Glass';
+import { SeekerBadge } from '../ui/SeekerBadge';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS, SIZE } from '../ui/tokens';
 import { boardStyles } from './boardStyles';
@@ -51,7 +52,10 @@ export function WeekBoard({ data, error, mine }: WeekBoardProps) {
               <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
               <OctopiAvatar skin={item.skin} size={SIZE.avatar} />
               <View style={boardStyles.who}>
-                <Txt variant="body">{item.username ?? shortAddress(item.walletAddress)}</Txt>
+                <View style={boardStyles.nameRow}>
+                  <Txt variant="body" numberOfLines={1} style={boardStyles.name}>{item.username ?? shortAddress(item.walletAddress)}</Txt>
+                  {item.seeker && <SeekerBadge />}
+                </View>
                 <Txt variant="monoSmall" tone="tertiary">{dayLine(item.days)}</Txt>
               </View>
               <View style={styles.totals}>
