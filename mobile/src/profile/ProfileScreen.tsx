@@ -3,11 +3,12 @@ import { Canvas, Circle, LinearGradient, vec } from '@shopify/react-native-skia'
 import { PublicKey } from '@solana/web3.js';
 import { useMobileWallet } from '@wallet-ui/react-native-web3js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { ApiError } from '../api/client';
 import type { LoadoutChange } from '../api/profile';
 import { getShop } from '../api/shop';
+import { useAudioSettings } from '../audio/settings';
 import { BASE_OCTOPI_NAME, ITEM_NAMES, skinOfItem, variantOfItem } from '../loadout/items';
 import type { LoadoutState } from '../loadout/useLoadout';
 import { ItemArt } from '../shop/ItemArt';
@@ -126,6 +127,7 @@ export function ProfileScreen({
   walletAddress, loadout, onEquip, onReloadLoadout, onConnect, connecting, signInError, onDisconnect, onBack, seeker,
 }: ProfileScreenProps) {
   const { connection } = useMobileWallet();
+  const audio = useAudioSettings();
   const [skr, setSkr] = useState<number | null>(null);
   const [solLamports, setSolLamports] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -318,6 +320,12 @@ export function ProfileScreen({
               <PillButton label="Connect wallet" onPress={() => setConnectOpen(true)} disabled={connecting} />
             </View>
           )}
+          <Txt variant="secondary" tone="secondary" style={styles.section}>SOUND &amp; TOUCH</Txt>
+          <View style={styles.card}>
+            <SettingRow label="Sounds" value={audio.sounds} onChange={audio.setSounds} />
+            <View style={styles.settingDivider} />
+            <SettingRow label="Music" value={audio.music} onChange={audio.setMusic} />
+          </View>
           <Txt variant="secondary" tone="secondary" style={styles.section}>INVENTORY</Txt>
           <Txt variant="label" tone="tertiary">CAMPAIGN OCTOPI</Txt>
           <TileGrid tiles={variants} disabled={tileDisabled} onPress={onTile} />
@@ -366,6 +374,21 @@ function Avatar() {
         <LinearGradient start={vec(0, 0)} end={vec(AVATAR, AVATAR)} colors={AVATAR_GRADIENT} />
       </Circle>
     </Canvas>
+  );
+}
+
+/** One row of the "Sound & touch" card: a label and a switch, following the app's own colours rather than the OS default. */
+function SettingRow({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <View style={styles.settingRow}>
+      <Txt variant="body">{label}</Txt>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: COLORS.secondary, true: COLORS.success }}
+        thumbColor={COLORS.text}
+      />
+    </View>
   );
 }
 
@@ -471,6 +494,8 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_GLASS, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
   cardNoWallet: { gap: 12 },
+  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  settingDivider: { height: 1, backgroundColor: 'rgba(236,228,253,0.08)' },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   avatar: { width: AVATAR, height: AVATAR },
   identityText: { flex: 1, minWidth: 0 },

@@ -1,6 +1,7 @@
 {
   "name": "sea-invaders-mobile",
   "version": "0.1.0",
+  "license": "UNLICENSED",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/geist-mono": "^0.4.3",
@@ -11,6 +12,7 @@
     "@solana/web3.js": "^1.99.0",
     "@wallet-ui/react-native-web3js": "^4.3.0",
     "expo": "~57.0.21",
+    "expo-audio": "~57.0.5",
     "expo-font": "~57.0.4",
     "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",

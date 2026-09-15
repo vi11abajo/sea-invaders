@@ -26,7 +26,8 @@
     "plugins": [
       "expo-font",
       "expo-secure-store",
-      "./plugins/withCleartextApi.js"
+      "./plugins/withCleartextApi.js",
+      "expo-audio"
     ],
     "backgroundColor": "#0C0C0E"
   }
