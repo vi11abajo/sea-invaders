@@ -1,6 +1,6 @@
 import { formatCountdown, formatInt } from '@sea-invaders/core';
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { skinName, useActiveSkin, useEquippedOctopi, variantName } from '../game/skins';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
@@ -19,6 +19,14 @@ import type { HomeModel, RankedInfo } from './model';
  * it (`· Lime skin`).
  */
 const HERO_CAPTION = 'Octopi · base defender';
+
+/**
+ * Home's background, an owner trial (2026-09-15): the reef key art (`assets/home-bg.jpg`, drawn
+ * edge to edge with `cover`) in place of the animated `Backdrop` and its light rays. Set this to
+ * `false` to bring the rays back — nothing else changes.
+ */
+const HOME_KEY_ART_BACKGROUND = true;
+const HOME_KEY_ART = require('../../assets/home-bg.jpg');
 
 /** Fractional SKR (the pool balance) renders with one decimal; `formatInt` is for whole scores. */
 function formatSkr(value: number): string {
@@ -75,7 +83,11 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
 
   return (
     <View style={styles.root}>
-      <Backdrop floorGlow />
+      {HOME_KEY_ART_BACKGROUND ? (
+        <Image source={HOME_KEY_ART} style={styles.keyArt} resizeMode="cover" fadeDuration={0} />
+      ) : (
+        <Backdrop floorGlow />
+      )}
       <View style={styles.column}>
         <View style={styles.inset}>
           <HomeTopBar wallet={model.wallet} onWallet={model.wallet ? onProfile : onWallet} onShop={openShop} />
@@ -156,6 +168,7 @@ function tickerItems(r: RankedInfo, now: number): TickerItem[] {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.app },
+  keyArt: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   column: { flex: 1, paddingTop: 28, paddingBottom: 28 },
   inset: { paddingHorizontal: 16, gap: 16 },
   ticker: { marginTop: 22 },
