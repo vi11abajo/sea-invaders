@@ -106,6 +106,34 @@ describe('readSeeker', () => {
     await memoryUsers.setSeekerMint(WALLET, SGT_MINT);
     expect(await readSeeker(WALLET)).toEqual({ linked: false, sgtMint: null });
   });
+
+  it('backfills the mirror from the chain when a link landed but was never confirmed', async () => {
+    // Player.seeker is true (the link_seeker transaction landed) but the mirror was never written
+    // (poll timeout, app killed) - the chain's own seeker_link account is the one place left to
+    // learn the mint from.
+    fakeChain.setPlayer(WALLET, { seeker: true });
+    fakeChain.setSeekerLink(SGT_MINT, WALLET);
+    expect(await readSeeker(WALLET)).toEqual({ linked: true, sgtMint: SGT_MINT });
+    expect(await memoryUsers.getSeekerMint(WALLET)).toBe(SGT_MINT);
+  });
+
+  it('reports sgtMint: null when the chain has no seeker_link for a linked player either', async () => {
+    fakeChain.setPlayer(WALLET, { seeker: true });
+    expect(await readSeeker(WALLET)).toEqual({ linked: true, sgtMint: null });
+    expect(await memoryUsers.getSeekerMint(WALLET)).toBeNull();
+  });
+
+  it('does not throw when the backfill lookup fails, and writes nothing', async () => {
+    fakeChain.setPlayer(WALLET, { seeker: true });
+    fakeChain.setGetSeekerLinkByPlayerError(new Error('RPC unavailable'));
+    expect(await readSeeker(WALLET)).toEqual({ linked: true, sgtMint: null });
+    expect(await memoryUsers.getSeekerMint(WALLET)).toBeNull();
+  });
+
+  it('never looks up the backfill for an unlinked player', async () => {
+    await readSeeker(WALLET);
+    expect(fakeChain.state.calls.getSeekerLinkByPlayer).toEqual([]);
+  });
 });
 
 describe('issueSeekerLink', () => {
@@ -136,6 +164,14 @@ describe('issueSeekerLink', () => {
   it('answers no_seeker_token for a wallet holding none', async () => {
     holdsNothing();
     await expect(issueSeekerLink({ wallet: WALLET })).rejects.toMatchObject({ code: 'no_seeker_token', status: 404 });
+  });
+
+  it('answers seeker_unavailable, not no_seeker_token, when the mainnet read itself fails', async () => {
+    // A chunk read failing with nothing accepted makes findSeekerGenesisToken throw (helius.js) -
+    // the player must be told to retry, never that they hold no token.
+    const fetchImpl = heliusFetch({ pages: [[tokenAccount({ owner: WALLET, mint: SGT_MINT })]], mints: {}, failMultipleAccountsCalls: [1] });
+    vi.stubGlobal('fetch', fetchImpl);
+    await expect(issueSeekerLink({ wallet: WALLET })).rejects.toMatchObject({ code: 'seeker_unavailable', status: 503 });
   });
 
   it('refuses a mint already linked on chain', async () => {

@@ -30,7 +30,7 @@ const {
   getSeekerLink,
 } = await import('../src/chain/readers.js');
 const { catalogPda } = await import('../src/chain/pdas.js');
-const { hasPurchase, hasRevive, hasLinkSeeker, linkedSeekerMint } = await import('../src/chain/verify.js');
+const { hasPurchase, hasRevive, linkedSeekerMint } = await import('../src/chain/verify.js');
 
 const { programId } = chainConfig();
 
@@ -625,32 +625,33 @@ describe('chain/verify', () => {
     })).instructions;
   }
 
-  it('hasLinkSeeker needs both signers: the wallet and our own server authority', async () => {
+  it('linkedSeekerMint needs both signers: the wallet and our own server authority', async () => {
     const wallet = Keypair.generate().publicKey;
+    const sgtMint = Keypair.generate().publicKey;
     const other = Keypair.generate().publicKey.toBase58();
     const server = serverAuthority.publicKey.toBase58();
-    const instructions = await linkSeekerInstructions(wallet);
+    const instructions = await linkSeekerInstructions(wallet, { sgtMint });
 
-    expect(hasLinkSeeker(instructions, { wallet: wallet.toBase58(), serverAuthority: server })).toBe(true);
-    expect(hasLinkSeeker(instructions, { wallet: other, serverAuthority: server })).toBe(false);
-    expect(hasLinkSeeker(instructions, { wallet: wallet.toBase58(), serverAuthority: other })).toBe(false);
+    expect(linkedSeekerMint(instructions, { wallet: wallet.toBase58(), serverAuthority: server })).toBe(sgtMint.toBase58());
+    expect(linkedSeekerMint(instructions, { wallet: other, serverAuthority: server })).toBeNull();
+    expect(linkedSeekerMint(instructions, { wallet: wallet.toBase58(), serverAuthority: other })).toBeNull();
   });
 
-  it('hasLinkSeeker is false for a link co-signed by a foreign server authority', async () => {
+  it('linkedSeekerMint is null for a link co-signed by a foreign server authority', async () => {
     // The server's signature is the attestation that the mainnet Seeker check passed, so a link
     // attested by anybody else must not confirm - however well-formed the rest of it looks.
     const wallet = Keypair.generate().publicKey;
     const instructions = await linkSeekerInstructions(wallet, { server: Keypair.generate().publicKey });
-    expect(hasLinkSeeker(instructions, { wallet: wallet.toBase58(), serverAuthority: serverAuthority.publicKey.toBase58() })).toBe(false);
+    expect(linkedSeekerMint(instructions, { wallet: wallet.toBase58(), serverAuthority: serverAuthority.publicKey.toBase58() })).toBeNull();
   });
 
-  it('hasLinkSeeker is false for a foreign program id and for another instruction of ours', async () => {
+  it('linkedSeekerMint is null for a foreign program id and for another instruction of ours', async () => {
     const wallet = Keypair.generate().publicKey;
     const server = serverAuthority.publicKey.toBase58();
     const real = await linkSeekerInstructions(wallet);
     const spoofed = real.map((ix) => ({ ...ix, programId: Keypair.generate().publicKey.toBase58() }));
-    expect(hasLinkSeeker(spoofed, { wallet: wallet.toBase58(), serverAuthority: server })).toBe(false);
-    expect(hasLinkSeeker(await purchaseInstructions(wallet), { wallet: wallet.toBase58(), serverAuthority: server })).toBe(false);
+    expect(linkedSeekerMint(spoofed, { wallet: wallet.toBase58(), serverAuthority: server })).toBeNull();
+    expect(linkedSeekerMint(await purchaseInstructions(wallet), { wallet: wallet.toBase58(), serverAuthority: server })).toBeNull();
   });
 
   it('linkedSeekerMint reads the linked mint off the verified instruction itself', async () => {

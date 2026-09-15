@@ -63,8 +63,3 @@ export function linkedSeekerMint(instructions, { wallet, serverAuthority }) {
   ));
   return match ? new PublicKey(match.data.subarray(8, 40)).toBase58() : null;
 }
-
-/** True when `instructions` contains a `link_seeker` of our program signed by both `wallet` and `serverAuthority`. */
-export function hasLinkSeeker(instructions, { wallet, serverAuthority }) {
-  return linkedSeekerMint(instructions, { wallet, serverAuthority }) !== null;
-}

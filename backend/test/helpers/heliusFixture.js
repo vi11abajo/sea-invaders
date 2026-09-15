@@ -34,8 +34,10 @@ export function tokenAccount({ owner, mint, amount = '1', pubkey = 'TokenAccount
 }
 
 /**
- * A Token-2022 mint as `getAccountInfo` reports it with `jsonParsed`. Every field the Seeker check
- * reads defaults to a real Genesis Token's value, so a test only names the one it wants wrong.
+ * A Token-2022 mint account with `jsonParsed` encoding - both what `getAccountInfo` reports for one
+ * mint and, unwrapped the same way, what one element of a `getMultipleAccounts` `result.value` array
+ * looks like. Every field the Seeker check reads defaults to a real Genesis Token's value, so a test
+ * only names the one it wants wrong.
  */
 export function mintAccount({ mint, mintAuthority = SGT_MINT_AUTHORITY, metadataAddress = SGT_COLLECTION, group = SGT_COLLECTION, extensions } = {}) {
   const account = resolve(raw.mintAccount, {
@@ -65,9 +67,17 @@ function accountsPage(accounts, paginationKey, withContext) {
 /**
  * A `fetch` stub answering Helius's JSON-RPC calls: `pages` holds the wallet's Token-2022 accounts
  * split into `getTokenAccountsByOwnerV2` pages (the stub hands out `paginationKey`s and expects them
- * back), `mints` maps a mint address to what `getAccountInfo` reports for it (an unknown mint answers
- * `null`, as the RPC does). Every call is recorded, so a test can assert both what was asked and that
- * nothing was asked once the answer was already known.
+ * back), `mints` maps a mint address to what its account looks like (an unknown mint answers `null`,
+ * as the RPC does). Every call is recorded, so a test can assert both what was asked and that nothing
+ * was asked once the answer was already known.
+ *
+ * Mints are read in batches via `getMultipleAccounts`, not one at a time: the request's first param
+ * is the array of mint addresses, and PROVENANCE (Solana JSON-RPC docs, `getMultipleAccounts`) - the
+ * reply is `result.value`, an array in the same order as the request with `null` for an account the
+ * RPC does not know and each other element the same per-account shape `mints` already holds.
+ * `failMultipleAccountsCalls` names the 1-based `getMultipleAccounts` call numbers (not counting
+ * `getTokenAccountsByOwnerV2` calls) that should fail with a transport error instead of answering, so
+ * a test can simulate one bad chunk read without the rest of the walk failing too.
  *
  * `withContext` serves the context envelope instead of the default one. `endlessCursor` keeps handing
  * out a cursor past the last page - what the reference warns about, since "end of pagination is only
@@ -76,9 +86,10 @@ function accountsPage(accounts, paginationKey, withContext) {
  */
 export function heliusFetch({
   pages = [[]], mints = {}, withContext = false, endlessCursor = false, repeatLastPage = false,
-  ok = true, status = 200, error = null,
+  ok = true, status = 200, error = null, failMultipleAccountsCalls = [],
 } = {}) {
   const calls = [];
+  let multipleAccountsCalls = 0;
   const fetchImpl = async (url, init) => {
     const body = JSON.parse(init.body);
     calls.push({ url: String(url), method: body.method, params: body.params, headers: init.headers });
@@ -91,8 +102,13 @@ export function heliusFetch({
       const hasMore = index + 1 < pages.length || endlessCursor;
       return rpcResponse(accountsPage(accounts, hasMore ? `page-${index + 1}` : null, withContext));
     }
-    if (body.method === 'getAccountInfo') {
-      return rpcResponse({ context: { slot: 1, apiVersion: '2.0.0' }, value: mints[body.params[0]] ?? null });
+    if (body.method === 'getMultipleAccounts') {
+      multipleAccountsCalls += 1;
+      if (failMultipleAccountsCalls.includes(multipleAccountsCalls)) {
+        return { ok: false, status: 503, json: async () => ({}) };
+      }
+      const [requested] = body.params;
+      return rpcResponse({ value: requested.map((mint) => mints[mint] ?? null) });
     }
     throw new Error(`Unexpected Helius method ${body.method}`);
   };

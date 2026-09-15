@@ -78,11 +78,15 @@ export const state = {
   confirmedTxs: new Map(),
   catalog: defaultCatalog(),
   seekerLinks: new Map(),
-  calls: { createWeekPool: [], settleWeek: [], getWeekPool: [], buildPurchaseTx: [], buildReviveTx: [], buildLinkSeekerTx: [] },
+  calls: {
+    createWeekPool: [], settleWeek: [], getWeekPool: [], buildPurchaseTx: [], buildReviveTx: [], buildLinkSeekerTx: [],
+    getSeekerLinkByPlayer: [],
+  },
   sentTxs: [],
   sendSignedError: null,
   solBalance: 1_000_000_000n, // 1 SOL - plenty, so the faucet's balance check passes by default
   mintTestTokensError: null,
+  getSeekerLinkByPlayerError: null,
 };
 
 /** Resets all fake chain state between tests. */
@@ -95,11 +99,15 @@ export function reset() {
   state.confirmedTxs.clear();
   state.catalog = defaultCatalog();
   state.seekerLinks.clear();
-  state.calls = { createWeekPool: [], settleWeek: [], getWeekPool: [], buildPurchaseTx: [], buildReviveTx: [], buildLinkSeekerTx: [] };
+  state.calls = {
+    createWeekPool: [], settleWeek: [], getWeekPool: [], buildPurchaseTx: [], buildReviveTx: [], buildLinkSeekerTx: [],
+    getSeekerLinkByPlayer: [],
+  };
   state.sentTxs = [];
   state.sendSignedError = null;
   state.solBalance = 1_000_000_000n;
   state.mintTestTokensError = null;
+  state.getSeekerLinkByPlayerError = null;
 }
 
 /** Merges `patch` into the current config (or clears it with `null`). */
@@ -163,6 +171,11 @@ export function setMintTestTokensError(error) {
   state.mintTestTokensError = error;
 }
 
+/** Makes the next `getSeekerLinkByPlayer` call throw `error` instead of scanning the fake links. */
+export function setGetSeekerLinkByPlayerError(error) {
+  state.getSeekerLinkByPlayerError = error;
+}
+
 // ---- readers.js ----
 
 export async function getConfig() {
@@ -205,6 +218,17 @@ export async function getConfirmedInstructions(signature) {
 
 export async function getSeekerLink(sgtMint) {
   return state.seekerLinks.get(keyOf(sgtMint)) ?? null;
+}
+
+/** Scans the fake `seekerLinks` (as the real memcmp-on-`player` scan would) for the one linked to `wallet`. */
+export async function getSeekerLinkByPlayer(wallet) {
+  state.calls.getSeekerLinkByPlayer.push(keyOf(wallet));
+  if (state.getSeekerLinkByPlayerError) throw state.getSeekerLinkByPlayerError;
+  const key = keyOf(wallet);
+  for (const link of state.seekerLinks.values()) {
+    if (link.player === key) return link;
+  }
+  return null;
 }
 
 export async function getSolBalance() {

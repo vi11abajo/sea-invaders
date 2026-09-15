@@ -6,7 +6,7 @@
 // The badge changes nothing else: no scores, no prices, no attempts.
 import { chainConfig, heliusAvailable } from '../chain/config.js';
 import { findSeekerGenesisToken } from '../chain/helius.js';
-import { getConfirmedInstructions, getPlayer, getSeekerLink } from '../chain/readers.js';
+import { getConfirmedInstructions, getPlayer, getSeekerLink, getSeekerLinkByPlayer } from '../chain/readers.js';
 import { buildLinkSeekerTx } from '../chain/txs.js';
 import { linkedSeekerMint } from '../chain/verify.js';
 import * as usersDb from '../db/users.js';
@@ -29,20 +29,46 @@ export class SeekerError extends Error {
 /**
  * A wallet's link status: `{ linked, sgtMint }`. The chain decides `linked` (`Player.seeker`); the
  * mirror only remembers the mint, so a player linked on chain whose mirror row was never written
- * still reports `linked: true` with a `null` mint - and a mirror row the chain does not back grants
- * nothing at all.
+ * still reports `linked: true` - backfilled from the chain's own `seeker_link` account when possible
+ * (see `backfillSeekerMirror` below), `null` when that lookup fails or finds nothing - and a mirror
+ * row the chain does not back grants nothing at all.
  */
 export async function readSeeker(wallet) {
   const [player, sgtMint] = await Promise.all([getPlayer(wallet), usersDb.getSeekerMint(wallet)]);
   const linked = Boolean(player?.seeker);
-  return { linked, sgtMint: linked ? sgtMint ?? null : null };
+  if (!linked) return { linked: false, sgtMint: null };
+  return { linked: true, sgtMint: sgtMint ?? (await backfillSeekerMirror(wallet)) };
+}
+
+/**
+ * A link that landed on chain but was never confirmed (a poll timeout, the app killed mid-flight)
+ * leaves `Player.seeker` true with no mirror row, so the daily board - which reads the mirror, not
+ * the chain, to render the badge in one query - shows nothing for a player who already has one.
+ * Finds the wallet's `seeker_link` account by scanning (`getSeekerLinkByPlayer`) and writes it into
+ * the mirror so the daily board catches up; only called for a player the chain already links, with
+ * an empty mirror. A lookup or write failure must not break the read this backs - `readSeeker`
+ * already has its true answer (`linked: true`) - so it is caught, logged without the key, and
+ * reported the same as an unfound link: `null`.
+ */
+async function backfillSeekerMirror(wallet) {
+  try {
+    const link = await getSeekerLinkByPlayer(wallet);
+    if (!link) return null;
+    await usersDb.setSeekerMint(wallet, link.sgtMint);
+    return link.sgtMint;
+  } catch (error) {
+    console.warn(`Seeker mirror backfill failed: ${error.message}`);
+    return null;
+  }
 }
 
 /**
  * Finds the wallet's Genesis Token on mainnet and builds the `link_seeker` transaction for it,
  * partially signed by the server authority (`create_player` first when the wallet has no `Player`
  * PDA yet, exactly as the ticket and purchase builders do). Throws `seeker_unavailable` without a
- * Helius key, `seeker_already_linked` for a player the chain already links, `no_seeker_token` for a
+ * Helius key (or when the mainnet read itself fails - `findSeekerGenesisToken` throws only when a
+ * chunk read failed and nothing was accepted, so the player retries instead of being told they hold
+ * no token), `seeker_already_linked` for a player the chain already links, `no_seeker_token` for a
  * wallet holding none, and `seeker_mint_taken` for a token already spoken for.
  *
  * The chain is asked before mainnet is: an already-linked player never costs a Helius call.
@@ -53,7 +79,12 @@ export async function issueSeekerLink({ wallet }) {
   const player = await getPlayer(wallet);
   if (player?.seeker) throw new SeekerError('seeker_already_linked', 'This player already has a Seeker Genesis Token linked');
 
-  const sgtMint = await findSeekerGenesisToken(wallet);
+  let sgtMint;
+  try {
+    sgtMint = await findSeekerGenesisToken(wallet);
+  } catch {
+    throw new SeekerError('seeker_unavailable', 'The Seeker check is not available right now');
+  }
   if (!sgtMint) throw new SeekerError('no_seeker_token', 'No Seeker Genesis Token found on this wallet');
 
   // One token, one player. The chain enforces it at `init` (the PDA's seeds are the mint), which is

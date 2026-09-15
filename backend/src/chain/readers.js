@@ -64,6 +64,32 @@ export async function getSeekerLink(sgtMint, connection = defaultConnection()) {
   };
 }
 
+/**
+ * The `seeker_link` account for whichever Seeker Genesis Token `wallet`'s player linked, found by
+ * scanning `SeekerLink` accounts (81 bytes: 8-byte discriminator, `sgt_mint` pubkey at 8, `player`
+ * pubkey at 40, `linked_at` i64 at 72, `bump` u8 at 80 - verified against `chain/idl/sea_invaders.json`)
+ * for one whose `player` field matches. Used only to backfill the mirror (`services/seeker.js#readSeeker`)
+ * when the chain already says `Player.seeker` but no mint was ever recorded - a link that landed on
+ * chain but whose confirm never ran (poll timeout, app killed). Seeds are per-mint, not per-player, so
+ * this is the one lookup that has to scan rather than derive a PDA; the first match, mapped like
+ * `getSeekerLink`, or `null` when the player has no `seeker_link` at all.
+ */
+export async function getSeekerLinkByPlayer(wallet, connection = defaultConnection()) {
+  const walletKey = wallet instanceof PublicKey ? wallet : new PublicKey(wallet);
+  const accounts = await buildProgram(connection).account.seekerLink.all([
+    { dataSize: 81 },
+    { memcmp: { offset: 40, bytes: walletKey.toBase58() } },
+  ]);
+  const acct = accounts[0]?.account;
+  if (!acct) return null;
+  return {
+    sgtMint: acct.sgtMint.toBase58(),
+    player: acct.player.toBase58(),
+    linkedAt: toNumber(acct.linkedAt),
+    bump: acct.bump,
+  };
+}
+
 /** The singleton `catalog` account, or `null` if it has not been created yet. `items` is trimmed to `count` entries. */
 export async function getCatalog(connection = defaultConnection()) {
   const acct = await buildProgram(connection).account.catalog.fetchNullable(catalogPda());
