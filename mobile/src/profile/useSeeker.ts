@@ -25,9 +25,13 @@ export interface SeekerState {
   refresh: () => void;
 }
 
-/** `describeRecordError`'s pattern (`useRecordScore.ts`): a `PollTimeout`'s own copy is generic enough to reuse as-is. */
+/**
+ * `describeRecordError`'s pattern (`useRecordScore.ts`), but `PollTimeout`'s own copy is about a
+ * purchase, not a Seeker link, so it gets its own wording here - the Profile now really re-reads
+ * the status on pull (see `refresh` above), so "pull down to check again" is accurate.
+ */
 function describeLinkError(error: unknown): string {
-  if (error instanceof PollTimeout) return error.message;
+  if (error instanceof PollTimeout) return 'Link not confirmed yet — pull down to check again.';
   if (error instanceof ApiError) {
     if (error.code === 'seeker_mint_taken') return 'That Seeker Genesis Token is already linked to another wallet.';
     return error.message;

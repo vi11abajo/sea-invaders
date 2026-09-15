@@ -169,12 +169,19 @@ export function ProfileScreen({
     onReloadLoadout();
   }, [onReloadLoadout]);
 
+  // A Seeker link that landed after the confirm poll timed out shows up as soon as the Profile
+  // opens too, same reasoning as the loadout re-read above.
+  useEffect(() => {
+    seeker.refresh();
+  }, [seeker.refresh]);
+
   const refresh = useCallback(async () => {
     setRefreshing(true);
     onReloadLoadout();
+    seeker.refresh();
     await loadBalances();
     if (alive.current) setRefreshing(false);
-  }, [onReloadLoadout, loadBalances]);
+  }, [onReloadLoadout, loadBalances, seeker.refresh]);
 
   // The prototype's connect/disconnect toasts, on the session actually changing.
   const lastWallet = useRef(walletAddress);
@@ -343,7 +350,7 @@ export function ProfileScreen({
           what="Verify Seeker"
           amount={null}
           fee={null}
-          swap="One wallet signature · no fee beyond network"
+          swap="One wallet signature · network fee and account rent only"
         />
       )}
       {toast !== null && <Toast key={toast.id} text={toast.text} dot={toast.dot} onHide={() => setToast(null)} />}

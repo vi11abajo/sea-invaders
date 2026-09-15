@@ -27,7 +27,12 @@ export interface TodayInfo {
   weekRank: number | null;
   skrBalance: number;
   cluster: Cluster;
-  /** Whether the signed-in wallet has a linked Seeker Genesis Token (Phase 3C); false when signed out, unlinked, or on an older API that omits it. */
+  /**
+   * Whether the signed-in wallet has a linked Seeker Genesis Token (Phase 3C); false when signed
+   * out, unlinked, or on an older API that omits it. Home's wallet pill and the Profile row read
+   * the status from `useSeeker` instead so both always agree; this field is the API's own mirror
+   * of it.
+   */
   seeker: boolean;
 }
 
