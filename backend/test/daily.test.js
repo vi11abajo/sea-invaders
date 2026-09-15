@@ -88,6 +88,14 @@ describe('/api/daily', () => {
     });
   });
 
+  it('carries the Seeker badge on today, from the on-chain player', async () => {
+    expect((await request(app).get('/api/daily/today').set(auth)).body.seeker).toBe(false);
+
+    fakeChain.setPlayer(user.wallet_address, { seeker: true });
+    clearPlayerCache();
+    expect((await request(app).get('/api/daily/today').set(auth)).body.seeker).toBe(true);
+  });
+
   it('requires a token to start a run', async () => {
     expect((await request(app).post('/api/daily/runs')).status).toBe(401);
   });
@@ -108,7 +116,19 @@ describe('/api/daily', () => {
     expect(finished.status).toBe(200);
     expect(finished.body).toMatchObject({ runId, score: played.score, isDayBest: true });
     const board = await request(app).get('/api/daily/leaderboard');
-    expect(board.body).toEqual({ day, entries: [{ rank: 1, username: 'Ab12...Cd34', walletAddress: user.wallet_address, score: played.score, skin: 0 }] });
+    expect(board.body).toEqual({ day, entries: [{ rank: 1, username: 'Ab12...Cd34', walletAddress: user.wallet_address, score: played.score, skin: 0, seeker: false }] });
+  });
+
+  // The run is seeded straight into the store rather than played: `scoreSubmitLimiter` (5 finishes
+  // per minute) is a singleton no beforeEach resets, and this file already spends most of its budget.
+  it('flags a linked Seeker owner on the leaderboard', async () => {
+    const day = dayOf(nowSeconds());
+    await memory.insertRun({ id: 'seeker-run', userId: user.id, day });
+    await memory.finishRun('seeker-run', { score: 500, finishedAt: nowSeconds(), status: 'verified' });
+    await memoryUsers.setSeekerMint(user.wallet_address, 'SgtMint11111111111111111111111111111111111111');
+
+    const board = await request(app).get('/api/daily/leaderboard');
+    expect(board.body.entries[0]).toMatchObject({ walletAddress: user.wallet_address, seeker: true });
   });
 
   it("carries the skin of the day's best run on the leaderboard", async () => {

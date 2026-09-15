@@ -28,6 +28,12 @@ export function weekPda(week) {
   return PublicKey.findProgramAddressSync([Buffer.from('week'), u32LE(week)], chainConfig().programId)[0];
 }
 
+/** A Seeker Genesis Token mint's `seeker_link` PDA (seeds = [b"seeker", sgt_mint]) - one per mint, which is what makes the chain itself enforce one token per player. */
+export function seekerLinkPda(sgtMint) {
+  const mintKey = toPublicKey(sgtMint);
+  return PublicKey.findProgramAddressSync([Buffer.from('seeker'), mintKey.toBytes()], chainConfig().programId)[0];
+}
+
 /** The singleton `catalog` PDA (seeds = [b"catalog"]). */
 export function catalogPda() {
   return PublicKey.findProgramAddressSync([Buffer.from('catalog')], chainConfig().programId)[0];

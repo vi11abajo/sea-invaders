@@ -20,3 +20,22 @@ export async function findOrCreateWalletUser(walletAddress) {
 export async function findUsersByWallets(addresses) {
   return addresses.map((address) => users.get(address)).filter(Boolean);
 }
+
+export async function getSeekerMint(walletAddress) {
+  return users.get(walletAddress)?.seeker_mint ?? null;
+}
+
+export async function findWalletBySeekerMint(sgtMint) {
+  const found = [...users.values()].find((user) => user.seeker_mint === sgtMint);
+  return found ? found.wallet_address : null;
+}
+
+export async function setSeekerMint(walletAddress, sgtMint) {
+  const user = users.get(walletAddress);
+  if (!user) return;
+  users.set(walletAddress, { ...user, seeker_mint: sgtMint, seeker_linked_at: new Date() });
+}
+
+export async function findSeekerWallets(addresses) {
+  return addresses.filter((address) => Boolean(users.get(address)?.seeker_mint));
+}

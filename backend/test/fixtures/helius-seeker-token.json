@@ -1,0 +1,99 @@
+{
+  "_comment": [
+    "PROVENANCE: this is a documented-shape SAMPLE, not a live capture. It was assembled by hand on",
+    "2026-09-15 from the published response shapes, not recorded from a real mainnet call:",
+    "`getTokenAccountsByOwnerV2` answers `{ accounts: [{ pubkey, account }], paginationKey }` and",
+    "`getAccountInfo` answers `{ context, value }`, both as documented for the Helius RPC; with",
+    "`encoding: 'jsonParsed'` a Token-2022 account carries `account.data.parsed.info` and a Token-2022",
+    "mint carries its extensions as `info.extensions[]`, each `{ extension, state }` - the two the",
+    "Seeker check reads are named `metadataPointer` and `tokenGroupMember`.",
+    "The three values the check compares against (the Genesis Token's mint authority and the",
+    "collection address its metadata pointer and token group both name) come from the Solana Mobile",
+    "documentation for engaging Seeker users, not from this fixture's own sample data.",
+    "Placeholders (OWNER_WALLET, TOKEN_ACCOUNT, TOKEN_MINT, TOKEN_AMOUNT, MINT_AUTHORITY,",
+    "METADATA_ADDRESS, GROUP_ADDRESS) are resolved by test/helpers/heliusFixture.js.",
+    "Fields no production code reads (lamports, space, rentEpoch, the tokenMetadata extension, ...)",
+    "are kept only so the fixture looks like what the RPC actually returns."
+  ],
+  "sgt": {
+    "mintAuthority": "GT2zuHVaZQYZSyQMgJPLzvkmyztfyXg2NJunqFp4p3A4",
+    "collection": "GT22s89nU4iWFkNXj1Bw6uYhJJWDRPpShHt4Bk8f99Te",
+    "tokenProgramId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+  },
+  "tokenAccount": {
+    "pubkey": "TOKEN_ACCOUNT",
+    "account": {
+      "lamports": 2074080,
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "executable": false,
+      "space": 182,
+      "data": {
+        "program": "spl-token-2022",
+        "space": 182,
+        "parsed": {
+          "type": "account",
+          "info": {
+            "isNative": false,
+            "mint": "TOKEN_MINT",
+            "owner": "OWNER_WALLET",
+            "state": "initialized",
+            "tokenAmount": {
+              "amount": "TOKEN_AMOUNT",
+              "decimals": 0,
+              "uiAmount": 1.0,
+              "uiAmountString": "TOKEN_AMOUNT"
+            }
+          }
+        }
+      }
+    }
+  },
+  "mintAccount": {
+    "lamports": 4000000,
+    "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "executable": false,
+    "space": 502,
+    "data": {
+      "program": "spl-token-2022",
+      "space": 502,
+      "parsed": {
+        "type": "mint",
+        "info": {
+          "decimals": 0,
+          "freezeAuthority": null,
+          "isInitialized": true,
+          "mintAuthority": "MINT_AUTHORITY",
+          "supply": "1",
+          "extensions": [
+            {
+              "extension": "metadataPointer",
+              "state": {
+                "authority": "MINT_AUTHORITY",
+                "metadataAddress": "METADATA_ADDRESS"
+              }
+            },
+            {
+              "extension": "tokenGroupMember",
+              "state": {
+                "group": "GROUP_ADDRESS",
+                "memberNumber": 4242,
+                "mint": "TOKEN_MINT"
+              }
+            },
+            {
+              "extension": "tokenMetadata",
+              "state": {
+                "additionalMetadata": [],
+                "mint": "TOKEN_MINT",
+                "name": "Seeker Genesis Token",
+                "symbol": "SGT",
+                "updateAuthority": "MINT_AUTHORITY",
+                "uri": "https://example.invalid/sgt.json"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

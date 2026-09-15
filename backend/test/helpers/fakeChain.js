@@ -77,7 +77,8 @@ export const state = {
   txs: new Map(),
   confirmedTxs: new Map(),
   catalog: defaultCatalog(),
-  calls: { createWeekPool: [], settleWeek: [], getWeekPool: [], buildPurchaseTx: [], buildReviveTx: [] },
+  seekerLinks: new Map(),
+  calls: { createWeekPool: [], settleWeek: [], getWeekPool: [], buildPurchaseTx: [], buildReviveTx: [], buildLinkSeekerTx: [] },
   sentTxs: [],
   sendSignedError: null,
   solBalance: 1_000_000_000n, // 1 SOL - plenty, so the faucet's balance check passes by default
@@ -93,7 +94,8 @@ export function reset() {
   state.txs.clear();
   state.confirmedTxs.clear();
   state.catalog = defaultCatalog();
-  state.calls = { createWeekPool: [], settleWeek: [], getWeekPool: [], buildPurchaseTx: [], buildReviveTx: [] };
+  state.seekerLinks.clear();
+  state.calls = { createWeekPool: [], settleWeek: [], getWeekPool: [], buildPurchaseTx: [], buildReviveTx: [], buildLinkSeekerTx: [] };
   state.sentTxs = [];
   state.sendSignedError = null;
   state.solBalance = 1_000_000_000n;
@@ -127,6 +129,13 @@ export function setWeekPool(week, patch) {
   const current = state.weekPools.get(week) ?? { week, vault: `Vault${week}`, top: [], settled: false };
   state.weekPools.set(week, { ...current, ...patch });
   return state.weekPools.get(week);
+}
+
+/** Links an SGT mint on chain, as `link_seeker` would: `getSeekerLink(mint)` then reports `player`. */
+export function setSeekerLink(sgtMint, player) {
+  const mint = keyOf(sgtMint);
+  state.seekerLinks.set(mint, { sgtMint: mint, player: keyOf(player), linkedAt: 1_700_000_000, bump: 254 });
+  return state.seekerLinks.get(mint);
 }
 
 /** Sets an owner's SKR token balance (base units). */
@@ -194,6 +203,10 @@ export async function getConfirmedInstructions(signature) {
   return state.confirmedTxs.get(signature) ?? { status: 'missing' };
 }
 
+export async function getSeekerLink(sgtMint) {
+  return state.seekerLinks.get(keyOf(sgtMint)) ?? null;
+}
+
 export async function getSolBalance() {
   return state.solBalance;
 }
@@ -223,6 +236,11 @@ export async function buildReviveTx(wallet, args) {
 }
 
 export async function buildSubmitDailyBestTx() {
+  return { ...FIXED_ENVELOPE };
+}
+
+export async function buildLinkSeekerTx(wallet, args) {
+  state.calls.buildLinkSeekerTx.push({ wallet: keyOf(wallet), ...args, sgtMint: keyOf(args?.sgtMint) });
   return { ...FIXED_ENVELOPE };
 }
 

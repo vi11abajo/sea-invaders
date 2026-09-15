@@ -59,4 +59,19 @@ describe('migration list', () => {
     expect(sql).toMatch(/ALTER TABLE ranked_runs ADD COLUMN IF NOT EXISTS skin SMALLINT NOT NULL DEFAULT 0/);
     expect(sql).toMatch(/CHECK \(skin BETWEEN 0 AND 4\)/);
   });
+
+  it('runs 010 after 009', () => {
+    const order = [...runner.matchAll(/'(\d{3}_[a-z_]+\.sql)'/g)].map((m) => m[1]);
+    expect(order.indexOf('010_seeker.sql')).toBe(order.indexOf('009_run_skin.sql') + 1);
+  });
+
+  it('010 mirrors the Seeker link on users: a nullable, unique mint and the time it was linked', () => {
+    const sql = readFileSync(new URL('../migrations/010_seeker.sql', import.meta.url), 'utf8');
+    expect(sql).toMatch(/ALTER TABLE users ADD COLUMN IF NOT EXISTS seeker_mint VARCHAR\(64\)/);
+    expect(sql).toMatch(/ALTER TABLE users ADD COLUMN IF NOT EXISTS seeker_linked_at TIMESTAMPTZ/);
+    // One token, one player: the chain enforces it via the SeekerLink PDA, the mirror via this index.
+    expect(sql).toMatch(/CREATE UNIQUE INDEX IF NOT EXISTS .*seeker_mint/);
+    // Additive on a live table: both columns stay nullable, so the migration needs no backfill.
+    expect(sql).not.toMatch(/ADD COLUMN[^;]*NOT NULL/);
+  });
 });

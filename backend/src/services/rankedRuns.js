@@ -101,6 +101,7 @@ export async function todayInfo({ userId, wallet, now }) {
     weekTotal: inCurrentWeek ? player.dayBests.reduce((sum, score) => sum + score, 0) : 0,
     weekRank,
     skrBalance: Number(skrBalance) / 1e6,
+    seeker: Boolean(player?.seeker),
     cluster: currentCluster(),
   };
 }

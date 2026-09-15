@@ -15,6 +15,22 @@ export function currentCluster() {
   return process.env.SOLANA_CLUSTER || DEFAULT_CLUSTER;
 }
 
+/**
+ * The endpoint the Seeker Genesis Token check reads mainnet through (design doc §3): `HELIUS_MAINNET_URL`
+ * when set, otherwise Helius's own mainnet endpoint carrying `HELIUS_API_KEY`. `null` when there is no
+ * key to build it from - the seeker routes then answer 503 rather than reading mainnet unauthenticated.
+ * The key lives in this one place: it is never logged, never part of an error message, and never returned.
+ */
+export function heliusUrl() {
+  if (!process.env.HELIUS_API_KEY) return null;
+  return process.env.HELIUS_MAINNET_URL || `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
+}
+
+/** True once the mainnet read the Seeker check needs is configured (`HELIUS_API_KEY`). */
+export function heliusAvailable() {
+  return Boolean(process.env.HELIUS_API_KEY);
+}
+
 function requirePublicKey(value, name) {
   if (!value) {
     throw new Error(`${name} is not configured`);

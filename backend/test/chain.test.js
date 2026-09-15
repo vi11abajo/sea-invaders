@@ -19,17 +19,18 @@ process.env.SKR_MINT = Keypair.generate().publicKey.toBase58();
 process.env.SERVER_AUTHORITY_SECRET = bs58.encode(serverAuthority.secretKey);
 
 const { chainConfig, validateChainConfig } = await import('../src/chain/config.js');
-const { configPda, playerPda, weekPda, ata } = await import('../src/chain/pdas.js');
+const { configPda, playerPda, seekerLinkPda, weekPda, ata } = await import('../src/chain/pdas.js');
 const { program } = await import('../src/chain/program.js');
 const {
   buildCreatePlayerTx, buildBuyTicketTx, buildSubmitDailyBestTx, buildCreateWeekPoolTx, buildSettleWeekTx,
-  buildPurchaseTx, buildReviveTx,
+  buildPurchaseTx, buildReviveTx, buildLinkSeekerTx,
 } = await import('../src/chain/txs.js');
 const {
   getConfig, getPlayer, getWeekPool, getVaultBalance, getTokenBalance, getCatalog, getConfirmedInstructions,
+  getSeekerLink,
 } = await import('../src/chain/readers.js');
 const { catalogPda } = await import('../src/chain/pdas.js');
-const { hasPurchase, hasRevive } = await import('../src/chain/verify.js');
+const { hasPurchase, hasRevive, hasLinkSeeker, linkedSeekerMint } = await import('../src/chain/verify.js');
 
 const { programId } = chainConfig();
 
@@ -93,6 +94,12 @@ describe('PDA helpers', () => {
     buf.writeUInt32LE(week, 0);
     const [expected] = PublicKey.findProgramAddressSync([Buffer.from('week'), buf], programId);
     expect(weekPda(week).toBase58()).toBe(expected.toBase58());
+  });
+
+  it('seekerLinkPda matches PublicKey.findProgramAddressSync', () => {
+    const sgtMint = Keypair.generate().publicKey;
+    const [expected] = PublicKey.findProgramAddressSync([Buffer.from('seeker'), sgtMint.toBytes()], programId);
+    expect(seekerLinkPda(sgtMint).toBase58()).toBe(expected.toBase58());
   });
 
   it('ata matches the standard associated-token-address derivation, off-curve owners included', () => {
@@ -160,6 +167,54 @@ describe('buildSubmitDailyBestTx', () => {
       serverAuthority.publicKey.toBytes(),
     );
     expect(verified).toBe(true);
+  });
+});
+
+describe('buildLinkSeekerTx', () => {
+  it('server partial-signs the link; the wallet slot stays zeroed and pays the rent', async () => {
+    const connection = new FakeConnection();
+    const wallet = Keypair.generate().publicKey;
+    const sgtMint = Keypair.generate().publicKey;
+    const result = await buildLinkSeekerTx(wallet, { sgtMint, connection });
+
+    const tx = decode(result.transaction);
+    expect(tx.message.staticAccountKeys[0].toBase58()).toBe(wallet.toBase58()); // fee payer
+
+    const ix = onlyInstruction(tx);
+    expect(tx.message.staticAccountKeys[ix.programIdIndex].toBase58()).toBe(programId.toBase58());
+    expect(Buffer.from(ix.data.subarray(0, 8))).toEqual(discriminatorOf('link_seeker'));
+    // The one argument, right behind the discriminator: sgt_mint (pubkey, 32 bytes).
+    expect(new PublicKey(ix.data.subarray(8, 40)).toBase58()).toBe(sgtMint.toBase58());
+
+    const keys = ix.accountKeyIndexes.map((i) => tx.message.staticAccountKeys[i].toBase58());
+    expect(keys).toEqual([
+      wallet.toBase58(),
+      serverAuthority.publicKey.toBase58(),
+      configPda().toBase58(),
+      playerPda(wallet).toBase58(),
+      seekerLinkPda(sgtMint).toBase58(),
+      SystemProgram.programId.toBase58(),
+    ]);
+
+    const walletIndex = tx.message.staticAccountKeys.findIndex((k) => k.equals(wallet));
+    const serverIndex = tx.message.staticAccountKeys.findIndex((k) => k.equals(serverAuthority.publicKey));
+    expect(tx.signatures[walletIndex].every((byte) => byte === 0)).toBe(true);
+    expect(nacl.sign.detached.verify(
+      tx.message.serialize(), tx.signatures[serverIndex], serverAuthority.publicKey.toBytes(),
+    )).toBe(true);
+  });
+
+  it('creates the player first for a wallet that has none, in the same transaction', async () => {
+    const connection = new FakeConnection();
+    const wallet = Keypair.generate().publicKey;
+    const sgtMint = Keypair.generate().publicKey;
+    const result = await buildLinkSeekerTx(wallet, { sgtMint, createPlayer: true, connection });
+
+    const tx = decode(result.transaction);
+    expect(tx.message.compiledInstructions).toHaveLength(2);
+    const [createIx, linkIx] = tx.message.compiledInstructions;
+    expect(Buffer.from(createIx.data.subarray(0, 8))).toEqual(discriminatorOf('create_player'));
+    expect(Buffer.from(linkIx.data.subarray(0, 8))).toEqual(discriminatorOf('link_seeker'));
   });
 });
 
@@ -281,6 +336,24 @@ describe('readers', () => {
     connection.setAccount(ata(owner, skrMint), { data, owner: TOKEN_PROGRAM_ID });
 
     expect(await getTokenBalance(owner, connection)).toBe(9_500_000n);
+  });
+
+  it('getSeekerLink returns null for an unlinked mint and decodes the link otherwise', async () => {
+    const sgtMint = Keypair.generate().publicKey;
+    expect(await getSeekerLink(sgtMint, connection)).toBeNull();
+
+    const player = Keypair.generate().publicKey;
+    const data = await program(connection).coder.accounts.encode('seekerLink', {
+      sgtMint,
+      player,
+      linkedAt: new BN(1_700_000_123),
+      bump: 254,
+    });
+    connection.setAccount(seekerLinkPda(sgtMint), { data, owner: programId });
+
+    expect(await getSeekerLink(sgtMint, connection)).toEqual({
+      sgtMint: sgtMint.toBase58(), player: player.toBase58(), linkedAt: 1_700_000_123, bump: 254,
+    });
   });
 
   it('getCatalog returns null when the account does not exist, and trims items to `count` otherwise', async () => {
@@ -528,5 +601,65 @@ describe('chain/verify', () => {
     expect(hasPurchase(instructions, { wallet: wallet.toBase58(), itemId: 3 })).toBe(true);
     expect(hasPurchase(instructions, { wallet: wallet.toBase58(), itemId: 4 })).toBe(true);
     expect(hasPurchase(instructions, { wallet: wallet.toBase58(), itemId: 5 })).toBe(false);
+  });
+
+  async function linkSeekerInstructions(wallet, { sgtMint, server = serverAuthority.publicKey } = {}) {
+    const connection = new FakeConnection();
+    const mint = sgtMint ?? Keypair.generate().publicKey;
+    const ix = await program(connection)
+      .methods.linkSeeker(mint)
+      .accountsPartial({
+        wallet,
+        serverAuthority: server,
+        config: configPda(),
+        player: playerPda(wallet),
+        seekerLink: seekerLinkPda(mint),
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    const message = new TransactionMessage({
+      payerKey: wallet, recentBlockhash: '9BFbBLgQ5FLdTsg3D96oXTQmuGaEjkCJVAeDN9nWzPqi', instructions: [ix],
+    }).compileToV0Message();
+    return (await getConfirmedInstructions('sig', {
+      getTransaction: async () => ({ meta: { err: null }, transaction: { message } }),
+    })).instructions;
+  }
+
+  it('hasLinkSeeker needs both signers: the wallet and our own server authority', async () => {
+    const wallet = Keypair.generate().publicKey;
+    const other = Keypair.generate().publicKey.toBase58();
+    const server = serverAuthority.publicKey.toBase58();
+    const instructions = await linkSeekerInstructions(wallet);
+
+    expect(hasLinkSeeker(instructions, { wallet: wallet.toBase58(), serverAuthority: server })).toBe(true);
+    expect(hasLinkSeeker(instructions, { wallet: other, serverAuthority: server })).toBe(false);
+    expect(hasLinkSeeker(instructions, { wallet: wallet.toBase58(), serverAuthority: other })).toBe(false);
+  });
+
+  it('hasLinkSeeker is false for a link co-signed by a foreign server authority', async () => {
+    // The server's signature is the attestation that the mainnet Seeker check passed, so a link
+    // attested by anybody else must not confirm - however well-formed the rest of it looks.
+    const wallet = Keypair.generate().publicKey;
+    const instructions = await linkSeekerInstructions(wallet, { server: Keypair.generate().publicKey });
+    expect(hasLinkSeeker(instructions, { wallet: wallet.toBase58(), serverAuthority: serverAuthority.publicKey.toBase58() })).toBe(false);
+  });
+
+  it('hasLinkSeeker is false for a foreign program id and for another instruction of ours', async () => {
+    const wallet = Keypair.generate().publicKey;
+    const server = serverAuthority.publicKey.toBase58();
+    const real = await linkSeekerInstructions(wallet);
+    const spoofed = real.map((ix) => ({ ...ix, programId: Keypair.generate().publicKey.toBase58() }));
+    expect(hasLinkSeeker(spoofed, { wallet: wallet.toBase58(), serverAuthority: server })).toBe(false);
+    expect(hasLinkSeeker(await purchaseInstructions(wallet), { wallet: wallet.toBase58(), serverAuthority: server })).toBe(false);
+  });
+
+  it('linkedSeekerMint reads the linked mint off the verified instruction itself', async () => {
+    const wallet = Keypair.generate().publicKey;
+    const sgtMint = Keypair.generate().publicKey;
+    const server = serverAuthority.publicKey.toBase58();
+    const instructions = await linkSeekerInstructions(wallet, { sgtMint });
+
+    expect(linkedSeekerMint(instructions, { wallet: wallet.toBase58(), serverAuthority: server })).toBe(sgtMint.toBase58());
+    expect(linkedSeekerMint(instructions, { wallet: Keypair.generate().publicKey.toBase58(), serverAuthority: server })).toBeNull();
   });
 });

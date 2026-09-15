@@ -575,6 +575,110 @@
       ]
     },
     {
+      "name": "link_seeker",
+      "discriminator": [
+        236,
+        142,
+        224,
+        131,
+        133,
+        159,
+        136,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "wallet",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "player"
+          ]
+        },
+        {
+          "name": "server_authority",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "seeker_link",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  101,
+                  107,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "sgt_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "sgt_mint",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "purchase",
       "discriminator": [
         21,
@@ -1253,6 +1357,19 @@
       ]
     },
     {
+      "name": "SeekerLink",
+      "discriminator": [
+        12,
+        183,
+        55,
+        236,
+        118,
+        29,
+        234,
+        105
+      ]
+    },
+    {
       "name": "WeekPool",
       "discriminator": [
         105,
@@ -1291,6 +1408,19 @@
         52,
         127,
         130
+      ]
+    },
+    {
+      "name": "SeekerLinked",
+      "discriminator": [
+        235,
+        125,
+        20,
+        8,
+        251,
+        6,
+        141,
+        117
       ]
     }
   ],
@@ -1379,6 +1509,11 @@
       "code": 6016,
       "name": "PriceChanged",
       "msg": "Price has changed since it was quoted"
+    },
+    {
+      "code": 6017,
+      "name": "SeekerAlreadyLinked",
+      "msg": "Player has already linked a Seeker Genesis Token"
     }
   ],
   "types": [
@@ -1718,6 +1853,57 @@
           },
           {
             "name": "tide_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SeekerLink",
+      "docs": [
+        "One per Seeker Genesis Token mint (design §2): links that mint to the",
+        "player who holds it. Seeds `[\"seeker\", sgt_mint]` mean the chain itself",
+        "enforces one mint -> at most one player - a second `link_seeker` for the",
+        "same mint fails at `init` because the account already exists. There is",
+        "no unlink."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sgt_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "linked_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SeekerLinked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "sgt_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "linked_at",
             "type": "i64"
           }
         ]

@@ -30,7 +30,8 @@ async function runMigrations() {
       '006_chain_records.sql',
       '007_campaign_progress.sql',
       '008_loadout.sql',
-      '009_run_skin.sql'
+      '009_run_skin.sql',
+      '010_seeker.sql'
     ];
 
     // Execute each migration

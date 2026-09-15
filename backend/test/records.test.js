@@ -220,8 +220,15 @@ describe('weekView', () => {
       endsAt: weekEnd(WEEK),
       poolSkr: 20,
       settled: false,
-      entries: [{ rank: 1, walletAddress: WALLET, username: user.username, total: 777, days: [1, 2, 3, 4, 5, 6, 7], forecastSkr: 10, skin: 0 }],
+      entries: [{ rank: 1, walletAddress: WALLET, username: user.username, total: 777, days: [1, 2, 3, 4, 5, 6, 7], forecastSkr: 10, skin: 0, seeker: false }],
     });
+  });
+
+  it('flags a linked Seeker owner from the on-chain player it already reads', async () => {
+    fakeChain.setWeekPool(WEEK, { vault: 'Vault1', top: [{ player: WALLET, total: 777, updatedAt: NOON }], settled: false });
+    fakeChain.setPlayer(WALLET, { week: WEEK, seeker: true });
+    const result = await weekView({ week: WEEK, now: NOON });
+    expect(result.entries[0].seeker).toBe(true);
   });
 
   it("carries the skin of the player's highest-scoring verified run among the week's days", async () => {

@@ -5,7 +5,7 @@ import { getAccount, TokenAccountNotFoundError } from '@solana/spl-token';
 import { program as buildProgram } from './program.js';
 import { connection as defaultConnection } from './connection.js';
 import { chainConfig } from './config.js';
-import { catalogPda, configPda, playerPda, weekPda, ata } from './pdas.js';
+import { catalogPda, configPda, playerPda, seekerLinkPda, weekPda, ata } from './pdas.js';
 import { flattenInstructions } from './flatten.js';
 
 const toBigInt = (bn) => BigInt(bn.toString());
@@ -49,6 +49,18 @@ export async function getPlayer(wallet, connection = defaultConnection()) {
     inventory: toBigInt(acct.inventory),
     seeker: acct.seeker,
     lastReplayHash: Array.from(acct.lastReplayHash),
+  };
+}
+
+/** A Seeker Genesis Token mint's `seeker_link` account, or `null` while that mint has never been linked - the chain's own answer to "is this token already somebody's?". */
+export async function getSeekerLink(sgtMint, connection = defaultConnection()) {
+  const acct = await buildProgram(connection).account.seekerLink.fetchNullable(seekerLinkPda(sgtMint));
+  if (!acct) return null;
+  return {
+    sgtMint: acct.sgtMint.toBase58(),
+    player: acct.player.toBase58(),
+    linkedAt: toNumber(acct.linkedAt),
+    bump: acct.bump,
   };
 }
 

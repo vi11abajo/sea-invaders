@@ -1,6 +1,7 @@
 import { CORE_VERSION } from '@sea-invaders/core';
 import express from 'express';
 import * as db from '../db/rankedRuns.js';
+import { findSeekerWallets } from '../db/users.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { confirmLimiter, scoreSubmitLimiter, sessionLimiter } from '../middleware/rateLimit.js';
 import { dailySeed, dayOf, isSeedPublic, weekOf } from '../services/dailySeed.js';
@@ -44,7 +45,19 @@ router.get('/leaderboard', async (req, res, next) => {
     const day = req.query.day === undefined ? dayOf(nowSeconds()) : Number.parseInt(String(req.query.day), 10);
     if (!Number.isInteger(day) || day < 0) return res.status(400).json({ error: 'BadRequest', message: 'day must be a non-negative integer' });
     const rows = await db.leaderboardForDay(day, 50);
-    res.json({ day, entries: rows.map((row, i) => ({ rank: i + 1, username: row.username, walletAddress: row.walletAddress, score: row.score, skin: row.skin })) });
+    // The SEEKER badge for the whole board in one query, rather than a chain read per row (design doc §3).
+    const seekers = new Set(await findSeekerWallets(rows.map((row) => row.walletAddress)));
+    res.json({
+      day,
+      entries: rows.map((row, i) => ({
+        rank: i + 1,
+        username: row.username,
+        walletAddress: row.walletAddress,
+        score: row.score,
+        skin: row.skin,
+        seeker: seekers.has(row.walletAddress),
+      })),
+    });
   } catch (error) {
     next(error);
   }

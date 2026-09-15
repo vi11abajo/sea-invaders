@@ -379,11 +379,28 @@ commit or print the real `backend/.env`).
 | `AUTH_DOMAIN` | No | `seainvaders.xyz` | Sign-In With Solana: the domain shown to the wallet and checked by the server; must match the identity the app presents (`mobile/src/api/config.ts`). |
 | `AUTH_URI` | No | `https://seainvaders.xyz` | Sign-In With Solana: the URI shown to the wallet and checked by the server. |
 | `JUPITER_API_KEY` | No | — | Sent as the `x-api-key` header on `POST /api/swap/quote`'s calls to Jupiter's swap API (`quoteSwap` in `services/swap.js`); never returned to clients. Server-side only, never `EXPO_PUBLIC_*`. Swap itself is gated (see below), so this is only read on `mainnet`. |
+| `HELIUS_API_KEY` | No | — | The mainnet read behind the Seeker Genesis Token check (`backend/src/chain/helius.js`); sent only inside the Helius endpoint URL, never returned to a client and never part of an error message. Server-side only, never `EXPO_PUBLIC_*`. Without it the `/api/seeker` routes answer `503 seeker_unavailable` (see below). |
+| `HELIUS_MAINNET_URL` | No | `https://mainnet.helius-rpc.com/?api-key=<HELIUS_API_KEY>` | Overrides the endpoint that check calls, for a different Helius plan or a proxy. Ignored without `HELIUS_API_KEY`. |
 | `SOLANA_CLUSTER` | No | `devnet` | `devnet` or `mainnet`; also gates whether `/api/devnet/*` (the faucet) is mounted at all, and whether `POST /api/swap/quote` is available at all - the SOL→SKR swap only ever makes sense once the deployment has actually moved to `mainnet`, so on any other value the route answers `409 { error: 'swap_unavailable' }` without touching Jupiter (`services/swap.js#swapAvailable`). Set explicitly in production so it is never left to the default by accident. |
 | `SOLANA_RPC_URL` | Yes | — | RPC endpoint used for all chain reads/writes. |
 | `PROGRAM_ID` | Yes | — | The `sea_invaders` Anchor program's deployed address. |
 | `SKR_MINT` | Yes | — | The SKR token mint used for tickets and payouts. |
 | `SERVER_AUTHORITY_SECRET` | Yes | — | Base58 of the server authority's 64-byte Ed25519 secret key; co-signs `submit_daily_best`. Never print or commit this value. |
+
+### Seeker Genesis Token check
+
+The Seeker badge is earned by proving a Seeker Genesis Token on **mainnet**, which is a
+different cluster from the one the game itself runs on (`SOLANA_CLUSTER`), so that one
+read goes through Helius rather than `SOLANA_RPC_URL`: `POST /api/seeker/link` looks up
+the wallet's Token-2022 accounts, accepts a mint only when its mint authority, metadata
+pointer and token group all match the Genesis Token's, and only then co-signs the
+on-chain `link_seeker` transaction the player signs. `HELIUS_API_KEY` is what makes that
+read possible: without it `POST /api/seeker/link` and `POST /api/seeker/confirm` answer
+`503 { error: 'Seeker', code: 'seeker_unavailable' }` and nothing else in the API changes
+(`GET /api/seeker` keeps answering from the chain, and the badge itself is cosmetic — no
+scores, prices or attempts depend on it). The key is written into `backend/.env` by
+`.github/workflows/deploy.yml` from the `HELIUS_API_KEY` GitHub secret; never print or
+commit it.
 
 ### Server authority funding
 
@@ -426,6 +443,7 @@ the server and to reach it over SSH:
 | `AUTH_DOMAIN` | secret, never written down here (production value is `seainvaders.xyz`) |
 | `AUTH_URI` | secret, never written down here (production value is `https://seainvaders.xyz`) |
 | `JUPITER_API_KEY` | secret, never written down here |
+| `HELIUS_API_KEY` | secret, never written down here |
 | `SOLANA_CLUSTER` | public devnet value: `devnet` |
 | `SOLANA_RPC_URL` | public devnet value: `https://api.devnet.solana.com` |
 | `PROGRAM_ID` | public devnet value: `G1vEN2CY1KfjPia3hD7MALBwseSRUfrcBivxfKKGqset` |

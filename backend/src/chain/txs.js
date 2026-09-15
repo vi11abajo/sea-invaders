@@ -20,7 +20,7 @@ import { program as buildProgram } from './program.js';
 import { connection as defaultConnection } from './connection.js';
 import { chainConfig } from './config.js';
 import { lookupTableAccounts, toInstruction } from './jupiter.js';
-import { catalogPda, configPda, playerPda, weekPda, ata } from './pdas.js';
+import { catalogPda, configPda, playerPda, seekerLinkPda, weekPda, ata } from './pdas.js';
 import { getConfig } from './readers.js';
 import { weekOf } from '../services/dailySeed.js';
 
@@ -248,6 +248,36 @@ export async function buildSubmitDailyBestTx(wallet, { day, score, replayHash, c
     })
     .instruction();
   const envelope = await buildEnvelope(connection, walletKey, [ix]);
+  envelope.transaction.sign([serverAuthority]);
+  return finalize(envelope);
+}
+
+/**
+ * `create_player` (when `createPlayer` is true) + `link_seeker(sgt_mint)`. Dual-signed exactly like
+ * `buildSubmitDailyBestTx`: the server partial-signs its own `server_authority` slot - its signature
+ * is the attestation that the mainnet Seeker Genesis Token check passed, which the devnet program
+ * cannot make itself - and the wallet's slot is left for the app, as the player's consent. Fee payer
+ * = wallet, which also pays the `seeker_link` account's rent.
+ */
+export async function buildLinkSeekerTx(wallet, { sgtMint, createPlayer, connection = defaultConnection() } = {}) {
+  const walletKey = toPublicKey(wallet);
+  const mintKey = toPublicKey(sgtMint);
+  const { serverAuthority } = chainConfig();
+  const ix = await buildProgram(connection)
+    .methods.linkSeeker(mintKey)
+    .accountsPartial({
+      wallet: walletKey,
+      serverAuthority: serverAuthority.publicKey,
+      config: configPda(),
+      player: playerPda(walletKey),
+      seekerLink: seekerLinkPda(mintKey),
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  const instructions = [];
+  if (createPlayer) instructions.push(await createPlayerInstruction(connection, walletKey));
+  instructions.push(ix);
+  const envelope = await buildEnvelope(connection, walletKey, instructions);
   envelope.transaction.sign([serverAuthority]);
   return finalize(envelope);
 }

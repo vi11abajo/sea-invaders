@@ -113,7 +113,9 @@ export async function weekView({ week, now }) {
       const forecastSkr = Number((vaultBalance * bps) / 10_000n) / 1e6;
       const user = userByWallet.get(entry.player);
       const skin = user ? skinByUserId.get(user.id) ?? 0 : 0;
-      return { rank: i + 1, walletAddress: entry.player, username: user?.username ?? null, total: entry.total, days, forecastSkr, skin };
+      // The SEEKER badge comes from the `Player` account this entry already reads - the week view
+      // never needs the mirror (design doc §3).
+      return { rank: i + 1, walletAddress: entry.player, username: user?.username ?? null, total: entry.total, days, forecastSkr, skin, seeker: Boolean(player?.seeker) };
     }));
 
     result = { week, endsAt, poolSkr, entries, settled: pool.settled };

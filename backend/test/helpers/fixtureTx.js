@@ -48,3 +48,9 @@ export async function realReviveInstructions(realTxs, wallet, { week, treasury, 
   const envelope = await realTxs.buildReviveTx(wallet, { week, treasury, maxPrice, connection: new FakeConnection() });
   return instructionsFromMessage(decodeTx(envelope.transaction).message);
 }
+
+/** Same as `realPurchaseInstructions`, for a `link_seeker` transaction - co-signed by whichever server authority `chain/config.js` reports, exactly as the backend issues it. */
+export async function realLinkSeekerInstructions(realTxs, wallet, { sgtMint, createPlayer = false } = {}) {
+  const envelope = await realTxs.buildLinkSeekerTx(wallet, { sgtMint, createPlayer, connection: new FakeConnection() });
+  return instructionsFromMessage(decodeTx(envelope.transaction).message);
+}
