@@ -77,7 +77,7 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
 }
 
 /** The splash stays up at least this long, so a fast start does not flash the key art. */
-const SPLASH_MIN_MS = 1400;
+const SPLASH_MIN_MS = 1870; // 1400 + 33 % (owner, 2026-09-15)
 
 /** True once the app is ready AND the splash has been shown for `SPLASH_MIN_MS`. */
 function useSplashGate(ready: boolean): boolean {
