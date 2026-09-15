@@ -40,8 +40,8 @@ export interface HudBadge {
   color: string;
 }
 
-/** Boss HP-bar tint per kind (1..5): spec §4.2 palette. */
-const BOSS_COLOR = ['#33cc66', '#3366ff', '#ffdd33', '#ff3333', '#9966ff'];
+/** Boss HP-bar tint per kind (1..5): spec §4.2 palette. The reef key art borrows it (`campaign/reefBackground.ts`). */
+export const BOSS_COLOR = ['#33cc66', '#3366ff', '#ffdd33', '#ff3333', '#9966ff'];
 
 interface GameHudProps {
   /** Mode label, e.g. "PRACTICE" or "DAILY · SEED #214". */

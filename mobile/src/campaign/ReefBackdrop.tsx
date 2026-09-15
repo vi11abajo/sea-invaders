@@ -1,5 +1,5 @@
 import {
-  Blur, Canvas, ColorMatrix, Group, Image, LinearGradient, Paint, Path, Rect, Skia, vec,
+  BlendColor, Blur, Canvas, ColorMatrix, Group, Image, LinearGradient, Paint, Path, Rect, Skia, useImage, vec,
   type SkImage, type SkPath,
 } from '@shopify/react-native-skia';
 import { useEffect, useMemo } from 'react';
@@ -8,6 +8,7 @@ import Animated, {
   Easing, useAnimatedStyle, useDerivedValue, useSharedValue, withRepeat, withTiming, type SharedValue,
 } from 'react-native-reanimated';
 import { MOTION } from '../ui/tokens';
+import { REEF_KEY_ART, REEF_KEY_ART_BACKGROUND, REEF_KEY_ART_BLEND, REEF_KEY_ART_DIM, reefKeyArtTint } from './reefBackground';
 import { REEF_ACCENT, REEF_WORLD } from './reefs';
 
 /** Flora bar sizes and sway periods, `CampaignMap.dc.html`'s `FLORA` table. Bars 0, 3, 6 use the reef's `floraAccent`. */
@@ -106,21 +107,36 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
   // Built once per screen size — never rebuilt inside a worklet.
   const domePath = useMemo(() => buildDomePath(width, height, floorBottom), [width, height, floorBottom]);
   const bossLeft = width / 2 - BOSS_LOOM_SIZE / 2;
+  // The key art decodes once per mount; the water gradient underneath shows until it has.
+  const keyArt = useImage(REEF_KEY_ART_BACKGROUND ? REEF_KEY_ART : null);
 
   return (
     <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
       <Rect x={0} y={0} width={width} height={height}>
         <LinearGradient start={vec(0, 0)} end={vec(0, height)} colors={[...world.bg.colors]} positions={[...world.bg.positions]} />
       </Rect>
-      <Group layer={<Paint><Blur blur={70} mode="decal" /></Paint>} opacity={GLOW_OPACITY[variant]}>
-        <Rect x={-width * 0.25} y={-height * 0.1} width={width * 1.5} height={height * 0.45}>
-          <LinearGradient start={vec(0, 0)} end={vec(width, 0)} colors={[...world.glow]} />
-        </Rect>
-      </Group>
-      <Group opacity={RAYS_OPACITY[variant]} layer={<Paint><Blur blur={18} mode="decal" /></Paint>}>
-        <Ray x={width * 0.14} width={width * 0.26} h={height} skew={-0.244} color={world.ray} opacity={rayA} />
-        <Ray x={width * 0.58} width={width * 0.18} h={height} skew={-0.349} color={world.ray2} opacity={rayB} />
-      </Group>
+      {REEF_KEY_ART_BACKGROUND ? (
+        keyArt !== null && (
+          <>
+            <Image image={keyArt} x={0} y={0} width={width} height={height} fit="cover">
+              <BlendColor color={reefKeyArtTint(reef)} mode={REEF_KEY_ART_BLEND} />
+            </Image>
+            <Rect x={0} y={0} width={width} height={height} color={`rgba(0,0,0,${REEF_KEY_ART_DIM[variant]})`} />
+          </>
+        )
+      ) : (
+        <>
+          <Group layer={<Paint><Blur blur={70} mode="decal" /></Paint>} opacity={GLOW_OPACITY[variant]}>
+            <Rect x={-width * 0.25} y={-height * 0.1} width={width * 1.5} height={height * 0.45}>
+              <LinearGradient start={vec(0, 0)} end={vec(width, 0)} colors={[...world.glow]} />
+            </Rect>
+          </Group>
+          <Group opacity={RAYS_OPACITY[variant]} layer={<Paint><Blur blur={18} mode="decal" /></Paint>}>
+            <Ray x={width * 0.14} width={width * 0.26} h={height} skew={-0.244} color={world.ray} opacity={rayA} />
+            <Ray x={width * 0.58} width={width * 0.18} h={height} skew={-0.349} color={world.ray2} opacity={rayB} />
+          </Group>
+        </>
+      )}
       {bossSprite !== null && (
         <Image image={bossSprite} x={bossLeft} y={bossY} width={BOSS_LOOM_SIZE} height={BOSS_LOOM_SIZE} opacity={BOSS_LOOM_OPACITY} fit="contain">
           <ColorMatrix matrix={LOOM_SATURATE_MATRIX} />
