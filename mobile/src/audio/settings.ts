@@ -1,17 +1,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
+import { setVibrationEnabled } from './haptics';
 import { setMusicEnabled } from './music';
 import { setSoundsEnabled } from './sfx';
 
 export interface AudioSettings {
   sounds: boolean;
   music: boolean;
+  vibration: boolean;
 }
 
-const DEFAULTS: AudioSettings = { sounds: true, music: true };
+const DEFAULTS: AudioSettings = { sounds: true, music: true, vibration: true };
 
 const SOUNDS_KEY = '@sea-invaders/audio-sounds';
 const MUSIC_KEY = '@sea-invaders/audio-music';
+const VIBRATION_KEY = '@sea-invaders/audio-vibration';
 
 /** `AsyncStorage` stores "0"/"1" (or is absent, meaning "never changed": the default, on). */
 function parseFlag(raw: string | null): boolean {
@@ -35,14 +38,17 @@ export function getAudioSettings(): Promise<AudioSettings> {
   if (loadPromise === null) {
     loadPromise = (async () => {
       try {
-        const [sounds, music] = await Promise.all([AsyncStorage.getItem(SOUNDS_KEY), AsyncStorage.getItem(MUSIC_KEY)]);
-        cache = { sounds: parseFlag(sounds), music: parseFlag(music) };
+        const [sounds, music, vibration] = await Promise.all([
+          AsyncStorage.getItem(SOUNDS_KEY), AsyncStorage.getItem(MUSIC_KEY), AsyncStorage.getItem(VIBRATION_KEY),
+        ]);
+        cache = { sounds: parseFlag(sounds), music: parseFlag(music), vibration: parseFlag(vibration) };
       } catch {
         // Storage unavailable: keep the on-by-default settings rather than guess further.
         cache = DEFAULTS;
       }
       setSoundsEnabled(cache.sounds);
       setMusicEnabled(cache.music);
+      setVibrationEnabled(cache.vibration);
       notify();
       return cache;
     })();
@@ -76,8 +82,23 @@ async function setMusicFlag(value: boolean): Promise<void> {
   }
 }
 
-/** The Profile card's Sounds/Music switches: reads the resolved settings and exposes their setters. */
-export function useAudioSettings(): AudioSettings & { setSounds: (value: boolean) => void; setMusic: (value: boolean) => void } {
+async function setVibrationFlag(value: boolean): Promise<void> {
+  cache = { ...cache, vibration: value };
+  notify();
+  setVibrationEnabled(value);
+  try {
+    await AsyncStorage.setItem(VIBRATION_KEY, value ? '1' : '0');
+  } catch {
+    // Best-effort persistence: the in-memory setting (and the gate it just applied) still holds for this session.
+  }
+}
+
+/** The Profile card's Sounds/Music/Vibration switches: reads the resolved settings and exposes their setters. */
+export function useAudioSettings(): AudioSettings & {
+  setSounds: (value: boolean) => void;
+  setMusic: (value: boolean) => void;
+  setVibration: (value: boolean) => void;
+} {
   const [settings, setSettings] = useState<AudioSettings>(cache);
 
   useEffect(() => {
@@ -94,6 +115,9 @@ export function useAudioSettings(): AudioSettings & { setSounds: (value: boolean
   const setMusic = useCallback((value: boolean) => {
     void setMusicFlag(value);
   }, []);
+  const setVibration = useCallback((value: boolean) => {
+    void setVibrationFlag(value);
+  }, []);
 
-  return { ...settings, setSounds, setMusic };
+  return { ...settings, setSounds, setMusic, setVibration };
 }

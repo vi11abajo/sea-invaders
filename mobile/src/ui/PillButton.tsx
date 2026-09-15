@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { hapticTap } from '../audio/haptics';
 import { playSfx } from '../audio/sfx';
 import { Txt } from './Txt';
 import { COLORS, RADIUS, SIZE } from './tokens';
@@ -48,6 +49,9 @@ export function PillButton({ label, onPress, kind = 'primary', height, disabled 
   // is the one signal available to tell those apart from an ordinary tap.
   const onPressWithSound = () => {
     playSfx(label.trim().toLowerCase().startsWith('back') ? 'ui_back' : 'ui_tap');
+    // Table D: "any pill / button" is Selection, the lightest tick the phone has - every PillButton
+    // press, back-labelled ones included (unlike the sound, which picks between two ids by label).
+    hapticTap();
     onPress?.();
   };
 

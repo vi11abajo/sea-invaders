@@ -3,6 +3,7 @@ import { PollCancelled, PollTimeout, WalletDeclined, pollUntilConfirmed, sendWit
 import { ApiError } from '../api/client';
 import type { Session } from '../api/session';
 import { confirmSeekerLink, getSeeker, issueSeekerLink } from '../api/seeker';
+import { hapticError, hapticSuccess } from '../audio/haptics';
 import { playSfx } from '../audio/sfx';
 import { DECLINED_TOAST } from '../wallet/usePurchase';
 
@@ -114,6 +115,7 @@ export function useSeeker(session: Session | null): SeekerState {
         if (error instanceof WalletDeclined) {
           if (alive.current) setPhase({ kind: 'idle', message: DECLINED_TOAST });
           playSfx('ui_error');
+          hapticError();
           return;
         }
         if (error instanceof ApiError && error.code === 'no_seeker_token') {
@@ -150,6 +152,7 @@ export function useSeeker(session: Session | null): SeekerState {
           setPhase({ kind: 'idle' });
         }
         playSfx('tx_confirmed');
+        hapticSuccess();
       } catch (error) {
         busy.current = false;
         // Cancelled means the whole shell went away before confirmation was observed - nothing left to report.

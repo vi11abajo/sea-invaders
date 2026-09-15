@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { ApiError } from '../api/client';
+import { onBackPress } from '../audio/onBackPress';
 import { ActiveOctopi } from '../game/OctopiArt';
 import { VARIANT_OCTOPI, type VariantIndex } from '../loadout/items';
 import type { LoadoutApi } from '../loadout/useLoadout';
@@ -146,7 +147,7 @@ export function LevelIntro({
   return (
     <View style={styles.root}>
       <ReefBackdrop reef={level.reef} />
-      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} hitSlop={4} style={styles.back}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBackPress(onBack)} hitSlop={4} style={styles.back}>
         <Txt variant="button">←</Txt>
       </Pressable>
       <View style={styles.head} onLayout={(e) => setHeadBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>

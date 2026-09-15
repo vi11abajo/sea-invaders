@@ -4,6 +4,7 @@ import {
 } from '@sea-invaders/core';
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { hapticUnlocked } from '../audio/haptics';
 import { playSfx } from '../audio/sfx';
 import { GameScreen, type DownedRun, type RunOutcome } from '../game/GameScreen';
 import { VARIANT_OCTOPI } from '../loadout/items';
@@ -133,7 +134,10 @@ export function CampaignLevelScreen({
         // `cleared` is the only outcome that opens something new on the map: the next level, or (on
         // a reef's last level) the next reef itself. `campaign_complete` finishes the run with
         // nothing left to unlock, so it does not get this chime.
-        if (kind === 'cleared') playSfx('reef_unlocked');
+        if (kind === 'cleared') {
+          playSfx('reef_unlocked');
+          hapticUnlocked();
+        }
         setResult({ outcome, kind, next });
       })
       .catch(() => setResult({ outcome, kind: 'error' }));

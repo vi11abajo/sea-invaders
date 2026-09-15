@@ -11,6 +11,8 @@ import {
   currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEFS, TYPE_COLOUR,
   type CampaignProgress,
 } from '@sea-invaders/core';
+import { hapticLight, hapticTap } from '../audio/haptics';
+import { onBackPress } from '../audio/onBackPress';
 import { playSfx } from '../audio/sfx';
 import { BOSS_NAMES } from '../game/bossNames';
 import { useSprites, type Sprites } from '../game/sprites';
@@ -164,7 +166,7 @@ function Header({ reef, progress, onBack }: { reef: number; progress: CampaignPr
 
   return (
     <View style={styles.header}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} hitSlop={4} style={styles.back}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBackPress(onBack)} hitSlop={4} style={styles.back}>
         <Txt variant="button">←</Txt>
       </Pressable>
       <View style={styles.headerText}>
@@ -313,6 +315,7 @@ function PathNode({ reef, index, isBoss, size, left, top, accent, state, best, b
         disabled={locked}
         onPress={() => {
           playSfx('node_tap');
+          hapticTap();
           onPress();
         }}
         style={[
@@ -443,7 +446,10 @@ function ReefRail({ reef, progress, sprites, onSelect }: {
             key={n}
             accessibilityRole="button"
             accessibilityLabel={`Reef ${n}, ${REEF_NAMES[i]}`}
-            onPress={() => onSelect(n)}
+            onPress={() => {
+              hapticLight();
+              onSelect(n);
+            }}
             style={[
               styles.railChip,
               active ? { borderColor: accent, backgroundColor: 'rgba(236,228,253,0.14)' } : styles.railChipInactive,

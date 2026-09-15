@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { pollUntilConfirmed, sendWithBlockhashRetry, useSignAndSend, PollCancelled, PollTimeout, WalletDeclined } from '../api/chain';
 import { ApiError } from '../api/client';
 import { confirmRecord, requestRecord } from '../api/daily';
+import { hapticError, hapticSuccess } from '../audio/haptics';
 import { playSfx } from '../audio/sfx';
 
 export type RecordPhase =
@@ -71,11 +72,13 @@ export function useRecordScore(onRecorded: (signature: string) => void): { phase
           if (error instanceof WalletDeclined) {
             if (alive.current) setPhase({ kind: 'idle', message: 'Not recorded' });
             playSfx('ui_error');
+            hapticError();
             return;
           }
           if (error instanceof ApiError && error.code === 'already_recorded') {
             if (alive.current) setPhase({ kind: 'done' });
             playSfx('record_saved');
+            hapticSuccess();
             // The record is already on chain regardless of whether this component still exists —
             // still tell the caller so Home refreshes, but never touch this component's state above.
             onRecorded('');
@@ -83,6 +86,7 @@ export function useRecordScore(onRecorded: (signature: string) => void): { phase
           }
           if (alive.current) setPhase({ kind: 'error', ...describeRecordError(error) });
           playSfx('ui_error');
+          hapticError();
           return;
         }
         if (alive.current) setPhase({ kind: 'confirming' });
@@ -91,6 +95,7 @@ export function useRecordScore(onRecorded: (signature: string) => void): { phase
           if (alive.current) setPhase({ kind: 'done' });
           playSfx('tx_confirmed');
           playSfx('record_saved');
+          hapticSuccess();
           // Same reasoning as the `already_recorded` branch above: the transaction did confirm, so
           // Home should still refresh even if nothing is listening to `phase` any more.
           onRecorded(signature);
@@ -100,6 +105,7 @@ export function useRecordScore(onRecorded: (signature: string) => void): { phase
           if (error instanceof PollCancelled) return;
           if (alive.current) setPhase({ kind: 'error', ...describeRecordError(error) });
           playSfx('ui_error');
+          hapticError();
         }
       })();
     },

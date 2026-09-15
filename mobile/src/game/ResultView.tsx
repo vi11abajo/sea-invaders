@@ -1,6 +1,7 @@
 import { formatInt } from '@sea-invaders/core';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { onBackPress } from '../audio/onBackPress';
 import { GradientText } from '../ui/GradientText';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
@@ -44,7 +45,7 @@ export function ResultView({ title, score, stats, note, primaryLabel = 'Play aga
   return (
     <View style={styles.root}>
       {onBack !== undefined && (
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} hitSlop={4} style={styles.back}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBackPress(onBack)} hitSlop={4} style={styles.back}>
           <Txt variant="button">←</Txt>
         </Pressable>
       )}

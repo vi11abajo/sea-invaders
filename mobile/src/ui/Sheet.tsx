@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { hapticSheetOpen } from '../audio/haptics';
 import { playSfx } from '../audio/sfx';
 import { COLORS, MOTION, RADIUS } from './tokens';
 
@@ -26,6 +27,10 @@ export function Sheet({ children, kind = 'world', onDismiss, onLayout }: SheetPr
   useEffect(() => {
     playSfx('ui_sheet');
     return () => playSfx('ui_sheet');
+  }, []);
+  // Haptics (table D) only mark the open, not the close - mount-only, unlike the sound effect above.
+  useEffect(() => {
+    hapticSheetOpen();
   }, []);
   const rise = useAnimatedStyle(() => ({
     opacity: shown.value,

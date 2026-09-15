@@ -8,6 +8,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import { ApiError } from '../api/client';
 import type { LoadoutChange } from '../api/profile';
 import { getShop } from '../api/shop';
+import { onBackPress } from '../audio/onBackPress';
 import { useAudioSettings } from '../audio/settings';
 import { BASE_OCTOPI_NAME, ITEM_NAMES, skinOfItem, variantOfItem } from '../loadout/items';
 import type { LoadoutState } from '../loadout/useLoadout';
@@ -283,7 +284,7 @@ export function ProfileScreen({
           }
         >
           <View style={styles.header}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} hitSlop={4} style={styles.back}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBackPress(onBack)} hitSlop={4} style={styles.back}>
               <Txt variant="button">←</Txt>
             </Pressable>
             <Txt variant="screenTitle" style={styles.title}>Profile</Txt>
@@ -325,6 +326,8 @@ export function ProfileScreen({
             <SettingRow label="Sounds" value={audio.sounds} onChange={audio.setSounds} />
             <View style={styles.settingDivider} />
             <SettingRow label="Music" value={audio.music} onChange={audio.setMusic} />
+            <View style={styles.settingDivider} />
+            <SettingRow label="Vibration" value={audio.vibration} onChange={audio.setVibration} />
           </View>
           <Txt variant="secondary" tone="secondary" style={styles.section}>INVENTORY</Txt>
           <Txt variant="label" tone="tertiary">CAMPAIGN OCTOPI</Txt>

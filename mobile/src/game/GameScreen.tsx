@@ -7,6 +7,11 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
+import {
+  hapticBossDead, hapticBossPhase, hapticBossSpawn, hapticBossTeleport, hapticBoostPickup, hapticLevelCleared,
+  hapticLifeLost, hapticMeteorImpact, hapticMeteorWarning, hapticPlayerFreeze, hapticRage, hapticRevived,
+  hapticRunOver, hapticShieldBreak, hapticWaveCleared, hapticWaveStart,
+} from '../audio/haptics';
 import { startAmbience, stopAmbience } from '../audio/music';
 import { playSfx, type SfxId } from '../audio/sfx';
 import { ITEM_NAMES, itemOfOctopi } from '../loadout/items';
@@ -78,6 +83,62 @@ const BOSS_ABILITY_SFX: Record<'regen' | 'shield' | 'meteor' | 'rage' | 'freeze'
   meteor: 'meteor_impact',
   rage: 'boss_rage',
   freeze: 'boss_freeze',
+};
+
+/**
+ * A row of the haptics design doc (table D) that fires from the run's frame loop. Kept as a string id
+ * (rather than a direct function reference) so per-frame de-duplication works the same way as
+ * `SfxId` does for sounds — two different moments never collapse into one just because they happen
+ * to share the same underlying impact style.
+ */
+type HapticId =
+  | 'life_lost' | 'shield_break' | 'boost_pickup' | 'wave_start' | 'wave_cleared' | 'level_cleared' | 'run_over'
+  | 'boss_spawn' | 'boss_phase' | 'boss_dead' | 'meteor_warning' | 'meteor_impact' | 'rage' | 'boss_teleport'
+  | 'player_freeze' | 'revived';
+
+const HAPTIC_ACTIONS: Record<HapticId, () => void> = {
+  life_lost: hapticLifeLost,
+  shield_break: hapticShieldBreak,
+  boost_pickup: hapticBoostPickup,
+  wave_start: hapticWaveStart,
+  wave_cleared: hapticWaveCleared,
+  level_cleared: hapticLevelCleared,
+  run_over: hapticRunOver,
+  boss_spawn: hapticBossSpawn,
+  boss_phase: hapticBossPhase,
+  boss_dead: hapticBossDead,
+  meteor_warning: hapticMeteorWarning,
+  meteor_impact: hapticMeteorImpact,
+  rage: hapticRage,
+  boss_teleport: hapticBossTeleport,
+  player_freeze: hapticPlayerFreeze,
+  revived: hapticRevived,
+};
+
+/**
+ * `GameEvent.type` -> haptic id, for every event with a haptic row in table D. Shots, ordinary kills,
+ * a boss hit, boost expiry, `boss_clone` and `boost_drop` have no row there (nothing frequent buzzes)
+ * and are deliberately left out, unlike `SFX_FOR_EVENT` above, which covers all of them.
+ */
+const HAPTIC_FOR_EVENT: Partial<Record<GameEvent['type'], HapticId>> = {
+  player_hit: 'life_lost',
+  shield_break: 'shield_break',
+  wave_start: 'wave_start',
+  wave_cleared: 'wave_cleared',
+  level_cleared: 'level_cleared',
+  boss_spawn: 'boss_spawn',
+  boss_phase: 'boss_phase',
+  boss_dead: 'boss_dead',
+  boss_teleport: 'boss_teleport',
+  meteor_warning: 'meteor_warning',
+  player_freeze: 'player_freeze',
+  revived: 'revived',
+};
+
+/** `boss_ability`'s `name` -> haptic id (table D: Solar's meteor and Crimson's rage only — Emerald's regen, Azure's shield and Void's freeze have no haptic row). */
+const BOSS_ABILITY_HAPTIC: Partial<Record<'regen' | 'shield' | 'meteor' | 'rage' | 'freeze', HapticId>> = {
+  meteor: 'meteor_impact',
+  rage: 'rage',
 };
 
 /** A `boost_pickup`'s boost type -> the stinger layered over the generic `boost_pickup` pop (table A rows 35-38). Boosts absent here get the pop alone. */
@@ -364,9 +425,11 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         bannerFrames = BANNER_FRAMES;
         prevWave = state.wave;
       }
-      // Sounds this frame, collected here and played once each after the loop below (never inside
-      // the tick loop above, and never more than once per id per frame) — design doc section F.
+      // Sounds and haptics this frame, collected here and played once each after the loop below
+      // (never inside the tick loop above, and never more than once per id per frame) — design doc
+      // sections F (sound) and D (haptics).
       const sounds: SfxId[] = [];
+      const haptics: HapticId[] = [];
       for (const ev of state.events) {
         if (ev.type === 'boss_phase') {
           bannerText = `PHASE ${state.boss?.phase ?? 0}`;
@@ -379,13 +442,18 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         }
         if (ev.type === 'boss_ability') {
           sounds.push(BOSS_ABILITY_SFX[ev.name]);
+          const abilityHaptic = BOSS_ABILITY_HAPTIC[ev.name];
+          if (abilityHaptic !== undefined) haptics.push(abilityHaptic);
         } else if (ev.type === 'boost_pickup') {
           sounds.push('boost_pickup');
           const stinger = BOOST_STINGER[ev.boost];
           if (stinger !== undefined) sounds.push(stinger);
+          haptics.push('boost_pickup');
         } else {
           const sound = SFX_FOR_EVENT[ev.type];
           if (sound !== undefined) sounds.push(sound);
+          const haptic = HAPTIC_FOR_EVENT[ev.type];
+          if (haptic !== undefined) haptics.push(haptic);
         }
       }
       state.events.length = 0;
@@ -433,6 +501,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       if (over && !state.cleared && !quit.current && !gameOverPlayed) {
         gameOverPlayed = true;
         sounds.push('game_over');
+        haptics.push('run_over');
       }
       const next: Hud = {
         score: state.score, lives: state.octopi.lives, wave: state.wave, kills: state.kills, over, fps,
@@ -461,6 +530,9 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       // multi-tick frame) still plays once.
       if (sounds.length > 0) {
         for (const id of new Set(sounds)) playSfx(id);
+      }
+      if (haptics.length > 0) {
+        for (const id of new Set(haptics)) HAPTIC_ACTIONS[id]();
       }
       if (!over) handle = requestAnimationFrame(loop);
     };

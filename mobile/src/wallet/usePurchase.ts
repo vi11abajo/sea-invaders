@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { awaitLanded, BlockhashExpired, PollCancelled, pollUntilConfirmed, transactionsOf, useSignAndSend, WalletDeclined, type PreparedPayment } from '../api/chain';
 import { ApiError } from '../api/client';
 import { loadSession } from '../api/session';
+import { hapticError, hapticSuccess } from '../audio/haptics';
 import { playSfx, type SfxId } from '../audio/sfx';
 
 /**
@@ -241,6 +242,7 @@ export function usePurchase() {
       const fail = (error: PurchaseError): PurchaseOutcome<R> => {
         update({ phase: 'error', order, error, costLamports: cost });
         playSfx('ui_error');
+        hapticError();
         return { status: 'error', error };
       };
       /**
@@ -319,6 +321,7 @@ export function usePurchase() {
         const result = await pollUntilConfirmed(() => payload.confirm(signature), { isCancelled: () => !alive.current });
         update({ phase: 'done', order, error: null, costLamports: cost });
         playSfx('tx_confirmed');
+        hapticSuccess();
         const kindSound = PURCHASE_DONE_SFX[kind];
         if (kindSound !== undefined) playSfx(kindSound);
         return { status: 'done', result };
@@ -338,6 +341,7 @@ export function usePurchase() {
         if (error instanceof WalletDeclined) {
           update(IDLE);
           playSfx('ui_error');
+          hapticError();
           return { status: 'declined' };
         }
         if (error instanceof ApiError && error.code === 'not_enough_skr') {

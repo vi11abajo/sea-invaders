@@ -6,6 +6,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import { CLUSTER } from '../api/config';
 import { requestFaucet } from '../api/daily';
 import { buyItem, confirmPurchase, getShop, type ShopInfo, type ShopItem } from '../api/shop';
+import { onBackPress } from '../audio/onBackPress';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
 import { Toast } from '../ui/Toast';
@@ -211,7 +212,7 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
           }
         >
           <View style={styles.header}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} hitSlop={4} style={styles.back}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBackPress(onBack)} hitSlop={4} style={styles.back}>
               <Txt variant="button">←</Txt>
             </Pressable>
             <Txt variant="screenTitle" style={styles.title}>Shop</Txt>
