@@ -30,6 +30,7 @@ process.env.HELIUS_API_KEY = HELIUS_KEY;
 delete process.env.HELIUS_MAINNET_URL;
 
 const { readSeeker, issueSeekerLink, confirmSeekerLink, SeekerError } = await import('../src/services/seeker.js');
+const { getCachedPlayer, clearPlayerCache } = await import('../src/services/rankedRuns.js');
 const { createApp } = await import('../src/createApp.js');
 const { program } = await import('../src/chain/program.js');
 const { configPda, playerPda, seekerLinkPda } = await import('../src/chain/pdas.js');
@@ -205,6 +206,21 @@ describe('confirmSeekerLink', () => {
     const instructions = await foreignAuthorityInstructions(WALLET, SGT_MINT);
     fakeChain.setConfirmedTx('foreign-authority-sig', { status: 'confirmed', instructions });
     await expect(confirmSeekerLink({ wallet: WALLET, signature: 'foreign-authority-sig' })).rejects.toMatchObject({ code: 'invalid_transaction', status: 400 });
+  });
+
+  it('clears the cached player, so today stops reporting the badge as missing', async () => {
+    // `services/tickets.js` does the same after its own chain write: the cached `Player` still says
+    // `seeker: false` for up to 5s otherwise, and `GET /api/daily/today` reads it.
+    clearPlayerCache();
+    fakeChain.setPlayer(WALLET, { seeker: false });
+    expect((await getCachedPlayer(WALLET)).seeker).toBe(false);
+
+    fakeChain.setPlayer(WALLET, { seeker: true });
+    const instructions = await realLinkSeekerInstructions(realTxs, WALLET, { sgtMint: SGT_MINT });
+    fakeChain.setConfirmedTx('link-sig', { status: 'confirmed', instructions });
+    await confirmSeekerLink({ wallet: WALLET, signature: 'link-sig' });
+
+    expect((await getCachedPlayer(WALLET)).seeker).toBe(true);
   });
 
   it('writes the mirror from the mint the verified instruction itself carries', async () => {

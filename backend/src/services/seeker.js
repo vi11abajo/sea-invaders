@@ -10,6 +10,7 @@ import { getConfirmedInstructions, getPlayer, getSeekerLink } from '../chain/rea
 import { buildLinkSeekerTx } from '../chain/txs.js';
 import { linkedSeekerMint } from '../chain/verify.js';
 import * as usersDb from '../db/users.js';
+import { clearPlayerCache } from './rankedRuns.js';
 
 const STATUS = {
   seeker_unavailable: 503, no_seeker_token: 404, seeker_already_linked: 409,
@@ -83,6 +84,9 @@ export async function confirmSeekerLink({ wallet, signature }) {
   const sgtMint = linkedSeekerMint(parsed.instructions, { wallet, serverAuthority: serverAuthority.publicKey.toBase58() });
   if (!sgtMint) throw new SeekerError('invalid_transaction', 'Transaction does not match a Seeker link for this wallet');
 
+  // The cached `Player` still says `seeker: false` until it expires, and `GET /api/daily/today` reads
+  // it - the same invalidation `services/tickets.js` does after its own chain write.
+  clearPlayerCache(wallet);
   await usersDb.setSeekerMint(wallet, sgtMint);
   return { linked: true, sgtMint };
 }

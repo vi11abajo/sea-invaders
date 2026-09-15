@@ -1,4 +1,4 @@
-import { Keypair } from '@solana/web3.js';
+import { Keypair, PublicKey } from '@solana/web3.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   heliusFetch, mintAccount, tokenAccount, SGT_COLLECTION, SGT_MINT_AUTHORITY, TOKEN_2022_PROGRAM_ID,
@@ -54,8 +54,13 @@ describe('findSeekerGenesisToken', () => {
     delete process.env.HELIUS_MAINNET_URL;
   });
 
-  it('returns the mint of a Genesis Token the wallet holds', async () => {
+  it('returns the mint of a Genesis Token the wallet holds, from the documented result.value page', async () => {
     const fetchImpl = heliusFetch(oneAccountOf(SGT_MINT));
+    expect(await findSeekerGenesisToken(WALLET, { fetchImpl })).toBe(SGT_MINT);
+  });
+
+  it('reads the withContext envelope too, where the accounts move inside result.value', async () => {
+    const fetchImpl = heliusFetch({ ...oneAccountOf(SGT_MINT), withContext: true });
     expect(await findSeekerGenesisToken(WALLET, { fetchImpl })).toBe(SGT_MINT);
   });
 
@@ -128,6 +133,48 @@ describe('findSeekerGenesisToken', () => {
     const pageCalls = fetchImpl.calls.filter((call) => call.method === 'getTokenAccountsByOwnerV2');
     expect(pageCalls).toHaveLength(2);
     expect(pageCalls[1].params[2].paginationKey).toBe('page-1');
+  });
+
+  it('ends the walk on an empty page, the only reliable end-of-pagination signal the API gives', async () => {
+    // `endlessCursor` keeps handing out a `paginationKey` past the last page - exactly what the
+    // reference warns about - so only the empty page can stop this walk.
+    const fetchImpl = heliusFetch({
+      pages: [[tokenAccount({ owner: WALLET, mint: OTHER_MINT })], []],
+      mints: { [OTHER_MINT]: mintAccount({ mint: OTHER_MINT, mintAuthority: Keypair.generate().publicKey.toBase58() }) },
+      endlessCursor: true,
+    });
+
+    expect(await findSeekerGenesisToken(WALLET, { fetchImpl })).toBeNull();
+    expect(fetchImpl.calls.filter((call) => call.method === 'getTokenAccountsByOwnerV2')).toHaveLength(2);
+  });
+
+  it('gives up rather than following a cursor that never clears', async () => {
+    const fetchImpl = heliusFetch({
+      pages: [[tokenAccount({ owner: WALLET, mint: OTHER_MINT })]],
+      mints: { [OTHER_MINT]: mintAccount({ mint: OTHER_MINT, mintAuthority: Keypair.generate().publicKey.toBase58() }) },
+      endlessCursor: true,
+      repeatLastPage: true,
+    });
+
+    expect(await findSeekerGenesisToken(WALLET, { fetchImpl })).toBeNull();
+    const pageCalls = fetchImpl.calls.filter((call) => call.method === 'getTokenAccountsByOwnerV2');
+    expect(pageCalls.length).toBeGreaterThan(1); // it does page, it just does not page forever
+    expect(pageCalls.length).toBeLessThanOrEqual(10);
+  });
+
+  it('caps how many mints one wallet can make it read', async () => {
+    // A wallet can be stuffed with junk Token-2022 mints (anyone can airdrop one), and every distinct
+    // mint costs a sequential getAccountInfo - so the scan is bounded rather than unbounded work.
+    const junk = Array.from({ length: 300 }, (_, i) => new PublicKey(new Uint8Array(32).fill(i + 1)).toBase58());
+    const fetchImpl = heliusFetch({
+      pages: [junk.map((mint) => tokenAccount({ owner: WALLET, mint }))],
+      mints: Object.fromEntries(junk.map((mint) => [mint, mintAccount({ mint, mintAuthority: OTHER_MINT })])),
+    });
+
+    expect(await findSeekerGenesisToken(WALLET, { fetchImpl })).toBeNull();
+    const mintCalls = fetchImpl.calls.filter((call) => call.method === 'getAccountInfo');
+    expect(mintCalls.length).toBeGreaterThan(1);
+    expect(mintCalls.length).toBeLessThanOrEqual(100);
   });
 
   it('stops at the first accepted mint instead of reading the rest of the wallet', async () => {

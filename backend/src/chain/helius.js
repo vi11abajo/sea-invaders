@@ -15,8 +15,17 @@ const TOKEN_2022_PROGRAM_ID = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 const SGT_MINT_AUTHORITY = 'GT2zuHVaZQYZSyQMgJPLzvkmyztfyXg2NJunqFp4p3A4';
 /** The collection the Genesis Token belongs to - named both by its metadata pointer and by its token group. */
 const SGT_COLLECTION = 'GT22s89nU4iWFkNXj1Bw6uYhJJWDRPpShHt4Bk8f99Te';
-/** Token accounts per `getTokenAccountsByOwnerV2` page; a wallet with more is walked via `paginationKey`. */
+/** Token accounts per `getTokenAccountsByOwnerV2` page (the API takes 1..10000); a wallet with more is walked via `paginationKey`. */
 const PAGE_LIMIT = 1000;
+/**
+ * Bounds on one wallet's walk. The reference ends pagination by returning no accounts rather than by
+ * clearing the cursor, so a cursor that never clears must not become an endless loop; and since
+ * anybody can airdrop a Token-2022 token, a wallet can be stuffed with junk mints that each cost a
+ * sequential `getAccountInfo`. Both are bounded here: a wallet past these limits answers "no token"
+ * instead of spending unbounded time and Helius credits on one `/link` call.
+ */
+const MAX_PAGES = 10;
+const MAX_MINT_READS = 100;
 
 /**
  * One Helius JSON-RPC call. Errors name the method and the status, never the URL: the URL carries
@@ -61,6 +70,20 @@ function isGenesisMint(info) {
     && extensionState(info, 'tokenGroupMember')?.group === SGT_COLLECTION;
 }
 
+/**
+ * One page of token accounts, in whichever of the two documented envelopes came back: without
+ * `withContext` (what this module asks for) `result.value` IS the array of accounts and the cursor
+ * sits beside it at `result.paginationKey`; with `withContext: true` a `context` appears and both
+ * move inside `result.value`. Reading both costs one line and means a proxy or a future caller that
+ * turns `withContext` on cannot silently drop every account.
+ */
+function accountsPage(result) {
+  if (Array.isArray(result?.value)) {
+    return { accounts: result.value, paginationKey: result.paginationKey ?? null };
+  }
+  return { accounts: result?.value?.accounts ?? [], paginationKey: result?.value?.paginationKey ?? null };
+}
+
 /** Reads a mint account on mainnet and says whether it is a Genesis Token. A mint the RPC does not know is not one. */
 async function mintIsGenesis(mint, fetchImpl) {
   const account = await rpc('getAccountInfo', [mint, { encoding: 'jsonParsed' }], fetchImpl);
@@ -69,9 +92,10 @@ async function mintIsGenesis(mint, fetchImpl) {
 
 /**
  * The mint (base58) of a Seeker Genesis Token `wallet` holds on mainnet, or `null` when it holds
- * none. Walks the wallet's Token-2022 accounts page by page, skips the ones it has emptied, and
- * reads each remaining mint until one passes `isGenesisMint` - the first accepted mint is returned
- * at once, so the common case (the token is right there) costs two RPC calls.
+ * none. Walks the wallet's Token-2022 accounts page by page (ending on an empty page, a cleared
+ * cursor or `MAX_PAGES`), skips the ones it has emptied, and reads each remaining mint until one
+ * passes `isGenesisMint` - the first accepted mint is returned at once, so the common case (the
+ * token is right there) costs two RPC calls.
  *
  * `fetchImpl` defaults to the global `fetch` so tests can inject a stub; nothing here touches the
  * network in a test run. The API key never appears in the return value or in a thrown error.
@@ -81,21 +105,27 @@ export async function findSeekerGenesisToken(wallet, { fetchImpl = fetch } = {})
   const checked = new Set();
   let paginationKey = null;
 
-  do {
-    const page = { encoding: 'jsonParsed', limit: PAGE_LIMIT };
-    if (paginationKey) page.paginationKey = paginationKey;
-    const result = await rpc('getTokenAccountsByOwnerV2', [owner, { programId: TOKEN_2022_PROGRAM_ID }, page], fetchImpl);
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const options = { encoding: 'jsonParsed', limit: PAGE_LIMIT };
+    if (paginationKey) options.paginationKey = paginationKey;
+    const result = await rpc('getTokenAccountsByOwnerV2', [owner, { programId: TOKEN_2022_PROGRAM_ID }, options], fetchImpl);
+    const { accounts, paginationKey: nextKey } = accountsPage(result);
+    // "End of pagination is only indicated when no token accounts are returned" - an empty page ends
+    // the walk even when a cursor came back with it.
+    if (accounts.length === 0) return null;
 
-    for (const account of result?.accounts ?? []) {
+    for (const account of accounts) {
       const info = account?.account?.data?.parsed?.info;
       const mint = info?.mint;
       if (!mint || heldAmount(info) === 0n || checked.has(mint)) continue;
+      if (checked.size >= MAX_MINT_READS) return null;
       checked.add(mint);
       if (await mintIsGenesis(mint, fetchImpl)) return mint;
     }
 
-    paginationKey = result?.paginationKey ?? null;
-  } while (paginationKey);
+    if (!nextKey) return null;
+    paginationKey = nextKey;
+  }
 
   return null;
 }
