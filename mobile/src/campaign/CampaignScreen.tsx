@@ -23,6 +23,7 @@ import {
   reefProgress, type LevelState,
 } from './reefs';
 import { ReefBackdrop } from './ReefBackdrop';
+import { REEF_KEY_ART_BACKGROUND, REEF_KEY_ART_PATH, REEF_KEY_ART_TEXT_SHADOW } from './reefBackground';
 
 // The header reads "REEF n OF 6": a literal 6, not core's `REEFS` (5) — it counts the mock's
 // six-reef table (reef 6 is the unbuilt "coming" placeholder in the rail), spec §"Campaign map".
@@ -41,6 +42,8 @@ const NODE_POS: readonly { x: number; y: number }[] = [
 const DASH_INTERVALS = [2, 9];
 const DASH_PERIOD = DASH_INTERVALS[0] + DASH_INTERVALS[1];
 const DASH_DURATION_MS = 2400;
+/** The connector's stroke and opacity: the design's on the gradient world, a little bolder on the key art. */
+const pathLook = REEF_KEY_ART_BACKGROUND ? REEF_KEY_ART_PATH : { strokeWidth: 2, opacity: 0.55 };
 
 
 /** The map's seabed dome and flora sit this far above the screen's bottom edge, clear of the bottom panel. */
@@ -164,10 +167,10 @@ function Header({ reef, progress, onBack }: { reef: number; progress: CampaignPr
         <Txt variant="button">←</Txt>
       </Pressable>
       <View style={styles.headerText}>
-        <Txt variant="monoSmall" tone="secondary" style={styles.kicker} numberOfLines={1}>
+        <Txt variant="monoSmall" tone="secondary" style={[styles.kicker, REEF_KEY_ART_TEXT_SHADOW]} numberOfLines={1}>
           {`REEF ${reef} OF ${REEFS_SHOWN} · ${rp.cleared} of ${LEVELS_PER_REEF} cleared`}
         </Txt>
-        <Txt variant="headline" numberOfLines={1}>
+        <Txt variant="headline" numberOfLines={1} style={REEF_KEY_ART_TEXT_SHADOW}>
           {REEF_NAMES[reef - 1]}
         </Txt>
       </View>
@@ -227,7 +230,7 @@ function PathLayer({ reef, progress, bossSprite, onOpenLevel, onOpenBoss }: Path
       {box !== null && (
         <>
           <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
-            <Path path={path} style="stroke" strokeWidth={2} strokeCap="round" color={accent} opacity={0.55}>
+            <Path path={path} style="stroke" strokeWidth={pathLook.strokeWidth} strokeCap="round" color={accent} opacity={pathLook.opacity}>
               <DashPathEffect intervals={DASH_INTERVALS} phase={phase} />
             </Path>
           </Canvas>

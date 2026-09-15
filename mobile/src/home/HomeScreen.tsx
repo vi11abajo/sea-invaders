@@ -1,8 +1,8 @@
 import { formatCountdown, formatInt } from '@sea-invaders/core';
 import { useCallback, useEffect, useState } from 'react';
-import { Canvas, LinearGradient, Rect, vec } from '@shopify/react-native-skia';
-import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { skinName, useActiveSkin, useEquippedOctopi, variantName } from '../game/skins';
+import { KeyArtScrim } from '../ui/KeyArtScrim';
 import { HOME_KEY_ART, HOME_KEY_ART_BACKGROUND } from './homeBackground';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
@@ -21,24 +21,6 @@ import type { HomeModel, RankedInfo } from './model';
  * it (`· Lime skin`).
  */
 const HERO_CAPTION = 'Octopi · base defender';
-
-/**
- * Darkens the bright upper water of the key art under the top bar, the buttons and the ticker:
- * black at 55 % along the top edge, gone by 42 % of the screen height (the reef below stays as is).
- */
-function KeyArtScrim() {
-  const { width, height } = useWindowDimensions();
-  const h = Math.round(height * 0.42);
-  return (
-    <View style={[styles.keyArt, { height: h }]} pointerEvents="none">
-      <Canvas style={StyleSheet.absoluteFill}>
-        <Rect x={0} y={0} width={width} height={h}>
-          <LinearGradient start={vec(0, 0)} end={vec(0, h)} colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)']} />
-        </Rect>
-      </Canvas>
-    </View>
-  );
-}
 
 /** Fractional SKR (the pool balance) renders with one decimal; `formatInt` is for whole scores. */
 function formatSkr(value: number): string {
@@ -98,7 +80,8 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
       {HOME_KEY_ART_BACKGROUND ? (
         <>
           <Image source={HOME_KEY_ART} style={styles.keyArt} resizeMode="cover" fadeDuration={0} />
-          <KeyArtScrim />
+          {/* Under the top bar, the buttons and the ticker: black at 55 % along the top edge, gone by 42 % of the height. */}
+          <KeyArtScrim opacity={0.55} fraction={0.42} />
         </>
       ) : (
         <Backdrop floorGlow />

@@ -7,8 +7,12 @@ import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing, useAnimatedStyle, useDerivedValue, useSharedValue, withRepeat, withTiming, type SharedValue,
 } from 'react-native-reanimated';
+import { KeyArtScrim } from '../ui/KeyArtScrim';
 import { MOTION } from '../ui/tokens';
-import { REEF_KEY_ART, REEF_KEY_ART_BACKGROUND, REEF_KEY_ART_BLEND, REEF_KEY_ART_DIM, reefKeyArtTint } from './reefBackground';
+import {
+  REEF_KEY_ART, REEF_KEY_ART_BACKGROUND, REEF_KEY_ART_BLEND, REEF_KEY_ART_BOSS_LOOM, REEF_KEY_ART_DIM, REEF_KEY_ART_SCRIM,
+  reefKeyArtTint,
+} from './reefBackground';
 import { REEF_ACCENT, REEF_WORLD } from './reefs';
 
 /** Flora bar sizes and sway periods, `CampaignMap.dc.html`'s `FLORA` table. Bars 0, 3, 6 use the reef's `floraAccent`. */
@@ -64,7 +68,12 @@ export function ReefBackdrop({ reef, variant = 'map', bossSprite = null, floorBo
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <ReefWorld reef={reef} variant={variant} bossSprite={variant === 'map' ? bossSprite : null} floorBottom={floorBottom} />
-      <Flora reef={reef} floorBottom={floorBottom} />
+      {/* On the key art the seabed dome and the flora are gone (the owner: they hid the reef) and the header gets a scrim. */}
+      {REEF_KEY_ART_BACKGROUND ? (
+        <KeyArtScrim opacity={REEF_KEY_ART_SCRIM.opacity} fraction={REEF_KEY_ART_SCRIM.fraction} />
+      ) : (
+        <Flora reef={reef} floorBottom={floorBottom} />
+      )}
     </View>
   );
 }
@@ -109,6 +118,8 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
   const bossLeft = width / 2 - BOSS_LOOM_SIZE / 2;
   // The key art decodes once per mount; the water gradient underneath shows until it has.
   const keyArt = useImage(REEF_KEY_ART_BACKGROUND ? REEF_KEY_ART : null);
+  // The looming boss: the design's faint ghost on the gradient, a clearer figure on the busy art.
+  const bossLoom = REEF_KEY_ART_BACKGROUND ? REEF_KEY_ART_BOSS_LOOM : { opacity: BOSS_LOOM_OPACITY, blur: BOSS_LOOM_BLUR };
 
   return (
     <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -138,19 +149,21 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
         </>
       )}
       {bossSprite !== null && (
-        <Image image={bossSprite} x={bossLeft} y={bossY} width={BOSS_LOOM_SIZE} height={BOSS_LOOM_SIZE} opacity={BOSS_LOOM_OPACITY} fit="contain">
+        <Image image={bossSprite} x={bossLeft} y={bossY} width={BOSS_LOOM_SIZE} height={BOSS_LOOM_SIZE} opacity={bossLoom.opacity} fit="contain">
           <ColorMatrix matrix={LOOM_SATURATE_MATRIX} />
-          <Blur blur={BOSS_LOOM_BLUR} mode="decal" />
+          <Blur blur={bossLoom.blur} mode="decal" />
         </Image>
       )}
-      <Path path={domePath} style="fill">
-        <LinearGradient
-          start={vec(0, height - floorBottom - DOME_HEIGHT)}
-          end={vec(0, height - floorBottom)}
-          colors={[...world.floor.colors]}
-          positions={[...world.floor.positions]}
-        />
-      </Path>
+      {!REEF_KEY_ART_BACKGROUND && (
+        <Path path={domePath} style="fill">
+          <LinearGradient
+            start={vec(0, height - floorBottom - DOME_HEIGHT)}
+            end={vec(0, height - floorBottom)}
+            colors={[...world.floor.colors]}
+            positions={[...world.floor.positions]}
+          />
+        </Path>
+      )}
     </Canvas>
   );
 }
