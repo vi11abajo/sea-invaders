@@ -100,6 +100,25 @@ describe("link_seeker", () => {
     expect(err).to.not.equal("");
   });
 
+  it("fails with ConstraintHasOne (2001) when co-signed by a foreign server keypair", async () => {
+    // `config`'s `has_one = server_authority` (instructions/seeker.rs) is what actually binds the
+    // co-signer to ours - a random keypair that signs (so the `Signer` check itself passes) but is
+    // not the server authority `config` was initialized with must still fail, and specifically on
+    // that has_one check rather than some other constraint.
+    const who = await freshPlayer(ctx);
+    const sgtMint = Keypair.generate().publicKey;
+    const foreignServer = Keypair.generate();
+
+    let err = "";
+    try {
+      await linkSeeker(ctx, who, sgtMint, foreignServer);
+    } catch (e: any) {
+      err = e.message;
+    }
+    expect(err).to.contain("Error Code: ConstraintHasOne");
+    expect(err).to.contain("Error Number: 2001");
+  });
+
   it("fails with Paused while the program is paused", async () => {
     const who = await freshPlayer(ctx);
     const sgtMint = Keypair.generate().publicKey;
