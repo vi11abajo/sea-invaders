@@ -266,7 +266,7 @@ function Catalogue({ shop, disabled, onBuy }: CatalogueProps) {
   const short = (item: ShopItem) => shop.swap.available && !item.owned && item.priceSkr > shop.balanceSkr;
   const priceLabel = (item: ShopItem): string => {
     if (item.owned) return 'Owned';
-    const sol = short(item) ? item.priceSol : null;
+    const sol = short(item) ? (item.priceSol ?? null) : null; // `??`: an API without the field reads as no quote
     return sol === null ? `${formatSkr(item.priceSkr)} SKR` : `≈ ${formatSolPrice(sol)} SOL`;
   };
   const variants = shop.items.filter((item) => item.kind === 'variant');

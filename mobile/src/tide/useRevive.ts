@@ -176,7 +176,7 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
   // SKR price and the faucet hint exactly as they were.
   const ready = quote.status === 'ready' ? quote.quote : null;
   const swapAvailable = ready !== null && ready.swap?.available === true;
-  const solPrice = swapAvailable && ready.balanceSkr < ready.priceSkr ? ready.priceSol : null;
+  const solPrice = swapAvailable && ready.balanceSkr < ready.priceSkr ? (ready.priceSol ?? null) : null;
 
   // The price falls a step when the countdown runs out: fetch the new one.
   const dropAt = quote.status === 'ready' && quote.quote.nextStep !== null ? quote.at + quote.quote.nextStep.inSeconds * 1000 : null;
