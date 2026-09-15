@@ -15,7 +15,7 @@ interface SplashProps {
 }
 
 /**
- * The launch screen: the key art (the stone "SEA INVADER" and Octopi on the reef) on top of
+ * The launch screen: the key art (the stone "SEA INVADERS" letters on the reef) on top of
  * everything until the app has restored its session and loadout. The art is shown whole
  * (`contain`, so no screen ratio ever crops it) over a blurred, edge-to-edge copy of itself that
  * fills whatever the ratio leaves free; on a screen with the art's own ratio the two coincide.

@@ -5,8 +5,8 @@ import { OctopiAvatar } from '../game/OctopiArt';
 import { Glass } from '../ui/Glass';
 import { SeekerBadge } from '../ui/SeekerBadge';
 import { Txt } from '../ui/Txt';
-import { COLORS, RADIUS, SIZE } from '../ui/tokens';
-import { boardStyles } from './boardStyles';
+import { COLORS, RADIUS } from '../ui/tokens';
+import { OCTOPI_SIZE, boardStyles } from './boardStyles';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -50,7 +50,7 @@ export function WeekBoard({ data, error, mine }: WeekBoardProps) {
           renderItem={({ item }) => (
             <Glass radius={RADIUS.row} style={[boardStyles.row, item.walletAddress === mine && boardStyles.mine]}>
               <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
-              <OctopiAvatar skin={item.skin} size={SIZE.avatar} />
+              <OctopiAvatar skin={item.skin} size={OCTOPI_SIZE} />
               <View style={boardStyles.who}>
                 <View style={boardStyles.nameRow}>
                   <Txt variant="body" numberOfLines={1} style={boardStyles.name}>{item.username ?? shortAddress(item.walletAddress)}</Txt>

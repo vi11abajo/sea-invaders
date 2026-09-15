@@ -9,8 +9,8 @@ import { Glass } from '../ui/Glass';
 import { PillButton } from '../ui/PillButton';
 import { SeekerBadge } from '../ui/SeekerBadge';
 import { Txt } from '../ui/Txt';
-import { COLORS, RADIUS, SIZE } from '../ui/tokens';
-import { boardStyles } from './boardStyles';
+import { COLORS, RADIUS } from '../ui/tokens';
+import { OCTOPI_SIZE, boardStyles } from './boardStyles';
 import { WeekBoard } from './WeekBoard';
 
 type Tab = 'today' | 'week';
@@ -88,7 +88,7 @@ export function LeaderboardScreen({ onBack }: { onBack: () => void }) {
             renderItem={({ item }) => (
               <Glass radius={RADIUS.row} style={[boardStyles.row, item.walletAddress === mine && boardStyles.mine]}>
                 <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
-                <OctopiAvatar skin={item.skin} size={SIZE.avatar} />
+                <OctopiAvatar skin={item.skin} size={OCTOPI_SIZE} />
                 <View style={boardStyles.who}>
                   <View style={boardStyles.nameRow}>
                     <Txt variant="body" numberOfLines={1} style={boardStyles.name}>{item.username}</Txt>

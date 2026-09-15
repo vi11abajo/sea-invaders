@@ -3,6 +3,8 @@ import { COLORS } from '../ui/tokens';
 
 /** Shared row layout for the Today and Week leaderboard lists. */
 export const ROW_MIN_HEIGHT = 56;
+/** The row's whole Octopi (the run's skin), in dp: fills the row's content height, no frame. */
+export const OCTOPI_SIZE = 32;
 
 export const boardStyles = StyleSheet.create({
   list: { gap: 8, paddingBottom: 16 },

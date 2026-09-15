@@ -2,7 +2,6 @@ import { Canvas, FilterMode, Image, MipmapMode } from '@shopify/react-native-ski
 import type { OctopiVariant } from '@sea-invaders/core';
 import { StyleSheet, View } from 'react-native';
 import type { SkinIndex } from '../loadout/items';
-import { Glass } from '../ui/Glass';
 import { SKIN_TINTS, useOctopiTint } from './skins';
 import { useOctopiArt } from './sprites';
 
@@ -29,27 +28,24 @@ export function ActiveOctopi({ size, octopi }: { size: number; octopi?: OctopiVa
 }
 
 /**
- * A leaderboard row's avatar (design doc §8, handoff 08): Octopi in `skin`'s colour, fitted into a
- * round `size` dp glass circle. `skin` here is the raw selector of the entry's own run, not the
- * viewer's active skin, so it goes straight to `SKIN_TINTS` rather than through `useOctopiTint`
- * (which reads the current player's loadout/run context). Draws through the same `useOctopiArt`
- * snapshot cache as every other UI Octopi — keyed by tint + physical size, so every row on both
- * boards sharing a skin shares one snapshot; a board of 50 rows across 5 skins decodes at most 5
- * snapshots, never one per row.
+ * A leaderboard row's Octopi (design doc §8): the whole front pose in `skin`'s colour, fitted into
+ * a `size` dp square with no frame - the owner dropped handoff 08's glass circle because it cropped
+ * the tentacles (2026-09-15). `skin` here is the raw selector of the entry's own run (a daily run
+ * always plays the base Octopi, so the skin is the run's whole look), not the viewer's active skin,
+ * so it goes straight to `SKIN_TINTS` rather than through `useOctopiTint` (which reads the current
+ * player's loadout/run context). Draws through the same `useOctopiArt` snapshot cache as every
+ * other UI Octopi — keyed by tint + physical size, so every row on both boards sharing a skin shares
+ * one snapshot; a board of 50 rows across 5 skins decodes at most 5 snapshots, never one per row.
  */
 export function OctopiAvatar({ skin, size }: { skin: SkinIndex; size: number }) {
   const art = useOctopiArt(SKIN_TINTS[skin] ?? null, size);
   return (
-    <Glass radius={size / 2} style={[styles.avatar, { width: size, height: size }]}>
+    <View style={{ width: size, height: size }} pointerEvents="none">
       {art !== null && (
         <Canvas style={StyleSheet.absoluteFill}>
           <Image image={art} x={0} y={0} width={size} height={size} fit="contain" sampling={SAMPLING} />
         </Canvas>
       )}
-    </Glass>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  avatar: { alignItems: 'center', justifyContent: 'center' },
-});
