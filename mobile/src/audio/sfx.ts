@@ -96,13 +96,18 @@ interface Pool {
 }
 
 const pools = new Map<SfxId, Pool>();
-/** Every id that has already logged a load/play failure, so a broken asset warns once, not every frame. */
-const warned = new Set<SfxId>();
+/**
+ * Every id whose pool failed to build or play (a missing/corrupt asset): it has warned once, and
+ * every later call is a no-op without touching the native side again.
+ */
+const failed = new Set<SfxId>();
 
 let soundsEnabled = true;
 
 /** Configures the app's audio session once: sound effects play over silent mode and never fight another app for focus. */
-void setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false, interruptionMode: 'mixWithOthers' });
+setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false, interruptionMode: 'mixWithOthers' }).catch((error: unknown) => {
+  console.warn('[sfx] audio mode not applied', error instanceof Error ? error.message : error);
+});
 
 function getPool(id: SfxId): Pool {
   let pool = pools.get(id);
@@ -129,7 +134,7 @@ function getPool(id: SfxId): Pool {
  * should be requested per rendered frame by the caller, but this function itself does not de-dupe.
  */
 export function playSfx(id: SfxId): void {
-  if (!soundsEnabled) return;
+  if (!soundsEnabled || failed.has(id)) return;
   try {
     const pool = getPool(id);
     const player = pool.players[pool.next]!;
@@ -137,16 +142,15 @@ export function playSfx(id: SfxId): void {
     // Restart from the top: `play()` alone would do nothing once a one-shot has already reached its
     // end. `seekTo` is async on the native side, but the call itself is issued (and queued behind
     // nothing) before `play()` runs, so the two land in order in practice; not verified on-device
-    // from this session — see the wiring report's "not device-tested" note.
+    // from this session — see the wiring report's "not device-tested" note. Its rejection is
+    // swallowed: a seek that fails only means this instance plays from wherever it stopped.
     player.pause();
-    void player.seekTo(0);
+    player.seekTo(0).catch(() => {});
     player.setPlaybackRate(jitteredRate());
     player.play();
   } catch (error) {
-    if (!warned.has(id)) {
-      warned.add(id);
-      console.warn(`[sfx] could not play "${id}"`, error instanceof Error ? error.message : error);
-    }
+    failed.add(id);
+    console.warn(`[sfx] could not play "${id}"`, error instanceof Error ? error.message : error);
   }
 }
 

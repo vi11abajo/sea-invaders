@@ -140,6 +140,8 @@ export function useSeeker(session: Session | null): SeekerState {
           return;
         }
         if (alive.current) setPhase({ kind: 'idle', message: describeLinkError(error) });
+        playSfx('ui_error');
+        hapticError();
         return;
       }
       if (alive.current) setPhase({ kind: 'confirming' });
@@ -158,6 +160,8 @@ export function useSeeker(session: Session | null): SeekerState {
         // Cancelled means the whole shell went away before confirmation was observed - nothing left to report.
         if (error instanceof PollCancelled) return;
         if (alive.current) setPhase({ kind: 'idle', message: describeLinkError(error) });
+        playSfx('ui_error');
+        hapticError();
       }
     })();
   }, [walletAddress, signAndSend, load]);
