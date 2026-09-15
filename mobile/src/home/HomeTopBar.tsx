@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GradientFill } from '../ui/GradientFill';
 import { COLORS, FONTS, RADIUS, REEF_LIFE, SIZE } from '../ui/tokens';
 import type { WalletInfo } from './model';
+import { KEY_ART_TEXT_SHADOW } from './homeBackground';
 
 const AVATAR_GRADIENT = ['#9945FF', '#19FB9B'] as const;
 const CAMPAIGN_GRADIENT = ['#43B4CA', '#19FB9B'] as const;
@@ -94,7 +95,7 @@ function FeatureButton({ label, badge = null, onPress, children }: {
           </View>
         )}
       </View>
-      <Text style={styles.featureLabel}>{label}</Text>
+      <Text style={[styles.featureLabel, KEY_ART_TEXT_SHADOW]}>{label}</Text>
     </Pressable>
   );
 }

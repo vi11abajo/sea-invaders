@@ -5,6 +5,7 @@ import { ActiveOctopi } from '../game/OctopiArt';
 import { useEquippedOctopi } from '../game/skins';
 import { Txt } from '../ui/Txt';
 import { COLORS, MOTION } from '../ui/tokens';
+import { KEY_ART_TEXT_SHADOW } from './homeBackground';
 
 /** The swaying row's five crabs (spec M7); cosmetic order, independent of the game's kind indices. */
 const CRAB_ROW = [
@@ -76,7 +77,7 @@ export function ReefScene({ caption, onOctopi }: ReefSceneProps) {
           </Animated.View>
           <View style={styles.caption}>
             <View style={styles.captionDot} />
-            <Txt variant="secondary" tone="secondary">{caption}</Txt>
+            <Txt variant="secondary" tone="secondary" style={KEY_ART_TEXT_SHADOW}>{caption}</Txt>
           </View>
         </View>
       )}

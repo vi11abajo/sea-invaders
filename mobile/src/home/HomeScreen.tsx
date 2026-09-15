@@ -1,7 +1,9 @@
 import { formatCountdown, formatInt } from '@sea-invaders/core';
 import { useCallback, useEffect, useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { Canvas, LinearGradient, Rect, vec } from '@shopify/react-native-skia';
+import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { skinName, useActiveSkin, useEquippedOctopi, variantName } from '../game/skins';
+import { HOME_KEY_ART, HOME_KEY_ART_BACKGROUND } from './homeBackground';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
 import { Toast } from '../ui/Toast';
@@ -21,12 +23,22 @@ import type { HomeModel, RankedInfo } from './model';
 const HERO_CAPTION = 'Octopi · base defender';
 
 /**
- * Home's background, an owner trial (2026-09-15): the reef key art (`assets/home-bg.jpg`, drawn
- * edge to edge with `cover`) in place of the animated `Backdrop` and its light rays. Set this to
- * `false` to bring the rays back — nothing else changes.
+ * Darkens the bright upper water of the key art under the top bar, the buttons and the ticker:
+ * black at 55 % along the top edge, gone by 42 % of the screen height (the reef below stays as is).
  */
-const HOME_KEY_ART_BACKGROUND = true;
-const HOME_KEY_ART = require('../../assets/home-bg.jpg');
+function KeyArtScrim() {
+  const { width, height } = useWindowDimensions();
+  const h = Math.round(height * 0.42);
+  return (
+    <View style={[styles.keyArt, { height: h }]} pointerEvents="none">
+      <Canvas style={StyleSheet.absoluteFill}>
+        <Rect x={0} y={0} width={width} height={h}>
+          <LinearGradient start={vec(0, 0)} end={vec(0, h)} colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)']} />
+        </Rect>
+      </Canvas>
+    </View>
+  );
+}
 
 /** Fractional SKR (the pool balance) renders with one decimal; `formatInt` is for whole scores. */
 function formatSkr(value: number): string {
@@ -84,7 +96,10 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
   return (
     <View style={styles.root}>
       {HOME_KEY_ART_BACKGROUND ? (
-        <Image source={HOME_KEY_ART} style={styles.keyArt} resizeMode="cover" fadeDuration={0} />
+        <>
+          <Image source={HOME_KEY_ART} style={styles.keyArt} resizeMode="cover" fadeDuration={0} />
+          <KeyArtScrim />
+        </>
       ) : (
         <Backdrop floorGlow />
       )}
@@ -97,7 +112,7 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
           />
         </View>
         {ticker.length > 0 && (
-          <View style={styles.ticker}>
+          <View style={[styles.ticker, HOME_KEY_ART_BACKGROUND && styles.tickerBand]}>
             <Ticker items={ticker} />
           </View>
         )}
@@ -172,6 +187,8 @@ const styles = StyleSheet.create({
   column: { flex: 1, paddingTop: 28, paddingBottom: 28 },
   inset: { paddingHorizontal: 16, gap: 16 },
   ticker: { marginTop: 22 },
+  /** On the key art the ticker rides a dark band across the whole width, the way the prototype draws it. */
+  tickerBand: { backgroundColor: 'rgba(0,0,0,0.45)', paddingVertical: 6 },
   bottom: { gap: 10 },
   row: { flexDirection: 'row', gap: 8 },
   half: { flex: 1 },
