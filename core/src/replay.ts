@@ -6,7 +6,7 @@ import { step } from './step';
 import { VARIANT_INDEX, type Input, type OctopiVariant } from './types';
 
 /** Bumped whenever simulation behaviour changes; replays only run on the version that recorded them. */
-export const CORE_VERSION = 6;
+export const CORE_VERSION = 7;
 
 /** 15 minutes at 60 Hz: an upper bound on how long a single replay may run or claim to run. */
 export const MAX_REPLAY_TICKS = 54_000;

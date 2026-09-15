@@ -164,7 +164,7 @@ describe('Crimson Behemoth (kind 4)', () => {
     expect(bossImmuneToSlowdown(s)).toBe(true);
   });
 
-  it('a boss shot always moves its full vy under ICE_FREEZE, raging or not (spec C5: bullets are never slowed)', () => {
+  it('a boss shot keeps its full vy under ICE_FREEZE only while Crimson rages; calm, it is halved like every enemy shot', () => {
     const raging = fresh();
     raging.boss!.effectTicks = 50;
     activateBoost(raging, 'ICE_FREEZE');
@@ -177,7 +177,7 @@ describe('Crimson Behemoth (kind 4)', () => {
     activateBoost(calm, 'ICE_FREEZE');
     calm.enemyShots = [{ x: 2000, y: 0, vx: 0, vy: 100, kind: 'meteor', data: 0 }];
     updateEnemyShots(calm);
-    expect(calm.enemyShots[0]!.y).toBe(100);
+    expect(calm.enemyShots[0]!.y).toBe(50);
   });
 
   it('is deterministic over 600 ticks', () => {

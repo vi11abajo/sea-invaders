@@ -31,14 +31,6 @@ describe('ICE_FREEZE', () => {
     expect(s.crabs[0]!.x - before).toBe(3);
   });
 
-  it('never slows an enemy shot (spec C5: only crab movement is slowed, matching the legacy)', () => {
-    const s = createGame('t', PRACTICE_RUN);
-    activateBoost(s, 'ICE_FREEZE');
-    s.enemyShots = [{ x: 1000, y: 1000, vx: 40, vy: 110, kind: 'crab', data: 0 }];
-    updateEnemyShots(s);
-    expect(s.enemyShots[0]!.x).toBe(1040);
-    expect(s.enemyShots[0]!.y).toBe(1110);
-  });
 });
 
 describe('POINTS_FREEZE', () => {
@@ -157,6 +149,32 @@ describe('WAVE_BLAST', () => {
     updateBoosts(s);
     expect(s.drops).toHaveLength(1); // still falling, not picked up
     expect(s.events.some((e) => e.type === 'boost_pickup')).toBe(false);
+  });
+});
+
+describe('ICE_FREEZE on enemy shots', () => {
+  it('halves the step of every enemy shot while active and restores it after', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    s.rngFire = { nextInt: () => 999 } as never; // nothing new fires
+    s.enemyShots = [{ x: 1000, y: 1000, vx: 110, vy: 73, kind: 'crab', data: 0 }];
+    activateBoost(s, 'ICE_FREEZE');
+    updateEnemyShots(s);
+    expect(s.enemyShots[0]).toMatchObject({ x: 1055, y: 1036, vx: 110, vy: 73 }); // idiv(73, 2) = 36
+    s.boosts.active = s.boosts.active.filter((a) => a.type !== 'ICE_FREEZE');
+    updateEnemyShots(s);
+    expect(s.enemyShots[0]).toMatchObject({ x: 1165, y: 1109 });
+  });
+
+  it('leaves the shots of a raging Crimson at full speed, like the boss itself', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    s.crabs = [];
+    spawnBoss(s, 4);
+    s.boss!.effectTicks = 60; // Crimson's rage
+    s.rngFire = { nextInt: () => 999 } as never;
+    s.enemyShots = [{ x: 1000, y: 1000, vx: 0, vy: 110, kind: 'berserk', data: 0 }];
+    activateBoost(s, 'ICE_FREEZE');
+    updateEnemyShots(s);
+    expect(s.enemyShots[0]!.y).toBe(1110);
   });
 });
 

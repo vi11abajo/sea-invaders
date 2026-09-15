@@ -7,6 +7,9 @@ import { shotRadius } from './collide';
 
 const HALF = idiv(CRAB.size, 2);
 
+/** The bullet kinds crabs fire (from `CRAB_SHOTS`); every other enemy shot is a boss's. */
+const CRAB_SHOT_KINDS = new Set(Object.values(CRAB_SHOTS).flatMap((entry) => (entry === null ? [] : [entry.kind])));
+
 /** A crab whose bottom edge reaches this line has invaded the reef. */
 export const INVASION_Y = FIELD_H - 300;
 
@@ -194,10 +197,10 @@ const FRAGMENT_VECTORS: ReadonlyArray<readonly [number, number]> = [
  * chance and shooter RNG draws still happen exactly as for any other type. Crab shots
  * (`kind: 'crab'`, from a `normal` shooter) are untouched by the zigzag/explosive branches and keep
  * the same collision radius as before, so this stays bit-for-bit compatible with the v2 goldens.
- * Enemy shot velocity is never slowed by ICE_FREEZE or SPEED_TAMER (spec C5: both boosts slow crab
- * movement only — march step, arrival descent, diver dives — never bullets, matching the legacy's
- * released behaviour; its one function that would have scaled bullet speed too was dead code, never
- * called). A shot above the field but still moving down (a meteor-shower drop spawned at y -200) is
+ * While ICE_FREEZE is active every enemy shot moves at half speed (owner ruling 2026-09-15, replacing
+ * spec C5's movement-only rule): the stored `vx`/`vy` stay as fired and only the step is halved
+ * through `chilled`, so the shot resumes full speed when the freeze ends; a boss's shots share its
+ * own immunity (Crimson in a rage). SPEED_TAMER still never touches bullets. A shot above the field but still moving down (a meteor-shower drop spawned at y -200) is
  * never pruned for being off the top edge — only for having left through the bottom, left or right.
  *
  * While a campaign wave is arriving (`s.arrival > 0`, spec §14 amendment) existing shots still move
@@ -212,8 +215,9 @@ export function updateEnemyShots(s: GameState): void {
     } else if (b.kind === 'explosive') {
       b.data -= 1;
     }
-    b.x += b.vx;
-    b.y += b.vy;
+    const bossShot = !CRAB_SHOT_KINDS.has(b.kind);
+    b.x += chilled(s, b.vx, bossShot);
+    b.y += chilled(s, b.vy, bossShot);
     if (b.kind === 'explosive' && (b.data <= 0 || b.y > EXPLOSIVE_SPLIT_Y)) {
       for (const [vx, vy] of FRAGMENT_VECTORS) kept.push({ x: b.x, y: b.y, vx, vy, kind: 'fragment', data: 0 });
       continue;
