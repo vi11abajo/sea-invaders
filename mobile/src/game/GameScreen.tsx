@@ -12,7 +12,6 @@ import {
   hapticLifeLost, hapticMeteorImpact, hapticMeteorWarning, hapticPlayerFreeze, hapticRage, hapticRevived,
   hapticRunOver, hapticShieldBreak, hapticWaveCleared, hapticWaveStart,
 } from '../audio/haptics';
-import { startAmbience, stopAmbience } from '../audio/music';
 import { playSfx, type SfxId } from '../audio/sfx';
 import { ITEM_NAMES, itemOfOctopi } from '../loadout/items';
 import { ITEM_TINT, tintWithAlpha } from '../shop/tints';
@@ -144,7 +143,7 @@ const BOSS_ABILITY_HAPTIC: Partial<Record<'regen' | 'shield' | 'meteor' | 'rage'
   rage: 'rage',
 };
 
-/** Every boost's own pickup stinger, layered over the generic `boost_pickup` pop pushed by the frame loop below (table A rows 35-38; owner decision 2026-09-16). RANDOM_CHAOS has no stinger of its own, so it maps back onto the generic pop. */
+/** Every boost's own pickup stinger, played INSTEAD of the generic `boost_pickup` pop (owner decision 2026-09-16: one sound per pickup). RANDOM_CHAOS has no stinger of its own, so it maps onto the generic pop. */
 const BOOST_STINGER: Record<BoostType, SfxId> = {
   RAPID_FIRE: 'boost_rapid_fire',
   ICE_FREEZE: 'boost_ice_freeze',
@@ -337,14 +336,6 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     if (sprites !== null) primeOctopiArt(sprites.octopi.front, tint, RESULT_POSE_SIZE);
   }, [sprites, tint]);
 
-  // The reef ambience loop plays under every run (design doc table A row 42 / section F), from
-  // practice, Daily and campaign alike, since they all mount this same screen; it fades out again
-  // once the run is left (including through the result screen, which is still this component).
-  useEffect(() => {
-    startAmbience();
-    return () => stopAmbience();
-  }, []);
-
   useEffect(() => {
     // Practice seed: the app may use the clock; only the core must not.
     const runSeed = seed ?? `practice-${runIndex}-${Date.now()}`;
@@ -458,7 +449,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           const abilityHaptic = BOSS_ABILITY_HAPTIC[ev.name];
           if (abilityHaptic !== undefined) haptics.push(abilityHaptic);
         } else if (ev.type === 'boost_pickup') {
-          sounds.push('boost_pickup');
+          // One sound per pickup: the boost's own stinger, or the generic pop for a boost without one.
           sounds.push(BOOST_STINGER[ev.boost]);
           haptics.push('boost_pickup');
         } else {

@@ -111,10 +111,10 @@ const VOLUME_FULL = 0.85;
  */
 const LEGACY_GAIN = 1;
 const VOLUME_OVERRIDE: Partial<Record<SfxId, number>> = {
-  octopi_shot: 0.084 * LEGACY_GAIN, // 0.3 × 0.28
+  octopi_shot: 0.04 * LEGACY_GAIN, // 0.3 × 0.28 = 0.084 in the earlier version; halved again by ear on the phone (owner, 2026-09-16)
   octopi_multishot: 0.108 * LEGACY_GAIN, // 0.6 × 0.18
   crab_hit: 0.15 * LEGACY_GAIN, // 0.3 × 0.5
-  boss_hit: 0.25 * LEGACY_GAIN, // 1.0 × 0.25
+  boss_hit: 0.12 * LEGACY_GAIN, // 1.0 × 0.25 in the earlier version; halved by ear on the phone (owner, 2026-09-16)
   boss_shot: 0.28 * LEGACY_GAIN, // 1.0 × 0.28
   player_hit_1: 0.252 * LEGACY_GAIN, // 0.6 × 0.42
   player_hit_2: 0.252 * LEGACY_GAIN,

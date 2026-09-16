@@ -1,7 +1,6 @@
 import { formatCountdown, formatInt } from '@sea-invaders/core';
 import { useCallback, useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
-import { startAmbience, stopAmbience } from '../audio/music';
 import { skinName, useActiveSkin, useEquippedOctopi, variantName } from '../game/skins';
 import { KeyArtScrim } from '../ui/KeyArtScrim';
 import { HOME_KEY_ART, HOME_KEY_ART_BACKGROUND } from './homeBackground';
@@ -72,14 +71,6 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
   useEffect(() => {
     if (alert !== null) setToast((t) => ({ id: (t?.id ?? 0) + 1, text: alert }));
   }, [alert]);
-
-  // The reef ambience loop plays under Home too (design doc table A row 42 / section F); GameScreen
-  // wires the same loop for every run, so between the two it is live everywhere except the Shop and
-  // Profile, which the doc does not ask for.
-  useEffect(() => {
-    startAmbience();
-    return () => stopAmbience();
-  }, []);
 
   const ticker = ranked === null ? [] : tickerItems(ranked, now);
   const campaign = model.campaign;

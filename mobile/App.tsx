@@ -8,7 +8,7 @@ import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
 import { confirmTicket, requestFaucet, requestTicket } from './src/api/daily';
 import { useSession } from './src/api/useSession';
 import { hapticError, hapticSuccess } from './src/audio/haptics';
-import { playMusic } from './src/audio/music';
+import { playMusic, startAmbience, stopAmbience } from './src/audio/music';
 import { playSfx, preloadSfx } from './src/audio/sfx';
 import { CampaignLevelScreen } from './src/campaign/CampaignLevelScreen';
 import { CampaignScreen } from './src/campaign/CampaignScreen';
@@ -150,7 +150,11 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
   // from the moment they open). The result screen is that same `screen` value too, so it simply keeps
   // whatever the run was already playing. `playMusic` is idempotent for the same id, so re-running
   // this on every unrelated render (e.g. `ticketMessage` changing) is harmless.
+  // The bubbles-only ambience loop rides along, but only under Home, the Shop and the Profile
+  // (owner decision 2026-09-16: nowhere near a run, the map or the boards).
   useEffect(() => {
+    if (screen === 'home' || screen === 'shop' || screen === 'profile') startAmbience();
+    else stopAmbience();
     if (typeof screen === 'object') {
       if (screen.kind === 'campaign') {
         playMusic('music_map');
