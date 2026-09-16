@@ -1,0 +1,7 @@
+{
+  "name": "reef-sfx",
+  "version": "1.0.0",
+  "description": "A native sound pool for the reef's one-shot sounds",
+  "main": "index.ts",
+  "private": true
+}

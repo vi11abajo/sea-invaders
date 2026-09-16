@@ -1,0 +1,12 @@
+plugins {
+  id 'expo-module-gradle-plugin'
+}
+
+expoModule {
+  // A local module of this app, never published to a maven repository.
+  canBePublished = false
+}
+
+android {
+  namespace "xyz.seainvaders.reefsfx"
+}
