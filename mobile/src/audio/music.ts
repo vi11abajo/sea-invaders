@@ -16,8 +16,13 @@ const MUSIC: Partial<Record<MusicId, number>> = {
   // music_result: require('../../assets/music/music_result.mp3'),
 };
 
-/** `ambience_reef` already has a placeholder recording (it ships under `assets/sfx/`, spec table A row 42) even though it is a loop, not a one-shot, so it is driven from here rather than `sfx.ts`. */
-const AMBIENCE_ASSET = require('../../assets/sfx/ambience_reef.wav');
+/**
+ * The reef ambience loop (spec table A, `ambience_reef`): a loop, not a one-shot, so it is driven
+ * from here rather than `sfx.ts`. Ships silent until a real recording exists - the synthesised
+ * placeholder was a hiss the owner asked to remove (2026-09-16). To enable it, drop the loop into
+ * `assets/music/ambience_reef.mp3` (or `.ogg`) and set this to `require('../../assets/music/ambience_reef.mp3')`.
+ */
+const AMBIENCE_ASSET: number | null = null;
 
 /** Ambience sits well under anything else (doc: "ambience -12 dB"). */
 const AMBIENCE_VOLUME = 0.2;
@@ -63,10 +68,10 @@ function fadeTo(player: AudioPlayer, target: number, onDone?: () => void): void 
   fadeTimers.set(player, timer);
 }
 
-/** Starts (or resumes) the reef ambience loop, fading it in. A no-op while the Music switch is off — `setMusicEnabled(true)` picks it back up. */
+/** Starts (or resumes) the reef ambience loop, fading it in. A no-op while the Music switch is off — `setMusicEnabled(true)` picks it back up — and while no ambience recording has been supplied. */
 export function startAmbience(): void {
   wantAmbience = true;
-  if (!musicEnabled) return;
+  if (!musicEnabled || AMBIENCE_ASSET === null) return;
   if (ambiencePlayer === null) {
     ambiencePlayer = createAudioPlayer(AMBIENCE_ASSET);
     ambiencePlayer.loop = true;

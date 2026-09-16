@@ -44,10 +44,13 @@ const SFX_ASSETS = {
   ticket_bought: require('../../assets/sfx/ticket_bought.wav'),
   tx_confirmed: require('../../assets/sfx/tx_confirmed.wav'),
   tx_sent: require('../../assets/sfx/tx_sent.wav'),
-  ui_back: require('../../assets/sfx/ui_back.wav'),
+  // The interface's tap, back and sheet sounds ship silent until real recordings exist: the
+  // synthesised placeholders scraped (the owner, 2026-09-16). To enable one, drop the recording
+  // under `assets/sfx/<id>.wav` and replace `null` with `require('../../assets/sfx/<id>.wav')`.
+  ui_back: null as number | null,
   ui_error: require('../../assets/sfx/ui_error.wav'),
-  ui_sheet: require('../../assets/sfx/ui_sheet.wav'),
-  ui_tap: require('../../assets/sfx/ui_tap.wav'),
+  ui_sheet: null as number | null,
+  ui_tap: null as number | null,
   wallet_connected: require('../../assets/sfx/wallet_connected.wav'),
   wave_cleared: require('../../assets/sfx/wave_cleared.wav'),
   wave_start: require('../../assets/sfx/wave_start.wav'),
@@ -90,6 +93,23 @@ function jitteredRate(): number {
   return 1 + (Math.random() * 2 - 1) * RATE_JITTER;
 }
 
+/**
+ * The shortest gap between two plays of the same frequent id, in ms. Every play costs a few native
+ * calls and a media-session update on Android's main thread, and rapid fire with a wall of crabs
+ * asked for dozens a second - the owner felt it as freezes (2026-09-16). Within the gap the extra
+ * plays are dropped; the ear cannot tell at these rates, the main thread can.
+ */
+const MIN_GAP_MS: Partial<Record<SfxId, number>> = {
+  octopi_shot: 90,
+  crab_shot: 90,
+  crab_hit: 80,
+  crab_armored_tok: 90,
+  boss_hit: 100,
+};
+/** The frequent ids skip the pitch jitter too: `setPlaybackRate` is one more native call per play. */
+const NO_JITTER_IDS = new Set<SfxId>(Object.keys(MIN_GAP_MS) as SfxId[]);
+const lastPlayedAt = new Map<SfxId, number>();
+
 interface Pool {
   players: AudioPlayer[];
   next: number;
@@ -109,13 +129,15 @@ setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false, inte
   console.warn('[sfx] audio mode not applied', error instanceof Error ? error.message : error);
 });
 
-function getPool(id: SfxId): Pool {
+function getPool(id: SfxId): Pool | null {
   let pool = pools.get(id);
   if (pool !== undefined) return pool;
+  const asset = SFX_ASSETS[id];
+  if (asset === null) return null;
   const size = POOL_SIZE[id] ?? 1;
   const players: AudioPlayer[] = [];
   for (let i = 0; i < size; i++) {
-    const player = createAudioPlayer(SFX_ASSETS[id]);
+    const player = createAudioPlayer(asset);
     player.volume = volumeOf(id);
     // Pitch correction off so the rate jitter above actually changes pitch, the way a hand-played
     // instrument or a slightly different bubble never sounds identical twice.
@@ -135,8 +157,15 @@ function getPool(id: SfxId): Pool {
  */
 export function playSfx(id: SfxId): void {
   if (!soundsEnabled || failed.has(id)) return;
+  const gap = MIN_GAP_MS[id];
+  if (gap !== undefined) {
+    const now = Date.now();
+    if (now - (lastPlayedAt.get(id) ?? 0) < gap) return;
+    lastPlayedAt.set(id, now);
+  }
   try {
     const pool = getPool(id);
+    if (pool === null) return;
     const player = pool.players[pool.next]!;
     pool.next = (pool.next + 1) % pool.players.length;
     // Restart from the top: `play()` alone would do nothing once a one-shot has already reached its
@@ -146,7 +175,7 @@ export function playSfx(id: SfxId): void {
     // swallowed: a seek that fails only means this instance plays from wherever it stopped.
     player.pause();
     player.seekTo(0).catch(() => {});
-    player.setPlaybackRate(jitteredRate());
+    if (!NO_JITTER_IDS.has(id)) player.setPlaybackRate(jitteredRate());
     player.play();
   } catch (error) {
     failed.add(id);
