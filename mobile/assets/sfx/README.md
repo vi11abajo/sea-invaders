@@ -23,5 +23,6 @@ still a generated placeholder, to be swapped for a real recording later. Each fi
 sound's id, used verbatim by `mobile/src/audio/sfx.ts` (the four `player_hit_*` files and `player_hit`
 itself are the one exception — see `VARIANTS` there). Replacing a placeholder is a drop-in: put the
 real recording under the same file name in this folder — no code changes needed. The sheet sound
-(`ui_sheet`) and the level-cleared fanfare (`level_cleared`) have no placeholder either: it ships silent until a real recording is dropped in here and
+(`ui_sheet`), the level-cleared fanfare (`level_cleared`), the drop bloop (`boost_drop`) and the wave
+swell and chime (`wave_start`, `wave_cleared`) have no placeholder either: it ships silent until a real recording is dropped in here and
 enabled in `mobile/src/audio/sfx.ts`.

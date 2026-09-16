@@ -12,7 +12,10 @@ import ReefSfx from '../../modules/reef-sfx';
 const SFX_ASSETS = {
   boost_auto_target: require('../../assets/sfx/boost_auto_target.m4a'),
   boost_coin_shower: require('../../assets/sfx/boost_coin_shower.m4a'),
-  boost_drop: require('../../assets/sfx/boost_drop.wav'),
+  // The drop bloop, the wave-start swell and the wave-cleared chime ship silent: their bubbly
+  // placeholders crowded the runs (the owner, 2026-09-16). To enable one, drop the recording under
+  // `assets/sfx/<id>.wav` and replace `null` with `require('../../assets/sfx/<id>.wav')`.
+  boost_drop: null as number | null,
   boost_expire: require('../../assets/sfx/boost_expire.wav'),
   boost_gravity_well: require('../../assets/sfx/boost_gravity_well.m4a'),
   boost_health_boost: require('../../assets/sfx/boost_health_boost.m4a'),
@@ -78,8 +81,8 @@ const SFX_ASSETS = {
   ui_sheet: null as number | null,
   ui_tap: require('../../assets/sfx/ui_tap.wav'),
   wallet_connected: require('../../assets/sfx/wallet_connected.wav'),
-  wave_cleared: require('../../assets/sfx/wave_cleared.wav'),
-  wave_start: require('../../assets/sfx/wave_start.wav'),
+  wave_cleared: null as number | null,
+  wave_start: null as number | null,
 } as const;
 
 /**
