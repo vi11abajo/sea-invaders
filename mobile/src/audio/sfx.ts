@@ -44,7 +44,10 @@ const SFX_ASSETS = {
   crab_hit: require('../../assets/sfx/crab_hit.m4a'),
   crab_shot: require('../../assets/sfx/crab_shot.wav'),
   game_over: require('../../assets/sfx/game_over.wav'),
-  level_cleared: require('../../assets/sfx/level_cleared.wav'),
+  // The level-cleared fanfare ships silent: its placeholder rang like a gong on the level's end
+  // screen (the owner, 2026-09-16). To enable it, drop the recording under
+  // `assets/sfx/level_cleared.wav` and replace `null` with `require('../../assets/sfx/level_cleared.wav')`.
+  level_cleared: null as number | null,
   meteor_impact: require('../../assets/sfx/meteor_impact.wav'),
   meteor_warning: require('../../assets/sfx/meteor_warning.wav'),
   node_tap: require('../../assets/sfx/node_tap.wav'),

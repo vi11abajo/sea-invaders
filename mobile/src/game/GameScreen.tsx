@@ -2,7 +2,8 @@ import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
   BOOST_INDEX, CRAB_SHOTS, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
   OCTOPI, createGame, fitField, formatInt, revive, snapshot, step, touchToInput,
-  type BoostType, type BossFrame, type Crab, type Frame, type GameEvent, type Input, type OctopiVariant, type Replay, type ReplayMode, type RunConfig,
+  type BoostType, type BossFrame, type Bullet, type BulletKind, type Crab, type Frame, type GameEvent, type Input, type OctopiVariant, type Replay,
+  type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
@@ -49,6 +50,13 @@ const BOOST_BY_INDEX = Object.entries(BOOST_INDEX).reduce<BoostType[]>((arr, [ty
 
 /** The bullet kinds crabs fire (mirrors core's own `crabs.ts:CRAB_SHOT_KINDS`); any other kind pushed onto `enemyShots` is a boss's. */
 const CRAB_SHOT_KINDS = new Set(Object.values(CRAB_SHOTS).flatMap((entry) => (entry === null ? [] : [entry.kind])));
+
+/** Counts `bullets` by kind into `into` (cleared first, never reallocated: the frame loop reuses two maps). */
+function countKinds(bullets: readonly Bullet[], into: Map<BulletKind, number>): Map<BulletKind, number> {
+  into.clear();
+  for (const b of bullets) into.set(b.kind, (into.get(b.kind) ?? 0) + 1);
+  return into;
+}
 
 /** "RAPID_FIRE" -> "Rapid Fire". */
 function titleCase(type: string): string {
@@ -368,7 +376,9 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     // frame, compared against the value after this frame's ticks. Seeded from the just-created state
     // rather than 0/null so a run that somehow starts non-empty never fires a spurious first sound.
     let prevShotsLen = state.shots.length;
-    let prevEnemyShotsLen = state.enemyShots.length;
+    // Enemy shots are told apart by bullet kind, counted per kind each frame (see `countKinds`).
+    let kindCountsPrev = countKinds(state.enemyShots, new Map<BulletKind, number>());
+    let kindCountsNow = new Map<BulletKind, number>();
     let prevKillsCount = state.kills;
     let prevBossHp: number | null = state.boss?.hp ?? null;
     let prevArmoredHalfHp = armoredAtHalfHp(state.crabs);
@@ -465,26 +475,30 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         const multiShot = state.boosts.active.some((b) => b.type === 'MULTI_SHOT');
         sounds.push(multiShot ? 'octopi_multishot' : 'octopi_shot');
       }
-      if (state.enemyShots.length > prevEnemyShotsLen) {
-        // New bullets land at the tail (the core only ever pushes); classify each one by kind so a
-        // frame that mixes a crab's shot with a boss's plays both cues, never more than one of each.
-        const grown = state.enemyShots.length - prevEnemyShotsLen;
-        let sawCrabShot = false;
-        let sawBossShot = false;
-        for (let i = state.enemyShots.length - grown; i < state.enemyShots.length; i++) {
-          if (CRAB_SHOT_KINDS.has(state.enemyShots[i]!.kind)) sawCrabShot = true;
+      // New enemy shots, counted per bullet kind: a boss fight removes and adds bullets every frame,
+      // so neither the array's length nor its tail says what was just fired. A kind whose count rose
+      // was fired this frame; crab kinds cue `crab_shot`, every other kind is a boss's (never more
+      // than one of each per frame).
+      countKinds(state.enemyShots, kindCountsNow);
+      let sawCrabShot = false;
+      let sawBossShot = false;
+      for (const [kind, n] of kindCountsNow) {
+        if (n > (kindCountsPrev.get(kind) ?? 0)) {
+          if (CRAB_SHOT_KINDS.has(kind)) sawCrabShot = true;
           else sawBossShot = true;
         }
-        if (sawCrabShot) sounds.push('crab_shot');
-        if (sawBossShot) sounds.push('boss_shot');
       }
+      if (sawCrabShot) sounds.push('crab_shot');
+      if (sawBossShot) sounds.push('boss_shot');
+      const swapCounts = kindCountsPrev;
+      kindCountsPrev = kindCountsNow;
+      kindCountsNow = swapCounts;
       if (state.kills > prevKillsCount) sounds.push('crab_hit');
       const bossHpNow = state.boss?.hp ?? null;
       if (prevBossHp !== null && bossHpNow !== null && bossHpNow < prevBossHp) sounds.push('boss_hit');
       const armoredHalfHpNow = armoredAtHalfHp(state.crabs);
       if (armoredHalfHpNow > prevArmoredHalfHp) sounds.push('crab_armored_tok');
       prevShotsLen = state.shots.length;
-      prevEnemyShotsLen = state.enemyShots.length;
       prevKillsCount = state.kills;
       prevBossHp = bossHpNow;
       prevArmoredHalfHp = armoredHalfHpNow;
