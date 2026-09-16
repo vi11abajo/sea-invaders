@@ -8,3 +8,5 @@ Each file name is the sound's id, used verbatim by `mobile/src/audio/sfx.ts`. Re
 placeholder is a drop-in: put the real recording under the same file name in this folder — no
 code changes needed. The reef ambience loop (`ambience_reef`) has no placeholder: it ships silent
 until a real loop is dropped into `mobile/assets/music/` and enabled in `mobile/src/audio/music.ts`.
+The sheet sound (`ui_sheet`) has no placeholder either: it ships silent until a real recording is
+dropped in here and enabled in `mobile/src/audio/sfx.ts`.

@@ -1,4 +1,13 @@
-import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+
+/**
+ * Configures the audio session once, for everything `expo-audio` plays here: the loops sound over
+ * silent mode and never fight another app for focus. The one-shots do not go through `expo-audio`
+ * at all - they have their own sound pool (`sfx.ts`) - so this lives with the loops that need it.
+ */
+setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false, interruptionMode: 'mixWithOthers' }).catch((error: unknown) => {
+  console.warn('[music] audio mode not applied', error instanceof Error ? error.message : error);
+});
 
 /**
  * Owner-provided or licensed tracks (design doc table B). No files exist yet for any of them - every

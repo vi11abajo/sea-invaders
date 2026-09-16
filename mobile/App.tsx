@@ -7,7 +7,7 @@ import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
 import { confirmTicket, requestFaucet, requestTicket } from './src/api/daily';
 import { useSession } from './src/api/useSession';
 import { hapticError, hapticSuccess } from './src/audio/haptics';
-import { playSfx } from './src/audio/sfx';
+import { playSfx, preloadSfx } from './src/audio/sfx';
 import { CampaignLevelScreen } from './src/campaign/CampaignLevelScreen';
 import { CampaignScreen } from './src/campaign/CampaignScreen';
 import { useCampaignSync } from './src/campaign/sync';
@@ -305,6 +305,12 @@ export default function App() {
     Linking.getInitialURL().then((url) => setRoute(routeFor(url)));
     const sub = Linking.addEventListener('url', ({ url }) => setRoute(routeFor(url)));
     return () => sub.remove();
+  }, []);
+
+  // Decode every one-shot into the sound pool once, after the first render: the work happens off
+  // the main thread behind the splash, and anything asked for before it lands stays silent.
+  useEffect(() => {
+    void preloadSfx();
   }, []);
 
   if (!fontsReady) return null;

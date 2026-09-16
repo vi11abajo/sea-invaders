@@ -1,4 +1,5 @@
-import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { Asset } from 'expo-asset';
+import ReefSfx from '../../modules/reef-sfx';
 
 /**
  * One-shot sound catalogue (design doc `2026-09-16-sound-and-haptics.md`, tables A and C). Every id
@@ -44,32 +45,19 @@ const SFX_ASSETS = {
   ticket_bought: require('../../assets/sfx/ticket_bought.wav'),
   tx_confirmed: require('../../assets/sfx/tx_confirmed.wav'),
   tx_sent: require('../../assets/sfx/tx_sent.wav'),
-  // The interface's tap, back and sheet sounds ship silent until real recordings exist: the
-  // synthesised placeholders scraped (the owner, 2026-09-16). To enable one, drop the recording
-  // under `assets/sfx/<id>.wav` and replace `null` with `require('../../assets/sfx/<id>.wav')`.
-  ui_back: null as number | null,
+  ui_back: require('../../assets/sfx/ui_back.wav'),
   ui_error: require('../../assets/sfx/ui_error.wav'),
+  // The sheet sound ships silent until a real recording exists: only that placeholder scraped (the
+  // owner, 2026-09-16), while the tap and back placeholders stay. To enable it, drop the recording
+  // under `assets/sfx/ui_sheet.wav` and replace `null` with `require('../../assets/sfx/ui_sheet.wav')`.
   ui_sheet: null as number | null,
-  ui_tap: null as number | null,
+  ui_tap: require('../../assets/sfx/ui_tap.wav'),
   wallet_connected: require('../../assets/sfx/wallet_connected.wav'),
   wave_cleared: require('../../assets/sfx/wave_cleared.wav'),
   wave_start: require('../../assets/sfx/wave_start.wav'),
 } as const;
 
 export type SfxId = keyof typeof SFX_ASSETS;
-
-/**
- * Players per id: the run's most frequent sounds (an ink shot, a claw snap, a shell crack, a boss
- * impact) can overlap with themselves — one may still be finishing while the next fires a tick or
- * two later — so each gets a small rotating pool. Everything else is rare enough that one player,
- * restarted from the top, is never asked to overlap itself.
- */
-const POOL_SIZE: Partial<Record<SfxId, number>> = {
-  octopi_shot: 3,
-  crab_shot: 3,
-  crab_hit: 3,
-  boss_hit: 3,
-};
 
 /** Frequent, quiet by design (doc: "almost a whisper") - shots, ordinary hits, the drop bloop. */
 const QUIET_IDS = new Set<SfxId>(['octopi_shot', 'crab_shot', 'crab_hit', 'crab_armored_tok', 'boss_hit', 'boost_drop']);
@@ -87,17 +75,21 @@ function volumeOf(id: SfxId): number {
   return VOLUME_FULL;
 }
 
-/** Random pitch within ±5 % (doc: "so they never machine-gun"). `shouldCorrectPitch = false` makes a rate change also shift pitch, not just speed. */
+/**
+ * Random pitch within ±5 % (doc: "so they never machine-gun"). The sound pool takes the rate as an
+ * argument of the play itself, so varying it is free: there is no player whose speed has to be
+ * changed first, and a rate off 1 shifts the pitch along with the speed by nature.
+ */
 const RATE_JITTER = 0.05;
 function jitteredRate(): number {
   return 1 + (Math.random() * 2 - 1) * RATE_JITTER;
 }
 
 /**
- * The shortest gap between two plays of the same frequent id, in ms. Every play costs a few native
- * calls and a media-session update on Android's main thread, and rapid fire with a wall of crabs
- * asked for dozens a second - the owner felt it as freezes (2026-09-16). Within the gap the extra
- * plays are dropped; the ear cannot tell at these rates, the main thread can.
+ * The shortest gap between two plays of the same frequent id, in ms. Rapid fire into a wall of
+ * crabs asks for the same sound dozens of times a second, and past roughly this rate the ear hears
+ * one continuous noise rather than separate shots - the extra copies only crowd the pool's limited
+ * streams out of the distinct sounds that do carry meaning. Within the gap they are dropped.
  */
 const MIN_GAP_MS: Partial<Record<SfxId, number>> = {
   octopi_shot: 90,
@@ -106,57 +98,71 @@ const MIN_GAP_MS: Partial<Record<SfxId, number>> = {
   crab_armored_tok: 90,
   boss_hit: 100,
 };
-/** The frequent ids skip the pitch jitter too: `setPlaybackRate` is one more native call per play. */
-const NO_JITTER_IDS = new Set<SfxId>(Object.keys(MIN_GAP_MS) as SfxId[]);
 const lastPlayedAt = new Map<SfxId, number>();
 
-interface Pool {
-  players: AudioPlayer[];
-  next: number;
+/** A sound the pool has decoded and can sound on demand. */
+interface Loaded {
+  /** The pool's own id for the decoded sound. */
+  soundId: number;
+  /** Resolved once at load, so a play never has to work its volume class out again. */
+  volume: number;
 }
 
-const pools = new Map<SfxId, Pool>();
+const loaded = new Map<SfxId, Loaded>();
 /**
- * Every id whose pool failed to build or play (a missing/corrupt asset): it has warned once, and
- * every later call is a no-op without touching the native side again.
+ * Every id whose sound could not be decoded or sounded (a missing/corrupt asset): it has warned
+ * once, and every later call for it is silently a no-op.
  */
 const failed = new Set<SfxId>();
 
 let soundsEnabled = true;
+let preloading: Promise<void> | null = null;
 
-/** Configures the app's audio session once: sound effects play over silent mode and never fight another app for focus. */
-setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false, interruptionMode: 'mixWithOthers' }).catch((error: unknown) => {
-  console.warn('[sfx] audio mode not applied', error instanceof Error ? error.message : error);
-});
-
-function getPool(id: SfxId): Pool | null {
-  let pool = pools.get(id);
-  if (pool !== undefined) return pool;
-  const asset = SFX_ASSETS[id];
-  if (asset === null) return null;
-  const size = POOL_SIZE[id] ?? 1;
-  const players: AudioPlayer[] = [];
-  for (let i = 0; i < size; i++) {
-    const player = createAudioPlayer(asset);
-    player.volume = volumeOf(id);
-    // Pitch correction off so the rate jitter above actually changes pitch, the way a hand-played
-    // instrument or a slightly different bubble never sounds identical twice.
-    player.shouldCorrectPitch = false;
-    players.push(player);
+/**
+ * Decodes every supplied sound into the pool, once. Call it after the first render rather than
+ * before it: the decoding runs off the main thread, so it costs the splash nothing, and until a
+ * sound is decoded asking for it is silently a no-op.
+ */
+export function preloadSfx(): Promise<void> {
+  if (preloading !== null) return preloading;
+  const pool = ReefSfx;
+  if (pool === null) {
+    // No sound pool here: the reef simply makes no noise.
+    preloading = Promise.resolve();
+    return preloading;
   }
-  pool = { players, next: 0 };
-  pools.set(id, pool);
-  return pool;
+  const entries = Object.entries(SFX_ASSETS) as [SfxId, number | null][];
+  preloading = Promise.all(
+    entries.map(async ([id, asset]) => {
+      // A null entry is a sound with no recording yet: silent on purpose, not a failure.
+      if (asset === null) return;
+      try {
+        const bundled = Asset.fromModule(asset);
+        // A bundled sound has no file of its own until this runs: it copies the sound out of the
+        // app and into the cache directory, and only then is `localUri` filled in.
+        await bundled.downloadAsync();
+        const uri = bundled.localUri ?? bundled.uri;
+        // The pool reads a plain path, not a URI.
+        const path = uri.startsWith('file://') ? uri.slice('file://'.length) : uri;
+        loaded.set(id, { soundId: await pool.load(id, path), volume: volumeOf(id) });
+      } catch (error) {
+        failed.add(id);
+        console.warn(`[sfx] could not load "${id}"`, error instanceof Error ? error.message : error);
+      }
+    })
+  ).then(() => undefined);
+  return preloading;
 }
 
 /**
- * Plays `id` from its pool, rotating to the next player and restarting it from the top. Never
- * throws: a pool that fails to build (a missing/corrupt asset) logs once per id and every later
- * call for that id is silently a no-op. Safe to call every frame — at most one instance of an id
- * should be requested per rendered frame by the caller, but this function itself does not de-dupe.
+ * Sounds `id`. Never throws: an id with no recording, one still decoding, or one that failed logs
+ * at most once and is silently a no-op afterwards. Safe to call every frame — a play is a single
+ * call into the sound pool, which hands an already-decoded sound straight to the mixer.
  */
 export function playSfx(id: SfxId): void {
   if (!soundsEnabled || failed.has(id)) return;
+  const sound = loaded.get(id);
+  if (sound === undefined) return;
   const gap = MIN_GAP_MS[id];
   if (gap !== undefined) {
     const now = Date.now();
@@ -164,36 +170,21 @@ export function playSfx(id: SfxId): void {
     lastPlayedAt.set(id, now);
   }
   try {
-    const pool = getPool(id);
-    if (pool === null) return;
-    const player = pool.players[pool.next]!;
-    pool.next = (pool.next + 1) % pool.players.length;
-    // Restart from the top: `play()` alone would do nothing once a one-shot has already reached its
-    // end. `seekTo` is async on the native side, but the call itself is issued (and queued behind
-    // nothing) before `play()` runs, so the two land in order in practice; not verified on-device
-    // from this session — see the wiring report's "not device-tested" note. Its rejection is
-    // swallowed: a seek that fails only means this instance plays from wherever it stopped.
-    player.pause();
-    player.seekTo(0).catch(() => {});
-    if (!NO_JITTER_IDS.has(id)) player.setPlaybackRate(jitteredRate());
-    player.play();
+    ReefSfx?.play(sound.soundId, sound.volume, jitteredRate());
   } catch (error) {
+    loaded.delete(id);
     failed.add(id);
     console.warn(`[sfx] could not play "${id}"`, error instanceof Error ? error.message : error);
   }
 }
 
-/** The Sounds switch. Turning it off immediately silences anything currently playing. */
+/** The Sounds switch. Turning it off immediately silences anything currently sounding. */
 export function setSoundsEnabled(enabled: boolean): void {
   soundsEnabled = enabled;
   if (enabled) return;
-  for (const pool of pools.values()) {
-    for (const player of pool.players) {
-      try {
-        player.pause();
-      } catch {
-        // Already released or never loaded: nothing to silence.
-      }
-    }
+  try {
+    ReefSfx?.stopAll();
+  } catch {
+    // No pool to silence.
   }
 }
