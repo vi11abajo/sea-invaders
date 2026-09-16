@@ -35,8 +35,20 @@ const AMBIENCE_ASSET: number | null = require('../../assets/music/ambience_reef.
 
 /** Ambience sits well under anything else (doc: "ambience -12 dB"). */
 const AMBIENCE_VOLUME = 0.2;
-/** A full-volume music track, once real tracks exist (doc: "music -6 dB under sound effects"). */
-const MUSIC_VOLUME = 0.5;
+/**
+ * Each track's level, the owner's earlier version's own mix (`soundVolumes` there: menu, map and
+ * gameplay at 0.1, the boss theme at 0.15 - quiet under the effects on purpose); a track without a
+ * recording keeps the doc's default. `LEGACY_GAIN` scales the reused tracks together if the phone
+ * wants them louder or quieter.
+ */
+const LEGACY_GAIN = 1;
+const MUSIC_VOLUMES: Record<MusicId, number> = {
+  music_home: 0.1 * LEGACY_GAIN,
+  music_map: 0.1 * LEGACY_GAIN,
+  music_run: 0.1 * LEGACY_GAIN,
+  music_boss: 0.15 * LEGACY_GAIN,
+  music_result: 0.5,
+};
 const FADE_MS = 900;
 const FADE_STEP_MS = 50;
 
@@ -115,7 +127,7 @@ export function playMusic(id: MusicId): void {
   player.loop = true;
   player.volume = 0;
   player.play();
-  fadeTo(player, MUSIC_VOLUME);
+  fadeTo(player, MUSIC_VOLUMES[id]);
   musicPlayer = player;
   musicPlayerId = id;
 }

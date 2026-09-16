@@ -102,16 +102,39 @@ const VOLUME_SOFT = 0.55;
 /** Big moments (a life lost, a boss beat, a fanfare): full but short of 1.0, so a few overlapping one-shots never clip together. */
 const VOLUME_FULL = 0.85;
 
-/** Owner-specified volumes (2026-09-16) that do not fit the three shared classes above. */
+/**
+ * The owner's recordings play at the loudness of the owner's earlier version of the game
+ * (2026-09-16): its sound manager multiplied the volume each call passed (shots 0.3, MULTI_SHOT
+ * 0.6, hurt 0.6, crab death 0.3, boss hit/shot 1.0, every boost 0.7) by a per-sound level
+ * (`soundVolumes`), and these are the products, rounded to three places. `LEGACY_GAIN` scales all
+ * of them together should the phone's speaker want the whole set louder or quieter.
+ */
+const LEGACY_GAIN = 1;
 const VOLUME_OVERRIDE: Partial<Record<SfxId, number>> = {
-  octopi_shot: 0.3,
-  octopi_multishot: 0.6,
-  crab_hit: 0.3,
-  boss_hit: 1.0,
-  player_hit_1: 0.6,
-  player_hit_2: 0.6,
-  player_hit_3: 0.6,
-  player_hit_4: 0.6,
+  octopi_shot: 0.084 * LEGACY_GAIN, // 0.3 × 0.28
+  octopi_multishot: 0.108 * LEGACY_GAIN, // 0.6 × 0.18
+  crab_hit: 0.15 * LEGACY_GAIN, // 0.3 × 0.5
+  boss_hit: 0.25 * LEGACY_GAIN, // 1.0 × 0.25
+  boss_shot: 0.28 * LEGACY_GAIN, // 1.0 × 0.28
+  player_hit_1: 0.252 * LEGACY_GAIN, // 0.6 × 0.42
+  player_hit_2: 0.252 * LEGACY_GAIN,
+  player_hit_3: 0.252 * LEGACY_GAIN,
+  player_hit_4: 0.252 * LEGACY_GAIN,
+  boost_pickup: 0.28 * LEGACY_GAIN, // 0.7 × 0.4 (the generic pickup)
+  boost_coin_shower: 0.266 * LEGACY_GAIN,
+  boost_auto_target: 0.196 * LEGACY_GAIN,
+  boost_gravity_well: 0.245 * LEGACY_GAIN,
+  boost_health_boost: 0.266 * LEGACY_GAIN,
+  boost_ice_freeze: 0.28 * LEGACY_GAIN,
+  boost_invincibility: 0.224 * LEGACY_GAIN,
+  boost_multi_shot: 0.28 * LEGACY_GAIN,
+  boost_piercing_bullets: 0.28 * LEGACY_GAIN,
+  boost_points_freeze: 0.238 * LEGACY_GAIN,
+  boost_rapid_fire: 0.315 * LEGACY_GAIN,
+  boost_score_multiplier: 0.238 * LEGACY_GAIN,
+  boost_shield_barrier: 0.266 * LEGACY_GAIN,
+  boost_speed_tamer: 0.245 * LEGACY_GAIN,
+  boost_wave_blast: 0.35 * LEGACY_GAIN,
 };
 
 function volumeOf(id: SfxId): number {
