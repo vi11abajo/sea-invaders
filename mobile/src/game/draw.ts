@@ -148,9 +148,13 @@ const BLAST_INNER_W = 4;
 /** The inner ring only shows once the ring has opened this far (dp), as in the legacy. */
 const BLAST_INNER_FROM = 20;
 
-/** Legacy black-hole look (spec M8): base/pulse glow radius in units; `pulse = 0.5 + 0.5*sin(tick/4)`. */
-const WELL_GLOW_BASE = 1470;
-const WELL_GLOW_PULSE = 550;
+/**
+ * Legacy black-hole look (spec M8): base/pulse glow radius in units; `pulse = 0.5 + 0.5*sin(tick/4)`.
+ * Half the legacy size (1470 / 550) since 2026-09-16 - the owner found the full one too big on the
+ * phone; the well's pull radius in the core is unchanged.
+ */
+const WELL_GLOW_BASE = 735;
+const WELL_GLOW_PULSE = 275;
 /**
  * One radial gradient built once at the origin with unit radius 1: black core fading through
  * `rgba(20,20,50,0.9)` and `rgba(0,100,255,0.6)` to transparent. Drawn every frame through
