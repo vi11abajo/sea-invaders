@@ -1,3 +1,4 @@
+import { levelById } from '@sea-invaders/core';
 import { MobileWalletProvider } from '@wallet-ui/react-native-web3js';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -7,6 +8,7 @@ import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
 import { confirmTicket, requestFaucet, requestTicket } from './src/api/daily';
 import { useSession } from './src/api/useSession';
 import { hapticError, hapticSuccess } from './src/audio/haptics';
+import { playMusic } from './src/audio/music';
 import { playSfx, preloadSfx } from './src/audio/sfx';
 import { CampaignLevelScreen } from './src/campaign/CampaignLevelScreen';
 import { CampaignScreen } from './src/campaign/CampaignScreen';
@@ -140,6 +142,29 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
   useEffect(() => {
     if (screen === 'shop' && session === null && !restoring) setScreen('home');
   }, [screen, session, restoring]);
+
+  // One music track per screen (design doc table B), in this one place rather than in every screen:
+  // Home/Shop/Profile/the leaderboards share the theme, the campaign map gets its own, and a level
+  // gets the boss theme or the run theme by its own `boss` flag (a pure lookup from its id, so the
+  // level's own Level-start and boss-reveal screens - still the same `screen` value - already get it
+  // from the moment they open). The result screen is that same `screen` value too, so it simply keeps
+  // whatever the run was already playing. `playMusic` is idempotent for the same id, so re-running
+  // this on every unrelated render (e.g. `ticketMessage` changing) is harmless.
+  useEffect(() => {
+    if (typeof screen === 'object') {
+      if (screen.kind === 'campaign') {
+        playMusic('music_map');
+        return;
+      }
+      playMusic(levelById(screen.id).boss !== undefined ? 'music_boss' : 'music_run');
+      return;
+    }
+    if (screen === 'practice' || screen === 'daily') {
+      playMusic('music_run');
+      return;
+    }
+    playMusic('music_home'); // home, shop, profile, leaderboard
+  }, [screen]);
 
   // Screens show `ticketMessage` as a one-shot toast (an effect keyed on the prop value, so a
   // repeated identical string or a remount would otherwise replay it). Clearing it back to null

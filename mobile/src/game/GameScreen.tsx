@@ -1,6 +1,6 @@
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
-  BOOST_INDEX, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
+  BOOST_INDEX, CRAB_SHOTS, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
   OCTOPI, createGame, fitField, formatInt, revive, snapshot, step, touchToInput,
   type BoostType, type BossFrame, type Crab, type Frame, type GameEvent, type Input, type OctopiVariant, type Replay, type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
@@ -47,6 +47,9 @@ const BOOST_BY_INDEX = Object.entries(BOOST_INDEX).reduce<BoostType[]>((arr, [ty
   arr[index] = type as BoostType;
   return arr;
 }, []);
+
+/** The bullet kinds crabs fire (mirrors core's own `crabs.ts:CRAB_SHOT_KINDS`); any other kind pushed onto `enemyShots` is a boss's. */
+const CRAB_SHOT_KINDS = new Set(Object.values(CRAB_SHOTS).flatMap((entry) => (entry === null ? [] : [entry.kind])));
 
 /** "RAPID_FIRE" -> "Rapid Fire". */
 function titleCase(type: string): string {
@@ -141,13 +144,23 @@ const BOSS_ABILITY_HAPTIC: Partial<Record<'regen' | 'shield' | 'meteor' | 'rage'
   rage: 'rage',
 };
 
-/** A `boost_pickup`'s boost type -> the stinger layered over the generic `boost_pickup` pop (table A rows 35-38). Boosts absent here get the pop alone. */
-const BOOST_STINGER: Partial<Record<BoostType, SfxId>> = {
+/** Every boost's own pickup stinger, layered over the generic `boost_pickup` pop pushed by the frame loop below (table A rows 35-38; owner decision 2026-09-16). RANDOM_CHAOS has no stinger of its own, so it maps back onto the generic pop. */
+const BOOST_STINGER: Record<BoostType, SfxId> = {
+  RAPID_FIRE: 'boost_rapid_fire',
+  ICE_FREEZE: 'boost_ice_freeze',
+  HEALTH_BOOST: 'boost_health_boost',
+  POINTS_FREEZE: 'boost_points_freeze',
+  SHIELD_BARRIER: 'boost_shield_barrier',
+  AUTO_TARGET: 'boost_auto_target',
   INVINCIBILITY: 'boost_invincibility',
-  ICE_FREEZE: 'boost_ice',
-  WAVE_BLAST: 'boost_blast',
-  COIN_SHOWER: 'boost_coins',
-  SCORE_MULTIPLIER: 'boost_coins',
+  MULTI_SHOT: 'boost_multi_shot',
+  SCORE_MULTIPLIER: 'boost_score_multiplier',
+  WAVE_BLAST: 'boost_wave_blast',
+  COIN_SHOWER: 'boost_coin_shower',
+  GRAVITY_WELL: 'boost_gravity_well',
+  PIERCING_BULLETS: 'boost_piercing_bullets',
+  RANDOM_CHAOS: 'boost_pickup',
+  SPEED_TAMER: 'boost_speed_tamer',
 };
 
 /** Armored crabs sitting at 1 hp (one hit taken, one more to kill) - the only crabs that can ever "survive a hit", since every other type has 1 hp and dies on the first. Comparing this count frame to frame is how `crab_armored_tok` is detected without per-crab identity tracking. */
@@ -446,8 +459,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           if (abilityHaptic !== undefined) haptics.push(abilityHaptic);
         } else if (ev.type === 'boost_pickup') {
           sounds.push('boost_pickup');
-          const stinger = BOOST_STINGER[ev.boost];
-          if (stinger !== undefined) sounds.push(stinger);
+          sounds.push(BOOST_STINGER[ev.boost]);
           haptics.push('boost_pickup');
         } else {
           const sound = SFX_FOR_EVENT[ev.type];
@@ -458,8 +470,23 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       }
       state.events.length = 0;
       // State deltas (table A): read once per rendered frame, across however many ticks it just ran.
-      if (state.shots.length > prevShotsLen) sounds.push('octopi_shot');
-      if (state.enemyShots.length > prevEnemyShotsLen) sounds.push('crab_shot');
+      if (state.shots.length > prevShotsLen) {
+        const multiShot = state.boosts.active.some((b) => b.type === 'MULTI_SHOT');
+        sounds.push(multiShot ? 'octopi_multishot' : 'octopi_shot');
+      }
+      if (state.enemyShots.length > prevEnemyShotsLen) {
+        // New bullets land at the tail (the core only ever pushes); classify each one by kind so a
+        // frame that mixes a crab's shot with a boss's plays both cues, never more than one of each.
+        const grown = state.enemyShots.length - prevEnemyShotsLen;
+        let sawCrabShot = false;
+        let sawBossShot = false;
+        for (let i = state.enemyShots.length - grown; i < state.enemyShots.length; i++) {
+          if (CRAB_SHOT_KINDS.has(state.enemyShots[i]!.kind)) sawCrabShot = true;
+          else sawBossShot = true;
+        }
+        if (sawCrabShot) sounds.push('crab_shot');
+        if (sawBossShot) sounds.push('boss_shot');
+      }
       if (state.kills > prevKillsCount) sounds.push('crab_hit');
       const bossHpNow = state.boss?.hp ?? null;
       if (prevBossHp !== null && bossHpNow !== null && bossHpNow < prevBossHp) sounds.push('boss_hit');

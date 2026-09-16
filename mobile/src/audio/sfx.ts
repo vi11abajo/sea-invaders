@@ -3,39 +3,61 @@ import ReefSfx from '../../modules/reef-sfx';
 
 /**
  * One-shot sound catalogue (design doc `2026-09-16-sound-and-haptics.md`, tables A and C). Every id
- * is a file name under `assets/sfx/`; today every one of them is a generated placeholder (see
- * `assets/sfx/README.md`) to be swapped for the real recording under the same name later.
- * `ambience_reef` is a loop, not a one-shot, so it lives in `music.ts` instead of here.
+ * is a file name under `assets/sfx/`; most are still generated placeholders (see
+ * `assets/sfx/README.md`), but the owner's own recordings have started landing under the same ids -
+ * a drop-in replacement needs no code change beyond what this file already does for `player_hit`'s
+ * variants and `octopi_shot`'s MULTI_SHOT alternate. `ambience_reef` is a loop, not a one-shot, so it
+ * lives in `music.ts` instead of here.
  */
 const SFX_ASSETS = {
-  boost_blast: require('../../assets/sfx/boost_blast.wav'),
-  boost_coins: require('../../assets/sfx/boost_coins.wav'),
+  boost_auto_target: require('../../assets/sfx/boost_auto_target.m4a'),
+  boost_coin_shower: require('../../assets/sfx/boost_coin_shower.m4a'),
   boost_drop: require('../../assets/sfx/boost_drop.wav'),
   boost_expire: require('../../assets/sfx/boost_expire.wav'),
-  boost_ice: require('../../assets/sfx/boost_ice.wav'),
-  boost_invincibility: require('../../assets/sfx/boost_invincibility.wav'),
-  boost_pickup: require('../../assets/sfx/boost_pickup.wav'),
+  boost_gravity_well: require('../../assets/sfx/boost_gravity_well.m4a'),
+  boost_health_boost: require('../../assets/sfx/boost_health_boost.m4a'),
+  boost_ice_freeze: require('../../assets/sfx/boost_ice_freeze.wav'),
+  boost_invincibility: require('../../assets/sfx/boost_invincibility.m4a'),
+  boost_multi_shot: require('../../assets/sfx/boost_multi_shot.m4a'),
+  boost_pickup: require('../../assets/sfx/boost_pickup.m4a'),
+  boost_piercing_bullets: require('../../assets/sfx/boost_piercing_bullets.m4a'),
+  boost_points_freeze: require('../../assets/sfx/boost_points_freeze.m4a'),
+  boost_rapid_fire: require('../../assets/sfx/boost_rapid_fire.m4a'),
+  boost_score_multiplier: require('../../assets/sfx/boost_score_multiplier.m4a'),
+  boost_shield_barrier: require('../../assets/sfx/boost_shield_barrier.m4a'),
+  boost_speed_tamer: require('../../assets/sfx/boost_speed_tamer.m4a'),
+  boost_wave_blast: require('../../assets/sfx/boost_wave_blast.m4a'),
   boss_clone: require('../../assets/sfx/boss_clone.wav'),
   boss_dead: require('../../assets/sfx/boss_dead.wav'),
   boss_freeze: require('../../assets/sfx/boss_freeze.wav'),
-  boss_hit: require('../../assets/sfx/boss_hit.wav'),
+  boss_hit: require('../../assets/sfx/boss_hit.m4a'),
   boss_phase: require('../../assets/sfx/boss_phase.wav'),
   boss_rage: require('../../assets/sfx/boss_rage.wav'),
   boss_regen: require('../../assets/sfx/boss_regen.wav'),
   boss_shield: require('../../assets/sfx/boss_shield.wav'),
+  // A boss's own shot, as opposed to `crab_shot`: the frame loop tells them apart by bullet kind
+  // (`GameScreen.tsx`'s `CRAB_SHOT_KINDS`, mirroring core's own `crabs.ts`).
+  boss_shot: require('../../assets/sfx/boss_shot.m4a'),
   boss_spawn: require('../../assets/sfx/boss_spawn.wav'),
   boss_teleport: require('../../assets/sfx/boss_teleport.wav'),
   crab_armored_tok: require('../../assets/sfx/crab_armored_tok.wav'),
-  crab_hit: require('../../assets/sfx/crab_hit.wav'),
+  crab_hit: require('../../assets/sfx/crab_hit.m4a'),
   crab_shot: require('../../assets/sfx/crab_shot.wav'),
   game_over: require('../../assets/sfx/game_over.wav'),
   level_cleared: require('../../assets/sfx/level_cleared.wav'),
   meteor_impact: require('../../assets/sfx/meteor_impact.wav'),
   meteor_warning: require('../../assets/sfx/meteor_warning.wav'),
   node_tap: require('../../assets/sfx/node_tap.wav'),
-  octopi_shot: require('../../assets/sfx/octopi_shot.wav'),
+  // Played instead of `octopi_shot` while MULTI_SHOT is active (`GameScreen.tsx`'s frame loop).
+  octopi_multishot: require('../../assets/sfx/octopi_multishot.m4a'),
+  octopi_shot: require('../../assets/sfx/octopi_shot.m4a'),
   player_freeze: require('../../assets/sfx/player_freeze.wav'),
-  player_hit: require('../../assets/sfx/player_hit.wav'),
+  // `player_hit` itself is not a loadable asset: it is a public id resolved to one of these four
+  // recordings at random by `VARIANTS` below, so the trigger code can keep calling `playSfx('player_hit')`.
+  player_hit_1: require('../../assets/sfx/player_hit_1.m4a'),
+  player_hit_2: require('../../assets/sfx/player_hit_2.m4a'),
+  player_hit_3: require('../../assets/sfx/player_hit_3.m4a'),
+  player_hit_4: require('../../assets/sfx/player_hit_4.m4a'),
   purchase_done: require('../../assets/sfx/purchase_done.wav'),
   record_saved: require('../../assets/sfx/record_saved.wav'),
   reef_unlocked: require('../../assets/sfx/reef_unlocked.wav'),
@@ -57,10 +79,21 @@ const SFX_ASSETS = {
   wave_start: require('../../assets/sfx/wave_start.wav'),
 } as const;
 
-export type SfxId = keyof typeof SFX_ASSETS;
+/**
+ * `player_hit` is a public id with no asset of its own (see the comment on the four `player_hit_*`
+ * entries above): it only ever resolves through `VARIANTS`, but the trigger code
+ * (`GameScreen.tsx`'s `SFX_FOR_EVENT`) still calls `playSfx('player_hit')`, so it stays part of the
+ * type even though it is never a key of `SFX_ASSETS`.
+ */
+export type SfxId = keyof typeof SFX_ASSETS | 'player_hit';
 
-/** Frequent, quiet by design (doc: "almost a whisper") - shots, ordinary hits, the drop bloop. */
-const QUIET_IDS = new Set<SfxId>(['octopi_shot', 'crab_shot', 'crab_hit', 'crab_armored_tok', 'boss_hit', 'boost_drop']);
+/** A public id with no asset of its own, resolved to one of several real recordings at random on every play. */
+const VARIANTS: Partial<Record<SfxId, SfxId[]>> = {
+  player_hit: ['player_hit_1', 'player_hit_2', 'player_hit_3', 'player_hit_4'],
+};
+
+/** Frequent, quiet by design (doc: "almost a whisper") - ordinary hits and the drop bloop; `octopi_shot`, `crab_hit` and `boss_hit` now carry their own volumes below instead of this shared one. */
+const QUIET_IDS = new Set<SfxId>(['crab_shot', 'crab_armored_tok', 'boost_drop']);
 /** Interface feedback: present but never louder than the game it sits over. */
 const SOFT_IDS = new Set<SfxId>(['ui_tap', 'ui_back', 'ui_sheet', 'ui_error', 'node_tap']);
 
@@ -69,20 +102,42 @@ const VOLUME_SOFT = 0.55;
 /** Big moments (a life lost, a boss beat, a fanfare): full but short of 1.0, so a few overlapping one-shots never clip together. */
 const VOLUME_FULL = 0.85;
 
+/** Owner-specified volumes (2026-09-16) that do not fit the three shared classes above. */
+const VOLUME_OVERRIDE: Partial<Record<SfxId, number>> = {
+  octopi_shot: 0.3,
+  octopi_multishot: 0.6,
+  crab_hit: 0.3,
+  boss_hit: 1.0,
+  player_hit_1: 0.6,
+  player_hit_2: 0.6,
+  player_hit_3: 0.6,
+  player_hit_4: 0.6,
+};
+
 function volumeOf(id: SfxId): number {
+  const override = VOLUME_OVERRIDE[id];
+  if (override !== undefined) return override;
   if (QUIET_IDS.has(id)) return VOLUME_QUIET;
   if (SOFT_IDS.has(id)) return VOLUME_SOFT;
   return VOLUME_FULL;
 }
 
 /**
- * Random pitch within ±5 % (doc: "so they never machine-gun"). The sound pool takes the rate as an
- * argument of the play itself, so varying it is free: there is no player whose speed has to be
- * changed first, and a rate off 1 shifts the pitch along with the speed by nature.
+ * Random pitch within ±`width` (doc: "so they never machine-gun"), `width` a per-id table defaulting
+ * to 0.05 (±5 %). `octopi_multishot` gets a one-sided range instead (1.0-1.2, never slower than the
+ * plain shot it replaces), so it is special-cased rather than added to the table. The sound pool
+ * takes the rate as an argument of the play itself, so varying it is free: there is no player whose
+ * speed has to be changed first, and a rate off 1 shifts the pitch along with the speed by nature.
  */
-const RATE_JITTER = 0.05;
-function jitteredRate(): number {
-  return 1 + (Math.random() * 2 - 1) * RATE_JITTER;
+const RATE_JITTER_WIDTH: Partial<Record<SfxId, number>> = {
+  octopi_shot: 0.1, // 0.9-1.1
+};
+const DEFAULT_RATE_JITTER_WIDTH = 0.05;
+
+function jitteredRate(id: SfxId): number {
+  if (id === 'octopi_multishot') return 1 + Math.random() * 0.2; // 1.0-1.2, one-sided
+  const width = RATE_JITTER_WIDTH[id] ?? DEFAULT_RATE_JITTER_WIDTH;
+  return 1 + (Math.random() * 2 - 1) * width;
 }
 
 /**
@@ -93,6 +148,8 @@ function jitteredRate(): number {
  */
 const MIN_GAP_MS: Partial<Record<SfxId, number>> = {
   octopi_shot: 90,
+  // Same gap as `octopi_shot`: it replaces that sound while MULTI_SHOT is active, at the same cadence.
+  octopi_multishot: 90,
   crab_shot: 90,
   crab_hit: 80,
   crab_armored_tok: 90,
@@ -121,7 +178,8 @@ let preloading: Promise<void> | null = null;
 /**
  * Decodes every supplied sound into the pool, once. Call it after the first render rather than
  * before it: the decoding runs off the main thread, so it costs the splash nothing, and until a
- * sound is decoded asking for it is silently a no-op.
+ * sound is decoded asking for it is silently a no-op. `player_hit` has no entry of its own in
+ * `SFX_ASSETS` (see `VARIANTS`), so nothing extra needs preloading for it beyond its four variants.
  */
 export function preloadSfx(): Promise<void> {
   if (preloading !== null) return preloading;
@@ -158,10 +216,17 @@ export function preloadSfx(): Promise<void> {
  * Sounds `id`. Never throws: an id with no recording, one still decoding, or one that failed logs
  * at most once and is silently a no-op afterwards. Safe to call every frame — a play is a single
  * call into the sound pool, which hands an already-decoded sound straight to the mixer.
+ *
+ * An id listed in `VARIANTS` (only `player_hit` today) is resolved to one of its recordings at
+ * random on every call; the gap check and de-dup below key on the public `id` rather than the
+ * resolved variant, so rapid hits are throttled as one stream regardless of which recording played.
  */
 export function playSfx(id: SfxId): void {
-  if (!soundsEnabled || failed.has(id)) return;
-  const sound = loaded.get(id);
+  if (!soundsEnabled) return;
+  const variants = VARIANTS[id];
+  const resolvedId = variants !== undefined ? variants[Math.floor(Math.random() * variants.length)]! : id;
+  if (failed.has(resolvedId)) return;
+  const sound = loaded.get(resolvedId);
   if (sound === undefined) return;
   const gap = MIN_GAP_MS[id];
   if (gap !== undefined) {
@@ -170,11 +235,11 @@ export function playSfx(id: SfxId): void {
     lastPlayedAt.set(id, now);
   }
   try {
-    ReefSfx?.play(sound.soundId, sound.volume, jitteredRate());
+    ReefSfx?.play(sound.soundId, sound.volume, jitteredRate(resolvedId));
   } catch (error) {
-    loaded.delete(id);
-    failed.add(id);
-    console.warn(`[sfx] could not play "${id}"`, error instanceof Error ? error.message : error);
+    loaded.delete(resolvedId);
+    failed.add(resolvedId);
+    console.warn(`[sfx] could not play "${resolvedId}"`, error instanceof Error ? error.message : error);
   }
 }
 

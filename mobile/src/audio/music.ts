@@ -10,28 +10,28 @@ setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false, inte
 });
 
 /**
- * Owner-provided or licensed tracks (design doc table B). No files exist yet for any of them - every
- * entry below is commented out on purpose. `playMusic`/`stopMusic` read this map at call time, so
- * once the owner drops `music_home.mp3` etc. under `assets/music/` the matching line here is
- * uncommented and playback starts working with no other code change; until then every id is a
- * silent no-op.
+ * Owner-provided tracks (design doc table B), the owner's own earlier version of the game
+ * (`assets/music/CREDITS.md`). `music_result` has no recording supplied yet - `playMusic`/`stopMusic`
+ * read this map at call time, so dropping `music_result.mp3` under `assets/music/` and adding its
+ * entry here is a drop-in with no other code change; until then that one id is a silent no-op (the
+ * result screen keeps whatever track the run was already playing instead).
  */
-export type MusicId = 'music_home' | 'music_run' | 'music_boss' | 'music_result';
+export type MusicId = 'music_home' | 'music_run' | 'music_boss' | 'music_map' | 'music_result';
 
 const MUSIC: Partial<Record<MusicId, number>> = {
-  // music_home: require('../../assets/music/music_home.mp3'),
-  // music_run: require('../../assets/music/music_run.mp3'),
-  // music_boss: require('../../assets/music/music_boss.mp3'),
-  // music_result: require('../../assets/music/music_result.mp3'),
+  music_home: require('../../assets/music/music_home.mp3'),
+  music_run: require('../../assets/music/music_run.mp3'),
+  music_boss: require('../../assets/music/music_boss.mp3'),
+  music_map: require('../../assets/music/music_map.mp3'),
+  // music_result: not supplied yet.
 };
 
 /**
  * The reef ambience loop (spec table A, `ambience_reef`): a loop, not a one-shot, so it is driven
- * from here rather than `sfx.ts`. Ships silent until a real recording exists - the synthesised
- * placeholder was a hiss the owner asked to remove (2026-09-16). To enable it, drop the loop into
- * `assets/music/ambience_reef.mp3` (or `.ogg`) and set this to `require('../../assets/music/ambience_reef.mp3')`.
+ * from here rather than `sfx.ts`. A bubbles-only loop (`assets/music/CREDITS.md`), kept low under
+ * everything else via `AMBIENCE_VOLUME`.
  */
-const AMBIENCE_ASSET: number | null = null;
+const AMBIENCE_ASSET: number | null = require('../../assets/music/ambience_reef.wav');
 
 /** Ambience sits well under anything else (doc: "ambience -12 dB"). */
 const AMBIENCE_VOLUME = 0.2;
