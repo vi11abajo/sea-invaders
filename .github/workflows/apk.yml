@@ -10,6 +10,9 @@ jobs:
   apk:
     name: Build the Android APK
     runs-on: ubuntu-latest
+    env:
+      # `secrets` cannot be read in a step's `if`; this flag can.
+      HAS_RELEASE_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
 
     steps:
       - name: Checkout code
@@ -48,6 +51,23 @@ jobs:
           EXPO_PUBLIC_SOLANA_CLUSTER=devnet
           EOF
 
+      # The release keystore comes from repository secrets (see backend/DEPLOYMENT.md, "Release
+      # signing"); without them the build keeps the template's debug key, so a fork still builds.
+      - name: Prepare the release keystore
+        if: env.HAS_RELEASE_KEYSTORE == 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "SEA_RELEASE_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          echo "SEA_RELEASE_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "SEA_RELEASE_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "SEA_RELEASE_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "release keystore ready ($(stat -c %s "$RUNNER_TEMP/release.jks") bytes)"
+
       - name: Generate the Android project
         env:
           CI: '1'
@@ -55,12 +75,21 @@ jobs:
         run: |
           cd mobile
           npx expo prebuild --platform android --no-install
+          echo "release signing in app/build.gradle:"
+          grep -n "signingConfigs.release\|signingConfigs.debug" android/app/build.gradle || true
 
       - name: Assemble the release APK
         run: |
           cd mobile/android
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
+
+      # The certificate fingerprint is public (it is what /.well-known/assetlinks.json on
+      # seainvaders.xyz lists); printing it proves which key signed this build.
+      - name: Print the signing certificate
+        run: |
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs mobile/android/app/build/outputs/apk/release/app-release.apk | grep -i "SHA-256\|Signer #1 certificate DN"
 
       - name: Keep the APK as an artifact
         uses: actions/upload-artifact@v4

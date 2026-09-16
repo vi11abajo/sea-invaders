@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "xyz.seainvaders.app",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#0C0C0E",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -27,6 +28,7 @@
       "expo-font",
       "expo-secure-store",
       "./plugins/withCleartextApi.js",
+      "./plugins/withReleaseSigning.js",
       "expo-audio"
     ],
     "backgroundColor": "#0C0C0E"

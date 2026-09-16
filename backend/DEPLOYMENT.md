@@ -458,6 +458,31 @@ them under **Settings → Secrets and variables → Actions** before the next de
 or the workflow will write an incomplete `backend/.env` and the API will fail to start
 (`chainConfig()` throws on any missing value).
 
+### Release signing (the "Build APK" workflow)
+
+`.github/workflows/apk.yml` signs the release APK with the project's own key when these
+four secrets exist; without them the build keeps the Android debug key, so a fork still
+produces an installable APK:
+
+| Secret | Value |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | the PKCS12 keystore (`.jks`) as base64 text — secret |
+| `ANDROID_KEYSTORE_PASSWORD` | the keystore password — secret |
+| `ANDROID_KEY_ALIAS` | the key alias inside the keystore (`sea-invaders`) |
+| `ANDROID_KEY_PASSWORD` | the key password (PKCS12: the same as the keystore's) — secret |
+
+The workflow decodes the keystore onto the runner, hands its path and the passwords to
+`expo prebuild` through `SEA_RELEASE_*` environment variables, and the config plugin
+`mobile/plugins/withReleaseSigning.js` writes a `release` signing config into the generated
+`app/build.gradle` that reads those variables at build time (no secret lands in the project
+tree). The last build step prints the signing certificate's SHA-256 with `apksigner`; that
+fingerprint is public and must match `https://seainvaders.xyz/.well-known/assetlinks.json`
+(nginx serves it from `/var/www/seainvaders-xyz/.well-known/`), which is how wallets verify
+the app's identity through Mobile Wallet Adapter. Android installs an update only over an
+app signed with the same key, so switching from the debug key to the release key means one
+uninstall on the device. `mobile/app.json`'s `android.versionCode` must grow with every
+build that goes to people.
+
 ---
 
 ## 🔒 Security
