@@ -173,7 +173,7 @@ export function LevelIntro({
           </>
         ) : (
           <>
-            <Txt variant="headline">{FORMATION_NAMES[level.formation]}</Txt>
+            <Txt variant="headline">{level.formations.map((f) => FORMATION_NAMES[f]).join(' → ')}</Txt>
             <Txt variant="body" tone="secondary">{`${level.waves} wave${level.waves === 1 ? '' : 's'}`}</Txt>
             <View style={styles.chips}>
               {[...new Set(level.kinds)].map((kind) => (

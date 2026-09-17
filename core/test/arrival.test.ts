@@ -53,17 +53,19 @@ describe('wave arrival (campaign only)', () => {
     expect(s.wave).toBe(2);
     expect(s.arrival).toBe(ARRIVAL.ticks); // the full 30, not 29 — nothing was eaten by the transition tick
 
-    // The slots wave 2's formation targets: every wave of a level spawns the same template.
-    const slots = formationPositions(l.formation);
+    // The slots wave 2's own silhouette targets (the level chains a different one per wave).
+    const slots = formationPositions(l.formations[1]!);
     expect(s.crabs).toHaveLength(slots.length);
 
     for (let i = 0; i < ARRIVAL.ticks; i++) step(s, INITIAL_INPUT);
 
     expect(s.arrival).toBe(0);
-    s.crabs.forEach((c, i) => {
-      expect(c.x).toBe(slots[i]!.x);
-      expect(c.y).toBe(slots[i]!.y);
-    });
+    // Octopi auto-fires through the descent and may already have taken a crab off the fish's lower
+    // rows (they settle higher than the classic grid's), so match survivors to slots by position
+    // rather than by index: every crab left sits exactly on one of its silhouette's slots.
+    const slotKeys = new Set(slots.map((p) => `${p.x},${p.y}`));
+    expect(s.crabs.length + s.kills).toBe(slots.length);
+    for (const c of s.crabs) expect(slotKeys.has(`${c.x},${c.y}`)).toBe(true);
 
     // The 31st step now marches sideways instead of continuing to descend.
     const x0 = s.crabs[0]!.x;

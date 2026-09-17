@@ -6,7 +6,10 @@ export interface LevelSpec {
   reef: number;
   index: number;
   waves: number;
+  /** The first wave's silhouette, the level's headline (shown on the Level-start screen). */
   formation: Formation;
+  /** The silhouette of every wave in order (`waves` entries): `formation` first, then `WAVE_ORDER` onward, so no two waves of a level repeat and no two neighbours match (owner ruling 2026-09-17). */
+  formations: readonly Formation[];
   kinds: CrabType[];
   speedOffset: number;
   fireOffset: number;
@@ -72,6 +75,19 @@ export function dailyPool(wave: number): CrabType[] {
  * `waves: 0` and the K-pool of their reef so the row still type-checks even though no wave is
  * spawned from it.
  */
+/**
+ * The order the waves of a level walk through the silhouettes after the level's own first one:
+ * dense and sparse shapes alternate, so two neighbouring waves never look alike. With eight
+ * silhouettes and at most five waves, a level never repeats one.
+ */
+export const WAVE_ORDER: readonly Formation[] = ['classic', 'fish', 'jellyfish', 'diamond', 'wreck', 'octopus', 'shell', 'ring'];
+
+/** `waves` silhouettes starting at `first` and continuing through `WAVE_ORDER` (wrapping), all distinct. */
+export function waveFormations(first: Formation, waves: number): Formation[] {
+  const start = WAVE_ORDER.indexOf(first);
+  return Array.from({ length: waves }, (_, k) => WAVE_ORDER[(start + k) % WAVE_ORDER.length]!);
+}
+
 function row(
   id: number,
   waves: number,
@@ -88,6 +104,7 @@ function row(
     index,
     waves,
     formation,
+    formations: waveFormations(formation, waves),
     kinds,
     speedOffset: 3 * (reef - 1) + indexOffset,
     fireOffset: 8 * (reef - 1) + 3 * indexOffset,
@@ -97,7 +114,8 @@ function row(
 
 /**
  * The 30-level campaign table, transcribed verbatim from spec §2. Data only: balance changes edit
- * rows, never code. Every wave of a level spawns the same silhouette, so a row carries no size —
+ * rows, never code. A row names the first wave's silhouette; the later waves follow `WAVE_ORDER`
+ * from there (`waveFormations`), so a row carries no size —
  * the template's own shape sets the crab count.
  */
 export const LEVELS: readonly LevelSpec[] = [

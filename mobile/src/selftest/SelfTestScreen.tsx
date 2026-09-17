@@ -1,4 +1,4 @@
-import goldens from '@sea-invaders/core/golden/golden-v8.json';
+import goldens from '@sea-invaders/core/golden/golden-v9.json';
 import { checkGoldens, type Golden, type GoldenCheck } from '@sea-invaders/core';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';

@@ -57,12 +57,21 @@ describe('LEVELS', () => {
     }
   });
 
-  it('spawns the same template, and so the same crab count, on every wave of a level', () => {
+  it('chains a distinct silhouette per wave, headline first, neighbours never alike', () => {
+    for (const l of LEVELS.filter((l) => !l.boss)) {
+      expect(l.formations).toHaveLength(l.waves);
+      expect(l.formations[0]).toBe(l.formation);
+      expect(new Set(l.formations).size).toBe(l.waves);
+      for (let k = 1; k < l.formations.length; k++) expect(l.formations[k]).not.toBe(l.formations[k - 1]);
+    }
+  });
+
+  it("spawns each wave's own silhouette, with that silhouette's crab count", () => {
     for (const l of LEVELS.filter((l) => !l.boss)) {
       const s = createGame(levelSeed('run', l.id), campaign(l.id));
-      const expected = formationPositions(l.formation).length;
       for (let wave = 1; wave <= l.waves; wave++) {
         startLevelWave(s, wave);
+        const expected = formationPositions(l.formations[wave - 1]!).length;
         expect({ id: l.id, wave, count: s.crabs.length }).toEqual({ id: l.id, wave, count: expected });
       }
     }

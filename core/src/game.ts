@@ -100,7 +100,8 @@ export function spawnFormation(
 export function startLevelWave(s: GameState, wave: number): void {
   const l = s.run.level!;
   s.wave = wave;
-  spawnFormation(s, { formation: l.formation, kinds: l.kinds });
+  // Wave `wave` takes its own silhouette from the level's chain (the first wave is the headline).
+  spawnFormation(s, { formation: l.formations[wave - 1] ?? l.formation, kinds: l.kinds });
   for (const c of s.crabs) c.y -= ARRIVAL.drop;
   s.arrival = ARRIVAL.ticks;
   s.scoreDecay = 0; // spec C7: the score-decay clock resets at every campaign wave start too
