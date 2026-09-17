@@ -150,6 +150,42 @@ describe('finishRun', () => {
     const bytes = Buffer.from(playReplay(seed, 300).base64, 'base64');
     bytes[0] = CORE_VERSION + 1; // the version is the first varint byte
     await expect(finishRun({ userId: 7, runId, replayBase64: bytes.toString('base64'), now: NOON + 10 })).rejects.toMatchObject({ code: 'update_required', status: 426 });
+    expect((await memory.getRun(runId)).status).toBe('update_required');
+  });
+
+  it('leaves the attempt unspent when the replay comes from another core version', async () => {
+    process.env.DAILY_FREE_ATTEMPTS = '1';
+    try {
+      const { runId, seed } = await startRun({ userId: 7, now: NOON });
+      expect((await todayInfo({ userId: 7, now: NOON + 1 })).attemptsLeft).toBe(0);
+      const bytes = Buffer.from(playReplay(seed, 300).base64, 'base64');
+      bytes[0] = CORE_VERSION + 1;
+      await expect(finishRun({ userId: 7, runId, replayBase64: bytes.toString('base64'), now: NOON + 10 })).rejects.toMatchObject({ code: 'update_required' });
+      // The day's only attempt is back, and the updated app can start a fresh run with it.
+      expect((await todayInfo({ userId: 7, now: NOON + 11 })).attemptsLeft).toBe(1);
+      await expect(startRun({ userId: 7, now: NOON + 12 })).resolves.toMatchObject({ day: DAY });
+    } finally {
+      process.env.DAILY_FREE_ATTEMPTS = '3';
+    }
+  });
+
+  it('still spends the attempt on a run left started, and on a rejected one', async () => {
+    process.env.DAILY_FREE_ATTEMPTS = '1';
+    try {
+      // Started and never finished: abandoning a run must not refund it.
+      await startRun({ userId: 7, now: NOON });
+      expect((await todayInfo({ userId: 7, now: NOON + 1 })).attemptsLeft).toBe(0);
+      await expect(startRun({ userId: 7, now: NOON + 2 })).rejects.toMatchObject({ code: 'no_attempts' });
+
+      // Rejected: a malformed upload spends the attempt too.
+      memory.reset();
+      const { runId } = await startRun({ userId: 8, now: NOON });
+      await expect(finishRun({ userId: 8, runId, replayBase64: 'not base64 at all', now: NOON + 10 })).rejects.toMatchObject({ code: 'bad_replay' });
+      expect((await memory.getRun(runId)).status).toBe('rejected');
+      expect((await todayInfo({ userId: 8, now: NOON + 11 })).attemptsLeft).toBe(0);
+    } finally {
+      process.env.DAILY_FREE_ATTEMPTS = '3';
+    }
   });
 
   it('keeps the higher score as the day best', async () => {

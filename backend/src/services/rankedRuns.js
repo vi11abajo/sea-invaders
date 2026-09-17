@@ -151,7 +151,16 @@ export async function finishRun({ userId, runId, replayBase64, now }) {
   try {
     decoded = decode(replayBase64);
   } catch (error) {
-    if (error instanceof RankedRunError && error.code !== 'update_required') await reject(error.code, error.message);
+    if (error instanceof RankedRunError) {
+      // A core version mismatch is never the player's play, so the run is closed with its own
+      // status rather than `rejected`: `countRunsForDay` skips it and the attempt - free or bought
+      // - is left for the updated app (migration 011). Every other decode failure spends it.
+      if (error.code === 'update_required') {
+        await db.finishRun(runId, { finishedAt: now, status: 'update_required', rejectReason: error.code });
+      } else {
+        await reject(error.code, error.message);
+      }
+    }
     throw error;
   }
   const { replay, bytes } = decoded;

@@ -16,8 +16,9 @@ export async function getRun(id) {
   return runs.get(id) ?? null;
 }
 
+/** Mirrors the real query: a run closed as `update_required` is not a spent attempt, everything else is. */
 export async function countRunsForDay(userId, day) {
-  return [...runs.values()].filter((r) => r.userId === userId && r.day === day).length;
+  return [...runs.values()].filter((r) => r.userId === userId && r.day === day && r.status !== 'update_required').length;
 }
 
 export async function finishRun(id, patch) {

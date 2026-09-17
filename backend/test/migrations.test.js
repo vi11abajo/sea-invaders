@@ -65,6 +65,19 @@ describe('migration list', () => {
     expect(order.indexOf('010_seeker.sql')).toBe(order.indexOf('009_run_skin.sql') + 1);
   });
 
+  it('runs 011 after 010', () => {
+    const order = [...runner.matchAll(/'(\d{3}_[a-z_]+\.sql)'/g)].map((m) => m[1]);
+    expect(order.indexOf('011_run_update_required.sql')).toBe(order.indexOf('010_seeker.sql') + 1);
+  });
+
+  it('011 lets a ranked run carry the update_required status', () => {
+    const sql = readFileSync(new URL('../migrations/011_run_update_required.sql', import.meta.url), 'utf8');
+    expect(sql).toMatch(/CHECK \(status IN \('started', 'verified', 'rejected', 'update_required'\)\)/);
+    // 005 declared the status CHECK inline, so Postgres named it: the migration drops it by lookup.
+    expect(sql).toMatch(/FROM pg_constraint/);
+    expect(sql).not.toMatch(/DROP CONSTRAINT ranked_runs_status_check/);
+  });
+
   it('010 mirrors the Seeker link on users: a nullable, unique mint and the time it was linked', () => {
     const sql = readFileSync(new URL('../migrations/010_seeker.sql', import.meta.url), 'utf8');
     expect(sql).toMatch(/ALTER TABLE users ADD COLUMN IF NOT EXISTS seeker_mint VARCHAR\(64\)/);

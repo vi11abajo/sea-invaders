@@ -33,8 +33,17 @@ export async function getRun(id) {
   return rowToRun(result.rows[0]);
 }
 
+/**
+ * How many of the day's attempts this user has spent. A run closed as `update_required` does not
+ * count: the replay was rejected only because the app is a core version behind, which is never the
+ * player's play (migration 011). Everything else counts, `started` included - abandoning a run
+ * must not refund it.
+ */
 export async function countRunsForDay(userId, day) {
-  const result = await pool.query('SELECT COUNT(*)::int AS n FROM ranked_runs WHERE user_id = $1 AND day = $2', [userId, day]);
+  const result = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM ranked_runs WHERE user_id = $1 AND day = $2 AND status <> 'update_required'`,
+    [userId, day],
+  );
   return result.rows[0].n;
 }
 

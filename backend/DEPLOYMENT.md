@@ -175,7 +175,10 @@ with `update_required`) and reports that version as `coreVersion` in `GET /api/d
 `CORE_VERSION` is 8 since 2026-09-17 (8 brings the new crab kinds, the weighted shooter, the
 two-life heavy shot and the silhouette formations; 7 slowed enemy shots under ICE_FREEZE; 3 brought the campaign, bosses and boosts of Phase 3A; 4 the legacy boost rules and player-shot motion of Phase 3A.1; 5 the rarer boost drops; 6 the octopi
 variants and mid-level revive of Phase 3B), so whenever the core version bumps, deploy the API and
-release the new APK together: runs recorded by an older app are rejected until it updates.
+release the new APK together: runs recorded by an older app are rejected until it updates. Such a
+rejection does not cost the player the attempt: the run is closed as `update_required` and
+`countRunsForDay` skips that status, so the free or bought attempt is still there after the update
+(migration `011_run_update_required.sql` - run the migrations before serving a new core version).
 
 ---
 
