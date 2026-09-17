@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isValidProgress, newProgress, type CampaignProgress } from '@sea-invaders/core';
+import { isValidProgress, newProgress, settleProgress, type CampaignProgress } from '@sea-invaders/core';
 
 const KEY = 'campaign.v1';
 
@@ -9,7 +9,8 @@ export async function loadProgress(): Promise<CampaignProgress> {
     const raw = await AsyncStorage.getItem(KEY);
     if (!raw) return newProgress(Date.now());
     const parsed: unknown = JSON.parse(raw);
-    return isValidProgress(parsed) ? parsed : newProgress(Date.now());
+    // Settled on load, so a stale pointer heals even on a signed-out device that never syncs.
+    return isValidProgress(parsed) ? settleProgress(parsed) : newProgress(Date.now());
   } catch {
     return newProgress(Date.now());
   }

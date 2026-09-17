@@ -112,7 +112,37 @@ export function reviveReef(p: CampaignProgress, now: number): CampaignProgress {
   return { ...p, lives: REVIVE_LIVES, updatedAt: now };
 }
 
-/** Spec §6.2: per-level OR/max, position fields from the newer `updatedAt` (tie favors `b`). */
+/** Whether every level of `reef` (1..REEFS) is cleared. */
+function reefCleared(p: CampaignProgress, reef: number): boolean {
+  const first = (reef - 1) * LEVELS_PER_REEF;
+  for (let i = 0; i < LEVELS_PER_REEF; i++) if (!p.cleared[first + i]) return false;
+  return true;
+}
+
+/**
+ * Moves a pointer that sits inside a fully cleared reef on to where play actually stands: the first
+ * level of the next uncleared reef with fresh lives, or the campaign-complete position (the last
+ * reef's boss) once everything is cleared. Play never leaves the pointer there - a boss clear moves
+ * it on at once - but an old merge rule did (a reinstall merged with a finished campaign kept the
+ * fresh copy's reef 1 / level 1), and both copies then carried the stale pointer, so the merge rule
+ * alone could no longer recover it. A reef-lost reset (pointer at level 1 of a reef that is not
+ * fully cleared) is left exactly as it is. `updatedAt` is untouched: this is a repair, not a play.
+ */
+export function settleProgress(p: CampaignProgress): CampaignProgress {
+  let reef = p.reef;
+  while (reef < REEFS && reefCleared(p, reef)) reef += 1;
+  const moved = reef !== p.reef;
+  if (reef === REEFS && reefCleared(p, REEFS)) {
+    if (!moved && p.level === LEVELS_PER_REEF) return p;
+    return { ...p, reef: REEFS, level: LEVELS_PER_REEF, lives: moved ? REEF_LIVES : p.lives };
+  }
+  return moved ? { ...p, reef, level: 1, lives: REEF_LIVES } : p;
+}
+
+/**
+ * Spec §6.2: per-level OR/max, position fields from the side that has cleared more levels (the newer
+ * one on a tie, and `b` on a full tie); the result is settled (`settleProgress`).
+ */
 export function mergeProgress(a: CampaignProgress, b: CampaignProgress): CampaignProgress {
   const newer = b.updatedAt >= a.updatedAt ? b : a;
   // The pointer (reef, level, lives) follows the side that has cleared more levels - the side that
@@ -122,7 +152,7 @@ export function mergeProgress(a: CampaignProgress, b: CampaignProgress): Campaig
   const clearedA = a.cleared.filter(Boolean).length;
   const clearedB = b.cleared.filter(Boolean).length;
   const lead = clearedA > clearedB ? a : clearedB > clearedA ? b : newer;
-  return {
+  return settleProgress({
     v: 1,
     reef: lead.reef,
     level: lead.level,
@@ -130,7 +160,7 @@ export function mergeProgress(a: CampaignProgress, b: CampaignProgress): Campaig
     cleared: a.cleared.map((c, i) => c || b.cleared[i]!),
     best: a.best.map((v, i) => Math.max(v, b.best[i]!)),
     updatedAt: Math.max(a.updatedAt, b.updatedAt),
-  };
+  });
 }
 
 /** Structural validation for progress loaded from storage or the network: spec §6.1. */

@@ -10,6 +10,7 @@ import {
   mergeProgress,
   newProgress,
   reviveReef,
+  settleProgress,
   type CampaignProgress,
 } from '../src';
 
@@ -123,6 +124,35 @@ describe('campaign progress', () => {
       expect(merged.cleared.every(Boolean)).toBe(true);
       expect(merged.updatedAt).toBe(9000);
     }
+  });
+
+  it('settles a pointer left inside a finished campaign on the last boss', () => {
+    const all = Array(REEFS * LEVELS_PER_REEF).fill(true);
+    const stale = progress({ reef: 1, level: 1, lives: REEF_LIVES, cleared: all, updatedAt: 3000 });
+    const settled = settleProgress(stale);
+    expect(settled.reef).toBe(REEFS);
+    expect(settled.level).toBe(LEVELS_PER_REEF);
+    expect(settled.updatedAt).toBe(3000);
+    // Both copies carrying the stale pointer (the state an older merge rule left behind) still settle.
+    const merged = mergeProgress(stale, { ...stale, updatedAt: 4000 });
+    expect(merged.reef).toBe(REEFS);
+    expect(merged.level).toBe(LEVELS_PER_REEF);
+  });
+
+  it('settles a pointer inside a fully cleared reef on the next reef with fresh lives', () => {
+    const cleared = [...Array(LEVELS_PER_REEF).fill(true), ...Array(24).fill(false)];
+    const settled = settleProgress(progress({ reef: 1, level: 4, lives: 2, cleared }));
+    expect(settled.reef).toBe(2);
+    expect(settled.level).toBe(1);
+    expect(settled.lives).toBe(REEF_LIVES);
+  });
+
+  it('leaves a reef-lost reset and the campaign-complete position alone', () => {
+    const reset = progress({ reef: 1, level: 1, lives: REEF_LIVES, cleared: [true, true, true, ...Array(27).fill(false)] });
+    expect(settleProgress(reset)).toBe(reset);
+    const done = progress({ reef: REEFS, level: LEVELS_PER_REEF, lives: 1, cleared: Array(30).fill(true) });
+    expect(settleProgress(done)).toBe(done);
+    expect(settleProgress(newProgress(1))).toEqual(newProgress(1));
   });
 
   it('keeps the newer pointer when both sides have cleared the same levels (a reef-lost reset)', () => {
