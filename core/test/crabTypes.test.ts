@@ -124,9 +124,8 @@ describe('spawnFormation', () => {
   });
 
   it("turns each cell's tier into the reef pool's kind, with that kind's colour and hp", () => {
-    // Reef 5 gives tier and kind one for one. Level 25 is `jellyfish`, one of the reef's
-    // templates that still uses all five tiers: the spec amendment of 2026-09-17 widened three
-    // template tops to tier 4, leaving `shell`, `diamond` and `wreck` with no tier-3 cell.
+    // Reef 5 gives tier and kind one for one. Level 25 is `jellyfish`, a template that uses all
+    // five tiers, so every kind of the pool appears in the wave.
     const l = levelById(25); // reef 5, jellyfish: one kind per tier, all five tiers used
     const s = createGame('t', PRACTICE_RUN);
     spawnFormation(s, { formation: l.formation, kinds: l.kinds });
