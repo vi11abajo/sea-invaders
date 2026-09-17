@@ -55,14 +55,14 @@ export function piercingFor(variant: OctopiVariant): boolean {
 export const TUNING = {
   /** How fast Octopi's shots fly: scales `UNTUNED_SPEED.octopiShot` into `SHOT.speed`. */
   octopiShotPct: 80,
-  /** How fast crabs move: the formation march (see `marchSteps`) and diver dives (`DIVER.speed`). */
+  /** How fast crabs move: the formation march (see `marchSteps`) and a wave's arrival descent. */
   crabMovePct: 90,
   /** How often crabs fire: scales the per-tick fire chance (see `fireChance`). */
   crabFirePct: 90,
 } as const;
 
 /** The original speeds, in units/tick, that the `TUNING` knobs scale. */
-export const UNTUNED_SPEED = { octopiShot: 240, diver: 220 } as const;
+export const UNTUNED_SPEED = { octopiShot: 240 } as const;
 
 /** `base` scaled to `pct` percent, rounded towards zero (integer-only like the rest of the core). */
 export function scalePct(base: number, pct: number): number {
@@ -93,48 +93,55 @@ export const CRAB = {
   points: 10,
 } as const;
 
-/** Hit points and score per crab type. `normal` matches CRAB.points/1 hp, unchanged from wave-mode behaviour. */
+/**
+ * Hit points and score per crab kind (spec §1). `normal` matches CRAB.points and 1 hp, unchanged
+ * from wave-mode behaviour; armored survives one hit and elder two, and the app draws the damage.
+ */
 export const CRAB_TYPES = {
   normal: { hp: 1, points: 10 },
   armored: { hp: 2, points: 25 },
   swift: { hp: 1, points: 15 },
-  fanner: { hp: 1, points: 20 },
-  diver: { hp: 1, points: 30 },
+  heavy: { hp: 1, points: 20 },
+  elder: { hp: 3, points: 40 },
 } as const;
 
 /**
- * Colour a crab is drawn with, by type (spec §14 amendment): graded like the bosses, one colour
- * index per type, cosmetic only. `spawnFormation` assigns this directly and draws no colours.
+ * Colour a crab is drawn with, by kind (spec §1): one colour index per kind, cosmetic only, and the
+ * sprites are keyed off it. `spawnFormation` and `spawnWave` assign it directly, drawing no colours.
  */
 export const TYPE_COLOUR: Record<CrabType, number> = {
   normal: 0, // green
   armored: 1, // blue
   swift: 4, // yellow
-  fanner: 3, // red
-  diver: 2, // violet
+  heavy: 3, // red
+  elder: 2, // violet
 };
 
 /**
- * Enemy shot fired by each crab type when chosen to fire (spec §14 amendment): `null` means the
- * chosen crab fires nothing that tick (the shooter and fire-chance RNG draws still happen).
- * `fanner`'s `count: 3` fires the same fanned spread as before, now data-driven by type.
+ * The shot each crab kind fires when it is the one chosen to fire (spec §1): every kind fires
+ * exactly one aimed shot, and only the red `heavy` crab fires anything but the plain crab shot —
+ * faster, wider (`shotRadius`) and worth two lives (`shotDamage`).
  */
-export const CRAB_SHOTS: Record<CrabType, { kind: BulletKind; speed: number; count: 1 | 3 } | null> = {
-  normal: { kind: 'crab', speed: 110, count: 1 },
-  armored: { kind: 'heavy', speed: 80, count: 1 },
-  swift: { kind: 'fast', speed: 150, count: 1 },
-  fanner: { kind: 'crab', speed: 110, count: 3 },
-  diver: null,
+export const CRAB_SHOTS: Record<CrabType, { kind: BulletKind; speed: number; damage: 1 | 2 }> = {
+  normal: { kind: 'crab', speed: 110, damage: 1 },
+  armored: { kind: 'crab', speed: 110, damage: 1 },
+  swift: { kind: 'crab', speed: 110, damage: 1 },
+  heavy: { kind: 'heavy', speed: 140, damage: 2 },
+  elder: { kind: 'crab', speed: 110, damage: 1 },
 };
 
 /**
- * A `diver`-type crab leaves formation every `interval` ticks for `ticks` ticks, closing at `speed`
- * units/tick: `UNTUNED_SPEED.diver` scaled by `TUNING.crabMovePct`.
+ * How likely each kind is to be the crab that fires (spec §1). The per-tick chance that *some* crab
+ * fires is unchanged (`fireChance`); this only picks which one, by weight over the live crabs, so a
+ * yellow or violet crab fires twice as often as a green one and a red one half as often.
  */
-export const DIVER = { interval: 360, ticks: 90, speed: scalePct(UNTUNED_SPEED.diver, TUNING.crabMovePct) } as const;
-
-/** Half-angle in degrees between a fanner's outer shots and its straight aim. */
-export const FANNER_SPREAD = 20;
+export const FIRE_WEIGHT: Record<CrabType, number> = {
+  normal: 2,
+  armored: 2,
+  swift: 4,
+  heavy: 1,
+  elder: 4,
+};
 
 export type BoostRarity = 'common' | 'rare' | 'epic' | 'legendary';
 

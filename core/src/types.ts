@@ -28,7 +28,7 @@ export type OctopiVariant = 'base' | 'harpoon' | 'anchor' | 'trident';
 export type BulletKind =
   | 'crab' | 'straight' | 'zigzag' | 'large' | 'wave' | 'ring' | 'explosive' | 'fragment'
   | 'meteor' | 'berserk' | 'spiral' | 'gravity' | 'clone'
-  | 'heavy' | 'fast';
+  | 'heavy';
 
 export interface Bullet {
   x: number;
@@ -44,15 +44,11 @@ export interface Bullet {
 export interface Crab {
   x: number;
   y: number;
-  /** Colour index in [0, CRAB.kinds). */
+  /** Colour index in [0, CRAB.kinds); `TYPE_COLOUR[type]`, cosmetic only. */
   kind: number;
   type: CrabType;
+  /** Hit points left, counting down from `CRAB_TYPES[type].hp`. */
   hp: number;
-  /** Diver: ticks left in the current dive (0 = in formation). Ignored for other types. */
-  dive: number;
-  /** Diver: formation slot to return to. */
-  homeX: number;
-  homeY: number;
 }
 
 export type BossPhaseState = 'fighting' | 'transition';
@@ -152,13 +148,17 @@ export interface GameState {
 }
 
 /** Index of each CrabType in the state hash and the view frame, in declaration order. */
-export const TYPE_INDEX: Record<CrabType, number> = { normal: 0, armored: 1, swift: 2, fanner: 3, diver: 4 };
+export const TYPE_INDEX: Record<CrabType, number> = { normal: 0, armored: 1, swift: 2, heavy: 3, elder: 4 };
 
-/** Index of each BulletKind in the state hash and the view frame, in declaration order. */
+/**
+ * Index of each BulletKind in the state hash and the view frame, in declaration order. The `fast`
+ * kind went with the swift crab's own shot in core v8, so the list is 14 long, not 15; any consumer
+ * keying off these numbers (the app's bullet drawing) needs the same list.
+ */
 export const KIND_INDEX: Record<BulletKind, number> = {
   crab: 0, straight: 1, zigzag: 2, large: 3, wave: 4, ring: 5, explosive: 6, fragment: 7,
   meteor: 8, berserk: 9, spiral: 10, gravity: 11, clone: 12,
-  heavy: 13, fast: 14,
+  heavy: 13,
 };
 
 /**

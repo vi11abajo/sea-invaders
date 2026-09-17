@@ -1,5 +1,7 @@
-export type Formation = 'grid' | 'wedge' | 'wall' | 'checker' | 'columns' | 'ring';
-export type CrabType = 'normal' | 'armored' | 'swift' | 'fanner' | 'diver';
+import { idiv } from './fixed';
+
+export type Formation = 'classic' | 'fish' | 'diamond' | 'ring' | 'jellyfish' | 'octopus' | 'shell' | 'wreck';
+export type CrabType = 'normal' | 'armored' | 'swift' | 'heavy' | 'elder';
 
 export interface LevelSpec {
   id: number;
@@ -7,8 +9,6 @@ export interface LevelSpec {
   index: number;
   waves: number;
   formation: Formation;
-  rows: number;
-  cols: number;
   kinds: CrabType[];
   speedOffset: number;
   fireOffset: number;
@@ -16,14 +16,41 @@ export interface LevelSpec {
 }
 
 /**
- * Crab-kind pools, one per reef (spec §14 amendment, table v2): each reef's own new kind is listed
- * first (repeated) so the column cycle favours it over the pool's older kinds.
+ * The five crab kinds in tier order, weakest first (spec §2). A reef's pool is the first `reef` of
+ * them, so reef 1 fields nothing but green crabs and reef 5 has one kind per formation tier; the
+ * daily and practice waves widen through the same list, one kind per wave.
  */
-const K1: CrabType[] = ['normal'];
-const K2: CrabType[] = ['armored', 'armored', 'normal'];
-const K3: CrabType[] = ['swift', 'swift', 'armored', 'normal'];
-const K4: CrabType[] = ['fanner', 'fanner', 'swift', 'armored', 'normal'];
-const K5: CrabType[] = ['diver', 'fanner', 'fanner', 'swift', 'armored', 'normal'];
+export const REEF_KINDS: readonly CrabType[] = ['normal', 'armored', 'swift', 'heavy', 'elder'];
+
+/** The pool a reef draws its tiers from: the first `reef` kinds of `REEF_KINDS`. */
+function reefKinds(reef: number): CrabType[] {
+  return REEF_KINDS.slice(0, reef);
+}
+
+const K1 = reefKinds(1);
+const K2 = reefKinds(2);
+const K3 = reefKinds(3);
+const K4 = reefKinds(4);
+const K5 = reefKinds(5);
+
+/**
+ * The kind a formation cell of tier `t` (0 at the bottom row, 4 at the top) gets from `kinds`
+ * (spec §2): `t * (n - 1) / 4` rounded half up, written with integers only. A one-kind pool paints
+ * every tier the same; a five-kind pool gives tier and kind one for one.
+ */
+export function kindForTier(kinds: readonly CrabType[], tier: number): CrabType {
+  const n = kinds.length;
+  return kinds[idiv(tier * (n - 1) * 2 + 4, 8)]!;
+}
+
+/**
+ * The crab kinds a daily or practice wave may draw a row from (spec §2): wave 1 is green only and
+ * each wave adds the next kind, up to all five from wave 5 on. Colours mean the same thing here as
+ * in the campaign.
+ */
+export function dailyPool(wave: number): CrabType[] {
+  return REEF_KINDS.slice(0, Math.min(Math.max(wave, 1), REEF_KINDS.length));
+}
 
 /**
  * Builds one level row: `reef`/`index` come from `id` (6 levels per reef, boss on the sixth).
@@ -37,8 +64,6 @@ function row(
   id: number,
   waves: number,
   formation: Formation,
-  rows: number,
-  cols: number,
   kinds: CrabType[],
   boss?: 1 | 2 | 3 | 4 | 5,
 ): LevelSpec {
@@ -51,8 +76,6 @@ function row(
     index,
     waves,
     formation,
-    rows,
-    cols,
     kinds,
     speedOffset: 3 * (reef - 1) + indexOffset,
     fireOffset: 8 * (reef - 1) + 3 * indexOffset,
@@ -60,42 +83,46 @@ function row(
   };
 }
 
-/** The 30-level campaign table v2, transcribed verbatim from Task 23's brief. Data only: balance changes edit rows, never code. */
+/**
+ * The 30-level campaign table, transcribed verbatim from spec §2. Data only: balance changes edit
+ * rows, never code. Every wave of a level spawns the same silhouette, so a row carries no size —
+ * the template's own shape sets the crab count.
+ */
 export const LEVELS: readonly LevelSpec[] = [
-  row(1, 2, 'grid', 4, 6, K1),
-  row(2, 2, 'wedge', 4, 6, K1),
-  row(3, 3, 'wall', 2, 7, K1),
-  row(4, 3, 'checker', 5, 6, K1),
-  row(5, 4, 'columns', 5, 6, K1),
-  row(6, 0, 'grid', 0, 0, K1, 1),
+  row(1, 2, 'classic', K1),
+  row(2, 2, 'fish', K1),
+  row(3, 3, 'diamond', K1),
+  row(4, 3, 'jellyfish', K1),
+  row(5, 4, 'wreck', K1),
+  row(6, 0, 'classic', K1, 1),
 
-  row(7, 3, 'grid', 4, 6, K2),
-  row(8, 3, 'ring', 4, 6, K2),
-  row(9, 3, 'wedge', 5, 6, K2),
-  row(10, 4, 'wall', 2, 8, K2),
-  row(11, 4, 'checker', 6, 6, K2),
-  row(12, 0, 'grid', 0, 0, K2, 2),
+  row(7, 3, 'classic', K2),
+  row(8, 3, 'shell', K2),
+  row(9, 3, 'fish', K2),
+  row(10, 4, 'ring', K2),
+  row(11, 4, 'octopus', K2),
+  row(12, 0, 'classic', K2, 2),
 
-  row(13, 3, 'columns', 5, 6, K3),
-  row(14, 4, 'grid', 5, 6, K3),
-  row(15, 4, 'ring', 5, 6, K3),
-  row(16, 4, 'wedge', 6, 6, K3),
-  row(17, 5, 'wall', 2, 8, K3),
-  row(18, 0, 'grid', 0, 0, K3, 3),
+  row(13, 3, 'diamond', K3),
+  row(14, 4, 'classic', K3),
+  row(15, 4, 'wreck', K3),
+  row(16, 4, 'jellyfish', K3),
+  row(17, 5, 'ring', K3),
+  row(18, 0, 'classic', K3, 3),
 
-  row(19, 4, 'checker', 6, 6, K4),
-  row(20, 4, 'columns', 6, 6, K4),
-  row(21, 5, 'grid', 6, 6, K4),
-  row(22, 5, 'ring', 5, 6, K4),
-  row(23, 5, 'wedge', 6, 6, K4),
-  row(24, 0, 'grid', 0, 0, K4, 4),
+  row(19, 4, 'fish', K4),
+  row(20, 4, 'shell', K4),
+  row(21, 4, 'octopus', K4),
+  row(22, 5, 'wreck', K4),
+  row(23, 5, 'classic', K4),
+  row(24, 0, 'classic', K4, 4),
 
-  row(25, 4, 'wall', 2, 8, K5),
-  row(26, 5, 'checker', 6, 6, K5),
-  row(27, 5, 'columns', 6, 6, K5),
-  row(28, 5, 'grid', 6, 6, K5),
-  row(29, 5, 'ring', 6, 6, K5),
-  row(30, 0, 'grid', 0, 0, K5, 5),
+  row(25, 4, 'jellyfish', K5),
+  row(26, 5, 'shell', K5),
+  row(27, 5, 'diamond', K5),
+  row(28, 5, 'octopus', K5),
+  row(29, 5, 'wreck', K5),
+  row(30, 0, 'classic', K5, 5),
 ];
 
 /** Looks up a level by id; throws on an unknown id (a replay or caller bug). */

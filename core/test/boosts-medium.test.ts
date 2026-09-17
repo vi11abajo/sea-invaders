@@ -99,7 +99,7 @@ describe('score decay (spec C7)', () => {
   it("scales a crab kill's points by the current decay percentage before SCORE_MULTIPLIER doubles it", () => {
     const s = createGame('t', PRACTICE_RUN);
     for (let i = 0; i < 204; i++) advanceScoreDecay(s); // 98%
-    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 1000, homeY: 1000 }];
+    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1 }];
     s.shots = [{ x: 1000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
     hitCrabs(s);
     // CRAB_TYPES.normal.points(10) * wave(1) = 10, decayed: idiv(10*98, 100) = 9.
@@ -108,7 +108,7 @@ describe('score decay (spec C7)', () => {
     const t = createGame('t3', PRACTICE_RUN);
     for (let i = 0; i < 204; i++) advanceScoreDecay(t); // 98%
     activateBoost(t, 'SCORE_MULTIPLIER');
-    t.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 1000, homeY: 1000 }];
+    t.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1 }];
     t.shots = [{ x: 1000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
     hitCrabs(t);
     // Same decayed base (9), doubled by SCORE_MULTIPLIER: 18.
@@ -132,7 +132,7 @@ describe('WAVE_BLAST', () => {
   it('does not damage the boss or clear enemy shots (spec C4: both removed from the legacy behaviour)', () => {
     const s = createGame('t', PRACTICE_RUN);
     spawnBoss(s, 1);
-    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 1000, homeY: 1000 }];
+    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1 }];
     s.enemyShots = [{ x: 0, y: 0, vx: 0, vy: 0, kind: 'crab', data: 0 }];
     activateBoost(s, 'WAVE_BLAST');
     expect(s.crabs).toHaveLength(0);
@@ -182,7 +182,7 @@ describe('AUTO_TARGET', () => {
   it('recomputes vx/vy every tick towards the nearest crab (legacy 30%-toward/70%-up blend, no clamp)', () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'AUTO_TARGET');
-    s.crabs = [{ x: 4000, y: 760, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 4000, homeY: 760 }];
+    s.crabs = [{ x: 4000, y: 760, kind: 0, type: 'normal', hp: 1 }];
     s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 }];
     updateShots(s);
     // The very first tick's move used the shot's original vx (0, before any steering), so x hasn't
@@ -197,7 +197,7 @@ describe('AUTO_TARGET', () => {
   it("moves a shot's x toward its target using the steered vx from the previous tick (fix round 1: player shots now move on both axes)", () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'AUTO_TARGET');
-    s.crabs = [{ x: 4000, y: 760, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 4000, homeY: 760 }];
+    s.crabs = [{ x: 4000, y: 760, kind: 0, type: 'normal', hp: 1 }];
     s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 }];
     updateShots(s); // steers (see the test above), x still 1000 this tick
     const first = autoTargetSteer(4000 - 1000, 760 - (5000 - SHOT.speed));
@@ -226,7 +226,7 @@ describe('AUTO_TARGET', () => {
   it('prefers the boss over a farther crab', () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'AUTO_TARGET');
-    s.crabs = [{ x: 5000, y: 100, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 5000, homeY: 100 }];
+    s.crabs = [{ x: 5000, y: 100, kind: 0, type: 'normal', hp: 1 }];
     spawnBoss(s, 1);
     s.boss!.x = 1100;
     s.boss!.y = 4700;
@@ -239,7 +239,7 @@ describe('AUTO_TARGET', () => {
   it('prefers a crab over a farther boss', () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'AUTO_TARGET');
-    s.crabs = [{ x: 1100, y: 4700, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 1100, homeY: 4700 }];
+    s.crabs = [{ x: 1100, y: 4700, kind: 0, type: 'normal', hp: 1 }];
     spawnBoss(s, 1);
     s.boss!.x = 5000;
     s.boss!.y = 100;

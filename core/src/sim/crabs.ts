@@ -1,6 +1,5 @@
-import { ARRIVAL, CRAB, CRAB_SHOTS, DIVER, ENEMY_SHOT, FANNER_SPREAD, FIELD_H, FIELD_W, TUNING, scalePct } from '../config';
+import { ARRIVAL, CRAB, CRAB_SHOTS, ENEMY_SHOT, FIELD_H, FIELD_W, FIRE_WEIGHT, TUNING, scalePct } from '../config';
 import { idiv, isqrt } from '../fixed';
-import { icos, isin } from '../trig';
 import type { Bullet, Crab, GameState } from '../types';
 import { chilled, tamed } from './boosts';
 import { shotRadius } from './collide';
@@ -8,7 +7,7 @@ import { shotRadius } from './collide';
 const HALF = idiv(CRAB.size, 2);
 
 /** The bullet kinds crabs fire (from `CRAB_SHOTS`); every other enemy shot is a boss's. */
-const CRAB_SHOT_KINDS = new Set(Object.values(CRAB_SHOTS).flatMap((entry) => (entry === null ? [] : [entry.kind])));
+const CRAB_SHOT_KINDS = new Set(Object.values(CRAB_SHOTS).map((entry) => entry.kind));
 
 /** A crab whose bottom edge reaches this line has invaded the reef. */
 export const INVASION_Y = FIELD_H - 300;
@@ -48,55 +47,13 @@ export function crabSpeed(s: GameState): number {
   return tamed(s, v);
 }
 
-/** This crab's own signed horizontal step: swift crabs move 1.5x the shared formation speed. */
-export function crabSpeedFor(s: GameState, c: Crab): number {
-  const v = crabSpeed(s) * s.dir;
-  return c.type === 'swift' ? v + idiv(v, 2) : v;
-}
-
-/** This crab's actual per-tick march displacement: `crabSpeedFor` halved by ICE_FREEZE (spec §5.2), used consistently by the wall check and the step itself so the two never disagree. */
-function crabStep(s: GameState, c: Crab): number {
-  return chilled(s, crabSpeedFor(s, c), false);
-}
-
 /**
- * Every DIVER.interval ticks, sends one diver-type crab still in formation on a dive. The chosen
- * crab's home slot is captured here, from its current (post-march) position, rather than trusting
- * whatever `homeX`/`homeY` already held — a crab in formation only has its `x`/`y` moved by
- * `marchCrabs` (see that function's docstring), so its home fields go stale the moment it stops
- * diving; snapshotting them right before the dive starts is what keeps the return slot in sync
- * with the row it's rejoining.
+ * The formation's actual per-tick march displacement: the shared signed speed halved by ICE_FREEZE
+ * (spec §5.2), used by the wall check and by the step itself so the two never disagree. Every kind
+ * marches with the formation — swift's old 1.5x step went with the enemy rework of core v8.
  */
-function triggerDiver(s: GameState): void {
-  if (s.tick === 0 || s.tick % DIVER.interval !== 0) return;
-  const candidates = s.crabs.filter((c) => c.type === 'diver' && c.dive === 0);
-  if (candidates.length === 0) return;
-  const c = candidates[s.rngWaves.nextInt(candidates.length)]!;
-  c.homeX = c.x;
-  c.homeY = c.y;
-  c.dive = DIVER.ticks;
-}
-
-/** Moves crabs currently diving one step towards Octopi; snaps back to their formation slot when the dive ends. */
-function advanceDivers(s: GameState): void {
-  for (const c of s.crabs) {
-    if (c.dive === 0) continue;
-    if (c.dive === 1) {
-      c.x = c.homeX;
-      c.y = c.homeY;
-      c.dive = 0;
-      continue;
-    }
-    const dx = s.octopi.x - c.x;
-    const dy = s.octopi.y - c.y;
-    const len = isqrt(dx * dx + dy * dy);
-    if (len > 0) {
-      const speed = chilled(s, tamed(s, DIVER.speed), false);
-      c.x += idiv(dx * speed, len);
-      c.y += idiv(dy * speed, len);
-    }
-    c.dive -= 1;
-  }
+function crabStep(s: GameState): number {
+  return chilled(s, crabSpeed(s) * s.dir, false);
 }
 
 /**
@@ -111,10 +68,10 @@ export function marchSteps(tick: number, pct: number = TUNING.crabMovePct): numb
 
 /** One formation step: sideways, or reverse and step down at a wall (see `marchCrabs`). */
 function marchOnce(s: GameState): void {
+  const step = crabStep(s);
   let hitsWall = false;
   for (const c of s.crabs) {
-    const slotX = c.dive === 0 ? c.x : c.homeX;
-    const nx = slotX + crabStep(s, c);
+    const nx = c.x + step;
     if (nx + HALF > FIELD_W || nx - HALF < 0) {
       hitsWall = true;
       break;
@@ -122,52 +79,54 @@ function marchOnce(s: GameState): void {
   }
   if (hitsWall) {
     s.dir = -s.dir;
-    for (const c of s.crabs) {
-      if (c.dive === 0) c.y += CRAB.stepDown;
-      else c.homeY += CRAB.stepDown;
-    }
+    for (const c of s.crabs) c.y += CRAB.stepDown;
   } else {
-    for (const c of s.crabs) {
-      if (c.dive === 0) c.x += crabStep(s, c);
-      else c.homeX += crabStep(s, c);
-    }
+    for (const c of s.crabs) c.x += step;
   }
 }
 
 /**
  * Marches the formation sideways (`marchSteps` steps this tick); at a wall it reverses and steps
- * down instead. Swift crabs cover extra ground on their own, and the wall check honours that
- * extent too. The march always applies
- * to every crab's formation slot — a diving crab's `(homeX, homeY)` for a crab that's away, its
- * actual `(x, y)` otherwise — so the slot keeps tracking the group even when every crab is diving.
- * `advanceDivers` runs after, so a crab whose dive ends this tick snaps to its already-moved slot
- * and isn't marched again in the same tick. Ends the run on invasion.
+ * down instead. Every crab moves with the group and none ever leaves it — no kind dives out of
+ * formation any more (spec §1) — so the whole block shares one step. Ends the run on invasion.
  *
- * While a campaign wave is arriving (`s.arrival > 0`, spec §14 amendment) every crab's `y` and
- * `homeY` instead just descend by `ARRIVAL.speed` (slowed by ICE_FREEZE/SPEED_TAMER like every other
- * crab movement, spec C5), `x` untouched, no diver trigger and no wall or invasion test — the
- * formation is still above the field, closing in on its slots.
+ * While a campaign wave is arriving (`s.arrival > 0`, spec §14 amendment) every crab's `y` instead
+ * just descends by `ARRIVAL.speed` (slowed by ICE_FREEZE/SPEED_TAMER like every other crab movement,
+ * spec C5), `x` untouched and no wall or invasion test — the formation is still above the field,
+ * closing in on its slots.
  */
 export function marchCrabs(s: GameState): void {
   if (s.crabs.length === 0) return;
   if (s.arrival > 0) {
     const speed = chilled(s, tamed(s, ARRIVAL.speed), false);
-    for (const c of s.crabs) {
-      c.y += speed;
-      c.homeY += speed;
-    }
+    for (const c of s.crabs) c.y += speed;
     return;
   }
   const steps = marchSteps(s.tick);
   for (let i = 0; i < steps; i++) marchOnce(s);
-  advanceDivers(s);
-  triggerDiver(s);
   for (const c of s.crabs) {
-    if (c.dive === 0 && c.y + HALF >= INVASION_Y) {
+    if (c.y + HALF >= INVASION_Y) {
       s.over = true;
       return;
     }
   }
+}
+
+/**
+ * Picks the crab that fires this tick, by `FIRE_WEIGHT` over the live crabs (spec §1): one draw in
+ * `[0, total)`, then a walk through `s.crabs` in array order subtracting each weight — exactly one
+ * RNG draw, the same as the uniform pick it replaces, so the draw count never depends on the kinds
+ * on the field. Only ever called with at least one crab alive, so `total` is at least 1.
+ */
+function pickShooter(s: GameState): Crab {
+  let total = 0;
+  for (const c of s.crabs) total += FIRE_WEIGHT[c.type];
+  let r = s.rngFire.nextInt(total);
+  for (const c of s.crabs) {
+    r -= FIRE_WEIGHT[c.type];
+    if (r < 0) return c;
+  }
+  return s.crabs[s.crabs.length - 1]!;
 }
 
 /**
@@ -191,12 +150,10 @@ const FRAGMENT_VECTORS: ReadonlyArray<readonly [number, number]> = [
 
 /**
  * Moves enemy shots (a `zigzag` boss shot flips `vx` every 20 ticks via `data`; an `explosive`
- * shot's `data` counts down its fuse) and drops those off the field, then maybe fires from a
- * random crab: one aimed shot of the shooter type's `CRAB_SHOTS` kind/speed, or three fanned out
- * when its entry has `count: 3`; a `null` entry (`diver`) fires nothing that tick, though the fire
- * chance and shooter RNG draws still happen exactly as for any other type. Crab shots
- * (`kind: 'crab'`, from a `normal` shooter) are untouched by the zigzag/explosive branches and keep
- * the same collision radius as before, so this stays bit-for-bit compatible with the v2 goldens.
+ * shot's `data` counts down its fuse) and drops those off the field, then maybe fires one aimed
+ * shot from one crab: `pickShooter` weights the choice by kind (spec §1) in a single RNG draw, and
+ * the crab fires the one shot its kind's `CRAB_SHOTS` entry describes. Crab shots (`crab` and
+ * `heavy`) are untouched by the zigzag/explosive branches and keep their own collision radius.
  * While ICE_FREEZE is active every enemy shot moves at half speed (owner ruling 2026-09-15, replacing
  * spec C5's movement-only rule): the stored `vx`/`vy` stay as fired and only the step is halved
  * through `chilled`, so the shot resumes full speed when the freeze ends; a boss's shots share its
@@ -230,9 +187,8 @@ export function updateEnemyShots(s: GameState): void {
   if (s.arrival > 0) return; // wave arriving: shots still fly, nothing new fires
   if (s.crabs.length === 0) return;
   if (s.rngFire.nextInt(1000) >= fireChance(s.wave, s.run.level?.fireOffset ?? 0)) return;
-  const crab = s.crabs[s.rngFire.nextInt(s.crabs.length)]!;
+  const crab = pickShooter(s);
   const entry = CRAB_SHOTS[crab.type];
-  if (entry === null) return; // diver: chosen to fire, but fires nothing this tick
   const y = crab.y + HALF;
   const dx = s.octopi.x - crab.x;
   const dy = s.octopi.y - y;
@@ -240,13 +196,5 @@ export function updateEnemyShots(s: GameState): void {
   const speed = entry.speed;
   const vx = len === 0 ? 0 : idiv(dx * speed, len);
   const vy = len === 0 ? speed : idiv(dy * speed, len);
-  if (entry.count === 3) {
-    for (const a of [-FANNER_SPREAD, 0, FANNER_SPREAD]) {
-      const rvx = idiv(vx * icos(a) - vy * isin(a), 1000);
-      const rvy = idiv(vx * isin(a) + vy * icos(a), 1000);
-      s.enemyShots.push({ x: crab.x, y, vx: rvx, vy: rvy, kind: entry.kind, data: 0 });
-    }
-    return;
-  }
   s.enemyShots.push({ x: crab.x, y, vx, vy, kind: entry.kind, data: 0 });
 }

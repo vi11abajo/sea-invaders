@@ -1,6 +1,7 @@
 import {
-  DAILY_RUN, FIELD_W, INITIAL_INPUT, REPLAY_MODE, Rng, clamp, idiv, levelById, levelSeed,
-  type Bullet, type GameState, type Input, type ReplayMode, type RunConfig,
+  DAILY_RUN, FIELD_W, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder, Rng, clamp, createGame,
+  hashState, idiv, levelById, levelSeed, step,
+  type Bullet, type GameEvent, type GameState, type Golden, type Input, type ReplayMode, type RunConfig,
 } from '../src';
 
 export interface GoldenScript {
@@ -36,8 +37,13 @@ function wander(): (tick: number) => Input {
   };
 }
 
-/** Vertical range within which an incoming enemy shot is worth dodging (see `DODGE_DWELL_LIMIT`). */
-const DODGE_RANGE_Y = 1200;
+/**
+ * Vertical range within which an incoming enemy shot is worth dodging (see `DODGE_DWELL_LIMIT`).
+ * Widened from 1200 with the enemy rework of core v8: a red crab's `heavy` shot flies at 140
+ * instead of 110 and covers a 154-unit radius instead of 96, so the old window left the dodge too
+ * late to clear it.
+ */
+const DODGE_RANGE_Y = 2000;
 
 /**
  * A boss's shots start far above Octopi (muzzle near the top of the field) and take longer to
@@ -47,8 +53,14 @@ const DODGE_RANGE_Y = 1200;
  */
 const BOSS_DODGE_RANGE_Y = 3000;
 
+/** How many candidate dodge columns span the field (see `DODGE_DWELL_LIMIT`). */
+const DODGE_COLUMN_COUNT = 7;
+
 /** Candidate dodge columns spanning the field, evenly spaced (see `DODGE_DWELL_LIMIT`). */
-const DODGE_COLUMNS = Array.from({ length: 11 }, (_, i) => idiv(i * FIELD_W, 10));
+const DODGE_COLUMNS = Array.from(
+  { length: DODGE_COLUMN_COUNT },
+  (_, i) => idiv(i * FIELD_W, DODGE_COLUMN_COUNT - 1),
+);
 
 /**
  * After holding the same dodge column this long, that column is dropped from consideration for
@@ -65,6 +77,12 @@ const DODGE_COLUMNS = Array.from({ length: 11 }, (_, i) => idiv(i * FIELD_W, 10)
  * Retuned again with the game-speed tuning of 2026-09-13 (slower Octopi shots, slower and less
  * trigger-happy crabs), which shifts every draw the same way: the same three-way sweep picked range
  * 1200, dwell 7 and 11 columns (`survivor` ~10,200 ticks, level 6 cleared, level 30 phase 3).
+ * Core v8's enemy rework (heavier and faster red shots worth two lives, yellow and violet crabs
+ * firing twice as often, no dives) made the old rule die around tick 1,800, so the same three-way
+ * sweep ran again over range x dwell x column count: it kept the dwell at 7 and picked range 2000
+ * with 7 columns (`survivor` 11,058 ticks, level 6 cleared, level 30 phase 3) — fewer, wider-apart
+ * columns move Octopi further out of a shot's way per relocation, which is what the harder shots
+ * call for.
  */
 const DODGE_DWELL_LIMIT = 7;
 
@@ -127,7 +145,53 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   // The `survivor` input on a boosted daily run: exercises boost pickups/effects end to end. The seed
   // was picked (search, not the sim) for at least 5 boost_pickup events, and is re-picked whenever
   // the `rngBoosts` draw sequence changes. Until the game-speed tuning of 2026-09-13 this used the
-  // non-dodging `wander` input, but its runs now end too early (about 750 ticks on average, at most
-  // 4 pickups over 2000 seeds): `golden-boosted-0` gives 7 pickups over 6124 ticks with `survivor`.
-  boosted: { ticks: 10_800, makeInput: survivor, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-0' },
+  // non-dodging `wander` input, but its runs end too early with it. Core v8's enemy rework moved
+  // every draw again and left `golden-boosted-0` with too few pickups, so the search ran once more:
+  // `golden-boosted-16` gives 8 pickups over 8171 ticks.
+  boosted: { ticks: 10_800, makeInput: survivor, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-16' },
 };
+
+export interface PlayResult {
+  golden: Golden;
+  /** Every event pushed to `s.events` over the whole play (never cleared mid-run). */
+  events: GameEvent[];
+  /** `s.cleared` at the end of the play. */
+  cleared: boolean;
+  /** The highest `s.boss.phase` seen at any point during the play (0 if no boss ever spawned). */
+  maxBossPhase: number;
+}
+
+/**
+ * Plays one script to its tick cap (or to `cleared`/`over`, whichever comes first) and records it.
+ * Shared by the tuned goldens in `golden.test.ts` and the untuned baseline in
+ * `golden-untuned.test.ts`, which plays these very scripts with the TUNING knobs mocked back to
+ * 100 % — both go through this one function so the only difference between the two golden files is
+ * the tuning itself.
+ */
+export function playScript(name: string): PlayResult {
+  const script = GOLDEN_SCRIPTS[name]!;
+  const input = script.makeInput();
+  const run = script.run ?? PRACTICE_RUN;
+  const mode = script.mode ?? REPLAY_MODE.practice;
+  const levelId = run.level?.id ?? 0;
+  const seed = script.seed ?? `golden-${name}`;
+  const s = createGame(seed, run);
+  const rec = new ReplayRecorder(seed, mode, levelId, run.lives, run.octopi);
+  let maxBossPhase = 0;
+  for (let t = 1; t <= script.ticks && !s.over && !s.cleared; t++) {
+    const i = input(t, s);
+    rec.record(t, i);
+    step(s, i);
+    if (s.boss) maxBossPhase = Math.max(maxBossPhase, s.boss.phase);
+  }
+  return {
+    golden: {
+      name,
+      replay: rec.finish(s.tick),
+      expected: { score: s.score, ticks: s.tick, over: s.over, hash: hashState(s) },
+    },
+    events: s.events,
+    cleared: s.cleared,
+    maxBossPhase,
+  };
+}

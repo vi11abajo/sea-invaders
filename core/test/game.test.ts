@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { CRAB, FIELD_W, INITIAL_INPUT, PRACTICE_RUN, createGame, spawnWave } from '../src';
+import {
+  CRAB, CRAB_TYPES, FIELD_W, INITIAL_INPUT, PRACTICE_RUN, TYPE_COLOUR, createGame, dailyPool, spawnWave,
+} from '../src';
 
 describe('createGame', () => {
   it('starts with Octopi at the bottom centre and wave 1', () => {
@@ -25,21 +27,51 @@ describe('createGame', () => {
     expect(s.crabs[17]).toMatchObject({ x: 4812, y: 2900 });
   });
 
-  it('spawns crabs with the new campaign fields at their scaffold defaults', () => {
+  it('spawns wave 1 entirely from the wave-1 pool: plain green crabs', () => {
     const s = createGame('t', PRACTICE_RUN);
     for (const c of s.crabs) {
-      expect(c).toMatchObject({ type: 'normal', hp: 1, dive: 0, homeX: c.x, homeY: c.y });
+      expect(c).toMatchObject({ type: 'normal', hp: 1, kind: TYPE_COLOUR.normal });
     }
   });
 
   it('is deterministic per seed and varies across seeds', () => {
-    const kinds = (seed: string) => createGame(seed, PRACTICE_RUN).crabs.map((c) => c.kind).join('');
-    expect(kinds('a')).toBe(kinds('a'));
-    expect(new Set(['a', 'b', 'c', 'd', 'e', 'f'].map(kinds)).size).toBeGreaterThan(1);
+    const types = (seed: string) => {
+      const s = createGame(seed, PRACTICE_RUN);
+      spawnWave(s, 5); // the widest pool: all five kinds can come up
+      return s.crabs.map((c) => c.type).join(',');
+    };
+    expect(types('a')).toBe(types('a'));
+    expect(new Set(['a', 'b', 'c', 'd', 'e', 'f'].map(types)).size).toBeGreaterThan(1);
   });
 });
 
 describe('spawnWave', () => {
+  it('draws one type per row from the wave pool, one RNG draw each', () => {
+    const s = createGame('pool', PRACTICE_RUN);
+    let draws = 0;
+    const real = s.rngWaves.nextInt.bind(s.rngWaves);
+    s.rngWaves.nextInt = ((n: number) => {
+      draws += 1;
+      return real(n);
+    }) as never;
+    for (const wave of [1, 2, 3, 4, 5, 9]) {
+      const pool = dailyPool(wave);
+      draws = 0;
+      spawnWave(s, wave);
+      const rows = Math.min(2 + wave, 5);
+      expect({ wave, draws }).toEqual({ wave, draws: rows + 1 }); // one per row, plus the direction draw
+      for (const c of s.crabs) {
+        expect(pool).toContain(c.type);
+        expect(c.kind).toBe(TYPE_COLOUR[c.type]);
+        expect(c.hp).toBe(CRAB_TYPES[c.type].hp);
+      }
+      // A row is one type all the way across.
+      for (const y of new Set(s.crabs.map((c) => c.y))) {
+        expect(new Set(s.crabs.filter((c) => c.y === y).map((c) => c.type)).size).toBe(1);
+      }
+    }
+  });
+
   it('grows from 3 to 5 rows of 6 crabs', () => {
     const s = createGame('t', PRACTICE_RUN);
     spawnWave(s, 2);

@@ -9,7 +9,7 @@ export function hashState(s: GameState): string {
   h.int(p.x).int(p.y).int(p.cooldown).int(p.invuln).int(p.lives);
   h.int(s.crabs.length);
   for (const c of s.crabs) {
-    h.int(c.x).int(c.y).int(c.kind).int(TYPE_INDEX[c.type]).int(c.hp).int(c.dive).int(c.homeX).int(c.homeY);
+    h.int(c.x).int(c.y).int(c.kind).int(TYPE_INDEX[c.type]).int(c.hp);
   }
   for (const list of [s.shots, s.enemyShots]) {
     h.int(list.length);

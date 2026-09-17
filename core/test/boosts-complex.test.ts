@@ -60,7 +60,7 @@ describe('GRAVITY_WELL', () => {
   it('never pulls a crab (spec C1: the legacy well only ever touched bullets)', () => {
     const s = createGame('t', PRACTICE_RUN);
     s.boosts.well = { x: 5000, y: 5000 };
-    s.crabs = [{ x: 2000, y: 2000, kind: 0, type: 'normal', hp: 1, dive: 0, homeX: 2000, homeY: 2000 }];
+    s.crabs = [{ x: 2000, y: 2000, kind: 0, type: 'normal', hp: 1 }];
     updateBoosts(s);
     expect(s.crabs[0]).toMatchObject({ x: 2000, y: 2000 });
   });

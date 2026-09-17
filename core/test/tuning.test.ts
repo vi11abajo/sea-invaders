@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DIVER, SHOT, TUNING, UNTUNED_SPEED, fireChance, marchSteps, scalePct } from '../src';
+import { ARRIVAL, SHOT, TUNING, UNTUNED_SPEED, fireChance, marchSteps, scalePct } from '../src';
 
 /** Total march steps over ticks 0..ticks-1 at `pct`. */
 function totalSteps(pct: number, ticks: number): number {
@@ -12,13 +12,12 @@ describe('game-speed tuning', () => {
   it('scales integers by percent, rounding towards zero', () => {
     expect(scalePct(240, 100)).toBe(240);
     expect(scalePct(240, 80)).toBe(192);
-    expect(scalePct(220, 90)).toBe(198);
+    expect(scalePct(ARRIVAL.speed, 90)).toBe(45);
     expect(scalePct(25, 90)).toBe(22);
   });
 
   it('derives the tuned speeds from the knobs', () => {
     expect(SHOT.speed).toBe(scalePct(UNTUNED_SPEED.octopiShot, TUNING.octopiShotPct));
-    expect(DIVER.speed).toBe(scalePct(UNTUNED_SPEED.diver, TUNING.crabMovePct));
     expect(fireChance(1)).toBe(scalePct(20, TUNING.crabFirePct));
   });
 
@@ -35,6 +34,5 @@ describe('game-speed tuning', () => {
   it('holds the owner tuning of 2026-09-13 (a change needs a CORE_VERSION bump and new goldens)', () => {
     expect(TUNING).toEqual({ octopiShotPct: 80, crabMovePct: 90, crabFirePct: 90 });
     expect(SHOT.speed).toBe(192);
-    expect(DIVER.speed).toBe(198);
   });
 });

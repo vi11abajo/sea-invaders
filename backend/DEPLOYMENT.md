@@ -172,7 +172,8 @@ clone needs this step.
 **Core version contract.** The API verifies replays only against the exact `CORE_VERSION`
 of the core it was built with (`backend/src/services/rankedRuns.js` rejects any other version
 with `update_required`) and reports that version as `coreVersion` in `GET /api/daily/today`.
-`CORE_VERSION` is 7 since 2026-09-15 (7 slows enemy shots under ICE_FREEZE; 3 brought the campaign, bosses and boosts of Phase 3A; 4 the legacy boost rules and player-shot motion of Phase 3A.1; 5 the rarer boost drops; 6 the octopi
+`CORE_VERSION` is 8 since 2026-09-17 (8 brings the new crab kinds, the weighted shooter, the
+two-life heavy shot and the silhouette formations; 7 slowed enemy shots under ICE_FREEZE; 3 brought the campaign, bosses and boosts of Phase 3A; 4 the legacy boost rules and player-shot motion of Phase 3A.1; 5 the rarer boost drops; 6 the octopi
 variants and mid-level revive of Phase 3B), so whenever the core version bumps, deploy the API and
 release the new APK together: runs recorded by an older app are rejected until it updates.
 

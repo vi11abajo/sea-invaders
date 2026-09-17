@@ -14,6 +14,6 @@ describe('core from the CommonJS build', () => {
     expect(result.ticks).toBe(game.tick);
     expect(result.score).toBe(game.score);
     expect(result.hash).toMatch(/^[0-9a-f]{16}$/);
-    expect(CORE_VERSION).toBe(7);
+    expect(CORE_VERSION).toBe(8);
   });
 });

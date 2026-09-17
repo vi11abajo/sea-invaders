@@ -1,11 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import {
-  CORE_VERSION, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder, checkGoldens, createGame, hashState, step,
-  type GameEvent, type Golden,
-} from '../src';
-import { GOLDEN_SCRIPTS } from './golden-scripts';
+import { CORE_VERSION, REPLAY_MODE, checkGoldens, type Golden } from '../src';
+import { GOLDEN_SCRIPTS, playScript, type PlayResult } from './golden-scripts';
 
 // Tests run from core/ (npm test in core/, and CI sets working-directory: core).
 const FILE = join(process.cwd(), 'golden', `golden-v${CORE_VERSION}.json`);
@@ -13,44 +10,6 @@ const FILE = join(process.cwd(), 'golden', `golden-v${CORE_VERSION}.json`);
 // The survivor golden need not reach its full 18,000 ticks, but must clear this floor
 // (see final-fix-brief.md item 3): tune the dodge rule, never the simulation, to hold it.
 const SURVIVOR_MIN_TICKS = 6000;
-
-interface PlayResult {
-  golden: Golden;
-  /** Every event pushed to `s.events` over the whole play (never cleared mid-run). */
-  events: GameEvent[];
-  /** `s.cleared` at the end of the play. */
-  cleared: boolean;
-  /** The highest `s.boss.phase` seen at any point during the play (0 if no boss ever spawned). */
-  maxBossPhase: number;
-}
-
-function play(name: string): PlayResult {
-  const script = GOLDEN_SCRIPTS[name]!;
-  const input = script.makeInput();
-  const run = script.run ?? PRACTICE_RUN;
-  const mode = script.mode ?? REPLAY_MODE.practice;
-  const levelId = run.level?.id ?? 0;
-  const seed = script.seed ?? `golden-${name}`;
-  const s = createGame(seed, run);
-  const rec = new ReplayRecorder(seed, mode, levelId, run.lives, run.octopi);
-  let maxBossPhase = 0;
-  for (let t = 1; t <= script.ticks && !s.over && !s.cleared; t++) {
-    const i = input(t, s);
-    rec.record(t, i);
-    step(s, i);
-    if (s.boss) maxBossPhase = Math.max(maxBossPhase, s.boss.phase);
-  }
-  return {
-    golden: {
-      name,
-      replay: rec.finish(s.tick),
-      expected: { score: s.score, ticks: s.tick, over: s.over, hash: hashState(s) },
-    },
-    events: s.events,
-    cleared: s.cleared,
-    maxBossPhase,
-  };
-}
 
 // Computed lazily in `beforeAll` (not at module load): PRACTICE_RUN/DAILY_RUN have boosts on and
 // the campaign scripts spend real ticks simulating a boss fight, so this is worth deferring past
@@ -60,7 +19,7 @@ let fresh: Golden[];
 
 describe('golden replays', () => {
   beforeAll(() => {
-    results = Object.fromEntries(Object.keys(GOLDEN_SCRIPTS).map((name) => [name, play(name)]));
+    results = Object.fromEntries(Object.keys(GOLDEN_SCRIPTS).map((name) => [name, playScript(name)]));
     fresh = Object.values(results).map((r) => r.golden);
   });
 

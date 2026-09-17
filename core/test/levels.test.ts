@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { CRAB, FIELD_W, LEVELS, createGame, levelById, levelSeed, step, INITIAL_INPUT } from '../src';
+import {
+  CRAB, FIELD_W, INITIAL_INPUT, LEVELS, REEF_KINDS, createGame, dailyPool, formationPositions,
+  kindForTier, levelById, levelSeed, startLevelWave, step, type CrabType, type Formation,
+} from '../src';
+
+/** The level table of spec §2, transcribed here so a table edit has to be deliberate. */
+const TABLE: ReadonlyArray<readonly [number, number, Formation]> = [
+  [1, 2, 'classic'], [2, 2, 'fish'], [3, 3, 'diamond'], [4, 3, 'jellyfish'], [5, 4, 'wreck'],
+  [7, 3, 'classic'], [8, 3, 'shell'], [9, 3, 'fish'], [10, 4, 'ring'], [11, 4, 'octopus'],
+  [13, 3, 'diamond'], [14, 4, 'classic'], [15, 4, 'wreck'], [16, 4, 'jellyfish'], [17, 5, 'ring'],
+  [19, 4, 'fish'], [20, 4, 'shell'], [21, 4, 'octopus'], [22, 5, 'wreck'], [23, 5, 'classic'],
+  [25, 4, 'jellyfish'], [26, 5, 'shell'], [27, 5, 'diamond'], [28, 5, 'octopus'], [29, 5, 'wreck'],
+];
+
+const campaign = (id: number) => ({
+  mode: 'campaign' as const, level: levelById(id), lives: 5, features: { boosts: false }, octopi: 'base' as const,
+});
 
 describe('LEVELS', () => {
   it('has 30 contiguous rows, 5 reefs of 6, bosses on every sixth', () => {
@@ -14,21 +30,47 @@ describe('LEVELS', () => {
       else expect(l.waves).toBeGreaterThan(0);
     }
   });
+
+  it('matches the waves and formation of the spec table row for row', () => {
+    for (const [id, waves, formation] of TABLE) {
+      expect({ id, waves: levelById(id).waves, formation: levelById(id).formation }).toEqual({ id, waves, formation });
+    }
+    expect(TABLE).toHaveLength(25); // every non-boss row
+  });
+
   it('never decreases wave count within a reef', () => {
     for (let r = 1; r <= 5; r++) {
       const w = LEVELS.filter((l) => l.reef === r && l.index < 6).map((l) => l.waves);
       for (let i = 1; i < w.length; i++) expect(w[i]).toBeGreaterThanOrEqual(w[i - 1]!);
     }
   });
+
+  it("lists the reef's kinds in tier order: the first `reef` of normal, armored, swift, heavy, elder", () => {
+    expect(REEF_KINDS).toEqual(['normal', 'armored', 'swift', 'heavy', 'elder']);
+    for (const l of LEVELS) expect(l.kinds).toEqual(REEF_KINDS.slice(0, l.reef));
+  });
+
   it('every non-boss level spawns inside the field', () => {
     for (const l of LEVELS.filter((l) => !l.boss)) {
-      const s = createGame(levelSeed('run', l.id), { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
+      const s = createGame(levelSeed('run', l.id), campaign(l.id));
       for (const c of s.crabs) expect(c.x - CRAB.size / 2 >= 0 && c.x + CRAB.size / 2 <= FIELD_W).toBe(true);
     }
   });
+
+  it('spawns the same template, and so the same crab count, on every wave of a level', () => {
+    for (const l of LEVELS.filter((l) => !l.boss)) {
+      const s = createGame(levelSeed('run', l.id), campaign(l.id));
+      const expected = formationPositions(l.formation).length;
+      for (let wave = 1; wave <= l.waves; wave++) {
+        startLevelWave(s, wave);
+        expect({ id: l.id, wave, count: s.crabs.length }).toEqual({ id: l.id, wave, count: expected });
+      }
+    }
+  });
+
   it('clears a level after its last wave and stops stepping', () => {
     const l = levelById(1);
-    const s = createGame('x', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
+    const s = createGame('x', campaign(1));
     s.wave = l.waves; // force the last wave, regardless of the table's actual wave count
     s.crabs = [];
     step(s, INITIAL_INPUT);
@@ -38,13 +80,49 @@ describe('LEVELS', () => {
     step(s, INITIAL_INPUT);
     expect(s.tick).toBe(tick);
   });
-  it('advances waves inside a level with growing rows', () => {
-    const l = levelById(4); // 3 waves, 5 rows
-    const s = createGame('x', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
+
+  it('advances waves inside a level', () => {
+    const s = createGame('x', campaign(4)); // 3 waves
     expect(s.wave).toBe(1);
     s.crabs = [];
     step(s, INITIAL_INPUT);
     expect(s.wave).toBe(2);
     expect(s.cleared).toBe(false);
+  });
+});
+
+describe('kindForTier', () => {
+  /** Expected kind index per tier 0..4, one row per pool size n = 1..5 (spec §2). */
+  const EXPECTED: ReadonlyArray<readonly number[]> = [
+    [0, 0, 0, 0, 0],
+    [0, 0, 1, 1, 1],
+    [0, 1, 1, 2, 2],
+    [0, 1, 2, 2, 3],
+    [0, 1, 2, 3, 4],
+  ];
+
+  it('rounds tier*(n-1)/4 half up over the pool, for every pool size', () => {
+    for (let n = 1; n <= 5; n++) {
+      const pool = REEF_KINDS.slice(0, n);
+      const got = [0, 1, 2, 3, 4].map((t) => pool.indexOf(kindForTier(pool, t)));
+      expect({ n, got }).toEqual({ n, got: EXPECTED[n - 1] });
+    }
+  });
+
+  it('gives reef 5 one kind per tier and reef 1 nothing but green', () => {
+    const k5 = REEF_KINDS.slice(0, 5);
+    expect([0, 1, 2, 3, 4].map((t) => kindForTier(k5, t))).toEqual(REEF_KINDS);
+    expect([0, 1, 2, 3, 4].map((t) => kindForTier(['normal'], t))).toEqual(Array<CrabType>(5).fill('normal'));
+  });
+});
+
+describe('dailyPool', () => {
+  it('widens by one kind per wave and stops at all five', () => {
+    expect(dailyPool(1)).toEqual(['normal']);
+    expect(dailyPool(2)).toEqual(['normal', 'armored']);
+    expect(dailyPool(3)).toEqual(['normal', 'armored', 'swift']);
+    expect(dailyPool(4)).toEqual(['normal', 'armored', 'swift', 'heavy']);
+    expect(dailyPool(5)).toEqual(REEF_KINDS);
+    expect(dailyPool(9)).toEqual(REEF_KINDS);
   });
 });

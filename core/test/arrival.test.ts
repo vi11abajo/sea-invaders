@@ -8,8 +8,8 @@ describe('wave arrival (campaign only)', () => {
     const l = levelById(1);
     const s = createGame('arrival-land', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
     expect(s.arrival).toBe(ARRIVAL.ticks);
-    // The slot each crab is descending to: its current y/homeY plus the drop it was spawned with.
-    const slots = s.crabs.map((c) => ({ x: c.x, y: c.y + ARRIVAL.drop, homeY: c.homeY + ARRIVAL.drop }));
+    // The slot each crab is descending to: its current y plus the drop it was spawned with.
+    const slots = s.crabs.map((c) => ({ x: c.x, y: c.y + ARRIVAL.drop }));
 
     for (let i = 0; i < ARRIVAL.ticks; i++) step(s, INITIAL_INPUT);
 
@@ -18,7 +18,6 @@ describe('wave arrival (campaign only)', () => {
     s.crabs.forEach((c, i) => {
       expect(c.x).toBe(slots[i]!.x);
       expect(c.y).toBe(slots[i]!.y);
-      expect(c.homeY).toBe(slots[i]!.homeY);
     });
   });
 
@@ -37,12 +36,12 @@ describe('wave arrival (campaign only)', () => {
     }
   });
 
-  it('does not march, trigger a diver or test invasion while arriving', () => {
+  it('does not march or test invasion while arriving', () => {
     const l = levelById(1);
     const s = createGame('arrival-nomarch', { mode: 'campaign', level: l, lives: 5, features: { boosts: false }, octopi: 'base' });
     const x0 = s.crabs[0]!.x;
     step(s, INITIAL_INPUT);
-    expect(s.crabs[0]!.x).toBe(x0); // x untouched during arrival, only y/homeY move
+    expect(s.crabs[0]!.x).toBe(x0); // x untouched during arrival, only y moves
     expect(s.over).toBe(false);
   });
 
@@ -54,9 +53,8 @@ describe('wave arrival (campaign only)', () => {
     expect(s.wave).toBe(2);
     expect(s.arrival).toBe(ARRIVAL.ticks); // the full 30, not 29 — nothing was eaten by the transition tick
 
-    // The slot wave 2's formation targets: the same positions a fresh startLevelWave would use.
-    const rows = Math.min(6, l.rows + Math.floor((2 - 1) / 2));
-    const slots = formationPositions(l.formation, rows, l.cols);
+    // The slots wave 2's formation targets: every wave of a level spawns the same template.
+    const slots = formationPositions(l.formation);
     expect(s.crabs).toHaveLength(slots.length);
 
     for (let i = 0; i < ARRIVAL.ticks; i++) step(s, INITIAL_INPUT);
@@ -64,8 +62,7 @@ describe('wave arrival (campaign only)', () => {
     expect(s.arrival).toBe(0);
     s.crabs.forEach((c, i) => {
       expect(c.x).toBe(slots[i]!.x);
-      expect(c.y).toBe(c.homeY);
-      expect(c.homeY).toBe(slots[i]!.y);
+      expect(c.y).toBe(slots[i]!.y);
     });
 
     // The 31st step now marches sideways instead of continuing to descend.
