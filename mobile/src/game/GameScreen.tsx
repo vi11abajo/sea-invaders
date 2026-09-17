@@ -49,7 +49,7 @@ const BOOST_BY_INDEX = Object.entries(BOOST_INDEX).reduce<BoostType[]>((arr, [ty
 }, []);
 
 /** The bullet kinds crabs fire (mirrors core's own `crabs.ts:CRAB_SHOT_KINDS`); any other kind pushed onto `enemyShots` is a boss's. */
-const CRAB_SHOT_KINDS = new Set(Object.values(CRAB_SHOTS).flatMap((entry) => (entry === null ? [] : [entry.kind])));
+const CRAB_SHOT_KINDS = new Set(Object.values(CRAB_SHOTS).map((e) => e.kind));
 
 /** Counts `bullets` by kind into `into` (cleared first, never reallocated: the frame loop reuses two maps). */
 function countKinds(bullets: readonly Bullet[], into: Map<BulletKind, number>): Map<BulletKind, number> {

@@ -41,7 +41,7 @@ export const BOSS_ABILITY = ['Regen', 'Shield', 'Sunfire', 'Rage', 'Freeze'] as 
 export const REEF_LEGENDS = [
   "The invasion began in the kelp. Emerald Warlord's scouts probe the reef's edge, and only Octopi is awake to answer.",
   'Azure Leviathan claimed the coral for its armored legions. Every ridge you clear is a home given back.',
-  'Sunlight still reaches the trench, and Solar Kraken turns it into a rain of fire. Its fast swimmers guard the light.',
+  'Sunlight still reaches the trench, and Solar Kraken turns it into a rain of fire. Its quickest crabs loose the most shots.',
   "Red water, no sun. Crimson Behemoth feeds its rage on the reef's fear, and its crabs carry shots that hit twice as hard.",
   'Beyond the last light waits Void Sovereign, who tears the sea itself. Win here, and the ocean is free.',
 ] as const;

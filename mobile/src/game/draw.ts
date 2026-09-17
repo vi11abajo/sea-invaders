@@ -84,7 +84,9 @@ for (const type of Object.keys(CRAB_TYPES) as CrabType[]) MAX_HP_BY_TYPE_INDEX[T
  * `sprite.w`/`sprite.h`, origin at the sprite's own top-left) so every pattern scales with the crab's
  * on-screen size. Which pattern a crab shows is picked from its slot index in `f.crabs` (same trick
  * as the ICE_FREEZE variant below) so it never flickers frame to frame, and costs only a couple of
- * `drawLine` calls with one shared paint colour/width — no allocation.
+ * `drawLine` calls with one shared paint colour/width — no per-crab allocation. The crab loop saves
+ * the paint's colour and stroke width before the loop and hands them back after each crack, so the
+ * shared paint leaves the loop exactly as it entered it.
  */
 const CRACK_COLOR = Skia.Color('#FFFFFF');
 /** 1.5 dp, in the milli-unit terms this file already uses for on-screen sizes (14 milli-units/dp, see `SHOT_LOOK`). */
@@ -227,8 +229,9 @@ const UNIT_SQUARE = { x: -0.5, y: -0.5, width: 1, height: 1 };
 const METEOR_TRAIL_UNIT = { x: -0.15, y: -2.4, width: 0.3, height: 2 };
 
 /** Reused for every axis-aligned shot/UI shape whose size or position varies frame to frame (the
- * `fast` bar, the meteor trail, the boss shield ellipse): each draw call consumes it synchronously,
- * so one shared instance is safe across sequential uses within the same frame — no per-shot alloc. */
+ * field's side edges, a player shot's glow and core, the boss shield ellipse): each draw call
+ * consumes it synchronously, so one shared instance is safe across sequential uses within the same
+ * frame — no per-shot alloc. */
 const SCRATCH_RECT: Rect = { x: 0, y: 0, width: 0, height: 0 };
 function scratch(x: number, y: number, width: number, height: number): Rect {
   'worklet';
@@ -347,6 +350,9 @@ export function drawFrame(
 
   // Crabs: the sprite for the crab's kind already encodes its colour/type (TYPE_COLOUR); no tint,
   // except a damaged crab (hp below its kind's max), drawn darker with a crack across its shell.
+  // A crack borrows the shared paint for a stroke; these are the values it has to hand back.
+  const crabPaintColor = paint.getColor();
+  const crabPaintStrokeWidth = paint.getStrokeWidth();
   for (let i = 0; i < f.crabs.length; i += 5) {
     const cx = px(f.crabs[i]!);
     const cy = py(f.crabs[i + 1]!);
@@ -373,6 +379,8 @@ export function drawFrame(
         canvas.drawLine(left + x0 * sprite.w, top + y0 * sprite.h, left + x1 * sprite.w, top + y1 * sprite.h, paint);
       }
       paint.setStyle(FILL);
+      paint.setStrokeWidth(crabPaintStrokeWidth);
+      paint.setColor(crabPaintColor);
     }
     if (iceFreeze) {
       const variant = (Math.floor(i / 5) + kind) % 3;
@@ -403,7 +411,7 @@ export function drawFrame(
   }
   paint.setAlphaf(1);
 
-  // Enemy shots: crab glow unchanged; heavy/fast/boss kinds get their own shape and colour.
+  // Enemy shots: crab glow unchanged; heavy and boss kinds get their own shape and colour.
   const baseR = BOSS_SHOT.radius * k;
   const bossColor = f.boss !== null ? BOSS_SK[f.boss.kind - 1]! : DEFAULT_BOSS_SK;
   for (let i = 0; i < f.enemyShots.length; i += 3) {
