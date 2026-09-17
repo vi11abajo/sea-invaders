@@ -54,7 +54,7 @@ export const FORMATION_TEMPLATES: Record<Formation, readonly string[]> = {
   ],
   diamond: [
     '...44...',
-    '..4444..',
+    '..3333..',
     '.222222.',
     '11000011',
     '.000000.',
@@ -92,7 +92,7 @@ export const FORMATION_TEMPLATES: Record<Formation, readonly string[]> = {
   ],
   shell: [
     '...44...',
-    '..4444..',
+    '..3333..',
     '.222222.',
     '11111111',
     '00.00.00',
@@ -101,7 +101,7 @@ export const FORMATION_TEMPLATES: Record<Formation, readonly string[]> = {
   ],
   wreck: [
     '...4....',
-    '...44...',
+    '...33...',
     '...222..',
     '...1111.',
     '00000000',
