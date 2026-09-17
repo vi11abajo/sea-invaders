@@ -31,12 +31,13 @@ import { Backdrop } from './src/ui/Backdrop';
 import { useAppFonts } from './src/ui/fonts';
 import { UiGallery } from './src/ui/gallery/UiGallery';
 
-type Route = 'app' | 'selftest' | 'ui' | { kind: 'level'; id: number };
+type Route = 'app' | 'selftest' | 'ui' | { kind: 'level'; id: number; tide: boolean };
 type Screen =
   | 'home' | 'practice' | 'daily' | 'leaderboard' | 'shop' | 'profile'
   | { kind: 'campaign'; initialReef?: number }
   // `lives`: the hearts a practice walk-on carries into this level from the one just cleared.
-  | { kind: 'level'; id: number; practice: boolean; lives?: number };
+  // `qaTide`: the QA deep link's `?tide=1` - the Tide is offered on this practice run's last life.
+  | { kind: 'level'; id: number; practice: boolean; lives?: number; qaTide?: boolean };
 
 /** The reef (1..5) that level `id` (1..30) belongs to. */
 function reefOf(id: number): number {
@@ -45,7 +46,9 @@ function reefOf(id: number): number {
 
 /**
  * seainvaders://selftest opens the self-test, seainvaders://ui the design gallery,
- * seainvaders://level/<id> opens that campaign level directly (QA entry point for boss levels);
+ * seainvaders://level/<id> opens that campaign level directly (QA entry point for boss levels), and
+ * seainvaders://level/<id>?tide=1 also offers the Tide on its last life, so the revive flow can be
+ * tried on a campaign that is already cleared (a practice replay never offers it otherwise);
  * anything else opens the app.
  */
 function routeFor(url: string | null): Route {
@@ -55,7 +58,7 @@ function routeFor(url: string | null): Route {
   const level = /^seainvaders:\/\/level\/(\d+)/.exec(url);
   if (level) {
     const id = Number(level[1]);
-    if (Number.isInteger(id) && id >= 1 && id <= 30) return { kind: 'level', id };
+    if (Number.isInteger(id) && id >= 1 && id <= 30) return { kind: 'level', id, tide: /[?&]tide=1(&|$)/.test(url) };
   }
   return 'app';
 }
@@ -65,7 +68,7 @@ function routeFor(url: string | null): Route {
  * on every screen below it (Home's hero, the game, the result pose read them through `SkinContext` and
  * `EquippedOctopiContext`).
  */
-function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
+function Shell({ initialLevel = null }: { initialLevel?: { id: number; tide: boolean } | null }) {
   const auth = useSession();
   const loadout = useLoadout(auth.session, auth.restoring);
   const splashOver = useSplashGate(!auth.restoring && loadout.loadout.ready);
@@ -73,7 +76,7 @@ function Shell({ initialLevelId = null }: { initialLevelId?: number | null }) {
     <SkinContext.Provider value={loadout.loadout.activeSkin}>
       <EquippedOctopiContext.Provider value={VARIANT_OCTOPI[loadout.loadout.activeVariant]}>
         <View style={styles.app}>
-          <Screens initialLevelId={initialLevelId} auth={auth} loadout={loadout} />
+          <Screens initialLevel={initialLevel} auth={auth} loadout={loadout} />
           <Splash visible={!splashOver} />
         </View>
       </EquippedOctopiContext.Provider>
@@ -98,16 +101,18 @@ function useSplashGate(ready: boolean): boolean {
 }
 
 interface ScreensProps {
-  initialLevelId: number | null;
+  initialLevel: { id: number; tide: boolean } | null;
   auth: ReturnType<typeof useSession>;
   loadout: LoadoutApi;
 }
 
 /** Everything that needs the wallet provider and the session. */
-function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
+function Screens({ initialLevel, auth, loadout }: ScreensProps) {
   // The deep link is a QA tool: it always opens in practice mode so it can never mutate real
   // progress (a non-current level would also make finishLevel reject — see CampaignLevelScreen).
-  const [screen, setScreen] = useState<Screen>(initialLevelId !== null ? { kind: 'level', id: initialLevelId, practice: true } : 'home');
+  const [screen, setScreen] = useState<Screen>(
+    initialLevel !== null ? { kind: 'level', id: initialLevel.id, practice: true, qaTide: initialLevel.tide } : 'home',
+  );
   // Bumped on every level (re-)entry so the level screen's key changes even when `id`/`practice`
   // do not (e.g. "Retry level"), forcing a fresh mount instead of reusing the finished run's state.
   const [levelAttempt, setLevelAttempt] = useState(0);
@@ -247,6 +252,7 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
         levelId={screen.id}
         practice={screen.practice}
         lives={screen.lives}
+        qaTide={screen.qaTide}
         progress={campaign.progress}
         startLevel={campaign.startLevel}
         finishLevel={campaign.finishLevel}
@@ -346,12 +352,12 @@ export default function App() {
 
   if (!fontsReady) return null;
 
-  const initialLevelId = typeof route === 'object' ? route.id : null;
+  const initialLevel = typeof route === 'object' ? { id: route.id, tide: route.tide } : null;
 
   return (
     <MobileWalletProvider chain={CHAIN} endpoint={RPC_URL} identity={APP_IDENTITY}>
       <StatusBar hidden />
-      {route === 'selftest' ? <SelfTestScreen /> : route === 'ui' ? <UiGallery /> : <Shell initialLevelId={initialLevelId} />}
+      {route === 'selftest' ? <SelfTestScreen /> : route === 'ui' ? <UiGallery /> : <Shell initialLevel={initialLevel} />}
     </MobileWalletProvider>
   );
 }

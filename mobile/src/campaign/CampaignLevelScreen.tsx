@@ -58,6 +58,8 @@ interface CampaignLevelScreenProps {
   practice: boolean;
   /** Practice walk-on only: the hearts carried over from the level just cleared (a full reef's lives otherwise). */
   lives?: number;
+  /** QA deep link `?tide=1`: offer the Tide on this practice run's last life, so a revive can be tried on a cleared campaign. */
+  qaTide?: boolean;
   /**
    * The campaign progress before this level's result is applied. Deliberately unused for the
    * result screen: deriving "Next level"/"Retry reef" targets or the "Best" stat from this prop
@@ -107,7 +109,7 @@ function reefLivesAfter(livesLeft: number, run: RunConfig | null, revived: boole
 
 /** One campaign level: the Level start screen, the boss reveal on boss rows, then the run and its result. */
 export function CampaignLevelScreen({
-  levelId, practice, lives: carried, startLevel, finishLevel, loadout, signedIn, connecting, signInError, onConnect, onOpenShop,
+  levelId, practice, lives: carried, qaTide = false, startLevel, finishLevel, loadout, signedIn, connecting, signInError, onConnect, onOpenShop,
   onNext, onDone, onExit,
 }: CampaignLevelScreenProps) {
   const level = useMemo(() => levelById(levelId), [levelId]);
@@ -151,10 +153,11 @@ export function CampaignLevelScreen({
   };
 
   // The last life lost in a real attempt: hold the run for the Tide while revives are left. A
-  // practice replay of a cleared level has nothing at stake, so it is never offered one.
+  // practice replay of a cleared level has nothing at stake, so it is never offered one - except
+  // through the QA deep link's `?tide=1`, the only way to try a revive on a cleared campaign.
   const handleDown = (run: DownedRun): boolean => {
     const revivesLeft = REVIVES_PER_ATTEMPT - revivesUsed.current;
-    if (practice || revivesLeft <= 0) return false;
+    if ((practice && !qaTide) || revivesLeft <= 0) return false;
     losses.current += 1;
     setDown({ id: losses.current, run, revivesLeft });
     return true;
