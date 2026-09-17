@@ -9,6 +9,7 @@ import { playSfx } from '../audio/sfx';
 import { GameScreen, type DownedRun, type RunOutcome } from '../game/GameScreen';
 import { VARIANT_OCTOPI } from '../loadout/items';
 import type { LoadoutApi } from '../loadout/useLoadout';
+import { levelState } from './reefs';
 import { ReefBackdrop } from './ReefBackdrop';
 import { ResultView } from '../game/ResultView';
 import { TideSheet } from '../tide/TideSheet';
@@ -77,8 +78,11 @@ interface CampaignLevelScreenProps {
   onConnect: () => void;
   /** Opens the Shop, from a locked octopi tile. */
   onOpenShop: () => void;
-  /** Opens a level id (always non-practice) — "Next level", "Retry level" or "Retry reef". */
-  onNext: (id: number) => void;
+  /**
+   * Opens a level id — "Next level", "Retry level" or "Retry reef". `practice` opens it as an
+   * unranked replay: the walk on through a reef the player has already cleared.
+   */
+  onNext: (id: number, practice?: boolean) => void;
   /** Called once the player leaves the result screen. */
   onDone: (outcome: Outcome) => void;
   onExit: () => void;
@@ -293,17 +297,27 @@ export function CampaignLevelScreen({
                 onBack={onExit}
               />
             );
-          case 'practice':
+          case 'practice': {
+            // Walking on through a cleared reef: after a cleared replay the primary action opens the
+            // next level instead of sending the player back to the map for every level. The reef's
+            // boss ends the walk (the next reef starts from the map), a locked level is never opened
+            // this way, and a level the player has not cleared yet opens as the real attempt,
+            // exactly as the map would open it.
+            const nextId = levelId + 1;
+            const nextState = levelId % LEVELS_PER_REEF === 0 ? 'locked' : levelState(next, nextId);
+            const walkOn = outcome.cleared && nextState !== 'locked';
             return (
               <ResultView
                 title={TITLE.practice}
                 score={outcome.score}
                 stats={stats}
-                onPlayAgain={playAgain}
+                primaryLabel={walkOn ? 'Next level' : undefined}
+                onPlayAgain={walkOn ? () => onNext(nextId, nextState === 'cleared') : playAgain}
                 secondary={toMap}
                 onBack={onExit}
               />
             );
+          }
           default:
             return null;
         }

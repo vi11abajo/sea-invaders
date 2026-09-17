@@ -438,7 +438,7 @@ function ReefRail({ reef, progress, sprites, onSelect }: {
         if (i === REEFS) return <UnknownReefChip key="unknown" />;
         const n = i + 1;
         const active = n === reef;
-        const reachable = n <= progress.reef;
+        const reachable = !reefProgress(progress, n).locked;
         const accent = REEF_ACCENT[i]!;
         const sprite = sprites?.bosses[i]?.[0] ?? null;
         return (

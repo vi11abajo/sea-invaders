@@ -115,11 +115,18 @@ export function reviveReef(p: CampaignProgress, now: number): CampaignProgress {
 /** Spec §6.2: per-level OR/max, position fields from the newer `updatedAt` (tie favors `b`). */
 export function mergeProgress(a: CampaignProgress, b: CampaignProgress): CampaignProgress {
   const newer = b.updatedAt >= a.updatedAt ? b : a;
+  // The pointer (reef, level, lives) follows the side that has cleared more levels - the side that
+  // has actually played further - and only on a tie the newer one. A fresh install merging with a
+  // finished campaign otherwise dragged the pointer back to reef 1 (owner's phone, 2026-09-17),
+  // while a reef-lost reset (same cleared count on both sides) still keeps the newer pointer.
+  const clearedA = a.cleared.filter(Boolean).length;
+  const clearedB = b.cleared.filter(Boolean).length;
+  const lead = clearedA > clearedB ? a : clearedB > clearedA ? b : newer;
   return {
     v: 1,
-    reef: newer.reef,
-    level: newer.level,
-    lives: newer.lives,
+    reef: lead.reef,
+    level: lead.level,
+    lives: lead.lives,
     cleared: a.cleared.map((c, i) => c || b.cleared[i]!),
     best: a.best.map((v, i) => Math.max(v, b.best[i]!)),
     updatedAt: Math.max(a.updatedAt, b.updatedAt),

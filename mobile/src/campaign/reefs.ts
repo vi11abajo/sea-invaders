@@ -153,7 +153,9 @@ export function reefProgress(progress: CampaignProgress, reef: number): ReefProg
     if (progress.cleared[first + i]) cleared++;
   }
   const reefCleared = cleared === LEVELS_PER_REEF;
-  const locked = reef > progress.reef;
+  // A reef the player has fully cleared is never locked, wherever the pointer stands (a merge or a
+  // reef-lost reset can leave the pointer behind cleared reefs).
+  const locked = reef > progress.reef && !reefCleared;
   const current = reef === progress.reef && !reefCleared;
   return { cleared, reefCleared, locked, current };
 }

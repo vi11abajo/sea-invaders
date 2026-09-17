@@ -254,9 +254,9 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
         signInError={error}
         onConnect={() => void signIn()}
         onOpenShop={() => openShop(screen)}
-        onNext={(id) => {
+        onNext={(id, practice = false) => {
           setLevelAttempt((n) => n + 1);
-          setScreen({ kind: 'level', id, practice: false });
+          setScreen({ kind: 'level', id, practice });
         }}
         onDone={() => setScreen({ kind: 'campaign', initialReef: reefOf(screen.id) })}
         onExit={() => setScreen({ kind: 'campaign', initialReef: reefOf(screen.id) })}

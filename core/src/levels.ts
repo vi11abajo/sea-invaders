@@ -8,7 +8,7 @@ export interface LevelSpec {
   waves: number;
   /** The first wave's silhouette, the level's headline (shown on the Level-start screen). */
   formation: Formation;
-  /** The silhouette of every wave in order (`waves` entries): `formation` first, then `WAVE_ORDER` onward, so no two waves of a level repeat and no two neighbours match (owner ruling 2026-09-17). */
+  /** The silhouette of every wave in order (`waves` entries, all distinct): the level's headline first, then a fixed shuffle (owner ruling 2026-09-17: no repeats within a level). */
   formations: readonly Formation[];
   kinds: CrabType[];
   speedOffset: number;
@@ -75,23 +75,9 @@ export function dailyPool(wave: number): CrabType[] {
  * `waves: 0` and the K-pool of their reef so the row still type-checks even though no wave is
  * spawned from it.
  */
-/**
- * The order the waves of a level walk through the silhouettes after the level's own first one:
- * dense and sparse shapes alternate, so two neighbouring waves never look alike. With eight
- * silhouettes and at most five waves, a level never repeats one.
- */
-export const WAVE_ORDER: readonly Formation[] = ['classic', 'fish', 'jellyfish', 'diamond', 'wreck', 'octopus', 'shell', 'ring'];
-
-/** `waves` silhouettes starting at `first` and continuing through `WAVE_ORDER` (wrapping), all distinct. */
-export function waveFormations(first: Formation, waves: number): Formation[] {
-  const start = WAVE_ORDER.indexOf(first);
-  return Array.from({ length: waves }, (_, k) => WAVE_ORDER[(start + k) % WAVE_ORDER.length]!);
-}
-
 function row(
   id: number,
-  waves: number,
-  formation: Formation,
+  formations: readonly Formation[],
   kinds: CrabType[],
   boss?: 1 | 2 | 3 | 4 | 5,
 ): LevelSpec {
@@ -102,9 +88,9 @@ function row(
     id,
     reef,
     index,
-    waves,
-    formation,
-    formations: waveFormations(formation, waves),
+    waves: formations.length,
+    formation: formations[0] ?? 'classic',
+    formations,
     kinds,
     speedOffset: 3 * (reef - 1) + indexOffset,
     fireOffset: 8 * (reef - 1) + 3 * indexOffset,
@@ -114,45 +100,46 @@ function row(
 
 /**
  * The 30-level campaign table, transcribed verbatim from spec §2. Data only: balance changes edit
- * rows, never code. A row names the first wave's silhouette; the later waves follow `WAVE_ORDER`
- * from there (`waveFormations`), so a row carries no size —
+ * rows, never code. A row lists its waves' silhouettes in order - the first is the level's headline,
+ * the rest a fixed shuffle drawn once (owner ruling 2026-09-17: no repeats within a level, and no
+ * two neighbouring levels opening their second wave alike) - so a row carries no size —
  * the template's own shape sets the crab count.
  */
 export const LEVELS: readonly LevelSpec[] = [
-  row(1, 2, 'classic', K1),
-  row(2, 2, 'fish', K1),
-  row(3, 3, 'diamond', K1),
-  row(4, 3, 'jellyfish', K1),
-  row(5, 4, 'wreck', K1),
-  row(6, 0, 'classic', K1, 1),
+  row(1, ['classic', 'shell'], K1),
+  row(2, ['fish', 'ring'], K1),
+  row(3, ['diamond', 'jellyfish', 'octopus'], K1),
+  row(4, ['jellyfish', 'wreck', 'octopus'], K1),
+  row(5, ['wreck', 'fish', 'ring', 'classic'], K1),
+  row(6, [], K1, 1),
 
-  row(7, 3, 'classic', K2),
-  row(8, 3, 'shell', K2),
-  row(9, 3, 'fish', K2),
-  row(10, 4, 'ring', K2),
-  row(11, 4, 'octopus', K2),
-  row(12, 0, 'classic', K2, 2),
+  row(7, ['classic', 'ring', 'shell'], K2),
+  row(8, ['shell', 'wreck', 'classic'], K2),
+  row(9, ['fish', 'ring', 'diamond'], K2),
+  row(10, ['ring', 'fish', 'jellyfish', 'shell'], K2),
+  row(11, ['octopus', 'shell', 'jellyfish', 'classic'], K2),
+  row(12, [], K2, 2),
 
-  row(13, 3, 'diamond', K3),
-  row(14, 4, 'classic', K3),
-  row(15, 4, 'wreck', K3),
-  row(16, 4, 'jellyfish', K3),
-  row(17, 5, 'ring', K3),
-  row(18, 0, 'classic', K3, 3),
+  row(13, ['diamond', 'ring', 'octopus'], K3),
+  row(14, ['classic', 'jellyfish', 'ring', 'shell'], K3),
+  row(15, ['wreck', 'fish', 'classic', 'diamond'], K3),
+  row(16, ['jellyfish', 'shell', 'diamond', 'fish'], K3),
+  row(17, ['ring', 'classic', 'octopus', 'shell', 'wreck'], K3),
+  row(18, [], K3, 3),
 
-  row(19, 4, 'fish', K4),
-  row(20, 4, 'shell', K4),
-  row(21, 4, 'octopus', K4),
-  row(22, 5, 'wreck', K4),
-  row(23, 5, 'classic', K4),
-  row(24, 0, 'classic', K4, 4),
+  row(19, ['fish', 'octopus', 'wreck', 'classic'], K4),
+  row(20, ['shell', 'fish', 'jellyfish', 'ring'], K4),
+  row(21, ['octopus', 'ring', 'classic', 'fish'], K4),
+  row(22, ['wreck', 'octopus', 'fish', 'diamond', 'shell'], K4),
+  row(23, ['classic', 'fish', 'jellyfish', 'ring', 'diamond'], K4),
+  row(24, [], K4, 4),
 
-  row(25, 4, 'jellyfish', K5),
-  row(26, 5, 'shell', K5),
-  row(27, 5, 'diamond', K5),
-  row(28, 5, 'octopus', K5),
-  row(29, 5, 'wreck', K5),
-  row(30, 0, 'classic', K5, 5),
+  row(25, ['jellyfish', 'octopus', 'classic', 'fish'], K5),
+  row(26, ['shell', 'wreck', 'ring', 'classic', 'jellyfish'], K5),
+  row(27, ['diamond', 'classic', 'shell', 'ring', 'wreck'], K5),
+  row(28, ['octopus', 'shell', 'ring', 'jellyfish', 'wreck'], K5),
+  row(29, ['wreck', 'fish', 'diamond', 'classic', 'octopus'], K5),
+  row(30, [], K5, 5),
 ];
 
 /** Looks up a level by id; throws on an unknown id (a replay or caller bug). */

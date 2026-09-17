@@ -105,6 +105,35 @@ describe('campaign progress', () => {
     expect(merged.level).toBe(5);
   });
 
+  it('keeps the pointer of the side that has cleared more levels, however old it is', () => {
+    // A fresh install (newer, nothing cleared) merging with a finished campaign on the server.
+    const finished = progress({
+      reef: REEFS,
+      level: LEVELS_PER_REEF,
+      lives: 2,
+      cleared: Array(REEFS * LEVELS_PER_REEF).fill(true),
+      best: Array(REEFS * LEVELS_PER_REEF).fill(500),
+      updatedAt: 1000,
+    });
+    const fresh = progress({ reef: 1, level: 1, lives: REEF_LIVES, updatedAt: 9000 });
+    for (const merged of [mergeProgress(finished, fresh), mergeProgress(fresh, finished)]) {
+      expect(merged.reef).toBe(REEFS);
+      expect(merged.level).toBe(LEVELS_PER_REEF);
+      expect(merged.lives).toBe(2);
+      expect(merged.cleared.every(Boolean)).toBe(true);
+      expect(merged.updatedAt).toBe(9000);
+    }
+  });
+
+  it('keeps the newer pointer when both sides have cleared the same levels (a reef-lost reset)', () => {
+    const cleared = [true, true, true, ...Array(27).fill(false)];
+    const before = progress({ reef: 1, level: 4, lives: 1, cleared, updatedAt: 1000 });
+    const reset = progress({ reef: 1, level: 1, lives: REEF_LIVES, cleared, updatedAt: 2000 });
+    const merged = mergeProgress(before, reset);
+    expect(merged.level).toBe(1);
+    expect(merged.lives).toBe(REEF_LIVES);
+  });
+
   it('moves a boss clear to the next reef with fresh lives on entry', () => {
     const p = progress({ reef: 1, level: LEVELS_PER_REEF, lives: 3 });
     const id = currentLevelId(p);
