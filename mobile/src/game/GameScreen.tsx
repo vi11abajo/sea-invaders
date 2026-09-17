@@ -1,7 +1,7 @@
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
   BOOST_INDEX, CRAB_SHOTS, CRAB_TYPES, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
-  OCTOPI, createGame, fitField, formatInt, revive, snapshot, step, touchToInput,
+  OCTOPI, TIDE_REVIVE_LIVES, createGame, fitField, formatInt, revive, snapshot, step, touchToInput,
   type BoostType, type BossFrame, type Bullet, type BulletKind, type Crab, type Frame, type GameEvent, type Input, type OctopiVariant, type Replay,
   type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
@@ -20,7 +20,7 @@ import { Backdrop } from '../ui/Backdrop';
 import { Txt } from '../ui/Txt';
 import { COLORS, FONTS } from '../ui/tokens';
 import { GameHud, type HudBadge, type HudBoost } from './GameHud';
-import { PauseSheet } from './PauseSheet';
+import { PauseSheet, RevivedSheet } from './PauseSheet';
 import { RESULT_POSE_SIZE, ResultView } from './ResultView';
 import { drawFrame, type WaveBlast } from './draw';
 import { RunOctopiContext, octopiTint, useActiveSkin } from './skins';
@@ -262,7 +262,8 @@ export interface RunOutcome {
 export interface DownedRun {
   /**
    * Revives Octopi through the core (`revive(state)`: `TIDE_REVIVE_LIVES` lives, 2 s invulnerability, enemy shots
-   * cleared) and resumes the run. True when the run is playing again.
+   * cleared) and holds the run, clock stopped, under `RevivedSheet` until the player taps Resume.
+   * True when the run can go on.
    */
   revive: () => boolean;
   /** Ends the run as if it had never been held: the outcome goes to `onRunOver` and the result shows. */
@@ -325,6 +326,9 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const quit = useRef(false);
   const [hud, setHud] = useState<Hud>(START_HUD);
   const [showPause, setShowPause] = useState(false);
+  /** True from a revive until the player taps Resume: the clock stays stopped under `RevivedSheet`. */
+  const awaitingResume = useRef(false);
+  const [showRevived, setShowRevived] = useState(false);
   const [runIndex, setRunIndex] = useState(0);
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
   const onRunOverRef = useRef(onRunOver);
@@ -355,6 +359,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     paused.current = false;
     quit.current = false;
     held.current = false;
+    awaitingResume.current = false;
     blast.value = null;
     let shown = START_HUD;
     let reported = false;
@@ -395,10 +400,14 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           settled = true;
           revive(state);
           held.current = false;
-          // A revive always resumes into a running state, never a paused one, regardless of how
-          // `paused`/`showPause` got set (`pause()` itself now refuses while held).
-          paused.current = false;
+          // A revive does not resume by itself: the run waits, clock stopped, under `RevivedSheet`
+          // until the player taps Resume (owner ruling 2026-09-17). The pause sheet is dismissed
+          // whatever `showPause` got set to (`pause()` refuses while held or waiting), so Resume
+          // is the only way on.
+          paused.current = true;
+          awaitingResume.current = true;
           setShowPause(false);
+          setShowRevived(true);
           return !state.over;
         },
         end: () => {
@@ -595,13 +604,19 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const pause = () => {
     // A tap in the single frame between the loss and the host's overlay mounting must not pause: the
     // run would then stay paused after a revive, with nothing left to show a Resume button.
-    if (held.current) return;
+    if (held.current || awaitingResume.current) return;
     paused.current = true;
     setShowPause(true);
   };
   const resume = () => {
     paused.current = false;
     setShowPause(false);
+  };
+  /** The player is ready after a revive: the clock starts again. */
+  const resumeRevived = () => {
+    awaitingResume.current = false;
+    paused.current = false;
+    setShowRevived(false);
   };
   const quitRun = () => {
     quit.current = true;
@@ -622,6 +637,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (held.current) return !hasOverlay;
       if (hud.over) onExit();
+      else if (showRevived) resumeRevived();
       else if (showPause) resume();
       else pause();
       return true;
@@ -686,6 +702,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
             {hud.fps} FPS
           </Text>
           {showPause && <PauseSheet onResume={resume} onQuit={quitRun} />}
+          {showRevived && <RevivedSheet lives={TIDE_REVIVE_LIVES} onResume={resumeRevived} />}
           {overlay}
         </>
       )}
