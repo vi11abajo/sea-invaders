@@ -1,7 +1,7 @@
 import { BlendMode, BlurStyle, ClipOp, FilterMode, MipmapMode, PaintStyle, Skia, TileMode } from '@shopify/react-native-skia';
 import {
-  BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, DROP, ENEMY_SHOT, KIND_INDEX, RARITY_ORDER, OCTOPI,
-  type BoostType, type Frame, type Layout,
+  BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, CRAB_TYPES, DROP, ENEMY_SHOT, KIND_INDEX, RARITY_ORDER, OCTOPI, TYPE_INDEX,
+  type BoostType, type CrabType, type Frame, type Layout,
 } from '@sea-invaders/core';
 import { COLORS, SIGNATURE_GRADIENT } from '../ui/tokens';
 import { PIXEL_RATIO, type PreparedSprite, type PreparedSprites } from './sprites';
@@ -60,6 +60,40 @@ const WHITE_FLASH_FILTER = Skia.ColorFilter.MakeBlend(Skia.Color('#FFFFFF'), Ble
 
 /** Void's temporal freeze: a violet tint over the whole field, drawn last (on top of everything). */
 const FREEZE_OVERLAY = Skia.Color('rgba(153,102,255,0.18)');
+
+/**
+ * A damaged crab's shell (spec §1 last bullet, core v8): a crab whose `hp` is below its kind's max
+ * (armored at 1/2, elder at 2/3 or 1/3) is drawn darker, one Skia colour matrix per lost hit point
+ * scaling RGB by `DAMAGE_BRIGHTNESS` (alpha untouched) — 0.7 for one lost point, 0.49 for two. Both
+ * matrices are built once here, never per frame or per crab; `TYPE_INDEX`/`CRAB_TYPES` give the max
+ * hp for the frame's packed type index without inverting the map every draw.
+ */
+const DAMAGE_BRIGHTNESS = 0.7;
+function brightnessMatrix(factor: number): number[] {
+  return [factor, 0, 0, 0, 0, 0, factor, 0, 0, 0, 0, 0, factor, 0, 0, 0, 0, 0, 1, 0];
+}
+/** Index 0 = one lost hit point (x0.7), index 1 = two lost (x0.49) — the most any kind (elder) has. */
+const DAMAGE_FILTERS = [DAMAGE_BRIGHTNESS, DAMAGE_BRIGHTNESS ** 2].map((factor) => Skia.ColorFilter.MakeMatrix(brightnessMatrix(factor)));
+/** `TYPE_INDEX[type]` -> `CRAB_TYPES[type].hp`, built once so the crab loop never inverts the map. */
+const MAX_HP_BY_TYPE_INDEX: number[] = [];
+for (const type of Object.keys(CRAB_TYPES) as CrabType[]) MAX_HP_BY_TYPE_INDEX[TYPE_INDEX[type]] = CRAB_TYPES[type].hp;
+
+/**
+ * A damaged crab also gets a short white crack across its shell's upper half (spec §1 last bullet):
+ * two or three straight segments, about 40% of the sprite's width, in unit coordinates (fraction of
+ * `sprite.w`/`sprite.h`, origin at the sprite's own top-left) so every pattern scales with the crab's
+ * on-screen size. Which pattern a crab shows is picked from its slot index in `f.crabs` (same trick
+ * as the ICE_FREEZE variant below) so it never flickers frame to frame, and costs only a couple of
+ * `drawLine` calls with one shared paint colour/width — no allocation.
+ */
+const CRACK_COLOR = Skia.Color('#FFFFFF');
+/** 1.5 dp, in the milli-unit terms this file already uses for on-screen sizes (14 milli-units/dp, see `SHOT_LOOK`). */
+const CRACK_STROKE_W = 21;
+const CRACK_PATTERNS: readonly (readonly [number, number])[][] = [
+  [[0.30, 0.18], [0.70, 0.30], [0.46, 0.48]],
+  [[0.68, 0.16], [0.32, 0.30], [0.56, 0.46]],
+  [[0.32, 0.46], [0.48, 0.18], [0.66, 0.36], [0.44, 0.48]],
+];
 
 /**
  * ICE_FREEZE indication (owner ruling): one of the owner's three ice sprites drawn over every crab,
@@ -169,7 +203,6 @@ const WELL_GRADIENT = Skia.Shader.MakeRadialGradient(
 );
 
 const HEAVY_COLOR = Skia.Color('#B8BEC9');
-const FAST_COLOR = Skia.Color('#FFE45C');
 const WAVE_COLOR = Skia.Color('#2EE6D6');
 const EXPLOSIVE_COLOR = Skia.Color('#FF8C1A');
 const EXPLOSIVE_CORE_COLOR = Skia.Color('#33190A');
@@ -181,10 +214,12 @@ const GRAVITY_SHOT_COLOR = Skia.Color('rgba(20,10,40,0.85)');
 const RING_STROKE_W = 4;
 const GRAVITY_STROKE_W = 5;
 
-/** `heavy`'s diameter, and `fast`'s bar size, both in milli-units (spec, Task 16 addendum). */
-const HEAVY_DIAMETER = 280;
-const FAST_W = 30;
-const FAST_H = 200;
+/**
+ * `heavy`'s diameter, in milli-units: the red crab's own shot, `ENEMY_SHOT.radius * 1.6 = 154` in
+ * the core (`core/src/sim/collide.ts:shotRadius`) — this is that radius doubled. The `fast` kind
+ * (swift's own shot) went with core v8, so its bar look is gone too.
+ */
+const HEAVY_DIAMETER = 308;
 
 /** A unit box centred on the origin, reused (via `canvas.scale`) for the zigzag diamond — never reallocated per shot. */
 const UNIT_SQUARE = { x: -0.5, y: -0.5, width: 1, height: 1 };
@@ -310,14 +345,35 @@ export function drawFrame(
     }
   }
 
-  // Crabs: the sprite for the crab's kind already encodes its colour/type (TYPE_COLOUR); no tint.
+  // Crabs: the sprite for the crab's kind already encodes its colour/type (TYPE_COLOUR); no tint,
+  // except a damaged crab (hp below its kind's max), drawn darker with a crack across its shell.
   for (let i = 0; i < f.crabs.length; i += 5) {
     const cx = px(f.crabs[i]!);
     const cy = py(f.crabs[i + 1]!);
     const kind = f.crabs[i + 2]!;
+    const typeIndex = f.crabs[i + 3]!;
+    const hp = f.crabs[i + 4]!;
     const sprite = sprites.crabs[kind];
     if (sprite === undefined) continue;
+    const lost = (MAX_HP_BY_TYPE_INDEX[typeIndex] ?? hp) - hp;
+    const damageFilter = lost > 0 ? DAMAGE_FILTERS[Math.min(lost, DAMAGE_FILTERS.length) - 1]! : null;
+    if (damageFilter !== null) paint.setColorFilter(damageFilter);
     drawSpriteAt(canvas, paint, sprite, cx - sprite.w / 2, cy - sprite.h / 2);
+    if (damageFilter !== null) {
+      paint.setColorFilter(null);
+      const left = cx - sprite.w / 2;
+      const top = cy - sprite.h / 2;
+      const pattern = CRACK_PATTERNS[Math.floor(i / 5) % CRACK_PATTERNS.length]!;
+      paint.setStyle(STROKE);
+      paint.setStrokeWidth(CRACK_STROKE_W * k);
+      paint.setColor(CRACK_COLOR);
+      for (let s = 1; s < pattern.length; s++) {
+        const [x0, y0] = pattern[s - 1]!;
+        const [x1, y1] = pattern[s]!;
+        canvas.drawLine(left + x0 * sprite.w, top + y0 * sprite.h, left + x1 * sprite.w, top + y1 * sprite.h, paint);
+      }
+      paint.setStyle(FILL);
+    }
     if (iceFreeze) {
       const variant = (Math.floor(i / 5) + kind) % 3;
       const iceSprite = sprites.ice[variant];
@@ -365,13 +421,9 @@ export function drawFrame(
         break;
       }
       case KIND_INDEX.heavy: {
+        // The red `heavy` crab's own shot (core v8): wider than a plain crab shot, no glow.
         paint.setColor(HEAVY_COLOR);
         canvas.drawCircle(x, y, (HEAVY_DIAMETER / 2) * k, paint);
-        break;
-      }
-      case KIND_INDEX.fast: {
-        paint.setColor(FAST_COLOR);
-        canvas.drawRect(scratch(x - (FAST_W * k) / 2, y - (FAST_H * k) / 2, FAST_W * k, FAST_H * k), paint);
         break;
       }
       case KIND_INDEX.straight: {

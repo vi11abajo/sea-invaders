@@ -19,11 +19,12 @@ import { REEF_NAMES } from './reefs';
 import { VariantPicker } from './VariantPicker';
 
 const FORMATION_NAMES: Record<Formation, string> = {
-  grid: 'Grid', wedge: 'Wedge', wall: 'Wall', checker: 'Checker', columns: 'Columns', ring: 'Ring',
+  classic: 'Classic', fish: 'Fish', diamond: 'Diamond', ring: 'Ring',
+  jellyfish: 'Jellyfish', octopus: 'Octopus', shell: 'Shell', wreck: 'Wreck',
 };
 
 const CRAB_NAMES: Record<CrabType, string> = {
-  normal: 'Normal', armored: 'Armored', swift: 'Swift', fanner: 'Fanner', diver: 'Diver',
+  normal: 'Normal', armored: 'Armored', swift: 'Swift', heavy: 'Heavy', elder: 'Elder',
 };
 
 /**

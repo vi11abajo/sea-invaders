@@ -15,8 +15,8 @@ export const REEF_NEW_KIND: readonly { kind: CrabType; name: string }[] = [
   { kind: 'normal', name: 'Normal' },
   { kind: 'armored', name: 'Armored' },
   { kind: 'swift', name: 'Swift' },
-  { kind: 'fanner', name: 'Fanner' },
-  { kind: 'diver', name: 'Diver' },
+  { kind: 'heavy', name: 'Heavy' },
+  { kind: 'elder', name: 'Elder' },
 ];
 
 /**
@@ -42,7 +42,7 @@ export const REEF_LEGENDS = [
   "The invasion began in the kelp. Emerald Warlord's scouts probe the reef's edge, and only Octopi is awake to answer.",
   'Azure Leviathan claimed the coral for its armored legions. Every ridge you clear is a home given back.',
   'Sunlight still reaches the trench, and Solar Kraken turns it into a rain of fire. Its fast swimmers guard the light.',
-  "Red water, no sun. Crimson Behemoth feeds its rage on the reef's fear, and its crabs fan out in every direction.",
+  "Red water, no sun. Crimson Behemoth feeds its rage on the reef's fear, and its crabs carry shots that hit twice as hard.",
   'Beyond the last light waits Void Sovereign, who tears the sea itself. Win here, and the ocean is free.',
 ] as const;
 

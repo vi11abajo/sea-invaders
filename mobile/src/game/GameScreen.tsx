@@ -1,6 +1,6 @@
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
-  BOOST_INDEX, CRAB_SHOTS, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
+  BOOST_INDEX, CRAB_SHOTS, CRAB_TYPES, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
   OCTOPI, createGame, fitField, formatInt, revive, snapshot, step, touchToInput,
   type BoostType, type BossFrame, type Bullet, type BulletKind, type Crab, type Frame, type GameEvent, type Input, type OctopiVariant, type Replay,
   type ReplayMode, type RunConfig,
@@ -170,10 +170,10 @@ const BOOST_STINGER: Record<BoostType, SfxId> = {
   SPEED_TAMER: 'boost_speed_tamer',
 };
 
-/** Armored crabs sitting at 1 hp (one hit taken, one more to kill) - the only crabs that can ever "survive a hit", since every other type has 1 hp and dies on the first. Comparing this count frame to frame is how `crab_armored_tok` is detected without per-crab identity tracking. */
-function armoredAtHalfHp(crabs: readonly Crab[]): number {
+/** Crabs that have taken at least one hit and survived (hp below their kind's max: armored or elder, since every other type has 1 hp and dies on the first). Comparing this count frame to frame is how `crab_armored_tok` is detected without per-crab identity tracking. */
+function damagedCrabCount(crabs: readonly Crab[]): number {
   let count = 0;
-  for (const c of crabs) if (c.type === 'armored' && c.hp === 1) count += 1;
+  for (const c of crabs) if (c.hp < CRAB_TYPES[c.type].hp) count += 1;
   return count;
 }
 
@@ -381,7 +381,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     let kindCountsNow = new Map<BulletKind, number>();
     let prevKillsCount = state.kills;
     let prevBossHp: number | null = state.boss?.hp ?? null;
-    let prevArmoredHalfHp = armoredAtHalfHp(state.crabs);
+    let prevDamagedCount = damagedCrabCount(state.crabs);
     // Set once `game_over` has played for this run, so the single frame where the loop stops can
     // never be revisited and replay it.
     let gameOverPlayed = false;
@@ -496,12 +496,12 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       if (state.kills > prevKillsCount) sounds.push('crab_hit');
       const bossHpNow = state.boss?.hp ?? null;
       if (prevBossHp !== null && bossHpNow !== null && bossHpNow < prevBossHp) sounds.push('boss_hit');
-      const armoredHalfHpNow = armoredAtHalfHp(state.crabs);
-      if (armoredHalfHpNow > prevArmoredHalfHp) sounds.push('crab_armored_tok');
+      const damagedCountNow = damagedCrabCount(state.crabs);
+      if (damagedCountNow > prevDamagedCount) sounds.push('crab_armored_tok');
       prevShotsLen = state.shots.length;
       prevKillsCount = state.kills;
       prevBossHp = bossHpNow;
-      prevArmoredHalfHp = armoredHalfHpNow;
+      prevDamagedCount = damagedCountNow;
       if (bannerFrames > 0) {
         bannerFrames -= 1;
         if (bannerFrames === 0) bannerText = null;
