@@ -13,8 +13,12 @@ const COUNTS: Record<Formation, number> = {
   classic: 36, fish: 29, diamond: 32, ring: 28, jellyfish: 48, octopus: 42, shell: 34, wreck: 30,
 };
 
-/** The tighter row gap a template of 7 rows or more uses, spec §2. */
+/** The tighter row gap a 7-row template uses, spec §2. */
 const TALL_GAP_Y = 560;
+/** The tightest row gap, used by an 8-row template so its bottom row lands on the old grid's, spec §2. */
+const TALLEST_GAP_Y = 500;
+/** Where the old six-row grid's bottom row sat, and the deepest any silhouette may settle. */
+const DEEPEST_ROW_Y = 5000;
 
 describe('formation templates', () => {
   it('names all eight silhouettes', () => {
@@ -60,13 +64,23 @@ describe('formation templates', () => {
     expect(FIELD_W - (wide[wide.length - 1]! + HALF)).toBeGreaterThanOrEqual(MARCH_MARGIN);
   });
 
-  it('uses the 560 row gap for a template of 7 rows or more and CRAB.gapY below that', () => {
+  it('uses 500 at 8 rows, 560 at 7 and CRAB.gapY below that, and never settles below the old grid', () => {
     for (const f of FORMATIONS) {
-      const expected = FORMATION_TEMPLATES[f].length >= 7 ? TALL_GAP_Y : CRAB.gapY;
+      const rows = FORMATION_TEMPLATES[f].length;
+      const expected = rows >= 8 ? TALLEST_GAP_Y : rows >= 7 ? TALL_GAP_Y : CRAB.gapY;
       const ys = [...new Set(formationPositions(f).map((p) => p.y))].sort((a, b) => a - b);
       expect({ [f]: ys[1]! - ys[0]! }).toEqual({ [f]: expected });
       expect({ [f]: ys[0] }).toEqual({ [f]: CRAB.startY });
+      expect({ [f]: ys[ys.length - 1]! <= DEEPEST_ROW_Y }).toEqual({ [f]: true });
     }
+  });
+
+  it('lands the bottom row of an 8-row template on the old six-row grid, exactly', () => {
+    for (const f of FORMATIONS.filter((x) => FORMATION_TEMPLATES[x].length === 8)) {
+      const ys = formationPositions(f).map((p) => p.y);
+      expect({ [f]: Math.max(...ys) }).toEqual({ [f]: DEEPEST_ROW_Y });
+    }
+    expect(Math.max(...formationPositions('classic').map((p) => p.y))).toBe(DEEPEST_ROW_Y);
   });
 
   it('places every cell inside the field on integers, carrying its template tier', () => {

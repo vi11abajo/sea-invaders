@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARRIVAL, SHOT, TUNING, UNTUNED_SPEED, fireChance, marchSteps, scalePct } from '../src';
+import { SHOT, TUNING, UNTUNED_SPEED, fireChance, marchSteps, scalePct } from '../src';
 
 /** Total march steps over ticks 0..ticks-1 at `pct`. */
 function totalSteps(pct: number, ticks: number): number {
@@ -12,7 +12,7 @@ describe('game-speed tuning', () => {
   it('scales integers by percent, rounding towards zero', () => {
     expect(scalePct(240, 100)).toBe(240);
     expect(scalePct(240, 80)).toBe(192);
-    expect(scalePct(ARRIVAL.speed, 90)).toBe(45);
+    expect(scalePct(50, 90)).toBe(45);
     expect(scalePct(25, 90)).toBe(22);
   });
 

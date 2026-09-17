@@ -92,16 +92,19 @@ describe('LEVELS', () => {
 });
 
 describe('kindForTier', () => {
-  /** Expected kind index per tier 0..4, one row per pool size n = 1..5 (spec §2). */
+  /**
+   * Expected kind index per tier 0..4, one row per pool size n = 1..5 (spec §2, amended
+   * 2026-09-17). The n = 4 row ends 3, 3: reef 4 fields red crabs on both of its top tiers.
+   */
   const EXPECTED: ReadonlyArray<readonly number[]> = [
     [0, 0, 0, 0, 0],
     [0, 0, 1, 1, 1],
     [0, 1, 1, 2, 2],
-    [0, 1, 2, 2, 3],
+    [0, 1, 2, 3, 3],
     [0, 1, 2, 3, 4],
   ];
 
-  it('rounds tier*(n-1)/4 half up over the pool, for every pool size', () => {
+  it('spreads the pool over the tiers by the spec table, for every pool size', () => {
     for (let n = 1; n <= 5; n++) {
       const pool = REEF_KINDS.slice(0, n);
       const got = [0, 1, 2, 3, 4].map((t) => pool.indexOf(kindForTier(pool, t)));

@@ -1,5 +1,3 @@
-import { idiv } from './fixed';
-
 export type Formation = 'classic' | 'fish' | 'diamond' | 'ring' | 'jellyfish' | 'octopus' | 'shell' | 'wreck';
 export type CrabType = 'normal' | 'armored' | 'swift' | 'heavy' | 'elder';
 
@@ -34,13 +32,27 @@ const K4 = reefKinds(4);
 const K5 = reefKinds(5);
 
 /**
- * The kind a formation cell of tier `t` (0 at the bottom row, 4 at the top) gets from `kinds`
- * (spec §2): `t * (n - 1) / 4` rounded half up, written with integers only. A one-kind pool paints
- * every tier the same; a five-kind pool gives tier and kind one for one.
+ * The kind index a formation cell of each tier 0..4 takes from a pool of `n` kinds (spec §2,
+ * amended 2026-09-17): an explicit table, not a formula. The row for four kinds is the amendment
+ * — reef 4's tiers 3 and 4 are both `heavy`, because the red crab's two-life shot is that reef's
+ * headline mechanic and the round-half-up formula it replaces fielded red on the top tier alone.
+ */
+const TIER_KINDS: Record<1 | 2 | 3 | 4 | 5, readonly number[]> = {
+  1: [0, 0, 0, 0, 0],
+  2: [0, 0, 1, 1, 1],
+  3: [0, 1, 1, 2, 2],
+  4: [0, 1, 2, 3, 3],
+  5: [0, 1, 2, 3, 4],
+};
+
+/**
+ * The kind a formation cell of tier `t` (0 at the bottom row, 4 at the top) gets from `kinds`:
+ * `TIER_KINDS` row for the pool's size, read at `t`. A one-kind pool paints every tier the same;
+ * a five-kind pool gives tier and kind one for one.
  */
 export function kindForTier(kinds: readonly CrabType[], tier: number): CrabType {
-  const n = kinds.length;
-  return kinds[idiv(tier * (n - 1) * 2 + 4, 8)]!;
+  const row = TIER_KINDS[kinds.length as 1 | 2 | 3 | 4 | 5];
+  return kinds[row[tier]!]!;
 }
 
 /**

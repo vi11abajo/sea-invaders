@@ -17,10 +17,18 @@ export interface Pos {
  */
 export const MARCH_MARGIN = 400;
 
-/** A template of this many rows or more uses the tighter row gap below, so it still fits the field. */
+/** A template of this many rows uses `TALL_GAP_Y`, so it still fits the field. */
 const TALL_ROWS = 7;
-/** Row gap for a tall template; shorter ones keep `CRAB.gapY`. */
+/** Rows in the tallest template the spec allows; it uses `TALLEST_GAP_Y`. */
+const TALLEST_ROWS = 8;
+/** Row gap for a 7-row template; shorter ones keep `CRAB.gapY`. */
 const TALL_GAP_Y = 560;
+/**
+ * Row gap for an 8-row template (`jellyfish`, `octopus`). Chosen so the bottom row settles at
+ * `CRAB.startY + 7 * 500` = 5000, exactly where the old six-row grid's bottom row sat: no
+ * silhouette reaches deeper towards Octopi's ceiling than the game ever did before core v8.
+ */
+const TALLEST_GAP_Y = 500;
 
 /**
  * The eight silhouettes a campaign wave marches in (spec §2). Each is a block of equal-width rows,
@@ -46,7 +54,7 @@ export const FORMATION_TEMPLATES: Record<Formation, readonly string[]> = {
   ],
   diamond: [
     '...44...',
-    '..3333..',
+    '..4444..',
     '.222222.',
     '11000011',
     '.000000.',
@@ -84,7 +92,7 @@ export const FORMATION_TEMPLATES: Record<Formation, readonly string[]> = {
   ],
   shell: [
     '...44...',
-    '..3333..',
+    '..4444..',
     '.222222.',
     '11111111',
     '00.00.00',
@@ -93,7 +101,7 @@ export const FORMATION_TEMPLATES: Record<Formation, readonly string[]> = {
   ],
   wreck: [
     '...4....',
-    '...33...',
+    '...44...',
     '...222..',
     '...1111.',
     '00000000',
@@ -110,7 +118,8 @@ export const FORMATIONS: readonly Formation[] = Object.keys(FORMATION_TEMPLATES)
  * width — last used column minus first used column, plus one — sets the column gap: `CRAB.gapX`
  * unless that would leave less than `MARCH_MARGIN` on each side of the field, in which case it
  * compresses (6 wide keeps 800, 8 wide drops to 613). The block is centred on the field, and rows
- * sit `CRAB.gapY` apart, or `TALL_GAP_Y` for a template of `TALL_ROWS` rows or more. Integers only,
+ * sit `CRAB.gapY` apart, `TALL_GAP_Y` at `TALL_ROWS` rows and `TALLEST_GAP_Y` at `TALLEST_ROWS`,
+ * which keeps the deepest row of every silhouette at or above the old grid's. Integers only,
  * and no RNG: the shape is the same every wave of every run.
  */
 export function formationPositions(formation: Formation): Pos[] {
@@ -127,7 +136,8 @@ export function formationPositions(formation: Formation): Pos[] {
   const w = lastCol - firstCol + 1;
   const gapX = Math.min(CRAB.gapX, idiv(FIELD_W - CRAB.size - 2 * MARCH_MARGIN, Math.max(1, w - 1)));
   const x0 = idiv(FIELD_W - (w - 1) * gapX, 2);
-  const gapY = rows.length >= TALL_ROWS ? TALL_GAP_Y : CRAB.gapY;
+  const tallGapY = rows.length >= TALLEST_ROWS ? TALLEST_GAP_Y : TALL_GAP_Y;
+  const gapY = rows.length >= TALL_ROWS ? tallGapY : CRAB.gapY;
   const out: Pos[] = [];
   for (let r = 0; r < rows.length; r++) {
     const row = rows[r]!;

@@ -43,7 +43,7 @@ describe('CRAB_SHOTS by kind', () => {
   it('fires exactly one shot per firing tick, whatever the kind: no fans, no silent kinds', () => {
     for (const type of REEF_KINDS) expect({ type, shots: fire(type).enemyShots.length }).toEqual({ type, shots: 1 });
     expect(Object.keys(CRAB_SHOTS).sort()).toEqual([...REEF_KINDS].sort());
-    for (const type of REEF_KINDS) expect(CRAB_SHOTS[type]).not.toBeNull();
+    for (const type of REEF_KINDS) expect(CRAB_SHOTS[type].damage).toBe(type === 'heavy' ? 2 : 1);
   });
 
   it('counts every shot but heavy as damage 1, a boss shot included', () => {

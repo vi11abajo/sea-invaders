@@ -64,16 +64,17 @@ const DODGE_COLUMNS = Array.from(
 
 /**
  * After holding the same dodge column this long, that column is dropped from consideration for
- * one pick: dwelling in one corner lets shots fired over many ticks all converge on it. Retuned
- * from 8 to 5 across Phase 3A.1 lane C's two fix rounds: the boost-table-size changes (RICOCHET
- * removed, WAVE_BLAST scoped to the bottom row, the RANDOM_CHAOS pool widened) and, in fix round 1,
- * player shots actually moving on both axes (so MULTI_SHOT/AUTO_TARGET pickups change which crabs
- * die and when) each shift every subsequent `rngBoosts` draw for the fixed `golden-survivor` seed —
- * an unavoidable side effect of correctly implementing the spec, not a simulation regression. This
- * value was found by sweeping dwell/range/column-count against `survivor`, `level6` and `level30`
- * at once and picking one with comfortable margin on `survivor` (~11,400 ticks, not a bare pass over
- * the 6000 floor) that also still clears level 6 and reaches level 30's boss phase 3 — the smallest
- * change from the pre-lane-C values (1500/8/9 columns) that satisfies all three.
+ * one pick: dwelling in one corner lets shots fired over many ticks all converge on it. It stands
+ * at 7 today, after three retunings. It first went from 8 to 5 across Phase 3A.1 lane C's two fix
+ * rounds: the boost-table-size changes (RICOCHET removed, WAVE_BLAST scoped to the bottom row, the
+ * RANDOM_CHAOS pool widened) and, in fix round 1, player shots actually moving on both axes (so
+ * MULTI_SHOT/AUTO_TARGET pickups change which crabs die and when) each shift every subsequent
+ * `rngBoosts` draw for the fixed `golden-survivor` seed — an unavoidable side effect of correctly
+ * implementing the spec, not a simulation regression. That value was found by sweeping
+ * dwell/range/column-count against `survivor`, `level6` and `level30` at once and picking one with
+ * comfortable margin on `survivor` (~11,400 ticks, not a bare pass over the 6000 floor) that also
+ * still clears level 6 and reaches level 30's boss phase 3 — the smallest change from the
+ * pre-lane-C values (1500/8/9 columns) that satisfies all three.
  * Retuned again with the game-speed tuning of 2026-09-13 (slower Octopi shots, slower and less
  * trigger-happy crabs), which shifts every draw the same way: the same three-way sweep picked range
  * 1200, dwell 7 and 11 columns (`survivor` ~10,200 ticks, level 6 cleared, level 30 phase 3).

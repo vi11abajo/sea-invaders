@@ -224,8 +224,8 @@ export function tamed(s: GameState, v: number): number {
  * Applies ICE_FREEZE's ×0.5 slowdown to a per-tick displacement `v` (spec §5.2), alongside `tamed`
  * (never on a stored velocity, so the hash stays stable across activation/expiry mid-flight).
  * `bossShot` skips the halving while `bossImmuneToSlowdown` (Crimson's rage), same guard as `tamed`.
- * Both `chilled` and `tamed` apply only to crab movement now (march, arrival descent, diver dives,
- * spec C5) — enemy shot velocity is never slowed by either, so every caller now passes `false`.
+ * Both `chilled` and `tamed` apply only to crab movement now (the march and a wave's arrival
+ * descent, spec C5) — enemy shot velocity is never slowed by either, so every caller passes `false`.
  */
 export function chilled(s: GameState, v: number, bossShot: boolean): number {
   if (bossShot && bossImmuneToSlowdown(s)) return v;

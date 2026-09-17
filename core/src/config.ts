@@ -55,7 +55,10 @@ export function piercingFor(variant: OctopiVariant): boolean {
 export const TUNING = {
   /** How fast Octopi's shots fly: scales `UNTUNED_SPEED.octopiShot` into `SHOT.speed`. */
   octopiShotPct: 80,
-  /** How fast crabs move: the formation march (see `marchSteps`) and a wave's arrival descent. */
+  /**
+   * How fast crabs move: the formation march only (see `marchSteps`). A wave's arrival descent
+   * runs at `ARRIVAL.speed` raw, which this knob does not touch.
+   */
   crabMovePct: 90,
   /** How often crabs fire: scales the per-tick fire chance (see `fireChance`). */
   crabFirePct: 90,
