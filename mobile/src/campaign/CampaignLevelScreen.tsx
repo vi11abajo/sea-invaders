@@ -56,6 +56,8 @@ interface Down {
 interface CampaignLevelScreenProps {
   levelId: number;
   practice: boolean;
+  /** Practice walk-on only: the hearts carried over from the level just cleared (a full reef's lives otherwise). */
+  lives?: number;
   /**
    * The campaign progress before this level's result is applied. Deliberately unused for the
    * result screen: deriving "Next level"/"Retry reef" targets or the "Best" stat from this prop
@@ -64,7 +66,7 @@ interface CampaignLevelScreenProps {
    * used instead, which is correct regardless of render timing.
    */
   progress: CampaignProgress;
-  startLevel: (id: number, practice: boolean, octopi: OctopiVariant) => RunConfig;
+  startLevel: (id: number, practice: boolean, octopi: OctopiVariant, carried?: number) => RunConfig;
   finishLevel: (result: FinishLevelInput) => Promise<{ outcome: Outcome; next: CampaignProgress }>;
   /** The loadout: the Level start picker equips its variant, and the run is played with it. */
   loadout: LoadoutApi;
@@ -80,9 +82,10 @@ interface CampaignLevelScreenProps {
   onOpenShop: () => void;
   /**
    * Opens a level id — "Next level", "Retry level" or "Retry reef". `practice` opens it as an
-   * unranked replay: the walk on through a reef the player has already cleared.
+   * unranked replay: the walk on through a reef the player has already cleared, `lives` carrying
+   * the hearts left over from the level just cleared.
    */
-  onNext: (id: number, practice?: boolean) => void;
+  onNext: (id: number, practice?: boolean, lives?: number) => void;
   /** Called once the player leaves the result screen. */
   onDone: (outcome: Outcome) => void;
   onExit: () => void;
@@ -104,7 +107,7 @@ function reefLivesAfter(livesLeft: number, run: RunConfig | null, revived: boole
 
 /** One campaign level: the Level start screen, the boss reveal on boss rows, then the run and its result. */
 export function CampaignLevelScreen({
-  levelId, practice, startLevel, finishLevel, loadout, signedIn, connecting, signInError, onConnect, onOpenShop,
+  levelId, practice, lives: carried, startLevel, finishLevel, loadout, signedIn, connecting, signInError, onConnect, onOpenShop,
   onNext, onDone, onExit,
 }: CampaignLevelScreenProps) {
   const level = useMemo(() => levelById(levelId), [levelId]);
@@ -127,7 +130,7 @@ export function CampaignLevelScreen({
   // The RunConfig is built when Start is pressed, so it carries the octopi picked just before; kept
   // in the phase from then on, so it stays the same object and the game loop is not restarted.
   const beginPlay = () => {
-    const run = startLevel(levelId, practice, octopi);
+    const run = startLevel(levelId, practice, octopi, carried);
     setPhase({ kind: level.boss !== undefined ? 'boss-intro' : 'playing', run });
   };
 
@@ -170,7 +173,7 @@ export function CampaignLevelScreen({
   if (phase.kind === 'intro') {
     // The lives the run will start with: the level's entry lives plus the picked octopi's (Anchor's
     // extra life is added by the core's createGame; the reef lives in the progress are untouched).
-    const preview = startLevel(levelId, practice, octopi);
+    const preview = startLevel(levelId, practice, octopi, carried);
     return (
       <LevelIntro
         level={level}
@@ -241,10 +244,11 @@ export function CampaignLevelScreen({
         const kind = result.kind;
         const next = result.next;
         const best = next.best[levelId - 1] ?? 0;
+        const livesLeft = reefLivesAfter(outcome.livesLeft, phase.run, revivesUsed.current > 0);
         const stats = [
           { label: 'Score', value: formatInt(outcome.score) },
           { label: 'Best', value: formatInt(best) },
-          { label: 'Lives left', value: String(reefLivesAfter(outcome.livesLeft, phase.run, revivesUsed.current > 0)) },
+          { label: 'Lives left', value: String(livesLeft) },
         ];
         const toMap = { label: 'Map', onPress: () => onDone(kind) };
 
@@ -299,20 +303,24 @@ export function CampaignLevelScreen({
             );
           case 'practice': {
             // Walking on through a cleared reef: after a cleared replay the primary action opens the
-            // next level instead of sending the player back to the map for every level. The reef's
-            // boss ends the walk (the next reef starts from the map), a locked level is never opened
-            // this way, and a level the player has not cleared yet opens as the real attempt,
-            // exactly as the map would open it.
+            // next level instead of sending the player back to the map for every level, and the
+            // hearts left over travel with the player (a real attempt takes the reef lives instead).
+            // The reef's boss ends the walk (the next reef starts from the map), a locked level is
+            // never opened this way, and a level the player has not cleared yet opens as the real
+            // attempt, exactly as the map would open it. A lost level ends the walk: "Play again"
+            // starts it over with a full reef's lives, not with the hearts it was entered with.
             const nextId = levelId + 1;
             const nextState = levelId % LEVELS_PER_REEF === 0 ? 'locked' : levelState(next, nextId);
             const walkOn = outcome.cleared && nextState !== 'locked';
+            const nextPractice = nextState === 'cleared';
+            const restart = carried === undefined ? playAgain : () => onNext(levelId, true);
             return (
               <ResultView
                 title={TITLE.practice}
                 score={outcome.score}
                 stats={stats}
                 primaryLabel={walkOn ? 'Next level' : undefined}
-                onPlayAgain={walkOn ? () => onNext(nextId, nextState === 'cleared') : playAgain}
+                onPlayAgain={walkOn ? () => onNext(nextId, nextPractice, nextPractice ? Math.max(1, livesLeft) : undefined) : restart}
                 secondary={toMap}
                 onBack={onExit}
               />

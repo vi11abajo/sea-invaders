@@ -35,7 +35,8 @@ type Route = 'app' | 'selftest' | 'ui' | { kind: 'level'; id: number };
 type Screen =
   | 'home' | 'practice' | 'daily' | 'leaderboard' | 'shop' | 'profile'
   | { kind: 'campaign'; initialReef?: number }
-  | { kind: 'level'; id: number; practice: boolean };
+  // `lives`: the hearts a practice walk-on carries into this level from the one just cleared.
+  | { kind: 'level'; id: number; practice: boolean; lives?: number };
 
 /** The reef (1..5) that level `id` (1..30) belongs to. */
 function reefOf(id: number): number {
@@ -245,6 +246,7 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
         key={`${screen.id}-${screen.practice}-${levelAttempt}`}
         levelId={screen.id}
         practice={screen.practice}
+        lives={screen.lives}
         progress={campaign.progress}
         startLevel={campaign.startLevel}
         finishLevel={campaign.finishLevel}
@@ -254,9 +256,9 @@ function Screens({ initialLevelId, auth, loadout }: ScreensProps) {
         signInError={error}
         onConnect={() => void signIn()}
         onOpenShop={() => openShop(screen)}
-        onNext={(id, practice = false) => {
+        onNext={(id, practice = false, lives) => {
           setLevelAttempt((n) => n + 1);
-          setScreen({ kind: 'level', id, practice });
+          setScreen({ kind: 'level', id, practice, lives });
         }}
         onDone={() => setScreen({ kind: 'campaign', initialReef: reefOf(screen.id) })}
         onExit={() => setScreen({ kind: 'campaign', initialReef: reefOf(screen.id) })}

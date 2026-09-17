@@ -8,7 +8,7 @@ import Animated, {
   Easing, interpolate, useAnimatedStyle, useSharedValue, withRepeat, withTiming,
 } from 'react-native-reanimated';
 import {
-  currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEFS, TYPE_COLOUR,
+  currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEF_LIVES, REEFS, TYPE_COLOUR,
   type CampaignProgress,
 } from '@sea-invaders/core';
 import { hapticLight, hapticTap } from '../audio/haptics';
@@ -636,7 +636,8 @@ function LevelSheetView({ id, progress, sprites, onPlay, onClose }: LevelSheetPr
             { label: 'Waves', value: String(level.waves) },
             { label: 'New enemy', value: `${newKind.name} crab` },
             { label: 'Best', value: best > 0 ? formatInt(best) : '—' },
-            { label: 'Reef lives', value: String(livesForEntry(progress)) },
+            // A practice replay starts with a full reef's lives; a real attempt with the reef's own.
+            { label: practice ? 'Lives' : 'Reef lives', value: String(practice ? REEF_LIVES : livesForEntry(progress)) },
           ]}
         />
       ) : (
@@ -672,7 +673,7 @@ function BossSheet({ reef, progress, sprites, onPlay, onClose }: BossSheetProps)
   const id = reef * LEVELS_PER_REEF;
   const practice = levelState(progress, id) === 'cleared';
   const bossSprite = sprites?.bosses[reef - 1]?.[0] ?? null;
-  const lives = livesForEntry(progress);
+  const lives = practice ? REEF_LIVES : livesForEntry(progress);
   const ability = BOSS_ABILITY[reef - 1];
   const [view, setView] = useState<SheetView>('main');
   const toggleInfo = () => setView((v) => (v === 'main' ? 'info' : 'main'));
