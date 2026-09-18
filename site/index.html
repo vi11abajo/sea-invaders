@@ -152,6 +152,15 @@ section { padding-block: clamp(64px, 9vw, 120px); }
 .download .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
 .download .fine { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
 
+.skr { display: inline-block; width: .78em; height: .78em; vertical-align: -.04em; margin-right: .18em; }
+.made { display: inline-flex; align-items: center; gap: 14px; margin-top: 26px; color: var(--text-3); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; font-family: var(--mono); }
+.made img { height: 34px; width: auto; opacity: .92; }
+.seekerband { position: relative; margin: 0 calc(-1 * var(--gutter)) clamp(28px, 4vw, 48px); border-radius: 24px; overflow: hidden; border: 1px solid var(--glass-border); aspect-ratio: 3 / 1; min-height: 160px; }
+.seekerband img { width: 100%; height: 100%; object-fit: cover; object-position: 60% 50%; }
+.seekerband::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(12,12,14,.35), rgba(12,12,14,0) 50%, rgba(12,12,14,.2)); }
+@media (min-width: 900px) { .seekerband { margin-inline: 0; } }
+footer .lockup { display: inline-flex; align-items: center; gap: 12px; }
+footer .lockup img { height: 26px; width: auto; opacity: .85; }
 footer { padding: 40px 0 calc(40px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--glass-border); font-size: 13px; color: var(--text-3); }
 footer .row { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: space-between; align-items: center; }
 footer a { color: var(--text-2); text-decoration: none; }
@@ -200,6 +209,7 @@ footer .brand img { width: 28px; border-radius: 8px; }
       <a class="pill secondary" href="#loop">How it plays</a>
     </div>
     <p class="meta rv"><b>Octopi</b> holds the reef. The crabs come in waves. <b>One seed a day</b>, everyone plays the same board.</p>
+    <p class="made rv">Made for <img src="assets/seeker-lockup.png" alt="Seeker, Solana Mobile" width="720" height="240"></p>
   </div>
   <div class="stripe" aria-hidden="true"></div>
 </header>
@@ -263,6 +273,7 @@ footer .brand img { width: 28px; border-radius: 8px; }
     <span class="label">04 <b>—</b> Why Seeker, why Solana</span>
     <h2>The phone is already the wallet</h2>
   </div>
+  <div class="seekerband rv"><img src="assets/seeker-banner.jpg" alt="Seeker by Solana Mobile" loading="lazy" width="1800" height="600"></div>
   <div class="two">
     <div class="point rv"><div class="n" style="color:#9945FF">01</div><div><h3>SKR is the currency of everything</h3><p>Tickets, the shop, the Tide's revives. Nothing else to buy or bridge.</p></div></div>
     <div class="point rv"><div class="n" style="color:#5497D5">02</div><div><h3>Sign-In With Solana and Mobile Wallet Adapter</h3><p>No keys in the app. The wallet signs and sends; the server only co-signs what it replayed.</p></div></div>
@@ -274,11 +285,11 @@ footer .brand img { width: 28px; border-radius: 8px; }
 
 <section id="economics" class="wrap">
   <div class="head rv">
-    <span class="label">05 <b>—</b> Economics</span>
+    <span class="label">05 <b>—</b> Economics · <img class="skr" src="assets/skr.png" alt="" width="96" height="96">SKR</span>
     <h2>Players fund the pool they compete for</h2>
   </div>
   <div class="econ">
-    <div class="stat rv"><div class="v grad">10</div><div class="l">SKR per ticket, three attempts</div></div>
+    <div class="stat rv"><div class="v grad"><img class="skr" src="assets/skr.png" alt="SKR" width="96" height="96">10</div><div class="l">SKR per ticket, three attempts</div></div>
     <div class="stat rv"><div class="v grad">95 %</div><div class="l">of every ticket into the weekly pool</div></div>
     <div class="stat rv"><div class="v grad">20 %</div><div class="l">of every shop purchase tops the pool up</div></div>
   </div>
@@ -308,7 +319,7 @@ footer .brand img { width: 28px; border-radius: 8px; }
 <footer class="wrap">
   <div class="row">
     <span class="brand"><img src="assets/icon-64.png" alt="">Sea Invaders</span>
-    <span>Devnet build. Test SKR only. © 2026</span>
+    <span class="lockup"><img src="assets/seeker-lockup.png" alt="Seeker, Solana Mobile" width="720" height="240"><span>Devnet build. Test SKR only. © 2026</span></span>
     <a href="https://x.com/vi11abajo" rel="me noopener" target="_blank">Contact on X</a>
   </div>
 </footer>

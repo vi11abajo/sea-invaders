@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { hapticTap } from '../audio/haptics';
 import { playSfx } from '../audio/sfx';
+import { SkrIcon } from './SkrIcon';
 import { Txt } from './Txt';
 import { COLORS, RADIUS, SIZE } from './tokens';
 
@@ -18,6 +19,8 @@ interface PillButtonProps {
    * shrinks, so it always takes the same room (e.g. `Campaign · 9/30` and `Campaign · 100/100`).
    */
   fitLabel?: boolean;
+  /** An SKR amount shown after the label with the token mark (`Buy ticket — [S] 10`; a bare `[S] 25` when the label is empty). */
+  skr?: string;
 }
 
 /** Horizontal padding inside every pill. */
@@ -31,7 +34,7 @@ const FIT_MAX_HEIGHT_SHARE = 0.46;
 const FIT_SLACK = 0.96;
 
 /** A full pill. Pills shorter than 48 dp get a hit slop, so the touch target stays 48 dp. */
-export function PillButton({ label, onPress, kind = 'primary', height, disabled = false, fitLabel = false }: PillButtonProps) {
+export function PillButton({ label, onPress, kind = 'primary', height, disabled = false, fitLabel = false, skr }: PillButtonProps) {
   const h = height ?? (kind === 'primary' ? SIZE.primaryButton : SIZE.secondaryButton);
   const slop = Math.max(0, (SIZE.minTap - h) / 2);
   const tone = kind === 'primary' ? 'onPrimary' : 'primary';
@@ -74,9 +77,21 @@ export function PillButton({ label, onPress, kind = 'primary', height, disabled 
           </Txt>
         </View>
       )}
-      <Txt variant="button" tone={tone} numberOfLines={1} style={fittedSize !== null ? { fontSize: fittedSize } : undefined}>
-        {label}
-      </Txt>
+      <View style={styles.row}>
+        {label !== '' && (
+          <Txt variant="button" tone={tone} numberOfLines={1} style={fittedSize !== null ? { fontSize: fittedSize } : undefined}>
+            {label}
+          </Txt>
+        )}
+        {skr !== undefined && (
+          <>
+            <SkrIcon size={(fittedSize ?? FIT_BASE_SIZE) * 0.85} color={kind === 'primary' ? COLORS.onPrimary : COLORS.text} />
+            <Txt variant="button" tone={tone} numberOfLines={1} style={[styles.skrGap, fittedSize !== null ? { fontSize: fittedSize } : undefined]}>
+              {skr}
+            </Txt>
+          </>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -93,4 +108,7 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.4 },
   // Out of flow and invisible; wide enough that the label never wraps while it is measured.
   measure: { position: 'absolute', left: 0, top: 0, width: 2000, opacity: 0 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // The mark already sits 6 dp after the label; the number hugs the mark a little closer.
+  skrGap: { marginLeft: -2 },
 });

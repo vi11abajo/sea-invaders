@@ -6,6 +6,7 @@ import { TicketCard } from '../daily/TicketCard';
 import { GradientText } from '../ui/GradientText';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
+import { SkrIcon } from '../ui/SkrIcon';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS, SIZE } from '../ui/tokens';
 import type { RankedInfo } from './model';
@@ -123,7 +124,10 @@ export function DailyRunCard({ ranked, now, signedIn, onConnect, error = null, o
         <Stat label={ranked.weekRank === null ? 'Week' : `Week · #${ranked.weekRank}`} value={formatInt(ranked.weekTotal)} />
         <View style={styles.stat}>
           <Txt variant="secondary" tone="tertiary" style={styles.small}>Pool</Txt>
-          <GradientText text={`${formatSkr(ranked.poolSkr)} SKR`} size={13} />
+          <View style={styles.pool}>
+            <SkrIcon size={11} color={COLORS.info} />
+            <GradientText text={formatSkr(ranked.poolSkr)} size={13} />
+          </View>
         </View>
       </View>
       <RecordScore
@@ -229,6 +233,7 @@ export function DailyRunRulesSheet({ visible, onClose }: DailyRunRulesSheetProps
 }
 
 const styles = StyleSheet.create({
+  pool: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   card: {
     gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderRadius: RADIUS.card,
     backgroundColor: 'rgba(18,18,18,0.66)', borderWidth: 1, borderColor: COLORS.glassBorder,

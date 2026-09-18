@@ -5,6 +5,7 @@ import type { ReviveQuote } from '../api/revive';
 import { GradientFill } from '../ui/GradientFill';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
+import { SkrAmount } from '../ui/SkrIcon';
 import { Toast } from '../ui/Toast';
 import { Txt } from '../ui/Txt';
 import { COLORS, FONTS, RADIUS, SIGNATURE_GRADIENT, SIZE } from '../ui/tokens';
@@ -201,7 +202,7 @@ function PriceCard({ quote, now }: { quote: Exclude<TideQuote, { status: 'signed
       <View style={styles.cardLeft}>
         <Txt variant="secondary" tone="tertiary" style={styles.cardLabel}>Revive now</Txt>
         {ready !== null ? (
-          <Txt style={styles.price} numberOfLines={1}>{`${formatSkr(ready.priceSkr)} SKR`}</Txt>
+          <SkrAmount value={formatSkr(ready.priceSkr)} textStyle={styles.price} size={18} gap={6} />
         ) : quote.status === 'error' ? (
           <Txt variant="body" tone="warning" style={styles.cardError}>{quote.message}</Txt>
         ) : (
@@ -211,7 +212,7 @@ function PriceCard({ quote, now }: { quote: Exclude<TideQuote, { status: 'signed
       {next !== null && (
         <View style={styles.cardRight}>
           <Txt variant="secondary" tone="tertiary" style={styles.cardLabel}>Drops to</Txt>
-          <Txt style={styles.drop}>{`${formatSkr(next.priceSkr)} SKR in ${dropsIn(secondsLeft)}`}</Txt>
+          <SkrAmount value={`${formatSkr(next.priceSkr)} in ${dropsIn(secondsLeft)}`} textStyle={styles.drop} size={11} color={COLORS.info} gap={4} style={styles.dropRow} />
         </View>
       )}
     </View>
@@ -281,6 +282,7 @@ const styles = StyleSheet.create({
   price: { fontFamily: FONTS.mono, fontSize: 22, color: COLORS.text },
   priceLoading: { alignSelf: 'flex-start', marginTop: 4 },
   drop: { fontFamily: FONTS.mono, fontSize: 13, color: COLORS.info, textAlign: 'right' },
+  dropRow: { justifyContent: 'flex-end' },
   ladder: { flexDirection: 'row', gap: 3 },
   segment: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.12)' },
   segmentFilled: { backgroundColor: 'transparent' },

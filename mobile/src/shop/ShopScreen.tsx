@@ -9,6 +9,7 @@ import { buyItem, confirmPurchase, getShop, type ShopInfo, type ShopItem } from 
 import { onBackPress } from '../audio/onBackPress';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
+import { SkrAmount, SkrIcon } from '../ui/SkrIcon';
 import { Toast } from '../ui/Toast';
 import { Txt } from '../ui/Txt';
 import { COLORS, FONTS, MOTION, RADIUS, SIZE } from '../ui/tokens';
@@ -246,7 +247,7 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
 function BalancePill({ skr, solLamports }: { skr: number; solLamports: number | null }) {
   return (
     <View style={styles.balance}>
-      <Txt style={styles.balanceText}>{`${formatSkr(skr)} SKR`}</Txt>
+      <SkrAmount value={formatSkr(skr)} textStyle={styles.balanceText} size={11} gap={4} />
       {solLamports !== null && (
         <>
           <Txt style={[styles.balanceText, styles.balanceDot]}>·</Txt>
@@ -265,10 +266,11 @@ interface CatalogueProps {
 
 function Catalogue({ shop, disabled, onBuy }: CatalogueProps) {
   const short = (item: ShopItem) => shop.swap.available && !item.owned && item.priceSkr > shop.balanceSkr;
-  const priceLabel = (item: ShopItem): string => {
-    if (item.owned) return 'Owned';
+  // An SKR price carries the token mark (`skr: true`); "Owned" and a SOL quote are plain text.
+  const priceLabel = (item: ShopItem): { label: string; skr: boolean } => {
+    if (item.owned) return { label: 'Owned', skr: false };
     const sol = short(item) ? (item.priceSol ?? null) : null; // `??`: an API without the field reads as no quote
-    return sol === null ? `${formatSkr(item.priceSkr)} SKR` : `≈ ${formatSolPrice(sol)} SOL`;
+    return sol === null ? { label: formatSkr(item.priceSkr), skr: true } : { label: `≈ ${formatSolPrice(sol)} SOL`, skr: false };
   };
   const variants = shop.items.filter((item) => item.kind === 'variant');
   const skins = shop.items.filter((item) => item.kind === 'skin');
@@ -297,7 +299,7 @@ function Catalogue({ shop, disabled, onBuy }: CatalogueProps) {
                   <Txt variant="secondary" tone="secondary" numberOfLines={1}>{PERKS[item.id]}</Txt>
                 )}
               </View>
-              <PricePill item={item} label={priceLabel(item)} height={ROW_PILL} disabled={disabled} onBuy={onBuy} />
+              <PricePill item={item} {...priceLabel(item)} height={ROW_PILL} disabled={disabled} onBuy={onBuy} />
             </View>
           ))}
         </>
@@ -311,7 +313,7 @@ function Catalogue({ shop, disabled, onBuy }: CatalogueProps) {
                 <View key={item.id} style={styles.card}>
                   <ItemArt itemId={item.id} size={SKIN_SWATCH} />
                   <Txt style={styles.cardName} numberOfLines={1}>{item.name}</Txt>
-                  <PricePill item={item} label={priceLabel(item)} height={CARD_PILL} stretch disabled={disabled} onBuy={onBuy} />
+                  <PricePill item={item} {...priceLabel(item)} height={CARD_PILL} stretch disabled={disabled} onBuy={onBuy} />
                 </View>
               ))}
               {pair.length === 1 && <View style={styles.cardSpacer} />}
@@ -326,6 +328,8 @@ function Catalogue({ shop, disabled, onBuy }: CatalogueProps) {
 interface PricePillProps {
   item: ShopItem;
   label: string;
+  /** The label is an SKR amount: draw the token mark before it. */
+  skr: boolean;
   /** 40 dp on a row, 36 dp full width on a skin card; both keep a 48 dp touch target. */
   height: number;
   stretch?: boolean;
@@ -334,12 +338,12 @@ interface PricePillProps {
 }
 
 /** The mono price button: white with black text to buy, `.08` white with `.64` text once owned. */
-function PricePill({ item, label, height, stretch = false, disabled, onBuy }: PricePillProps) {
+function PricePill({ item, label, skr, height, stretch = false, disabled, onBuy }: PricePillProps) {
   const slop = Math.max(0, (SIZE.minTap - height) / 2);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={item.owned ? `${item.name} owned` : `Buy ${item.name} for ${label}`}
+      accessibilityLabel={item.owned ? `${item.name} owned` : `Buy ${item.name} for ${label}${skr ? ' SKR' : ''}`}
       accessibilityState={{ disabled: item.owned || disabled }}
       disabled={item.owned || disabled}
       onPress={() => onBuy(item)}
@@ -352,6 +356,7 @@ function PricePill({ item, label, height, stretch = false, disabled, onBuy }: Pr
         pressed && styles.pressed,
       ]}
     >
+      {skr && <SkrIcon size={height === ROW_PILL ? 11 : 10} color={COLORS.onPrimary} />}
       <Txt
         style={[styles.pillText, { fontSize: height === ROW_PILL ? 13 : 12 }, item.owned ? styles.pillTextOwned : styles.pillTextBuy]}
         numberOfLines={1}
@@ -398,7 +403,7 @@ const styles = StyleSheet.create({
   },
   cardSpacer: { flex: 1 },
   cardName: { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.text },
-  pill: { borderRadius: RADIUS.pill, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  pill: { borderRadius: RADIUS.pill, paddingHorizontal: 14, flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center' },
   pillStretch: { alignSelf: 'stretch' },
   pillBuy: { backgroundColor: COLORS.primary },
   pillOwned: { backgroundColor: COLORS.secondary },
