@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0C0C0E">
 <meta property="og:title" content="Sea Invaders">
 <meta property="og:description" content="An arcade shooter under the sea, built for the Solana Seeker.">
-<meta property="og:image" content="https://seainvaders.xyz/assets/keyart.jpg">
+<meta property="og:image" content="https://seainvaders.xyz/assets/keyart-wide.jpg">
 <meta property="og:url" content="https://seainvaders.xyz/">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="assets/icon-64.png" sizes="64x64" type="image/png">
@@ -70,10 +70,10 @@ p { margin: 0; }
 
 /* hero */
 .hero { position: relative; min-height: 100svh; display: grid; align-items: center; padding-block: 88px 64px; overflow: hidden; }
-.hero .art { position: absolute; top: 0; right: 0; bottom: 0; width: min(52vw, 620px); z-index: 0; pointer-events: none; }
-.hero .art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; }
-.hero .art::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, var(--bg) 0%, rgba(12,12,14,.65) 38%, rgba(12,12,14,0) 100%); }
-.hero .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(12,12,14,.2) 0%, rgba(12,12,14,0) 30%, rgba(12,12,14,0) 70%, var(--bg) 100%); }
+.hero .art { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.hero .art img { width: 100%; height: 100%; object-fit: cover; object-position: 62% 50%; }
+.hero .art::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(12,12,14,.9) 0%, rgba(12,12,14,.72) 30%, rgba(12,12,14,.28) 58%, rgba(12,12,14,.08) 100%); }
+.hero .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(12,12,14,.35) 0%, rgba(12,12,14,0) 26%, rgba(12,12,14,0) 66%, var(--bg) 100%); }
 .hero .copy { position: relative; z-index: 1; max-width: 640px; }
 .hero h1 { font-size: clamp(56px, 10vw, 128px); line-height: .92; letter-spacing: -.05em; margin: 22px 0 18px; }
 .hero h1 span { display: block; }
@@ -213,8 +213,8 @@ html.tc-on, html.tc-on * { cursor: none !important; }
 
 @media (max-width: 760px) {
   .hero { padding-top: 64px; min-height: 92svh; }
-  .hero .art { width: 100%; opacity: .55; }
-  .hero .art::before { background: linear-gradient(180deg, rgba(12,12,14,.2), rgba(12,12,14,.75) 60%, var(--bg) 100%); }
+  .hero .art { opacity: .8; }
+  .hero .art::before { background: linear-gradient(180deg, rgba(12,12,14,.45), rgba(12,12,14,.7) 55%, var(--bg) 100%); }
   .school { right: 10%; top: 6%; }
   .octopi { right: 6%; bottom: 8%; width: 110px; opacity: .9; }
   .pill { height: 52px; padding: 0 20px; font-size: 15px; }
@@ -229,7 +229,7 @@ html.tc-on, html.tc-on * { cursor: none !important; }
 <div class="water" aria-hidden="true"><div class="band b1"></div><div class="band b2"></div><div class="band b3"></div><div class="ray a"></div><div class="ray b"></div></div>
 
 <header class="hero">
-  <div class="art" aria-hidden="true"><img src="assets/keyart.jpg" alt="" width="841" height="1870" fetchpriority="high"></div>
+  <div class="art" aria-hidden="true"><img src="assets/keyart-wide.jpg" alt="" width="1672" height="941" fetchpriority="high"></div>
   <div class="school" aria-hidden="true">
     <img src="assets/crab-green.png" alt="" style="left:2%;top:10%">
     <img src="assets/crab-blue.png" alt="" style="left:22%;top:0;animation-delay:-.8s">
