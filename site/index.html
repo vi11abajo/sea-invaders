@@ -87,6 +87,11 @@ p { margin: 0; }
 @keyframes sway { from { transform: translateX(-14px); } to { transform: translateX(14px); } }
 .octopi { position: absolute; z-index: 1; right: min(8vw, 120px); bottom: 12%; width: clamp(120px, 16vw, 210px); animation: drift 3.6s ease-in-out infinite; filter: drop-shadow(0 18px 30px rgba(0,0,0,.6)); }
 @keyframes drift { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+/* set by the hero script: both are then moved by transforms, behind the copy */
+.hero.alive .octopi { left: 0; top: 0; right: auto; bottom: auto; animation: none; will-change: transform; }
+.hero.alive .school { left: 0; right: auto; width: max-content; height: auto; display: flex; align-items: flex-start; gap: clamp(16px, 3.2vw, 46px); will-change: transform; }
+.hero.alive .school img { position: static; animation-name: bob; animation-duration: 2.4s; }
+.hero.alive .school img:nth-child(odd) { margin-top: clamp(10px, 1.6vw, 24px); }
 
 /* sections */
 section { padding-block: clamp(64px, 9vw, 120px); }
@@ -163,9 +168,27 @@ section { padding-block: clamp(64px, 9vw, 120px); }
 .reef h3 { position: relative; font-size: 18px; margin-top: 4px; }
 .reef p { position: relative; font-size: 13px; color: var(--text-2); margin-top: 4px; }
 .reef .a { position: relative; display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 11px; padding: 4px 9px; border-radius: 99px; border: 1px solid var(--glass-border); color: var(--text-2); }
-.kinds { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 26px; align-items: center; }
-.kind { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
-.kind img { width: 30px; }
+.bestiary { margin-top: clamp(30px, 4vw, 44px); }
+.bestiary-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 14px; }
+.bestiary-head p { color: var(--text-2); font-size: 15px; }
+.kinds { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.kind { position: relative; display: flex; flex-direction: column; padding: 16px 14px 12px; border-radius: 16px; border: 1px solid var(--glass-border);
+  background: linear-gradient(180deg, rgba(236,228,253,.07), rgba(236,228,253,.02)); overflow: hidden; transition: border-color .25s ease, transform .25s ease; }
+.kind:hover { border-color: var(--c); transform: translateY(-4px); }
+.kind::before { content: ""; position: absolute; left: 50%; top: -34px; width: 150px; height: 120px; transform: translateX(-50%); background: var(--c); filter: blur(46px); opacity: .32; pointer-events: none; }
+.kind img { position: relative; width: 72px; height: 68px; object-fit: contain; margin: 22px auto 12px; animation: bob 2.6s ease-in-out infinite alternate; filter: drop-shadow(0 10px 16px rgba(0,0,0,.55)); }
+.kind:nth-child(2) img { animation-delay: -.6s; } .kind:nth-child(3) img { animation-delay: -1.2s; } .kind:nth-child(4) img { animation-delay: -1.8s; } .kind:nth-child(5) img { animation-delay: -2.3s; }
+@keyframes bob { from { transform: translateY(-4px); } to { transform: translateY(4px); } }
+.kind-body { flex: 1; }
+.kind-reef { position: absolute; top: 12px; left: 14px; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--c); }
+.kind h3 { font-size: 17px; }
+.kind p { margin-top: 3px; font-size: 13px; line-height: 1.4; color: var(--text-2); }
+.kind-stats { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--glass-border);
+  font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); }
+.kind-stats b { color: var(--text); font-weight: 500; }
+.pips { display: inline-flex; align-items: center; gap: 4px; }
+.pips i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.14); }
+.pips i.on { background: var(--c); box-shadow: 0 0 8px var(--c); }
 
 /* solana */
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 40px; }
@@ -267,7 +290,15 @@ html.tc-on, html.tc-on * { cursor: none !important; }
   .reef .k, .reef h3, .reef p, .reef .a { grid-column: 2; }
   .reef .a { justify-self: start; margin-top: 8px; }
   .reef::before { inset: -30% auto -30% -30%; width: 70%; height: auto; opacity: .35; }
-  .kinds { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 22px; }
+  .kinds { grid-template-columns: 1fr; gap: 8px; }
+  .kind { flex-direction: row; align-items: center; gap: 12px; padding: 12px 14px; }
+  .kind:hover { transform: none; }
+  .kind::before { left: 0; top: 50%; width: 120px; height: 90px; transform: translate(-30%, -50%); }
+  .kind img { width: 52px; height: 48px; margin: 0; flex: 0 0 auto; }
+  .kind-body { position: relative; }
+  .kind-reef { position: static; display: block; margin-bottom: 1px; }
+  .kind h3 { font-size: 16px; }
+  .kind-stats { flex-direction: column; align-items: flex-end; gap: 6px; margin-top: 0; padding-top: 0; border-top: 0; flex: 0 0 auto; }
 
   .seekerband { height: 132px; border-radius: 18px; margin-bottom: 8px; }
   .seekerband img { object-position: 50% 50%; }
@@ -377,13 +408,15 @@ html.tc-on, html.tc-on * { cursor: none !important; }
     <article class="reef rv" style="--c: var(--r4)"><img src="assets/boss-4.png" alt="Crimson Behemoth"><div class="k">Reef 4 · Crimson Deep</div><h3>Crimson Behemoth</h3><p>Red water, no sun. Shots hit twice as hard.</p><span class="a">Rage</span></article>
     <article class="reef rv" style="--c: var(--r5)"><img src="assets/boss-5.png" alt="Void Sovereign"><div class="k">Reef 5 · The Void</div><h3>Void Sovereign</h3><p>Beyond the last light. Win here, and the ocean is free.</p><span class="a">Freeze</span></article>
   </div>
-  <div class="kinds rv">
-    <span class="label">The crabs</span>
-    <span class="kind"><img src="assets/crab-green.png" alt="">Normal</span>
-    <span class="kind"><img src="assets/crab-blue.png" alt="">Armored, two hits</span>
-    <span class="kind"><img src="assets/crab-yellow.png" alt="">Swift, fires twice as often</span>
-    <span class="kind"><img src="assets/crab-red.png" alt="">Heavy, a shot that takes two lives</span>
-    <span class="kind"><img src="assets/crab-violet.png" alt="">Elder, three hits</span>
+  <div class="bestiary rv">
+    <div class="bestiary-head"><span class="label">The crabs</span><p>Colour is kind. Every reef brings a new one into the waves.</p></div>
+    <div class="kinds">
+      <article class="kind" style="--c:#55E9AB"><img src="assets/crab-green.png" alt="Normal crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 1</span><h3>Normal</h3><p>The rank and file of every wave.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="1 hit to beat"><i class="on"></i><i></i><i></i></span><span><b>10</b> pts</span></div></article>
+      <article class="kind" style="--c:#5497D5"><img src="assets/crab-blue.png" alt="Armored crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 2</span><h3>Armored</h3><p>A shell that takes two hits.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="2 hits to beat"><i class="on"></i><i class="on"></i><i></i></span><span><b>25</b> pts</span></div></article>
+      <article class="kind" style="--c:#FFC526"><img src="assets/crab-yellow.png" alt="Swift crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 3</span><h3>Swift</h3><p>Fires twice as often as the rest.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="1 hit to beat"><i class="on"></i><i></i><i></i></span><span><b>15</b> pts</span></div></article>
+      <article class="kind" style="--c:#F4604F"><img src="assets/crab-red.png" alt="Heavy crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 4</span><h3>Heavy</h3><p>One shot of its costs two lives.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="1 hit to beat"><i class="on"></i><i></i><i></i></span><span><b>20</b> pts</span></div></article>
+      <article class="kind" style="--c:#B57BFF"><img src="assets/crab-violet.png" alt="Elder crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 5</span><h3>Elder</h3><p>Three hits, and a quick trigger.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="3 hits to beat"><i class="on"></i><i class="on"></i><i class="on"></i></span><span><b>40</b> pts</span></div></article>
+    </div>
   </div>
 </section>
 
@@ -450,6 +483,53 @@ html.tc-on, html.tc-on * { cursor: none !important; }
       entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
     }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
     els.forEach(function (e) { io.observe(e); });
+  })();
+</script>
+<script>
+  /* The hero's life: Octopi roams the full width inside the lower half of the first screen (the art banner on
+     phones), behind the copy; the crabs patrol from edge to edge, turning when the outer crab touches the side. */
+  (function () {
+    var hero = document.querySelector('.hero'), oct = document.querySelector('.octopi'), school = document.querySelector('.school');
+    if (!hero || !oct || !school || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    var art = hero.querySelector('.art');
+    var SPEED = 46, CRAB_SPEED = 34, RISE_SECONDS = 9.7; // px per second across, seconds per up-and-down
+    var FACES = { front: 'assets/octopi.png', left: 'assets/octopi-left.png', right: 'assets/octopi-right.png' };
+    Object.keys(FACES).forEach(function (k) { var i = new Image(); i.src = FACES[k]; });
+    hero.classList.add('alive');
+
+    var W = 0, top0 = 0, top1 = 0, range = 0, groupRange = 0, elapsed = 0, cx = 0, cdir = 1, face = 'front', visible = true, last = performance.now();
+    function measure() {
+      W = hero.clientWidth;
+      var phone = matchMedia('(max-width: 760px)').matches, H = phone ? art.getBoundingClientRect().height : hero.clientHeight;
+      var ow = oct.offsetWidth, oh = oct.offsetHeight || ow;
+      range = Math.max(0, W - ow);
+      top0 = H * 0.5; top1 = Math.max(top0, H - oh * (phone ? 0.72 : 1) - (phone ? 0 : 20));
+      groupRange = Math.max(0, W - school.offsetWidth);
+      if (cx > groupRange) cx = groupRange;
+    }
+    function frame(now) {
+      var dt = Math.min(0.05, (now - last) / 1000); last = now;
+      if (visible) {
+        elapsed += dt;
+        var trip = range > 0 ? range / SPEED : 1, u = (elapsed / trip) % 2; // 0..1 there, 1..2 back
+        var x = range * (0.5 - 0.5 * Math.cos(Math.PI * u)), v = Math.sin(Math.PI * u);
+        var y = top0 + (top1 - top0) * (0.5 + 0.5 * Math.sin(2 * Math.PI * elapsed / RISE_SECONDS));
+        var want = v > 0.35 ? 'right' : v < -0.35 ? 'left' : 'front';
+        if (want !== face) { face = want; oct.src = FACES[face]; }
+        oct.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+        if (groupRange > 0) {
+          cx += cdir * CRAB_SPEED * dt;
+          if (cx >= groupRange) { cx = groupRange; cdir = -1; } else if (cx <= 0) { cx = 0; cdir = 1; }
+        } else cx = 0;
+        school.style.transform = 'translateX(' + cx.toFixed(1) + 'px)';
+      }
+      requestAnimationFrame(frame);
+    }
+    measure();
+    addEventListener('resize', measure); addEventListener('load', measure);
+    if ('ResizeObserver' in window) new ResizeObserver(measure).observe(hero);
+    if ('IntersectionObserver' in window) new IntersectionObserver(function (e) { visible = e[0].isIntersecting; }).observe(hero);
+    requestAnimationFrame(frame);
   })();
 </script>
 <script>
@@ -564,7 +644,7 @@ html.tc-on, html.tc-on * { cursor: none !important; }
   (function () {
     var mq = window.matchMedia;
     if (!mq || !mq('(hover: hover) and (pointer: fine)').matches || mq('(prefers-reduced-motion: reduce)').matches) return;
-    var SELECTOR = '.pill, .card, .phone .frame, .ag-panel, .reef, .stat, .tile, .seekerband, .badge, footer a';
+    var SELECTOR = '.pill, .card, .phone .frame, .ag-panel, .reef, .kind, .stat, .tile, .seekerband, .badge, footer a';
     var CORNER = 12, BORDER = 3, SPIN_SECONDS = 2;
     var REST = [[-1.5 * CORNER, -1.5 * CORNER], [0.5 * CORNER, -1.5 * CORNER], [0.5 * CORNER, 0.5 * CORNER], [-1.5 * CORNER, 0.5 * CORNER]];
 
