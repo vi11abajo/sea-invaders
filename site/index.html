@@ -168,6 +168,16 @@ footer a:hover { color: #fff; }
 footer .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-weight: 500; }
 footer .brand img { width: 28px; border-radius: 8px; }
 
+/* target cursor (desktop pointers only; see the script at the end of the page) */
+.tc { position: fixed; top: 0; left: 0; width: 0; height: 0; pointer-events: none; z-index: 2147483647; mix-blend-mode: difference; will-change: transform; opacity: 0; transition: opacity .2s ease; --tc: #fff; }
+.tc.on { opacity: 1; }
+.tc.lock { --tc: #19FB9B; }
+.tc i { position: absolute; left: 0; top: 0; width: 12px; height: 12px; border: 3px solid var(--tc); will-change: transform; transition: border-color .15s ease; }
+.tc i.tl { border-right: none; border-bottom: none; } .tc i.tr { border-left: none; border-bottom: none; }
+.tc i.br { border-left: none; border-top: none; } .tc i.bl { border-right: none; border-top: none; }
+.tc b { position: absolute; left: -2px; top: -2px; width: 4px; height: 4px; border-radius: 50%; background: var(--tc); transition: background .15s ease; }
+html.tc-on, html.tc-on * { cursor: none !important; }
+
 /* reveal */
 .rv { opacity: 0; transform: translateY(14px); transition: opacity .55s ease, transform .55s ease; }
 .rv.in { opacity: 1; transform: none; }
@@ -332,6 +342,73 @@ footer .brand img { width: 28px; border-radius: 8px; }
       entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
     }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
     els.forEach(function (e) { io.observe(e); });
+  })();
+</script>
+<script>
+  /*
+   * Target cursor: a plain-JS adaptation of React Bits' TargetCursor (reactbits.dev).
+   * Copyright (c) 2026 David Haz - MIT + Commons Clause License Condition v1.0. The above copyright
+   * notice and the licence's permission notice apply to this portion of the page.
+   * No React, no GSAP: one requestAnimationFrame loop. Fine pointers only, never on touch screens,
+   * and never when the visitor asks for reduced motion.
+   */
+  (function () {
+    var mq = window.matchMedia;
+    if (!mq || !mq('(hover: hover) and (pointer: fine)').matches || mq('(prefers-reduced-motion: reduce)').matches) return;
+    var SELECTOR = '.pill, .card, .phone .frame, .reef, .stat, .tile, .seekerband, .badge, footer a';
+    var CORNER = 12, BORDER = 3, SPIN_SECONDS = 2;
+    var REST = [[-1.5 * CORNER, -1.5 * CORNER], [0.5 * CORNER, -1.5 * CORNER], [0.5 * CORNER, 0.5 * CORNER], [-1.5 * CORNER, 0.5 * CORNER]];
+
+    var wrap = document.createElement('div'); wrap.className = 'tc'; wrap.setAttribute('aria-hidden', 'true');
+    var dot = document.createElement('b'); wrap.appendChild(dot);
+    var corners = ['tl', 'tr', 'br', 'bl'].map(function (name) { var c = document.createElement('i'); c.className = name; wrap.appendChild(c); return c; });
+    document.body.appendChild(wrap);
+    document.documentElement.classList.add('tc-on');
+
+    var mx = innerWidth / 2, my = innerHeight / 2, x = mx, y = my, rot = 0, scale = 1, dotScale = 1, down = false, target = null;
+    var pos = REST.map(function (p) { return p.slice(); });
+    var last = performance.now();
+
+    function pick() {
+      var el = document.elementFromPoint(mx, my);
+      var next = el && el.closest ? el.closest(SELECTOR) : null;
+      if (next !== target) { target = next; wrap.classList.toggle('lock', !!target); if (target) rot = 0; }
+    }
+    addEventListener('mousemove', function (e) { mx = e.clientX; my = e.clientY; wrap.classList.add('on'); pick(); }, { passive: true });
+    addEventListener('scroll', pick, { passive: true });
+    addEventListener('mousedown', function () { down = true; });
+    addEventListener('mouseup', function () { down = false; });
+    document.documentElement.addEventListener('mouseleave', function () { wrap.classList.remove('on'); });
+
+    function frame(now) {
+      var dt = Math.min(0.05, (now - last) / 1000); last = now;
+      var follow = 1 - Math.exp(-dt * 28), settle = 1 - Math.exp(-dt * 14), press = 1 - Math.exp(-dt * 18);
+      x += (mx - x) * follow; y += (my - y) * follow;
+      if (!target) rot = (rot + 360 * dt / SPIN_SECONDS) % 360;
+      scale += ((down ? 0.9 : 1) - scale) * press; dotScale += ((down ? 0.7 : 1) - dotScale) * press;
+
+      var want = REST;
+      if (target) {
+        if (!target.isConnected) { target = null; wrap.classList.remove('lock'); }
+        else {
+          var r = target.getBoundingClientRect();
+          want = [
+            [r.left - BORDER - x, r.top - BORDER - y],
+            [r.right + BORDER - CORNER - x, r.top - BORDER - y],
+            [r.right + BORDER - CORNER - x, r.bottom + BORDER - CORNER - y],
+            [r.left - BORDER - x, r.bottom + BORDER - CORNER - y]
+          ];
+        }
+      }
+      for (var i = 0; i < 4; i++) {
+        pos[i][0] += (want[i][0] - pos[i][0]) * settle; pos[i][1] += (want[i][1] - pos[i][1]) * settle;
+        corners[i].style.transform = 'translate(' + pos[i][0].toFixed(2) + 'px,' + pos[i][1].toFixed(2) + 'px)';
+      }
+      dot.style.transform = 'scale(' + dotScale.toFixed(3) + ')';
+      wrap.style.transform = 'translate(' + x.toFixed(2) + 'px,' + y.toFixed(2) + 'px) rotate(' + rot.toFixed(2) + 'deg) scale(' + scale.toFixed(3) + ')';
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
   })();
 </script>
 </body>
