@@ -139,6 +139,20 @@ section { padding-block: clamp(64px, 9vw, 120px); }
 .ag-panel.active .ag-bar, .ag-panel.active .ag-text { opacity: 1; transform: none; transition-duration: .6s; }
 .ag-panel.active .ag-text { transition-delay: .06s; }
 
+/* screenshot lightbox: a click or tap on a screen opens it full size, the next click anywhere closes it */
+.phone .frame, .ag-panel.active { cursor: zoom-in; }
+.lb { position: fixed; inset: 0; z-index: 1000; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; cursor: zoom-out;
+  padding: max(18px, env(safe-area-inset-top, 0px)) 16px max(40px, calc(env(safe-area-inset-bottom, 0px) + 34px)); background: rgba(6,6,10,.9);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); opacity: 0; transition: opacity .2s ease; touch-action: none; outline: none; }
+.lb[hidden] { display: none; }
+.lb.open { opacity: 1; }
+.lb img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: clamp(18px, 3.4vh, 34px); border: 1px solid rgba(236,228,253,.22);
+  box-shadow: 0 40px 120px rgba(0,0,0,.7); transform: scale(.96); transition: transform .2s ease; user-select: none; -webkit-user-drag: none; }
+.lb.open img { transform: none; }
+.lb-cap { position: absolute; left: 0; right: 0; bottom: max(12px, env(safe-area-inset-bottom, 0px)); text-align: center; font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-3); pointer-events: none; }
+.lb-cap b { color: var(--text-2); font-weight: 500; }
+
 /* reefs */
 .reefs { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
 .reef { position: relative; border-radius: 20px; padding: 18px 16px 20px; border: 1px solid var(--glass-border); background: linear-gradient(180deg, rgba(236,228,253,.06), rgba(236,228,253,.02)); overflow: hidden; }
@@ -439,6 +453,62 @@ html.tc-on, html.tc-on * { cursor: none !important; }
   })();
 </script>
 <script>
+  /* Screenshot lightbox. Thumbnails are the half-size captures; the full 1200 x 2670 file loads only when one is opened. */
+  (function () {
+    var box = document.createElement('div'); box.className = 'lb'; box.hidden = true; box.tabIndex = -1;
+    box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', 'Screenshot');
+    var img = document.createElement('img'); img.alt = ''; img.draggable = false; box.appendChild(img);
+    var cap = document.createElement('span'); cap.className = 'lb-cap'; box.appendChild(cap);
+    document.body.appendChild(box);
+
+    var items = [], index = 0, opener = null, isOpen = false, pushed = false, token = 0;
+    var coarse = window.matchMedia && matchMedia('(hover: none)').matches;
+
+    function show(i) {
+      index = (i + items.length) % items.length; var it = items[index], mine = ++token;
+      img.src = it.thumb; img.alt = it.label;
+      cap.innerHTML = '<b>' + it.label + '</b> \u00b7 ' + (coarse ? 'tap' : 'click') + ' anywhere to close';
+      var full = new Image(); full.onload = function () { if (isOpen && mine === token) img.src = full.src; };
+      full.src = it.thumb.replace('assets/', 'assets/full/');
+    }
+    function open(list, i, from) {
+      if (isOpen || !list.length) return;
+      items = list; opener = from || null; isOpen = true; show(i);
+      box.hidden = false; document.documentElement.style.overflow = 'hidden';
+      requestAnimationFrame(function () { box.classList.add('open'); box.focus({ preventScroll: true }); });
+      // the system Back button closes the screenshot instead of leaving the page
+      try { history.pushState({ seaLightbox: true }, ''); pushed = true; } catch (e) { pushed = false; }
+    }
+    function hide() {
+      if (!isOpen) return; isOpen = false; token++;
+      box.classList.remove('open'); document.documentElement.style.overflow = '';
+      setTimeout(function () { if (!isOpen) { box.hidden = true; img.removeAttribute('src'); } }, 220);
+      if (opener && opener.focus) opener.focus({ preventScroll: true });
+    }
+    function close() { if (!isOpen) return; if (pushed) { pushed = false; history.back(); } else hide(); }
+
+    box.addEventListener('click', close);
+    addEventListener('popstate', function () { pushed = false; hide(); });
+    addEventListener('keydown', function (e) {
+      if (!isOpen) return;
+      if (e.key === 'Escape') { e.preventDefault(); close(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); show(index + 1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); show(index - 1); }
+    });
+    window.seaLightbox = { open: open };
+
+    // the scrolling strip of phones (narrow screens): a tap that did not scroll opens the screen
+    var phones = Array.prototype.slice.call(document.querySelectorAll('.screens .phone'));
+    var list = phones.map(function (f) { return { thumb: f.querySelector('img').getAttribute('src'), label: f.querySelector('figcaption').textContent }; });
+    phones.forEach(function (f, i) {
+      var frame = f.querySelector('.frame');
+      frame.setAttribute('role', 'button'); frame.tabIndex = 0; frame.setAttribute('aria-label', 'Open the ' + list[i].label + ' screen full size');
+      frame.addEventListener('click', function () { open(list, i, frame); });
+      frame.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(list, i, frame); } });
+    });
+  })();
+</script>
+<script>
   /* Accordion gallery of the screens (see the licence note in the script below). CSS transitions do the motion. */
   (function () {
     var root = document.querySelector('.ag'); if (!root) return;
@@ -464,11 +534,16 @@ html.tc-on, html.tc-on * { cursor: none !important; }
       apply();
     }
     function open(i) { if (i !== active) { active = i; apply(); } }
+    function zoom(i) {
+      if (!window.seaLightbox) return;
+      window.seaLightbox.open(panels.map(function (q) { return { thumb: q.querySelector('img').getAttribute('src'), label: q.getAttribute('aria-label') }; }), i, panels[i]);
+    }
     panels.forEach(function (p, i) {
       p.addEventListener('mouseenter', function () { open(i); });
-      p.addEventListener('click', function () { open(i); });
+      p.addEventListener('click', function () { if (i === active) zoom(i); else open(i); });
       p.addEventListener('focus', function () { open(i); });
       p.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); zoom(i); return; }
         var step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
         if (!step) return; e.preventDefault(); var next = (i + step + count) % count; open(next); panels[next].focus();
       });
