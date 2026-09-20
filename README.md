@@ -4,17 +4,20 @@ An arcade shooter under the sea, built for the Solana Seeker. You play Octopi, a
 
 The current build runs on devnet against a test SKR mint; the app is the only client.
 
+**Play it:** the signed Android build and a tour of the game are at [seainvaders.xyz](https://seainvaders.xyz/). Practice and the campaign need nothing; ranked runs, the shop and the Tide need a wallet on devnet, and the app hands out test SKR.
+
 ## What is in the game
 
 - **Daily Run.** Every UTC day has one seed for all players. Runs are simulated by a deterministic core, recorded as replays of your touches and re-verified on the server before they count. A ticket costs 10 SKR and gives 3 ranked attempts for the day; you can buy as many as you like. 95 % of every ticket goes to the week's prize pool, 5 % to the treasury.
 - **On-chain records.** Your best score of the day is written to your on-chain player account with a server co-signature, so nobody can record a score the server did not verify.
-- **Weekly pool.** Weeks run Monday to Monday (UTC). Your weekly score is the sum of your daily bests; on Monday the program pays the top 10 straight to their token accounts and rolls empty places into the next week.
-- **Campaign.** 30 levels across 5 reefs, each reef ending in its own boss (Emerald Warlord, Azure Leviathan, Solar Kraken, Crimson Behemoth, Void Sovereign) with phases and abilities. Reef lives carry from level to level; progress is synced to your account.
+- **Weekly pool.** Weeks run Monday to Monday (UTC). Your weekly score is the sum of your daily bests; on Monday the program pays the top 10 straight to their token accounts and rolls empty places into the next week. A fifth of every shop purchase and every revive flows into the pool as well.
+- **Campaign.** 30 levels across 5 reefs, each reef ending in its own boss (Emerald Warlord, Azure Leviathan, Solar Kraken, Crimson Behemoth, Void Sovereign) with phases and abilities. Every wave arrives as a different silhouette of crabs (a fish, a ring, a jellyfish, a wreck and more), never the same one twice in a level. There are five kinds of crab, one new kind per reef, and colour is kind: armored takes two hits, swift fires twice as often, a heavy crab's shot costs two lives, the elder takes three hits. Reef lives carry from level to level; progress is synced to your account, and a cleared reef can be replayed level after level with the hearts you have left.
 - **Boosts.** 15 drop-in power-ups in every mode, from rapid fire and ice freeze to a wave blast and a gravity well that swallows enemy shots.
-- **The Tide.** When the reef takes your last life, the Tide offers a revive for SKR: 3 lives back, at a price that rises with every use and cools off over time, all read from the chain.
+- **The Tide.** When the reef takes your last life, the Tide offers a revive for SKR: 3 lives back, at a price that rises with every use and cools off over time, all read from the chain. The revived run waits until you press Resume.
 - **Shop and loadout.** Octopi variants (Harpoon, Anchor, Trident) and cosmetic skins, sold for SKR through an on-chain catalog; the look you equip is the look your record wears on the leaderboards.
 - **Seeker badge.** Seeker owners link their Seeker Genesis Token once; the server verifies it on mainnet, the program stores the link, and the SEEKER badge follows them on every board.
 - **Practice.** The same game on a random seed, no wallet needed, never ranked.
+- **Sound and haptics.** Underwater sound effects played through a small native SoundPool module, music per screen, and haptic ticks on hits, bosses and clears; each can be switched off in Profile.
 - **Wallet sign-in.** Mobile Wallet Adapter plus Sign-In With Solana; the app never holds a key.
 
 ## How a ranked run works
@@ -22,7 +25,7 @@ The current build runs on devnet against a test SKR mint; the app is the only cl
 1. The app signs in with the wallet and asks the backend for today's state (attempts, best, pool).
 2. When attempts remain, the backend starts a run and returns the daily seed.
 3. The core plays the run on the phone and records the finger inputs as a replay.
-4. The backend re-simulates the replay with the same core version and checks the score and the state hash.
+4. The backend re-simulates the replay with the same core version and checks the score and the state hash. A replay recorded by an outdated app is turned away with an update notice, and that attempt is given back.
 5. The app asks the backend for a record transaction; the server partially signs it, the wallet signs and sends it.
 6. The program updates the player's day bests and the week's top 10; a weekly job settles the pool on Monday.
 
@@ -49,6 +52,7 @@ Purchases, revives and the Seeker link follow the same shape: the backend builds
 | Game core (`core/`) | TypeScript, integer-only deterministic simulation, replays and golden tests (Vitest) |
 | Backend (`backend/`) | Node.js, Express, PostgreSQL, JWT, Sign-In With Solana, `@solana/web3.js`, Helius (mainnet reads) |
 | On-chain (`programs/`) | Anchor 1.2 program and its devnet scripts |
+| Landing page (`site/`) | one static HTML file with its assets, no build step |
 
 ## Project structure
 
@@ -57,6 +61,7 @@ mobile/         Expo/React Native app: wallet sign-in, daily run, campaign, shop
 core/           @sea-invaders/core: the deterministic game engine shared by the app and the backend
 backend/        Express API: auth, runs and replay verification, on-chain reads and transaction building, weekly crank
 programs/       Anchor program and the scripts that configure it on devnet
+site/           the landing page served at seainvaders.xyz, with the APK download
 ```
 
 ## Getting started
@@ -99,7 +104,7 @@ cd android && ./gradlew assembleRelease
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-`EXPO_PUBLIC_*` values are inlined into the APK, so the app holds no secrets. Opening `seainvaders://selftest` on the device runs the core's golden replays on Hermes and reports whether they match the Node results.
+`EXPO_PUBLIC_*` values are inlined into the APK, so the app holds no secrets. A local release build is signed with the debug key unless the `SEA_RELEASE_*` signing variables are set; the "Build APK" workflow signs with the project's release key. Opening `seainvaders://selftest` on the device runs the core's golden replays on Hermes and reports whether they match the Node results.
 
 ### 5. Program
 
@@ -107,7 +112,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 ## Deployment
 
-The API (backend plus the built core) is deployed by the "Deploy API to VPS" GitHub Actions workflow, started manually from the **Actions** tab; `backend/DEPLOYMENT.md` documents the target layout, the PM2 processes (the API and the hourly weekly crank), migrations and the environment. The "Build APK" workflow builds the Android release for the Seeker.
+The API (backend plus the built core) is deployed by the "Deploy API to VPS" GitHub Actions workflow, started manually from the **Actions** tab; `backend/DEPLOYMENT.md` documents the target layout, the PM2 processes (the API and the hourly weekly crank), migrations and the environment. The "Build APK" workflow builds the signed Android release for the Seeker. The landing page is a static folder (`site/`) served by nginx at seainvaders.xyz next to the app's Digital Asset Links file; `site/README.md` describes how it is published.
 
 ## Security
 
@@ -115,4 +120,4 @@ Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
 
 ## License
 
-All rights reserved. The source is published for reading and evaluation; see [LICENSE](LICENSE).
+All rights reserved. The source is published for reading and evaluation; see [LICENSE](LICENSE). Third-party notices stay in the files they apply to: the landing page's cursor and screen gallery are plain-JS adaptations of React Bits components (MIT + Commons Clause), credited in `site/index.html`.
