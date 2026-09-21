@@ -1,4 +1,13 @@
-export type Formation = 'classic' | 'fish' | 'diamond' | 'ring' | 'jellyfish' | 'octopus' | 'shell' | 'wreck';
+/**
+ * The eight silhouettes of the first campaign (spec §2, unchanged) plus the nine of the second
+ * (spec §3, "Reefs 6-10"): five more static shapes, the three living ones — `whirlpool` rotates,
+ * `claws` splits, `manta` reforms — and `spearhead`, the shape a reforming wave falls back into.
+ * `spearhead` is a template only: `FORMATIONS` leaves it out, so no level chain can list it.
+ */
+export type Formation =
+  | 'classic' | 'fish' | 'diamond' | 'ring' | 'jellyfish' | 'octopus' | 'shell' | 'wreck'
+  | 'trident' | 'anchor' | 'turtle' | 'crown' | 'starfish'
+  | 'whirlpool' | 'claws' | 'manta' | 'spearhead';
 
 /**
  * The five legacy kinds (reefs 1-5, unchanged) plus the five veteran kinds of reefs 6-10 (spec §2,

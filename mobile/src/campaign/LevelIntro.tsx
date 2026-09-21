@@ -21,6 +21,8 @@ import { VariantPicker } from './VariantPicker';
 const FORMATION_NAMES: Record<Formation, string> = {
   classic: 'Classic', fish: 'Fish', diamond: 'Diamond', ring: 'Ring',
   jellyfish: 'Jellyfish', octopus: 'Octopus', shell: 'Shell', wreck: 'Wreck',
+  trident: 'Trident', anchor: 'Anchor', turtle: 'Turtle', crown: 'Crown', starfish: 'Starfish',
+  whirlpool: 'Whirlpool', claws: 'Claws', manta: 'Manta', spearhead: 'Spearhead',
 };
 
 const CRAB_NAMES: Record<CrabType, string> = {

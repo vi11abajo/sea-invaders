@@ -1,11 +1,11 @@
 import { ARRIVAL, CRAB, CRAB_TYPES, FIELD_W, OCTOPI, TYPE_COLOUR, bonusLivesFor, fireIntervalFor } from './config';
 import { idiv } from './fixed';
-import { formationPositions } from './formations';
+import { FORMATION_BEHAVIOUR, FORMATION_ORIGIN, formationPositions } from './formations';
 import { dailyPool, kindForTier, type CrabType, type Formation } from './levels';
 import { Rng } from './rng';
 import type { RunConfig } from './run';
 import { spawnBoss } from './sim/boss';
-import type { Crab, GameState, Input } from './types';
+import type { Crab, FormationSlot, GameState, Input } from './types';
 
 /** Where Octopi starts; also the input a replay assumes before its first recorded change. */
 export const INITIAL_INPUT: Input = Object.freeze({ x: idiv(FIELD_W, 2), y: OCTOPI.startY });
@@ -17,10 +17,10 @@ export const INITIAL_INPUT: Input = Object.freeze({ x: idiv(FIELD_W, 2), y: OCTO
  * warden starts shielded (`shield = 1`), matching spec §2's rune shield at spawn; nothing else spawns
  * through these paths today, so this is the only veteran-specific spawn behaviour this task adds.
  */
-function spawnCrab(x: number, y: number, type: CrabType): Crab {
+function spawnCrab(x: number, y: number, type: CrabType, slot = -1): Crab {
   return {
     x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp,
-    slot: -1, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0,
+    slot, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0,
   };
 }
 
@@ -49,6 +49,7 @@ export function createGame(seed: string, run: RunConfig): GameState {
     rngBoosts: new Rng(`${seed}/boosts`),
     events: [],
     arrival: 0,
+    formation: null,
     scoreDecay: 0,
   };
   if (run.level) {
@@ -72,6 +73,7 @@ export function spawnWave(s: GameState, wave: number): void {
   const x0 = idiv(FIELD_W - (CRAB.cols - 1) * CRAB.gapX, 2);
   s.wave = wave;
   s.crabs = [];
+  s.formation = null; // spec §3: only a campaign wave carries slots, and only it can live
   s.scoreDecay = 0; // spec C7: the score-decay clock resets at every wave start
   for (let r = 0; r < rows; r++) {
     const type = pool[s.rngWaves.nextInt(pool.length)]!;
@@ -91,15 +93,38 @@ export function spawnWave(s: GameState, wave: number): void {
  * reef pool over those tiers — so a reef-1 wave is all green, and a reef-5 wave has one kind per
  * tier, with the toughest crabs furthest from Octopi. Nothing here is drawn: the direction draw is
  * the only RNG draw, whatever the silhouette.
+ *
+ * The wave also records its shape (spec §3): one `FormationSlot` per cell in the order
+ * `formationPositions` yields them — row by row, left to right — and each crab's `slot` is its
+ * index in that list. A slot holds an offset from `FORMATION_ORIGIN`, so a crab sits exactly on
+ * `origin + slot` and stays there for as long as its wave marches as a block.
  */
 export function spawnFormation(
   s: GameState,
   spec: { formation: Formation; kinds: readonly CrabType[] },
 ): void {
-  s.crabs = formationPositions(spec.formation).map((p) => {
-    const type = kindForTier(spec.kinds, p.tier);
-    return spawnCrab(p.x, p.y, type);
-  });
+  const slots: FormationSlot[] = formationPositions(spec.formation).map((p) => ({
+    x: p.x - FORMATION_ORIGIN.x,
+    y: p.y - FORMATION_ORIGIN.y,
+    row: p.row,
+    col: p.col,
+    tier: p.tier,
+    type: kindForTier(spec.kinds, p.tier),
+  }));
+  s.crabs = slots.map((slot, i) =>
+    spawnCrab(FORMATION_ORIGIN.x + slot.x, FORMATION_ORIGIN.y + slot.y, slot.type, i));
+  s.formation = {
+    name: spec.formation,
+    behaviour: FORMATION_BEHAVIOUR[spec.formation],
+    slots,
+    ox: FORMATION_ORIGIN.x,
+    oy: FORMATION_ORIGIN.y,
+    dirL: -1, // spec §3: a split wave's left half opens leftwards and its right half rightwards
+    dirR: 1,
+    rotateTick: 0,
+    reformed: false,
+    glideTicks: 0,
+  };
   s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
   s.waveTotal = s.crabs.length;
 }
@@ -117,6 +142,7 @@ export function startLevelWave(s: GameState, wave: number): void {
   // Wave `wave` takes its own silhouette from the level's chain (the first wave is the headline).
   spawnFormation(s, { formation: l.formations[wave - 1] ?? l.formation, kinds: l.kinds });
   for (const c of s.crabs) c.y -= ARRIVAL.drop;
+  s.formation!.oy -= ARRIVAL.drop; // the origin drops with the wave, so `origin + slot` still holds
   s.arrival = ARRIVAL.ticks;
   s.scoreDecay = 0; // spec C7: the score-decay clock resets at every campaign wave start too
   s.events.push({ tick: s.tick, type: 'wave_start', wave });
@@ -140,6 +166,7 @@ export function nextWave(s: GameState): void {
   }
   if (l.boss && s.boss === null) {
     s.arrival = 0;
+    s.formation = null; // the level's waves are done: no slots for a boss round
     spawnBoss(s, l.boss);
     return;
   }

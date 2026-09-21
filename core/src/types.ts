@@ -1,5 +1,6 @@
 import type { Rng } from './rng';
-import type { CrabType } from './levels';
+import type { FormationBehaviour } from './formations';
+import type { CrabType, Formation } from './levels';
 import type { RunConfig } from './run';
 
 /** Octopi target in integer milli-units, as produced by the touch layer. */
@@ -70,6 +71,50 @@ export interface Crab {
   squad: number;
 }
 
+/**
+ * One place in a formation, as an offset from the formation origin (spec §3). `row`/`col` are the
+ * template's own coordinates, so a later task can read a slot's neighbourhood off them; `type` is
+ * the kind that slot fields, which is what a revived crab would come back as.
+ */
+export interface FormationSlot {
+  x: number;
+  y: number;
+  row: number;
+  col: number;
+  tier: number;
+  type: CrabType;
+}
+
+/**
+ * The live shape of a campaign wave (spec §3). Daily and practice waves have none — they keep
+ * `GameState.formation = null` and every crab's `slot` at -1, and nothing about them changed.
+ *
+ * `ox`/`oy` is the point the slot offsets hang off: the field centre at `CRAB.startY` when the wave
+ * spawns, carried along by the arrival descent and then by every march step and step-down, so
+ * `ox + slot.x` names a crab's place at any moment. A `split` wave is the exception — its two
+ * halves march apart and no single point describes both, so it leaves the origin where its arrival
+ * ended and steers by `dirL`/`dirR` instead.
+ */
+export interface FormationState {
+  /** The wave's own silhouette; it keeps its name after a reform, the slots below do not. */
+  name: Formation;
+  behaviour: FormationBehaviour;
+  /** Slot offsets in spawn order, replaced by the spearhead's when the wave reforms. */
+  slots: FormationSlot[];
+  ox: number;
+  oy: number;
+  /** `split` only: the direction of the left half, 1 = right, -1 = left. */
+  dirL: number;
+  /** `split` only: the direction of the right half. */
+  dirR: number;
+  /** `rotate` only: ticks into the current ring step, 0 when the crabs sit exactly on their slots. */
+  rotateTick: number;
+  /** `reform` only: whether the wave has already fallen back into the spearhead. */
+  reformed: boolean;
+  /** Ticks left of a reform glide; 0 when the crabs are settled. */
+  glideTicks: number;
+}
+
 export type BossPhaseState = 'fighting' | 'transition';
 
 export interface BossState {
@@ -134,6 +179,8 @@ export type GameEvent =
         // Veteran-skill events (spec §2): names only, nothing emits them yet — a later task wires in
         // the shield, aura, bubble, charge, rally and rage skills that raise these.
         | 'crab_shield_break' | 'crab_shield_up' | 'bubble_pop' | 'charge_burst' | 'crab_rallied' | 'formation_rage'
+        // Raised once, by a `reform` wave falling back into the spearhead (spec §3).
+        | 'formation_reform'
     }
   | { tick: number; type: 'boss_ability'; name: 'regen' | 'shield' | 'meteor' | 'rage' | 'freeze' }
   | { tick: number; type: 'boss_teleport'; fromX: number; toX: number }
@@ -169,6 +216,8 @@ export interface GameState {
   events: GameEvent[];
   /** Ticks left in a campaign wave's arrival descent; 0 when idle. Daily/practice never set this. */
   arrival: number;
+  /** The campaign wave's slots and living state (spec §3); null for daily, practice and boss rounds. */
+  formation: FormationState | null;
   /** Ticks elapsed on the wave-mode score-decay clock (spec C7); reset at every wave start. */
   scoreDecay: number;
 }
@@ -208,6 +257,9 @@ export const BOOST_INDEX: Record<BoostType, number> = {
   WAVE_BLAST: 9, COIN_SHOWER: 10, GRAVITY_WELL: 11, PIERCING_BULLETS: 12,
   RANDOM_CHAOS: 13, SPEED_TAMER: 14,
 };
+
+/** Index of each FormationBehaviour in the state hash, in declaration order. */
+export const BEHAVIOUR_INDEX: Record<FormationBehaviour, number> = { march: 0, rotate: 1, split: 2, reform: 3 };
 
 /** Index of each OctopiVariant in the replay header byte, in declaration order. */
 export const VARIANT_INDEX: Record<OctopiVariant, number> = { base: 0, harpoon: 1, anchor: 2, trident: 3 };

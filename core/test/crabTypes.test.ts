@@ -124,18 +124,19 @@ describe('crab kinds', () => {
     }
     const l = levelById(25); // reef 5: all five legacy kinds, one per tier
     spawnFormation(s, { formation: l.formation, kinds: l.kinds });
-    for (const c of s.crabs) {
-      expect(c).toMatchObject({ slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 });
-    }
+    // A campaign wave takes its formation slot (spec §3); every other veteran field stays neutral.
+    s.crabs.forEach((c, i) => {
+      expect(c).toMatchObject({ slot: i, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 });
+    });
   });
 
   it('gives a spawned warden its shield up; every other veteran field stays neutral', () => {
     const s = createGame('t', PRACTICE_RUN);
     spawnFormation(s, { formation: 'classic', kinds: ['warden'] });
     expect(s.crabs.length).toBeGreaterThan(0);
-    for (const c of s.crabs) {
-      expect(c).toMatchObject({ type: 'warden', slot: -1, shield: 1, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 });
-    }
+    s.crabs.forEach((c, i) => {
+      expect(c).toMatchObject({ type: 'warden', slot: i, shield: 1, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 });
+    });
   });
 
   it('costs a life when a crab touches Octopi, whatever its kind', () => {

@@ -15,6 +15,7 @@ export * from './sim/boss';
 export * from './sim/bosses';
 export * from './sim/collide';
 export * from './sim/crabs';
+export * from './sim/living';
 export * from './sim/octopi';
 export * from './sim/revive';
 export * from './state-hash';

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CRAB, FIELD_W, INITIAL_INPUT, LEVELS, REEF_KINDS, createGame, dailyPool, formationPositions,
-  kindForTier, levelById, levelSeed, startLevelWave, step, type CrabType, type Formation,
+  CRAB, FIELD_W, FORMATIONS, INITIAL_INPUT, LEVELS, REEF_KINDS, REFORM_TARGET, createGame, dailyPool,
+  formationPositions, kindForTier, levelById, levelSeed, startLevelWave, step, type CrabType,
+  type Formation,
 } from '../src';
 
 /** The level table of spec §2, transcribed here so a table edit has to be deliberate. */
@@ -63,6 +64,13 @@ describe('LEVELS', () => {
       expect(l.formations[0]).toBe(l.formation);
       expect(new Set(l.formations).size).toBe(l.waves);
       for (let k = 1; k < l.formations.length; k++) expect(l.formations[k]).not.toBe(l.formations[k - 1]);
+    }
+  });
+
+  it('chains only silhouettes a wave may take, never the reform target', () => {
+    for (const l of LEVELS) {
+      for (const f of l.formations) expect({ id: l.id, chainable: FORMATIONS.includes(f) }).toEqual({ id: l.id, chainable: true });
+      expect({ id: l.id, target: l.formations.includes(REFORM_TARGET) }).toEqual({ id: l.id, target: false });
     }
   });
 

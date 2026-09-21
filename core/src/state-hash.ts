@@ -1,5 +1,5 @@
 import { Hasher } from './hash';
-import { BOOST_INDEX, KIND_INDEX, TYPE_INDEX, type GameState } from './types';
+import { BEHAVIOUR_INDEX, BOOST_INDEX, KIND_INDEX, TYPE_INDEX, type GameState } from './types';
 
 /** Hash of every simulation field in a fixed order. Equal hashes mean equal game states. */
 export function hashState(s: GameState): string {
@@ -35,5 +35,16 @@ export function hashState(s: GameState): string {
   else h.int(-1);
   h.int(s.drops.length);
   for (const d of s.drops) h.int(d.x).int(d.y).int(BOOST_INDEX[d.boost]).int(d.ttl);
+  // The campaign wave's living state (spec §3), appended last so every older field keeps its place.
+  // The slot list itself is not hashed: a wave's slots follow from its silhouette and its `reformed`
+  // flag alone, and which crab holds which one is already in each crab's `slot` above. A wave with
+  // no formation at all - daily, practice, a boss round - hashes the -1 marker instead.
+  const f = s.formation;
+  if (f) {
+    h.int(BEHAVIOUR_INDEX[f.behaviour]).int(f.ox).int(f.oy).int(f.dirL).int(f.dirR)
+      .int(f.rotateTick).int(f.reformed ? 1 : 0).int(f.glideTicks);
+  } else {
+    h.int(-1);
+  }
   return h.digest();
 }

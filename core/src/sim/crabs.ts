@@ -3,6 +3,7 @@ import { idiv, isqrt } from '../fixed';
 import type { Bullet, Crab, GameState } from '../types';
 import { chilled, tamed } from './boosts';
 import { shotRadius } from './collide';
+import { moveLivingFormation } from './living';
 
 const HALF = idiv(CRAB.size, 2);
 
@@ -48,12 +49,18 @@ export function crabSpeed(s: GameState): number {
 }
 
 /**
- * The formation's actual per-tick march displacement: the shared signed speed halved by ICE_FREEZE
- * (spec §5.2), used by the wall check and by the step itself so the two never disagree. Every kind
- * marches with the formation — swift's old 1.5x step went with the enemy rework of core v8.
+ * The formation's actual per-tick march displacement in direction `dir`: the shared signed speed
+ * halved by ICE_FREEZE (spec §5.2), used by the wall check and by the step itself so the two never
+ * disagree. Every kind marches with the formation — swift's old 1.5x step went with the enemy
+ * rework of core v8. A split wave asks for each of its halves' directions in turn (spec §3).
  */
+export function crabStepFor(s: GameState, dir: number): number {
+  return chilled(s, crabSpeed(s) * dir, false);
+}
+
+/** The whole formation's per-tick march displacement, in the wave's own direction. */
 function crabStep(s: GameState): number {
-  return chilled(s, crabSpeed(s) * s.dir, false);
+  return crabStepFor(s, s.dir);
 }
 
 /**
@@ -66,9 +73,16 @@ export function marchSteps(tick: number, pct: number = TUNING.crabMovePct): numb
   return idiv((tick + 1) * pct + 99, 100) - idiv(tick * pct + 99, 100);
 }
 
-/** One formation step: sideways, or reverse and step down at a wall (see `marchCrabs`). */
-function marchOnce(s: GameState): void {
-  const step = crabStep(s);
+/**
+ * One block step of `step` units: sideways, or reverse and step down at a wall (see `marchCrabs`).
+ * The wall test runs over the crabs' own positions, so it is the outermost living crab that turns
+ * the block round however the wave is shaped at that moment.
+ *
+ * A campaign wave's origin rides along with the block — the same step sideways, the same step down
+ * — so `origin + slot` keeps naming each crab's place. That bookkeeping never touches a crab, which
+ * is what lets a `march` wave stay bit-identical to core v10.
+ */
+export function marchBlockOnce(s: GameState, step: number): void {
   let hitsWall = false;
   for (const c of s.crabs) {
     const nx = c.x + step;
@@ -80,9 +94,16 @@ function marchOnce(s: GameState): void {
   if (hitsWall) {
     s.dir = -s.dir;
     for (const c of s.crabs) c.y += CRAB.stepDown;
+    if (s.formation) s.formation.oy += CRAB.stepDown;
   } else {
     for (const c of s.crabs) c.x += step;
+    if (s.formation) s.formation.ox += step;
   }
+}
+
+/** One formation step at the wave's own march speed. */
+function marchOnce(s: GameState): void {
+  marchBlockOnce(s, crabStep(s));
 }
 
 /**
@@ -93,17 +114,26 @@ function marchOnce(s: GameState): void {
  * While a campaign wave is arriving (`s.arrival > 0`, spec §14 amendment) every crab's `y` instead
  * just descends by `ARRIVAL.speed` (slowed by ICE_FREEZE/SPEED_TAMER like every other crab movement,
  * spec C5), `x` untouched and no wall or invasion test — the formation is still above the field,
- * closing in on its slots.
+ * closing in on its slots. A living formation (spec §3) holds still through that descent too: it
+ * only starts to turn, split or reform once its wave has arrived.
+ *
+ * A wave whose behaviour is anything but `march` hands its movement to `sim/living.ts`; every other
+ * wave — daily, practice and every static silhouette — takes the block march below, unchanged.
  */
 export function marchCrabs(s: GameState): void {
   if (s.crabs.length === 0) return;
   if (s.arrival > 0) {
     const speed = chilled(s, tamed(s, ARRIVAL.speed), false);
     for (const c of s.crabs) c.y += speed;
+    if (s.formation) s.formation.oy += speed;
     return;
   }
-  const steps = marchSteps(s.tick);
-  for (let i = 0; i < steps; i++) marchOnce(s);
+  if (s.formation && s.formation.behaviour !== 'march') {
+    moveLivingFormation(s, s.formation);
+  } else {
+    const steps = marchSteps(s.tick);
+    for (let i = 0; i < steps; i++) marchOnce(s);
+  }
   for (const c of s.crabs) {
     if (c.y + HALF >= INVASION_Y) {
       s.over = true;
