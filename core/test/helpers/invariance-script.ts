@@ -86,16 +86,19 @@ const WAVE_LEVEL_TICKS = 3600;
 /** Tick budget of a boss level (two and a half minutes): a boss fight needs the longer leash. */
 const BOSS_LEVEL_TICKS = 9000;
 
-/** The six levels of a reef, the sixth being its boss — frozen here, not read from the level table. */
-const LEVELS_PER_REEF = 6;
-
 /** How many campaign levels the snapshot covers: the whole first campaign. */
 const LEGACY_LEVELS = 30;
 
+/**
+ * The boss levels of the first campaign, each of which also gets a deep row below. Frozen here
+ * rather than read from the level table: which rows carry a boss is part of what is being pinned.
+ */
+const BOSS_LEVELS: readonly number[] = [6, 12, 18, 24, 30];
+
 export interface InvarianceScenario {
-  /** The campaign level id, 1..30. */
-  id: number;
-  /** Run seed, fixed per level and shared with no other suite. */
+  /** The snapshot row's id: the campaign level id for a level row, `boss-<id>` for a boss fight. */
+  id: number | string;
+  /** Run seed, fixed per row and shared with no other suite. */
   seed: string;
   /** Tick cap; the play also stops on `over` or `cleared`. */
   ticks: number;
@@ -103,36 +106,77 @@ export interface InvarianceScenario {
 }
 
 /**
- * One scenario per level of the first campaign, all playing the frozen dodge script. The run config
- * reads the live level table on purpose: a row of levels 1..30 that changed is exactly what this
+ * The run every scenario plays: the campaign level with base Octopi and a full reef's lives. It
+ * reads the live level table on purpose - a row of levels 1..30 that changed is exactly what this
  * snapshot is here to catch.
  */
-export const INVARIANCE_SCENARIOS: readonly InvarianceScenario[] = Array.from(
+function invarianceRun(id: number): RunConfig {
+  return { mode: 'campaign', level: levelById(id), lives: 5, features: { boosts: true }, octopi: 'base' };
+}
+
+/** One scenario per level of the first campaign, all playing the frozen dodge script. */
+const LEVEL_SCENARIOS: readonly InvarianceScenario[] = Array.from(
   { length: LEGACY_LEVELS },
   (_, i): InvarianceScenario => {
     const id = i + 1;
-    const boss = id % LEVELS_PER_REEF === 0;
     return {
       id,
       seed: `inv-${id}`,
-      ticks: boss ? BOSS_LEVEL_TICKS : WAVE_LEVEL_TICKS,
-      run: { mode: 'campaign', level: levelById(id), lives: 5, features: { boosts: true }, octopi: 'base' },
+      ticks: BOSS_LEVELS.includes(id) ? BOSS_LEVEL_TICKS : WAVE_LEVEL_TICKS,
+      run: invarianceRun(id),
     };
   },
 );
 
+/**
+ * A seed per boss level on which the frozen script fights that boss out. The plain `inv-<id>` rows
+ * above mostly end with Octopi dead partway through the fight, which pins a fight's opening but
+ * neither its later phases nor the boss's death and the score it pays. These were found once, on
+ * the core as it stood at the snapshot's baseline, by sweeping `inv-boss-<id>-0` ..
+ * `inv-boss-<id>-59` and keeping the first seed that killed the boss; they are data now, and are
+ * never searched for again.
+ *
+ * Level 30's Void Sovereign survived all sixty seeds - the same ceiling the golden `level30`
+ * scenario hits, which only ever claims to reach phase 3 - so that row keeps the longest fight of
+ * the sweep instead of a kill.
+ */
+const BOSS_SEEDS: Readonly<Record<number, string>> = {
+  6: 'inv-boss-6-0', 12: 'inv-boss-12-0', 18: 'inv-boss-18-1', 24: 'inv-boss-24-0', 30: 'inv-boss-30-30',
+};
+
+/** One deep row per boss level: the same frozen script, on the seed that fights that boss longest. */
+const BOSS_SCENARIOS: readonly InvarianceScenario[] = BOSS_LEVELS.map((id) => ({
+  id: `boss-${id}`,
+  seed: BOSS_SEEDS[id]!,
+  ticks: BOSS_LEVEL_TICKS,
+  run: invarianceRun(id),
+}));
+
+/** Every row of the snapshot, in file order: the thirty levels first, then the five boss fights. */
+export const INVARIANCE_SCENARIOS: readonly InvarianceScenario[] = [...LEVEL_SCENARIOS, ...BOSS_SCENARIOS];
+
 /** What the snapshot stores per scenario. */
 export interface InvarianceResult {
-  id: number;
+  id: number | string;
   ticks: number;
   score: number;
   hash: string;
 }
 
+/** One scenario's play: the snapshot row, plus the one thing the row cannot carry. */
+export interface InvariancePlay {
+  row: InvarianceResult;
+  /** The level was cleared — on a boss row that means the boss died inside the budget. */
+  cleared: boolean;
+}
+
 /** Plays one scenario to its cap (or to `cleared`/`over`) and reports what the snapshot compares. */
-export function playInvarianceScenario(scenario: InvarianceScenario): InvarianceResult {
+export function playInvarianceScenario(scenario: InvarianceScenario): InvariancePlay {
   const input = survivor();
   const s = createGame(scenario.seed, scenario.run);
   for (let t = 1; t <= scenario.ticks && !s.over && !s.cleared; t++) step(s, input(t, s));
-  return { id: scenario.id, ticks: s.tick, score: s.score, hash: hashStateV10(s) };
+  return {
+    row: { id: scenario.id, ticks: s.tick, score: s.score, hash: hashStateV10(s) },
+    cleared: s.cleared,
+  };
 }

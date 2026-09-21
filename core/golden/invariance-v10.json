@@ -178,5 +178,35 @@
     "ticks": 2873,
     "score": 0,
     "hash": "29bc29b2c7a56e0f"
+  },
+  {
+    "id": "boss-6",
+    "ticks": 3952,
+    "score": 7400,
+    "hash": "8026c04ce58e9905"
+  },
+  {
+    "id": "boss-12",
+    "ticks": 3480,
+    "score": 15400,
+    "hash": "5c0d276d2c12c378"
+  },
+  {
+    "id": "boss-18",
+    "ticks": 4584,
+    "score": 21000,
+    "hash": "c03cdd170dd7268e"
+  },
+  {
+    "id": "boss-24",
+    "ticks": 5144,
+    "score": 26400,
+    "hash": "644f7187f0ff7cc4"
+  },
+  {
+    "id": "boss-30",
+    "ticks": 4676,
+    "score": 0,
+    "hash": "f89428f5024c8dd8"
   }
 ]
