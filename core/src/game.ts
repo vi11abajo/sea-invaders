@@ -1,29 +1,16 @@
-import { ARRIVAL, CRAB, CRAB_TYPES, FIELD_W, OCTOPI, TYPE_COLOUR, bonusLivesFor, fireIntervalFor } from './config';
+import { ARRIVAL, CRAB, FIELD_W, OCTOPI, bonusLivesFor, fireIntervalFor } from './config';
 import { idiv } from './fixed';
 import { FORMATION_BEHAVIOUR, FORMATION_ORIGIN, formationPositions } from './formations';
 import { dailyPool, kindForTier, type CrabType, type Formation } from './levels';
 import { Rng } from './rng';
 import type { RunConfig } from './run';
 import { spawnBoss } from './sim/boss';
-import type { Crab, FormationSlot, GameState, Input } from './types';
+import { spawnCrab } from './sim/crabs';
+import { armRallies } from './sim/veterans';
+import type { FormationSlot, GameState, Input } from './types';
 
 /** Where Octopi starts; also the input a replay assumes before its first recorded change. */
 export const INITIAL_INPUT: Input = Object.freeze({ x: idiv(FIELD_W, 2), y: OCTOPI.startY });
-
-/**
- * Builds a crab of `type` at `(x, y)`, spawn hp and colour (spec §1/§2) — the one place all three
- * paths that make a `Crab` (`spawnWave`, `spawnFormation` and the patriarch's rally in
- * `sim/veterans.ts`) go through, so the veteran fields (spec §7 ruling) stay in one spot. Every
- * field but `shield` starts neutral (0). A warden starts shielded (`shield = 1`), matching spec §2's
- * rune shield at spawn.
- */
-export function spawnCrab(x: number, y: number, type: CrabType, slot = -1): Crab {
-  return {
-    x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp,
-    slot, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0,
-    revived: 0,
-  };
-}
 
 export function createGame(seed: string, run: RunConfig): GameState {
   const lives = run.lives + bonusLivesFor(run.octopi);
@@ -95,6 +82,7 @@ export function spawnWave(s: GameState, wave: number): void {
       s.crabs.push(spawnCrab(x, y, type, r * CRAB.cols + c));
     }
   }
+  armRallies(s); // spec §2: the wave's patriarchs get staggered rally clocks, in grid cell order
   s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
   s.waveTotal = s.crabs.length;
 }
@@ -139,6 +127,7 @@ export function spawnFormation(
   };
   s.rageTicks = 0; // spec §2: a rage belongs to the formation that lost its patriarch
   s.gridRows = []; // a campaign wave carries a kind per cell in its slots instead
+  armRallies(s); // spec §2: the wave's patriarchs get staggered rally clocks, in slot order
   s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
   s.waveTotal = s.crabs.length;
 }

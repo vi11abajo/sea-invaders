@@ -1,5 +1,8 @@
-import { ARRIVAL, CRAB, CRAB_SHOTS, ENEMY_SHOT, FIELD_H, FIELD_W, TUNING, scalePct } from '../config';
+import {
+  ARRIVAL, CRAB, CRAB_SHOTS, CRAB_TYPES, ENEMY_SHOT, FIELD_H, FIELD_W, TUNING, TYPE_COLOUR, scalePct,
+} from '../config';
 import { idiv, isqrt } from '../fixed';
+import type { CrabType } from '../levels';
 import type { Bullet, Crab, GameState } from '../types';
 import { chilled, tamed } from './boosts';
 import { shotRadius } from './collide';
@@ -10,6 +13,25 @@ import {
 } from './veterans';
 
 const HALF = idiv(CRAB.size, 2);
+
+/**
+ * Builds a crab of `type` at `(x, y)`, spawn hp and colour (spec §1/§2) — the one place every path
+ * that makes a `Crab` goes through (`spawnWave` and `spawnFormation` in `game.ts`, the patriarch's
+ * rally in `veterans.ts`), so the veteran fields (spec §7 ruling) stay in one spot. Every field but
+ * `shield` starts neutral (0). A warden starts shielded (`shield = 1`), matching spec §2's rune
+ * shield at spawn; a patriarch's rally clock is armed by `armRallies` once its whole wave stands,
+ * because the stagger depends on how many patriarchs came before it.
+ *
+ * It lives in `sim/` rather than in `game.ts` so that the simulation never has to reach back into
+ * the module that composes it: `game.ts` and `sim/veterans.ts` both call inwards to here.
+ */
+export function spawnCrab(x: number, y: number, type: CrabType, slot = -1): Crab {
+  return {
+    x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp,
+    slot, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0,
+    revived: 0,
+  };
+}
 
 /** The bullet kinds crabs fire (from `CRAB_SHOTS`); every other enemy shot is a boss's. */
 const CRAB_SHOT_KINDS = new Set(Object.values(CRAB_SHOTS).map((entry) => entry.kind));
@@ -83,6 +105,17 @@ export function marchSteps(tick: number, pct: number = TUNING.crabMovePct): numb
 }
 
 /**
+ * Whether a crab centred on `x` stands inside the field: the one wall test the whole game asks, so
+ * nothing can ever answer the same question with a second margin. `marchBlockOnce` turns the block
+ * round on it, `living.ts` slides a wave back inside the same band, and a patriarch's rally checks a
+ * place against it before putting a crab there (spec §2) — a crab outside the band fails the test in
+ * *both* directions, which would freeze its block into a step-down on every march step.
+ */
+export function insideField(x: number): boolean {
+  return x - HALF >= 0 && x + HALF <= FIELD_W;
+}
+
+/**
  * One block step of `step` units: sideways, or reverse and step down at a wall (see `marchCrabs`).
  * The wall test runs over the crabs' own positions, so it is the outermost living crab that turns
  * the block round however the wave is shaped at that moment.
@@ -94,8 +127,7 @@ export function marchSteps(tick: number, pct: number = TUNING.crabMovePct): numb
 export function marchBlockOnce(s: GameState, step: number): void {
   let hitsWall = false;
   for (const c of s.crabs) {
-    const nx = c.x + step;
-    if (nx + HALF > FIELD_W || nx - HALF < 0) {
+    if (!insideField(c.x + step)) {
       hitsWall = true;
       break;
     }

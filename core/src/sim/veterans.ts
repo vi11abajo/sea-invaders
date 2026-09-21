@@ -1,9 +1,8 @@
 import { CRAB, CRAB_SHOTS, FIRE_WEIGHT, SHOT } from '../config';
 import { idiv } from '../fixed';
-import { spawnCrab } from '../game';
 import type { CrabType } from '../levels';
 import type { Bullet, BulletKind, Crab, FormationState, GameState } from '../types';
-import { FRAGMENT_VECTORS } from './crabs';
+import { FRAGMENT_VECTORS, insideField, spawnCrab } from './crabs';
 import { SPLIT_COL, freeSlots } from './living';
 
 /**
@@ -20,8 +19,8 @@ import { SPLIT_COL, freeSlots } from './living';
  * The fixed order of the new per-tick work (determinism):
  *  1. `updateVeterans`, between `updateShots` and `marchCrabs`: the rage countdown, then per crab in
  *     `s.crabs` order the shield regrow and the rally mark, then per crab in `s.crabs` order the
- *     patriarch rallies (over the crab count as it stood before the first rally, so a crab revived
- *     this tick is not itself ticked).
+ *     patriarch rally clocks and their rallies (over the crab count as it stood before the first
+ *     rally, so a crab revived this tick is not itself ticked).
  *  2. Inside `updateEnemyShots`'s shot loop: the bubble's drift flip where the zigzag's own flip
  *     happens, then the charge's burst right after the explosive's split.
  *  3. Inside `updateEnemyShots`'s firing block, after the single shooter draw: the bubble cap, the
@@ -37,14 +36,31 @@ export const SHIELD_REGROW_TICKS = 300;
 /** Ticks between two of a patriarch's revives (spec §2). */
 export const RALLY_EVERY = 480;
 
+/**
+ * How much later than the patriarch before it the k-th patriarch of a wave first rallies (ruling
+ * R9b): a wave with four of them brings its fallen back as a trickle rather than four at a time.
+ * `armRallies` hands out `RALLY_EVERY + RALLY_STAGGER * k` in slot order at spawn.
+ */
+export const RALLY_STAGGER = 40;
+
 /** Revives one patriarch may ever make (spec §2). */
 export const RALLY_CAP = 3;
 
 /** Ticks a revived crab carries its rally mark for the renderer (spec §7, frame flag bit 2). */
 export const REVIVED_TICKS = 60;
 
-/** Ticks a formation rages for after a patriarch of it died (spec §2). */
+/** Ticks a formation actually marches and fires half again as fast after a patriarch died (spec §2). */
 export const RAGE_TICKS = 300;
+
+/**
+ * What `enrage` stores in `GameState.rageTicks`. A patriarch dies inside `hitCrabs`/`hitOctopi`, by
+ * which point this tick's march and fire roll have already run, so the rage can only bite from the
+ * next tick on; the extra unit is that dead tick, which `updateVeterans` spends at the top of the
+ * next one. Storing it is what makes `RAGE_TICKS` mean exactly what it says — 300 ticks in which the
+ * wave really is faster — the same way `SHIELD_REGROW_TICKS` means exactly 300 ticks with the shield
+ * down. (The shield needs no such unit: it breaks and regrows in the same phase of the tick.)
+ */
+const RAGE_STORED = RAGE_TICKS + 1;
 
 /** A raging formation marches and fires `RAGE_NUM / RAGE_DEN` times as fast (spec §2: x1.5). */
 const RAGE_NUM = 3;
@@ -102,31 +118,80 @@ export function updateVeterans(s: GameState): void {
   for (let i = 0; i < living; i++) {
     const c = s.crabs[i]!;
     if (c.type !== 'patriarch' || c.rallies >= RALLY_CAP) continue;
-    c.rallyTimer += 1;
-    if (c.rallyTimer < RALLY_EVERY) continue;
-    c.rallyTimer = 0;
+    // A patriarch that reached the field with no clock armed — a hand-built state, a later task's
+    // boss squad — falls back to the plain cadence rather than never rallying at all.
+    if (c.rallyTimer <= 0) c.rallyTimer = RALLY_EVERY;
+    c.rallyTimer -= 1;
+    if (c.rallyTimer > 0) continue;
+    c.rallyTimer = RALLY_EVERY;
     rally(s, c);
   }
 }
 
 /**
- * One revive by the patriarch `p` (spec §2): the empty slot of its wave with the lowest index comes
- * back with the kind that slot fields and full hp, marked as revived for the renderer. The revived
- * crab counts for the clear condition and scores again, exactly like any other crab of the wave.
+ * Arms the rally clock of every patriarch of a freshly spawned wave (ruling R9b): the k-th of them
+ * in slot order — which is the order `spawnFormation` and `spawnWave` build their crabs in — waits
+ * `RALLY_EVERY + RALLY_STAGGER * k` ticks for its first revive, and `RALLY_EVERY` for every one
+ * after. Without the stagger a wave's four patriarchs would rally in lockstep and bring back four
+ * crabs at a time. A wave with no patriarch in it is walked once and left untouched.
+ */
+export function armRallies(s: GameState): void {
+  let k = 0;
+  for (const c of s.crabs) {
+    if (c.type !== 'patriarch') continue;
+    c.rallyTimer = RALLY_EVERY + RALLY_STAGGER * k;
+    k += 1;
+  }
+}
+
+/**
+ * One revive by the patriarch `p` (spec §2): a fallen crab of its wave comes back with the kind its
+ * slot fields and full hp, marked as revived for the renderer. The revived crab counts for the clear
+ * condition and scores again, exactly like any other crab of the wave.
  *
- * Nothing happens when the wave has no empty slot at all, or when the place cannot be measured (see
- * `rallyPoint`); neither spends one of the patriarch's three revives, and the next rally tries again.
+ * Nothing happens when no slot qualifies (see `rallyTarget`); that spends none of the patriarch's
+ * three revives, and it tries again at its next rally.
  */
 function rally(s: GameState, p: Crab): void {
-  const slot = s.formation ? (freeSlots(s)[0] ?? -1) : lowestFreeCell(s);
-  if (slot < 0) return;
-  const spot = rallyPoint(s, slot);
-  if (spot === null) return;
-  const back = spawnCrab(spot.x, spot.y, typeForSlot(s, slot), slot);
+  const target = rallyTarget(s);
+  if (target === null) return;
+  const back = spawnCrab(target.x, target.y, target.type, target.slot);
   back.revived = REVIVED_TICKS;
   s.crabs.push(back);
   p.rallies += 1;
   s.events.push({ tick: s.tick, type: 'crab_rallied' });
+}
+
+/**
+ * The slot a rally brings a crab back into, and where that crab goes: the **lowest free slot of the
+ * wave that a crab can actually be put back into**, walked in ascending slot order. A slot is
+ * passed over when
+ *
+ * - it is a patriarch's (ruling R7). A rally never brings a patriarch back, on a formation wave or
+ *   on the daily grid alike, so a wave's revives are bounded by `RALLY_CAP` per patriarch it
+ *   *spawned with* and a dead patriarch stays dead;
+ * - its place cannot be measured at all — a split wave whose half has been wiped out (see
+ *   `rallyPoint`);
+ * - its place lies outside the field (ruling R8). The formation origin rides with the block but the
+ *   march's wall test only ever sees the *living* crabs, so once an edge column is dead the block
+ *   marches past it and that column's slots sit off the field. A crab put there fails
+ *   `insideField` in both directions on every march step, and the whole wave would stop moving
+ *   sideways and step down 250 units a tick until it invaded — so the band is checked with
+ *   `insideField` itself, the very test the march turns on, never a margin of its own.
+ *
+ * `null` when no free slot qualifies: the rally is skipped whole and the patriarch tries again at
+ * its next one, by which time the wave has marched and the same slot may well be reachable.
+ */
+function rallyTarget(s: GameState): { slot: number; type: CrabType; x: number; y: number } | null {
+  const free = s.formation ? freeSlots(s) : freeCells(s);
+  for (const slot of free) {
+    const type = typeForSlot(s, slot);
+    if (type === 'patriarch') continue;
+    const spot = rallyPoint(s, slot);
+    if (spot === null || !insideField(spot.x)) continue;
+    return { slot, type, x: spot.x, y: spot.y };
+  }
+  return null;
 }
 
 /** The kind slot `slot` of the current wave fields: the slot's own kind, or the grid row's. */
@@ -135,12 +200,13 @@ function typeForSlot(s: GameState, slot: number): CrabType {
   return f ? f.slots[slot]!.type : s.gridRows[idiv(slot, CRAB.cols)]!;
 }
 
-/** The lowest cell of a daily or practice grid wave that no living crab stands in; -1 when full. */
-function lowestFreeCell(s: GameState): number {
+/** The cells of a daily or practice grid wave that no living crab stands in, ascending. */
+function freeCells(s: GameState): number[] {
   const cells = s.gridRows.length * CRAB.cols;
   const taken = new Set(s.crabs.map((c) => c.slot));
-  for (let i = 0; i < cells; i++) if (!taken.has(i)) return i;
-  return -1;
+  const free: number[] = [];
+  for (let i = 0; i < cells; i++) if (!taken.has(i)) free.push(i);
+  return free;
 }
 
 /** Where a cell of the daily/practice grid sits, relative to cell 0 (spec §2's 6-column grid). */
@@ -163,9 +229,8 @@ function leftHalf(f: FormationState, slot: number): boolean {
  * `sibling + (cell - sibling's cell)` names it exactly. A daily or practice grid is measured the
  * same way off its lowest-slot living crab, having no origin either.
  *
- * `null` when there is nothing to measure from: a split wave whose half has been wiped out. That
- * rally is skipped whole — no revive, no spent rally — and the patriarch tries again at its next
- * one, which is only ever a revive that half could not have reached anyway.
+ * `null` when there is nothing to measure from: a split wave whose half has been wiped out. The
+ * caller then passes the slot over, exactly as it does for a place outside the field.
  */
 function rallyPoint(s: GameState, slot: number): { x: number; y: number } | null {
   const f = s.formation;
@@ -204,7 +269,7 @@ function placeBeside(
  */
 export function enrage(s: GameState, c: Crab): void {
   if (c.type !== 'patriarch') return;
-  s.rageTicks = RAGE_TICKS;
+  s.rageTicks = RAGE_STORED;
   s.events.push({ tick: s.tick, type: 'formation_rage' });
 }
 
@@ -324,7 +389,13 @@ export function burstCharge(s: GameState, b: Bullet, out: Bullet[]): boolean {
   return true;
 }
 
-/** Whether a player shot's box overlaps a bubble's circle, the same box test `hitCrabs` uses. */
+/**
+ * Whether a player shot overlaps a bubble: the same box-against-box test `hitCrabs` uses for a
+ * crab, with the bubble's radius as its half-width. It is deliberately a 400 × 400 box and not the
+ * radius-200 circle `hitOctopi` tests the same bubble with — a player shot is a box, so the cheap
+ * box test is the one that matches the rest of `hitCrabs`; the corners buy at most 83 units of
+ * extra reach on the diagonal.
+ */
 function touchesBubble(p: Bullet, b: Bullet): boolean {
   return Math.abs(p.x - b.x) * 2 < SHOT.w + BUBBLE_RADIUS * 2
     && Math.abs(p.y - b.y) * 2 < SHOT.h + BUBBLE_RADIUS * 2;

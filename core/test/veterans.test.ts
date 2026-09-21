@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   ARRIVAL, BUBBLE_CAP, BUBBLE_FLIP, BUBBLE_RADIUS, BUBBLE_VX, BUBBLE_VY, CHARGE_BURST_GAP,
-  CHARGE_RADIUS, CRAB, CRAB_TYPES, DAILY_RUN, PRACTICE_RUN, RAGE_TICKS, RALLY_CAP, RALLY_EVERY,
-  REEF_KINDS, REVIVED_TICKS, SHIELD_REGROW_TICKS, TYPE_COLOUR, createGame, crabSpeed, freeSlots,
-  hashState, heraldedSpeed, hitCrabs, hitOctopi, isHeralded, marchCrabs, popBubbles, raged,
-  shotDamage, shotRadius, snapshot, updateEnemyShots, updateVeterans,
+  CHARGE_RADIUS, CRAB, CRAB_TYPES, DAILY_RUN, INITIAL_INPUT, PRACTICE_RUN, RAGE_TICKS, RALLY_CAP,
+  RALLY_EVERY, RALLY_STAGGER, REEF_KINDS, REVIVED_TICKS, SHIELD_REGROW_TICKS, SHOT, TYPE_COLOUR,
+  armRallies, createGame, crabSpeed, freeSlots, hashState, heraldedSpeed, hitCrabs, hitOctopi,
+  insideField, isHeralded, marchCrabs, popBubbles, raged, shotDamage, shotRadius, snapshot, step,
+  updateEnemyShots, updateVeterans,
   type Bullet, type BulletKind, type Crab, type CrabType, type Formation, type FormationState,
   type GameState, type LevelSpec,
 } from '../src';
@@ -82,6 +83,15 @@ function shoot(s: GameState, c: Crab, data = 0): void {
   s.shots.push({ x: c.x, y: c.y, vx: 0, vy: -240, kind: 'straight', data });
   hitCrabs(s);
 }
+
+/** Silences both sides' fire, so a `step`-driven test is about the tick wiring and nothing else. */
+function quiet(s: GameState): void {
+  s.octopi.cooldown = 1000000; // Octopi holds its fire
+  s.rngFire = { nextInt: (n: number) => (n === 1000 ? 999 : 0) } as never; // and so do the crabs
+}
+
+/** How far the wave's origin has stepped down, in whole `CRAB.stepDown`s, since `oy`. */
+const stepDowns = (s: GameState, oy: number) => (form(s).oy - oy) / CRAB.stepDown;
 
 describe('the warden raises a rune shield', () => {
   /** A practice game holding one warden, shield up. */
@@ -230,6 +240,21 @@ describe('the herald spreads an aura', () => {
     s.enemyShots = [];
     updateEnemyShots(s);
     expect(s.enemyShots[0]!.vy).toBe(110); // out of the aura: the plain crab shot
+  });
+
+  it('carries the aura into a bubble drift as well as an aimed shot', () => {
+    const s = grid();
+    const herald = at(s, 7);
+    herald.type = 'herald';
+    const blower = at(s, 6);
+    blower.type = 'bubbler';
+    s.crabs = [blower, herald];
+    s.rngFire = { nextInt: (n: number) => (n === 1000 ? 0 : 0) } as never;
+    updateEnemyShots(s);
+    const b = s.enemyShots[0]!;
+    expect({ kind: b.kind, vy: b.vy, drift: Math.abs(b.vx) })
+      .toEqual({ kind: 'bubble', vy: heraldedSpeed(BUBBLE_VY), drift: heraldedSpeed(BUBBLE_VX) });
+    expect([heraldedSpeed(BUBBLE_VY), heraldedSpeed(BUBBLE_VX)]).toEqual([72, 36]);
   });
 });
 
@@ -477,21 +502,24 @@ describe('the patriarch rallies the fallen', () => {
 
   it('places a revived crab of a split wave off a living crab of its own half', () => {
     const s = landed('claws', PATRIARCH_POOL);
-    const p = at(s, 0); // column 1: the left half
-    s.crabs = s.crabs.filter((c) => ![1, 2, 3].includes(c.slot));
-    expect(freeSlots(s)).toEqual([1, 2, 3]);
+    const p = at(s, 0); // column 1, the left half: the wave's first patriarch
+    const slots = form(s).slots;
+    // Slots 1..3 are the other tier-4 cells, which a rally will never take (ruling R7); slot 4 is
+    // the left half's own column 0 on the next row down, and it is the one that comes back.
+    s.crabs = s.crabs.filter((c) => ![1, 2, 3, 4].includes(c.slot));
+    expect(freeSlots(s)).toEqual([1, 2, 3, 4]);
+    expect(slots.slice(0, 4).every((sl) => sl.type === 'patriarch')).toBe(true);
 
     advance(s, RALLY_EVERY);
     expect(count(s, 'crab_rallied')).toBe(1);
     const back = s.crabs[s.crabs.length - 1]!;
-    const slots = form(s).slots;
     expect({ slot: back.slot, x: back.x, y: back.y }).toEqual({
-      slot: 1,
-      x: p.x + (slots[1]!.x - slots[0]!.x),
-      y: p.y + (slots[1]!.y - slots[0]!.y),
+      slot: 4,
+      x: p.x + (slots[4]!.x - slots[0]!.x),
+      y: p.y + (slots[4]!.y - slots[0]!.y),
     });
     // The halves have marched apart, so the frozen origin is no longer where the crab belongs.
-    expect(back.x).not.toBe(form(s).ox + slots[1]!.x);
+    expect(back.x).not.toBe(form(s).ox + slots[4]!.x);
   });
 
   it('skips the rally while the half that owns the lowest free slot is empty, and retries later', () => {
@@ -501,7 +529,9 @@ describe('the patriarch rallies the fallen', () => {
     s.crabs = s.crabs.filter((c) => slots[c.slot]!.col <= 3); // the whole right half is gone
     at(s, 1).type = 'normal'; // the wave's other left-half patriarch: one rally clock is enough here
     expect(s.crabs.filter((c) => c.type === 'patriarch')).toHaveLength(1);
-    expect(freeSlots(s)[0]).toBe(2); // a right-half slot
+    // Slots 2 and 3 are tier-4 cells a rally never takes (R7); slot 8 is the lowest free one it
+    // would take, and it belongs to the half that is gone.
+    expect(freeSlots(s).filter((i) => slots[i]!.type !== 'patriarch')[0]).toBe(8);
 
     advance(s, RALLY_EVERY * 2);
     expect({ rallies: p.rallies, rallied: count(s, 'crab_rallied'), crabs: s.crabs.length })
@@ -514,10 +544,115 @@ describe('the patriarch rallies the fallen', () => {
     expect(count(s, 'crab_rallied')).toBe(1);
     const back = s.crabs[s.crabs.length - 1]!;
     expect({ slot: back.slot, x: back.x, y: back.y }).toEqual({
-      slot: 2,
-      x: anchor.x + (slots[2]!.x - slots[3]!.x),
-      y: anchor.y + (slots[2]!.y - slots[3]!.y),
+      slot: 8,
+      x: anchor.x + (slots[8]!.x - slots[3]!.x),
+      y: anchor.y + (slots[8]!.y - slots[3]!.y),
     });
+  });
+
+  it('passes over a free slot that has marched off the field, and takes the lowest one still on it', () => {
+    // Column 0 of the wreck's widest row is its only column-0 cell, so killing it takes the block's
+    // left edge with it: the wall test only ever sees living crabs, and the block marches on until
+    // *its* leftmost crab is at the wall — which carries the dead column's slot clean off the field.
+    // A crab put there would fail the wall test in both directions and freeze the whole wave into a
+    // step-down every march step, all the way to the invasion line (review C1).
+    const s = landed('wreck', PATRIARCH_POOL);
+    const p = at(s, 0);
+    s.crabs = s.crabs.filter((c) => ![10, 13].includes(c.slot));
+    s.dir = -1;
+    while (s.dir === -1) advance(s, 1); // march to the left wall; the turn leaves the origin there
+
+    const f = form(s);
+    expect({ off: insideField(f.ox + f.slots[10]!.x), on: insideField(f.ox + f.slots[13]!.x) })
+      .toEqual({ off: false, on: true });
+
+    const oy = f.oy;
+    p.rallyTimer = 1;
+    advance(s, 1);
+    expect(count(s, 'crab_rallied')).toBe(1);
+    const back = s.crabs[s.crabs.length - 1]!;
+    expect(back.slot).toBe(13); // not slot 10, the lowest free one
+    expect(s.crabs.every((c) => insideField(c.x))).toBe(true);
+
+    // And the wave marches on as it did: sideways every tick, and no step-down storm.
+    const ox = form(s).ox;
+    advance(s, 200);
+    expect({ over: s.over, moved: form(s).ox !== ox }).toEqual({ over: false, moved: true });
+    expect(stepDowns(s, oy)).toBeLessThan(4); // the jammed wave stepped down 22 times in 24 ticks
+  });
+
+  it('never puts a revived crab outside the field, however far its wave has marched', () => {
+    // The reviewer's second reproduction: a `classic` wave whose two left columns are swept away,
+    // with four patriarchs rallying over three full rally periods.
+    const s = landed('classic', PATRIARCH_POOL);
+    const slots = form(s).slots;
+    s.crabs = s.crabs.filter((c) => slots[c.slot]!.col > 1);
+    expect(s.crabs.filter((c) => c.type === 'patriarch')).toHaveLength(4);
+
+    const oy = form(s).oy;
+    let escaped = -1;
+    for (let t = 0; t < RALLY_EVERY * 3 && !s.over; t++) {
+      advance(s, 1);
+      if (escaped < 0 && s.crabs.some((c) => !insideField(c.x))) escaped = t;
+    }
+    expect(escaped).toBe(-1);
+    expect(s.over).toBe(false);
+    expect(stepDowns(s, oy)).toBeLessThan(12);
+    // The guard rejects places, it does not switch the skill off: the swept columns come back
+    // whenever the wave has marched far enough right for their slots to be on the field again.
+    expect(count(s, 'crab_rallied')).toBeGreaterThan(0);
+  });
+
+  it('never revives a patriarch, so a wave is bounded by RALLY_CAP per patriarch it spawned with', () => {
+    // `shell` fields exactly two tier-4 cells, so exactly two patriarchs, at slots 0 and 1.
+    const s = landed('shell', PATRIARCH_POOL);
+    expect(s.crabs.filter((c) => c.type === 'patriarch').map((c) => c.slot)).toEqual([0, 1]);
+    s.crabs = s.crabs.filter((c) => c.slot <= 1 || (c.slot >= 4 && c.slot % 2 === 0));
+    expect(freeSlots(s).length).toBeGreaterThan(2 * RALLY_CAP);
+
+    tickVeterans(s, RALLY_EVERY * 12);
+    expect(count(s, 'crab_rallied')).toBe(2 * RALLY_CAP);
+    expect(s.crabs.filter((c) => c.type === 'patriarch')).toHaveLength(2);
+    expect(s.crabs.every((c) => c.revived === 0 || c.type !== 'patriarch')).toBe(true);
+  });
+
+  it('leaves a dead patriarch dead, on a formation wave and on the daily grid alike', () => {
+    const s = landed('shell', PATRIARCH_POOL);
+    s.crabs = s.crabs.filter((c) => c.slot !== 1 && c.slot !== 5); // one patriarch and one tier-3 cell
+    tickVeterans(s, RALLY_EVERY * 6);
+    expect(freeSlots(s)).toContain(1); // the fallen patriarch's slot is never filled
+    expect(s.crabs.filter((c) => c.type === 'patriarch').map((c) => c.slot)).toEqual([0]);
+
+    const d = createGame('daily-patriarch', DAILY_RUN);
+    d.crabs[0]!.type = 'patriarch';
+    d.crabs[7]!.type = 'patriarch';
+    d.gridRows[1] = 'patriarch'; // the whole of that grid row spawned as patriarchs
+    armRallies(d);
+    d.crabs = d.crabs.filter((c) => ![6, 7, 8, 14].includes(c.slot));
+    tickVeterans(d, RALLY_EVERY * 4);
+    // Cells 6, 7 and 8 belong to a patriarch row and stay empty; 14 is the one that comes back.
+    const taken = new Set(d.crabs.map((c) => c.slot));
+    expect([6, 7, 8, 14].map((i) => taken.has(i))).toEqual([false, false, false, true]);
+    expect(count(d, 'crab_rallied')).toBe(1);
+    expect(d.crabs.filter((c) => c.type === 'patriarch')).toHaveLength(1);
+  });
+
+  it('staggers a wave\'s patriarchs so they never rally on the same tick', () => {
+    const s = landed('classic', PATRIARCH_POOL); // six tier-4 cells, so six patriarchs
+    const clocks = s.crabs.filter((c) => c.type === 'patriarch').map((c) => c.rallyTimer);
+    expect(clocks).toEqual([0, 1, 2, 3, 4, 5].map((k) => RALLY_EVERY + RALLY_STAGGER * k));
+    expect(s.crabs.filter((c) => c.type !== 'patriarch').every((c) => c.rallyTimer === 0)).toBe(true);
+
+    s.crabs = s.crabs.filter((c) => c.slot < 6 || c.slot >= 12); // the whole tier-3 row is free
+    const at0 = s.tick;
+    const fired: number[] = [];
+    for (let t = 0; t < RALLY_EVERY + RALLY_STAGGER * 6; t++) {
+      const before = count(s, 'crab_rallied');
+      tickVeterans(s, 1);
+      if (count(s, 'crab_rallied') > before) fired.push(s.tick - at0);
+    }
+    expect(fired).toEqual([0, 1, 2, 3, 4, 5].map((k) => RALLY_EVERY + RALLY_STAGGER * k));
+    expect(new Set(fired).size).toBe(6); // one at a time, never a wave of six at once
   });
 
   it('revives into the lowest empty cell of a daily grid wave, with that row kind', () => {
@@ -551,9 +686,23 @@ describe('a dying patriarch enrages the formation', () => {
     return s;
   }
 
-  it('sets RAGE_TICKS of rage the moment the patriarch dies', () => {
+  /** Whether the wave was raging on each of the `ticks` ticks after the death, in order. */
+  function ragingTicks(s: GameState, ticks: number): boolean[] {
+    const out: boolean[] = [];
+    for (let t = 0; t < ticks; t++) {
+      tickVeterans(s, 1);
+      // Exactly where `marchCrabs` and `updateEnemyShots` read it: right after the veteran tick.
+      out.push(s.rageTicks > 0);
+    }
+    return out;
+  }
+
+  it('rages on exactly RAGE_TICKS ticks of marching and firing, not one more', () => {
     const s = raging();
-    expect({ rage: s.rageTicks, events: count(s, 'formation_rage') }).toEqual({ rage: RAGE_TICKS, events: 1 });
+    expect(count(s, 'formation_rage')).toBe(1);
+    const hot = ragingTicks(s, RAGE_TICKS + 2);
+    expect(hot.filter(Boolean)).toHaveLength(RAGE_TICKS);
+    expect({ last: hot[RAGE_TICKS - 1], after: hot[RAGE_TICKS] }).toEqual({ last: true, after: false });
     expect(RAGE_TICKS).toBe(300);
   });
 
@@ -581,24 +730,27 @@ describe('a dying patriarch enrages the formation', () => {
     expect(s.enemyShots).toHaveLength(1);
   });
 
-  it('counts the rage down one tick at a time and lets it lapse', () => {
+  it('lets the rage lapse: the wave marches at its plain speed again', () => {
     const s = raging();
-    tickVeterans(s, RAGE_TICKS - 1);
-    expect(s.rageTicks).toBe(1);
+    ragingTicks(s, RAGE_TICKS);
+    expect(crabSpeed(s)).not.toBe(raged({ ...s, rageTicks: 1 } as GameState, crabSpeed(s)));
     tickVeterans(s, 1);
-    expect({ rage: s.rageTicks, speed: crabSpeed(s) === raged(s, crabSpeed(s)) })
-      .toEqual({ rage: 0, speed: true });
+    expect({ rage: s.rageTicks, plain: crabSpeed(s) === raged(s, crabSpeed(s)) })
+      .toEqual({ rage: 0, plain: true });
   });
 
   it('refreshes the rage on a second death instead of stacking it', () => {
     const s = raging();
-    tickVeterans(s, 200);
-    expect(s.rageTicks).toBe(RAGE_TICKS - 200);
+    ragingTicks(s, 200);
+    expect(s.rageTicks).toBeGreaterThan(0);
     const second = s.crabs[0]!;
     second.type = 'patriarch';
     second.hp = CRAB_TYPES.patriarch.hp;
     for (let i = 0; i < CRAB_TYPES.patriarch.hp; i++) shoot(s, second);
-    expect({ rage: s.rageTicks, events: count(s, 'formation_rage') }).toEqual({ rage: RAGE_TICKS, events: 2 });
+    expect(count(s, 'formation_rage')).toBe(2);
+    // A full rage again from here, not the 100 ticks that were left plus another 300.
+    const hot = ragingTicks(s, RAGE_TICKS + 2);
+    expect(hot.filter(Boolean)).toHaveLength(RAGE_TICKS);
   });
 });
 
@@ -630,6 +782,69 @@ describe('the frame carries the four veteran flags', () => {
     tickVeterans(s, 1);
     expect({ revived: back.revived, flag: snapshot(s).crabs[5]! & 4 }).toEqual({ revived: 0, flag: 0 });
     expect(REVIVED_TICKS).toBe(60);
+  });
+});
+
+describe('the veteran work is wired into the tick', () => {
+  /**
+   * Everything here is driven through the real `step`, not through `updateVeterans`/`popBubbles`
+   * by hand: removing either call from `core/src/step.ts` — or moving `popBubbles` after
+   * `hitCrabs` — turns these red, which is the only thing that pins the order the skills are
+   * documented to run in.
+   */
+
+  it('regrows a warden shield through step alone', () => {
+    const s = createGame('wired-shield', PRACTICE_RUN);
+    s.crabs = [crab('warden', 700, 1500)];
+    s.waveTotal = 1;
+    s.dir = -1;
+    quiet(s);
+    const c = s.crabs[0]!;
+    c.shield = 0;
+    c.shieldTimer = SHIELD_REGROW_TICKS;
+    for (let t = 0; t < SHIELD_REGROW_TICKS - 1; t++) step(s, INITIAL_INPUT);
+    expect({ shield: c.shield, up: count(s, 'crab_shield_up') }).toEqual({ shield: 0, up: 0 });
+    step(s, INITIAL_INPUT);
+    expect({ shield: c.shield, up: count(s, 'crab_shield_up') }).toEqual({ shield: 1, up: 1 });
+  });
+
+  it('rallies a fallen crab through step alone, at exactly the armed tick', () => {
+    const s = landed('wreck', PATRIARCH_POOL);
+    quiet(s);
+    s.crabs = s.crabs.filter((c) => c.slot !== 13);
+    for (let t = 0; t < RALLY_EVERY - 1; t++) step(s, INITIAL_INPUT);
+    expect(count(s, 'crab_rallied')).toBe(0);
+    step(s, INITIAL_INPUT);
+    expect(count(s, 'crab_rallied')).toBe(1);
+    expect(s.crabs[s.crabs.length - 1]!.slot).toBe(13);
+  });
+
+  it('pops a bubble with a player shot before that shot can reach the crab behind it', () => {
+    const s = createGame('wired-bubble', PRACTICE_RUN);
+    s.crabs = [crab('armored', 1500, 4000)];
+    s.waveTotal = 1;
+    quiet(s);
+    const c = s.crabs[0]!;
+    s.enemyShots = [{ x: c.x, y: c.y, vx: 0, vy: 0, kind: 'bubble', data: BUBBLE_FLIP }];
+    s.shots = [{ x: c.x, y: c.y + SHOT.speed, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 }];
+    step(s, INITIAL_INPUT);
+    // With `popBubbles` gone, or run after `hitCrabs`, the shot reaches the crab instead.
+    expect({ bubbles: s.enemyShots.length, shots: s.shots.length, hp: c.hp, pops: count(s, 'bubble_pop') })
+      .toEqual({ bubbles: 0, shots: 0, hp: CRAB_TYPES.armored.hp, pops: 1 });
+  });
+
+  it('lets a rage lapse through step alone, after exactly RAGE_TICKS ticks', () => {
+    const s = landed('wreck', PATRIARCH_POOL);
+    quiet(s);
+    const p = at(s, 0);
+    for (let i = 0; i < CRAB_TYPES.patriarch.hp; i++) shoot(s, p);
+    expect(s.rageTicks).toBeGreaterThan(0);
+    let hot = 0;
+    for (let t = 0; t < RAGE_TICKS + 5; t++) {
+      step(s, INITIAL_INPUT);
+      if (s.rageTicks > 0) hot += 1;
+    }
+    expect(hot).toBe(RAGE_TICKS);
   });
 });
 

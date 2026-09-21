@@ -65,7 +65,11 @@ export interface Crab {
   shieldTimer: number;
   /** How many times a patriarch has revived a fallen crab of its wave, capped at 3 (spec §2). Neutral value: 0. */
   rallies: number;
-  /** Ticks a patriarch has counted towards its next revive, 0 to `RALLY_EVERY` (spec §2). Neutral value: 0. */
+  /**
+   * Ticks left until a patriarch's next revive (spec §2), armed at spawn by `armRallies` with
+   * `RALLY_EVERY + RALLY_STAGGER * k` for the k-th patriarch of the wave and reset to `RALLY_EVERY`
+   * after every rally. Neutral value: 0.
+   */
   rallyTimer: number;
   /** The squad this crab belongs to (a later task's boss squads, spec §5.1); 0 = none. Neutral value: 0. */
   squad: number;
