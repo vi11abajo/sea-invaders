@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isValidProgress, newProgress, settleProgress, type CampaignProgress } from '@sea-invaders/core';
+import { extendProgress, isValidProgress, newProgress, settleProgress, type CampaignProgress } from '@sea-invaders/core';
 
 const KEY = 'campaign.v1';
 
@@ -9,8 +9,9 @@ export async function loadProgress(): Promise<CampaignProgress> {
     const raw = await AsyncStorage.getItem(KEY);
     if (!raw) return newProgress(Date.now());
     const parsed: unknown = JSON.parse(raw);
-    // Settled on load, so a stale pointer heals even on a signed-out device that never syncs.
-    return isValidProgress(parsed) ? settleProgress(parsed) : newProgress(Date.now());
+    // Grown to the full level count first (a copy stored before reefs 6-10 is thirty long), then
+    // settled, so a stale pointer heals even on a signed-out device that never syncs.
+    return isValidProgress(parsed) ? settleProgress(extendProgress(parsed)) : newProgress(Date.now());
   } catch {
     return newProgress(Date.now());
   }

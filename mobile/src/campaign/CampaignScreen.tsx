@@ -8,7 +8,7 @@ import Animated, {
   Easing, interpolate, useAnimatedStyle, useSharedValue, withRepeat, withTiming,
 } from 'react-native-reanimated';
 import {
-  currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEF_LIVES, REEFS, TYPE_COLOUR,
+  currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEF_LIVES, TYPE_COLOUR,
   type CampaignProgress,
 } from '@sea-invaders/core';
 import { hapticLight, hapticTap } from '../audio/haptics';
@@ -22,13 +22,13 @@ import { Sheet } from '../ui/Sheet';
 import { Txt } from '../ui/Txt';
 import { COLORS, MOTION, RADIUS } from '../ui/tokens';
 import {
-  BOSS_ABILITY, REEF_ACCENT, REEF_LEGENDS, REEF_NAMES, REEF_NEW_KIND, levelState, reefNewEnemyCopy,
-  reefProgress, type LevelState,
+  BOSS_ABILITY, REEF_ACCENT, REEF_LEGENDS, REEF_NAMES, REEF_NEW_KIND, VISIBLE_REEFS, levelState,
+  reefNewEnemyCopy, reefProgress, type LevelState,
 } from './reefs';
 import { ReefBackdrop } from './ReefBackdrop';
 import { REEF_KEY_ART_BACKGROUND, REEF_KEY_ART_PATH, REEF_KEY_ART_TEXT_SHADOW } from './reefBackground';
 
-// The header reads "REEF n OF 6": a literal 6, not core's `REEFS` (5) — it counts the mock's
+// The header reads "REEF n OF 6": a literal 6, not `VISIBLE_REEFS` (5) — it counts the mock's
 // six-reef table (reef 6 is the unbuilt "coming" placeholder in the rail), spec §"Campaign map".
 const REEFS_SHOWN = 6;
 
@@ -74,7 +74,9 @@ interface CampaignScreenProps {
 /** The campaign map: one world per reef, a dotted level path up to the boss, and a reef rail. */
 export function CampaignScreen({ progress, initialReef, onPlay, onBack }: CampaignScreenProps) {
   const sprites = useSprites();
-  const [reef, setReef] = useState(initialReef ?? progress.reef);
+  // Clamped: a campaign finished through reef 5 leaves the pointer on reef 6, which the core has
+  // but this map does not draw yet, and every reef-indexed table here would read past its end.
+  const [reef, setReef] = useState(initialReef ?? Math.min(progress.reef, VISIBLE_REEFS));
 
   const shown = useSharedValue(0);
   useEffect(() => {
@@ -400,7 +402,7 @@ function BottomPanel({ reef, progress, sprites, onPlay, onOpenLevelSheet, onSele
     ctaLabel = 'Play';
     ctaOnPress = () => onPlay(id, false);
   } else if (rp.reefCleared) {
-    kicker = reef === REEFS ? 'Campaign complete' : 'Reef cleared';
+    kicker = reef === VISIBLE_REEFS ? 'Campaign complete' : 'Reef cleared';
     title = 'Replay any level, unranked';
     ctaLabel = 'Replay';
     ctaOnPress = () => onOpenLevelSheet(first);
@@ -435,7 +437,7 @@ function ReefRail({ reef, progress, sprites, onSelect }: {
   return (
     <View style={styles.rail}>
       {Array.from({ length: REEFS_SHOWN }, (_, i) => {
-        if (i === REEFS) return <UnknownReefChip key="unknown" />;
+        if (i === VISIBLE_REEFS) return <UnknownReefChip key="unknown" />;
         const n = i + 1;
         const active = n === reef;
         const reachable = !reefProgress(progress, n).locked;

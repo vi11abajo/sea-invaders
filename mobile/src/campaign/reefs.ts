@@ -1,4 +1,14 @@
-import { currentLevelId, LEVELS_PER_REEF, REEFS, type CampaignProgress, type CrabType } from '@sea-invaders/core';
+import { currentLevelId, LEVELS_PER_REEF, type CampaignProgress, type CrabType } from '@sea-invaders/core';
+
+/**
+ * Reefs the app draws today. The core's campaign already runs to `REEFS` reefs, but every
+ * reef-indexed table in the app (names, accents, legends, worlds, boss sprites) still holds the
+ * first five; a later task fills them in and replaces this constant with the core's `REEFS`.
+ */
+export const VISIBLE_REEFS = 5;
+
+/** Levels of the reefs the app draws: what "the whole campaign" means to it until that task lands. */
+export const VISIBLE_LEVELS = VISIBLE_REEFS * LEVELS_PER_REEF;
 
 /** Reef 1..5 display names: spec §7. Shared by the campaign map, LevelIntro and BossIntro. */
 export const REEF_NAMES = ['Kelp Shallows', 'Coral Ridge', 'Sunlit Trench', 'Crimson Deep', 'The Void'] as const;
@@ -113,18 +123,18 @@ export const REEF_WORLD: readonly ReefWorld[] = [
 export type LevelState = 'current' | 'cleared' | 'locked';
 
 /**
- * The one true state for level id `1..30` — the map's nodes and both sheets all derive their
- * state from this, so they can never disagree (fix round 1, 2026-09-13). `currentLevelId` only
- * takes priority while the campaign isn't finished:
+ * The one true state for level id `1..VISIBLE_LEVELS` — the map's nodes and both sheets all derive
+ * their state from this, so they can never disagree (fix round 1, 2026-09-13). `currentLevelId`
+ * only takes priority while the campaign isn't finished:
  * - A reef loss resets `progress.level` to 1 but keeps `cleared[]` as-is, so `currentLevelId` can
  *   point at a level that's already `cleared` (e.g. levels 1-3 cleared, then a loss on level 4
  *   resets to level 1 — level 1 must still read as the level to play next, not a replay).
- * - Clearing level 30 leaves `currentLevelId` stuck at 30 forever (`applyLevelResult`'s
- *   `campaign_complete` branch pins `reef`/`level` at the last row) — once `cleared[29]` is true
- *   no level is "current" any more; level 30 itself reads as `cleared`.
+ * - Once the last visible level is cleared no level is "current" any more and it reads as
+ *   `cleared`: the pointer has moved past the reefs the app draws (or, before reefs 6-10 existed,
+ *   stuck on the last row forever through `applyLevelResult`'s `campaign_complete` branch).
  */
 export function levelState(progress: CampaignProgress, id: number): LevelState {
-  const campaignComplete = progress.cleared[REEFS * LEVELS_PER_REEF - 1] === true;
+  const campaignComplete = progress.cleared[VISIBLE_LEVELS - 1] === true;
   if (!campaignComplete && id === currentLevelId(progress)) return 'current';
   return progress.cleared[id - 1] ? 'cleared' : 'locked';
 }
@@ -144,7 +154,7 @@ export interface ReefProgress {
  * Per-reef progress derived from the `cleared` array, never from `progress.reef`/`progress.level`
  * alone: those two only point at the *next* level to play, and can lag behind what's actually
  * cleared — a reef loss rewinds them to that reef's first level even though earlier levels in it
- * stay cleared, and clearing level 30 leaves them pointing at reef 5 / level 6 forever.
+ * stay cleared, and clearing the last visible level carries them past every reef the app draws.
  */
 export function reefProgress(progress: CampaignProgress, reef: number): ReefProgress {
   const first = (reef - 1) * LEVELS_PER_REEF;
