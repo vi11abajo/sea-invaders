@@ -85,7 +85,14 @@ export const ENEMY_SHOT = {
 export const CRAB = {
   /** About 9.4% of the field width. */
   size: 530,
-  kinds: 5,
+  /**
+   * Sprite-colour count: 5 legacy + 5 veteran kinds (spec §2, "Reefs 6-10" design). Nothing in
+   * core/src draws a random colour or keys a colour modulo off this number — the daily/practice
+   * spawn (`spawnWave` in game.ts) draws its kind from `dailyPool`'s own length, and the campaign
+   * spawn (`spawnFormation`) never draws a colour at all — so raising it here changes no existing
+   * simulation output; it only tells the app how many sprite colours to expect.
+   */
+  kinds: 10,
   cols: 6,
   gapX: 800,
   gapY: 700,
@@ -97,8 +104,11 @@ export const CRAB = {
 } as const;
 
 /**
- * Hit points and score per crab kind (spec §1). `normal` matches CRAB.points and 1 hp, unchanged
- * from wave-mode behaviour; armored survives one hit and elder two, and the app draws the damage.
+ * Hit points and score per crab kind: the five legacy kinds (spec §1, unchanged) plus the five
+ * veteran kinds of reefs 6-10 (spec §2). `normal` matches CRAB.points and 1 hp, unchanged from
+ * wave-mode behaviour; armored survives one hit and elder two, and the app draws the damage. The
+ * veterans spawn nowhere yet (no reef, roster or daily-pool wiring), so these numbers currently
+ * describe crabs no run can ever field — a later task wires each one's skill and adds it to a reef.
  */
 export const CRAB_TYPES = {
   normal: { hp: 1, points: 10 },
@@ -106,11 +116,18 @@ export const CRAB_TYPES = {
   swift: { hp: 1, points: 15 },
   heavy: { hp: 1, points: 20 },
   elder: { hp: 3, points: 40 },
+  warden: { hp: 2, points: 35 },
+  herald: { hp: 3, points: 50 },
+  bubbler: { hp: 2, points: 45 },
+  bombardier: { hp: 2, points: 60 },
+  patriarch: { hp: 5, points: 100 },
 } as const;
 
 /**
- * Colour a crab is drawn with, by kind (spec §1): one colour index per kind, cosmetic only, and the
- * sprites are keyed off it. `spawnFormation` and `spawnWave` assign it directly, drawing no colours.
+ * Colour a crab is drawn with, by kind (spec §1/§2): one colour index per kind, cosmetic only, and
+ * the sprites are keyed off it. `spawnFormation` and `spawnWave` assign it directly, drawing no
+ * colours. The veterans take colours 5..9, green through violet, in reef order (warden, herald,
+ * bubbler, bombardier, patriarch) — old indices 0..4 never move.
  */
 export const TYPE_COLOUR: Record<CrabType, number> = {
   normal: 0, // green
@@ -118,12 +135,21 @@ export const TYPE_COLOUR: Record<CrabType, number> = {
   swift: 4, // yellow
   heavy: 3, // red
   elder: 2, // violet
+  warden: 5, // green veteran
+  herald: 6, // blue veteran
+  bubbler: 7, // yellow veteran
+  bombardier: 8, // red veteran
+  patriarch: 9, // violet veteran
 };
 
 /**
- * The shot each crab kind fires when it is the one chosen to fire (spec §1): every kind fires
- * exactly one aimed shot, and only the red `heavy` crab fires anything but the plain crab shot —
- * faster, wider (`shotRadius`) and worth two lives (`shotDamage`).
+ * The shot each crab kind fires when it is the one chosen to fire (spec §1/§2): every kind fires
+ * exactly one aimed shot. Among the legacy kinds only the red `heavy` crab fires anything but the
+ * plain crab shot — faster, wider (`shotRadius`) and worth two lives (`shotDamage`). Among the
+ * veterans, warden/herald/patriarch fire the same plain crab shot; bubbler fires a `bubble` and
+ * bombardier a `charge` — both still just fly straight and aimed like any other crab shot until a
+ * later task gives them their own motion (zigzag bubble, bursting charge) and `shotRadius`/
+ * `shotDamage` cases.
  */
 export const CRAB_SHOTS: Record<CrabType, { kind: BulletKind; speed: number; damage: 1 | 2 }> = {
   normal: { kind: 'crab', speed: 110, damage: 1 },
@@ -131,12 +157,18 @@ export const CRAB_SHOTS: Record<CrabType, { kind: BulletKind; speed: number; dam
   swift: { kind: 'crab', speed: 110, damage: 1 },
   heavy: { kind: 'heavy', speed: 140, damage: 2 },
   elder: { kind: 'crab', speed: 110, damage: 1 },
+  warden: { kind: 'crab', speed: 110, damage: 1 },
+  herald: { kind: 'crab', speed: 110, damage: 1 },
+  bubbler: { kind: 'bubble', speed: 60, damage: 1 },
+  bombardier: { kind: 'charge', speed: 100, damage: 2 },
+  patriarch: { kind: 'crab', speed: 110, damage: 1 },
 };
 
 /**
- * How likely each kind is to be the crab that fires (spec §1). The per-tick chance that *some* crab
- * fires is unchanged (`fireChance`); this only picks which one, by weight over the live crabs, so a
- * yellow or violet crab fires twice as often as a green one and a red one half as often.
+ * How likely each kind is to be the crab that fires (spec §1/§2). The per-tick chance that *some*
+ * crab fires is unchanged (`fireChance`); this only picks which one, by weight over the live crabs,
+ * so a yellow or violet crab (legacy or veteran) fires twice as often as a green one and a red one
+ * half as often.
  */
 export const FIRE_WEIGHT: Record<CrabType, number> = {
   normal: 2,
@@ -144,6 +176,11 @@ export const FIRE_WEIGHT: Record<CrabType, number> = {
   swift: 4,
   heavy: 1,
   elder: 4,
+  warden: 2,
+  herald: 2,
+  bubbler: 3,
+  bombardier: 1,
+  patriarch: 4,
 };
 
 export type BoostRarity = 'common' | 'rare' | 'epic' | 'legendary';

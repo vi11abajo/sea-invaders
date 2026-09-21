@@ -19,12 +19,20 @@ export interface BossFrame {
   freeze: number;
 }
 
+/**
+ * Ints packed per crab in `Frame.crabs` (spec §7 ruling R3): x, y, kind, typeIndex, hp, flags. Only
+ * bit 0 of `flags` is meaningful yet (mirrors `Crab.shield`, spec §2's warden); the rest are 0 until
+ * a later task's aura/revive/rage skills raise them (bit 1 heralded, bit 2 revived, bit 3 raging,
+ * spec §7). A consumer must never assume 5 ints per crab any more — use this constant.
+ */
+export const CRAB_STRIDE = 6;
+
 /** Plain-number copy of what the renderer needs; safe to hand to the UI thread every frame. */
 export interface Frame {
   tick: number;
   octopi: { x: number; y: number; invuln: number };
   lives: number;
-  /** x, y, kind, typeIndex, hp quintuples. */
+  /** `CRAB_STRIDE`-int groups: x, y, kind, typeIndex, hp, flags (bit 0 = shield up). */
   crabs: number[];
   /** x, y pairs. */
   shots: number[];
@@ -83,7 +91,7 @@ function bossFrame(s: GameState): BossFrame | null {
 
 export function snapshot(s: GameState): Frame {
   const crabs: number[] = [];
-  for (const c of s.crabs) crabs.push(c.x, c.y, c.kind, TYPE_INDEX[c.type], c.hp);
+  for (const c of s.crabs) crabs.push(c.x, c.y, c.kind, TYPE_INDEX[c.type], c.hp, c.shield);
   const shots: number[] = [];
   for (const b of s.shots) shots.push(b.x, b.y);
   const enemyShots: number[] = [];

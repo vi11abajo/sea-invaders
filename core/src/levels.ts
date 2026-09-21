@@ -1,5 +1,14 @@
 export type Formation = 'classic' | 'fish' | 'diamond' | 'ring' | 'jellyfish' | 'octopus' | 'shell' | 'wreck';
-export type CrabType = 'normal' | 'armored' | 'swift' | 'heavy' | 'elder';
+
+/**
+ * The five legacy kinds (reefs 1-5, unchanged) plus the five veteran kinds of reefs 6-10 (spec §2,
+ * "Reefs 6-10" design). This task only names the veterans and gives them their numbers (hp, points,
+ * fire weight, shot) — no reef, roster or skill wiring yet, so a veteran never actually spawns
+ * through the campaign or daily/practice paths until a later task adds it.
+ */
+export type CrabType =
+  | 'normal' | 'armored' | 'swift' | 'heavy' | 'elder'
+  | 'warden' | 'herald' | 'bubbler' | 'bombardier' | 'patriarch';
 
 export interface LevelSpec {
   id: number;

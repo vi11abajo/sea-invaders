@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CRAB_TYPES, PRACTICE_RUN, REEF_KINDS, TYPE_COLOUR, TYPE_INDEX, createGame, crabSpeed, hitCrabs,
-  hitOctopi, kindForTier, levelById, marchCrabs, marchSteps, spawnFormation, type Crab, type CrabType,
+  CRAB_TYPES, PRACTICE_RUN, REEF_KINDS, TYPE_COLOUR, TYPE_INDEX, createGame, crabSpeed, hashState, hitCrabs,
+  hitOctopi, kindForTier, levelById, marchCrabs, marchSteps, spawnFormation, spawnWave, type Crab, type CrabType,
 } from '../src';
 
-/** A crab of `type` at its spawn hp and colour, the way `spawnFormation` builds one. */
+/**
+ * A crab of `type` at its spawn hp and colour, the way `spawnCrab` (game.ts) builds one: every
+ * veteran field neutral except a warden's shield, which starts up (spec §2's rune shield).
+ */
 function crab(type: CrabType, x = 2812, y = 1500): Crab {
-  return { x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp };
+  return {
+    x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp,
+    slot: -1, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0,
+  };
 }
 
 /** A practice game holding a single crab of `type`. */
@@ -25,19 +31,30 @@ function shoot(s: ReturnType<typeof game>): void {
 }
 
 describe('crab kinds', () => {
-  it('holds the hp and points of the spec table', () => {
+  it('holds the hp and points of the spec table, legacy kinds and veterans alike', () => {
     expect(CRAB_TYPES).toEqual({
       normal: { hp: 1, points: 10 },
       armored: { hp: 2, points: 25 },
       swift: { hp: 1, points: 15 },
       heavy: { hp: 1, points: 20 },
       elder: { hp: 3, points: 40 },
+      warden: { hp: 2, points: 35 },
+      herald: { hp: 3, points: 50 },
+      bubbler: { hp: 2, points: 45 },
+      bombardier: { hp: 2, points: 60 },
+      patriarch: { hp: 5, points: 100 },
     });
   });
 
-  it('keeps the type indices 0..4 and the sprite colours', () => {
-    expect(TYPE_INDEX).toEqual({ normal: 0, armored: 1, swift: 2, heavy: 3, elder: 4 });
-    expect(TYPE_COLOUR).toEqual({ normal: 0, armored: 1, swift: 4, heavy: 3, elder: 2 });
+  it('keeps the legacy indices/colours 0..4 and appends the veterans at 5..9', () => {
+    expect(TYPE_INDEX).toEqual({
+      normal: 0, armored: 1, swift: 2, heavy: 3, elder: 4,
+      warden: 5, herald: 6, bubbler: 7, bombardier: 8, patriarch: 9,
+    });
+    expect(TYPE_COLOUR).toEqual({
+      normal: 0, armored: 1, swift: 4, heavy: 3, elder: 2,
+      warden: 5, herald: 6, bubbler: 7, bombardier: 8, patriarch: 9,
+    });
   });
 
   it('armored takes two hits and scores 25', () => {
@@ -93,9 +110,32 @@ describe('crab kinds', () => {
     expect(s.crabs[0]!.x).toBe(x0 + marched * v);
   });
 
-  it('carries no dive state on a crab at all', () => {
+  it('carries no dive state on a crab, only hp and the veteran fields spec §7 adds', () => {
     const s = createGame('t', PRACTICE_RUN);
-    expect(Object.keys(s.crabs[0]!)).toEqual(['x', 'y', 'kind', 'type', 'hp']);
+    expect(Object.keys(s.crabs[0]!)).toEqual(['x', 'y', 'kind', 'type', 'hp', 'slot', 'shield', 'shieldTimer', 'rallies', 'rallyTimer', 'squad']);
+  });
+
+  it('spawns every legacy-kind crab with the veteran fields at their neutral values', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    spawnWave(s, 5); // the widest daily/practice pool: all five legacy kinds can come up
+    expect(s.crabs.length).toBeGreaterThan(0);
+    for (const c of s.crabs) {
+      expect(c).toMatchObject({ slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 });
+    }
+    const l = levelById(25); // reef 5: all five legacy kinds, one per tier
+    spawnFormation(s, { formation: l.formation, kinds: l.kinds });
+    for (const c of s.crabs) {
+      expect(c).toMatchObject({ slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 });
+    }
+  });
+
+  it('gives a spawned warden its shield up; every other veteran field stays neutral', () => {
+    const s = createGame('t', PRACTICE_RUN);
+    spawnFormation(s, { formation: 'classic', kinds: ['warden'] });
+    expect(s.crabs.length).toBeGreaterThan(0);
+    for (const c of s.crabs) {
+      expect(c).toMatchObject({ type: 'warden', slot: -1, shield: 1, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 });
+    }
   });
 
   it('costs a life when a crab touches Octopi, whatever its kind', () => {
@@ -144,5 +184,22 @@ describe('spawnFormation', () => {
     expect(new Set(s.crabs.map((c) => c.type))).toEqual(new Set(['normal', 'armored']));
     expect(kindForTier(l.kinds, 0)).toBe('normal');
     expect(kindForTier(l.kinds, 4)).toBe('armored');
+  });
+});
+
+describe('hashState', () => {
+  it('is sensitive to every veteran field appended after hp (spec §7 ruling)', () => {
+    const base = () => createGame('hash-veteran', PRACTICE_RUN);
+    const s0 = base();
+    const same = base();
+    expect(hashState(s0)).toBe(hashState(same)); // same seed, same state: same hash
+
+    for (const field of ['slot', 'shield', 'shieldTimer', 'rallies', 'rallyTimer', 'squad'] as const) {
+      const s = base();
+      const before = hashState(s);
+      if (field === 'shield') s.crabs[0]!.shield = 1;
+      else s.crabs[0]![field] = 1;
+      expect({ field, changed: hashState(s) !== before }).toEqual({ field, changed: true });
+    }
   });
 });

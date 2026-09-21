@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FixedStepper, KIND_INDEX, PRACTICE_RUN, createGame, fitField, snapshot, touchToInput } from '../src';
+import { CRAB_STRIDE, FixedStepper, KIND_INDEX, PRACTICE_RUN, TYPE_INDEX, createGame, fitField, snapshot, touchToInput } from '../src';
 
 describe('FixedStepper', () => {
   it('only starts the clock on the first frame', () => {
@@ -62,7 +62,7 @@ describe('snapshot', () => {
     const f = snapshot(s);
     expect(f.octopi).toEqual({ x: 2812, y: 9650, invuln: 0 });
     expect(f.lives).toBe(3);
-    expect(f.crabs).toHaveLength(18 * 5);
+    expect(f.crabs).toHaveLength(18 * CRAB_STRIDE);
     expect(f.crabs.slice(0, 2)).toEqual([812, 1500]);
     expect(f.shots).toEqual([1, 2]);
     expect(f.enemyShots).toEqual([3, 4, KIND_INDEX.crab]);
@@ -73,5 +73,19 @@ describe('snapshot', () => {
     const f = snapshot(s);
     s.crabs[0]!.x = -1;
     expect(f.crabs[0]).toBe(812);
+  });
+
+  it('packs a sextuple per crab: x, y, kind, typeIndex, hp, flags (bit 0 = shield up)', () => {
+    const s = createGame('f', PRACTICE_RUN);
+    s.crabs = [
+      { x: 1, y: 2, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 },
+      { x: 3, y: 4, kind: 5, type: 'warden', hp: 2, slot: 0, shield: 1, shieldTimer: 300, rallies: 0, rallyTimer: 0, squad: 0 },
+    ];
+    const f = snapshot(s);
+    expect(f.crabs.length).toBe(CRAB_STRIDE * 2);
+    expect(f.crabs).toEqual([
+      1, 2, 0, TYPE_INDEX.normal, 1, 0,
+      3, 4, 5, TYPE_INDEX.warden, 2, 1,
+    ]);
   });
 });

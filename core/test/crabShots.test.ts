@@ -5,7 +5,10 @@ import {
 } from '../src';
 
 function crab(type: CrabType, x = 2812, y = 1500): Crab {
-  return { x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp };
+  return {
+    x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp,
+    slot: -1, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0,
+  };
 }
 
 /** A lone crab of `type` centred on Octopi's x, forced to fire (no randomness). */
@@ -42,7 +45,8 @@ describe('CRAB_SHOTS by kind', () => {
 
   it('fires exactly one shot per firing tick, whatever the kind: no fans, no silent kinds', () => {
     for (const type of REEF_KINDS) expect({ type, shots: fire(type).enemyShots.length }).toEqual({ type, shots: 1 });
-    expect(Object.keys(CRAB_SHOTS).sort()).toEqual([...REEF_KINDS].sort());
+    // CRAB_SHOTS covers every crab kind there is, legacy and veteran alike - never a subset.
+    expect(Object.keys(CRAB_SHOTS).sort()).toEqual(Object.keys(CRAB_TYPES).sort());
     for (const type of REEF_KINDS) expect(CRAB_SHOTS[type].damage).toBe(type === 'heavy' ? 2 : 1);
   });
 
@@ -53,9 +57,32 @@ describe('CRAB_SHOTS by kind', () => {
   });
 });
 
+describe('CRAB_SHOTS for the veterans (spec §2)', () => {
+  it('gives warden, herald and patriarch the plain crab shot, unchanged from the legacy kinds', () => {
+    for (const type of ['warden', 'herald', 'patriarch'] as const) {
+      expect(CRAB_SHOTS[type]).toEqual({ kind: 'crab', speed: 110, damage: 1 });
+    }
+  });
+
+  it('gives bubbler a bubble shot and bombardier a charge shot, each just flying straight and aimed for now', () => {
+    expect(CRAB_SHOTS.bubbler).toEqual({ kind: 'bubble', speed: 60, damage: 1 });
+    expect(CRAB_SHOTS.bombardier).toEqual({ kind: 'charge', speed: 100, damage: 2 });
+
+    // Fired the same way a legacy crab shot is (aimed at Octopi, dead ahead here so vx is 0):
+    // their own zigzag/bursting motion is a later task's work.
+    const bubble = fire('bubbler').enemyShots[0]!;
+    expect({ kind: bubble.kind, vx: bubble.vx, vy: bubble.vy }).toEqual({ kind: 'bubble', vx: 0, vy: 60 });
+    const charge = fire('bombardier').enemyShots[0]!;
+    expect({ kind: charge.kind, vx: charge.vx, vy: charge.vy }).toEqual({ kind: 'charge', vx: 0, vy: 100 });
+  });
+});
+
 describe('the weighted shooter', () => {
-  it('weights yellow and violet at twice green, and red at half', () => {
-    expect(FIRE_WEIGHT).toEqual({ normal: 2, armored: 2, swift: 4, heavy: 1, elder: 4 });
+  it('weights yellow and violet at twice green, and red at half, legacy and veteran alike', () => {
+    expect(FIRE_WEIGHT).toEqual({
+      normal: 2, armored: 2, swift: 4, heavy: 1, elder: 4,
+      warden: 2, herald: 2, bubbler: 3, bombardier: 1, patriarch: 4,
+    });
   });
 
   /** One crab of every kind, each on its own x so the shot that lands names its shooter. */

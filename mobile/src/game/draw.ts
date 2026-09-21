@@ -1,6 +1,6 @@
 import { BlendMode, BlurStyle, ClipOp, FilterMode, MipmapMode, PaintStyle, Skia, TileMode } from '@shopify/react-native-skia';
 import {
-  BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, CRAB_TYPES, DROP, ENEMY_SHOT, KIND_INDEX, RARITY_ORDER, OCTOPI, TYPE_INDEX,
+  BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, CRAB_STRIDE, CRAB_TYPES, DROP, ENEMY_SHOT, KIND_INDEX, RARITY_ORDER, OCTOPI, TYPE_INDEX,
   type BoostType, type CrabType, type Frame, type Layout,
 } from '@sea-invaders/core';
 import { COLORS, SIGNATURE_GRADIENT } from '../ui/tokens';
@@ -353,12 +353,13 @@ export function drawFrame(
   // A crack borrows the shared paint for a stroke; these are the values it has to hand back.
   const crabPaintColor = paint.getColor();
   const crabPaintStrokeWidth = paint.getStrokeWidth();
-  for (let i = 0; i < f.crabs.length; i += 5) {
+  for (let i = 0; i < f.crabs.length; i += CRAB_STRIDE) {
     const cx = px(f.crabs[i]!);
     const cy = py(f.crabs[i + 1]!);
     const kind = f.crabs[i + 2]!;
     const typeIndex = f.crabs[i + 3]!;
     const hp = f.crabs[i + 4]!;
+    // f.crabs[i + 5] is `flags` (bit 0 = shield up); not drawn yet, a later task's effect.
     const sprite = sprites.crabs[kind];
     if (sprite === undefined) continue;
     const lost = (MAX_HP_BY_TYPE_INDEX[typeIndex] ?? hp) - hp;
@@ -369,7 +370,7 @@ export function drawFrame(
       paint.setColorFilter(null);
       const left = cx - sprite.w / 2;
       const top = cy - sprite.h / 2;
-      const pattern = CRACK_PATTERNS[Math.floor(i / 5) % CRACK_PATTERNS.length]!;
+      const pattern = CRACK_PATTERNS[Math.floor(i / CRAB_STRIDE) % CRACK_PATTERNS.length]!;
       paint.setStyle(STROKE);
       paint.setStrokeWidth(CRACK_STROKE_W * k);
       paint.setColor(CRACK_COLOR);
@@ -383,7 +384,7 @@ export function drawFrame(
       paint.setColor(crabPaintColor);
     }
     if (iceFreeze) {
-      const variant = (Math.floor(i / 5) + kind) % 3;
+      const variant = (Math.floor(i / CRAB_STRIDE) + kind) % 3;
       const iceSprite = sprites.ice[variant];
       if (iceSprite !== undefined) {
         paint.setAlphaf(ICE_ALPHA);

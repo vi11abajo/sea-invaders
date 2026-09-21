@@ -5,10 +5,24 @@ import { dailyPool, kindForTier, type CrabType, type Formation } from './levels'
 import { Rng } from './rng';
 import type { RunConfig } from './run';
 import { spawnBoss } from './sim/boss';
-import type { GameState, Input } from './types';
+import type { Crab, GameState, Input } from './types';
 
 /** Where Octopi starts; also the input a replay assumes before its first recorded change. */
 export const INITIAL_INPUT: Input = Object.freeze({ x: idiv(FIELD_W, 2), y: OCTOPI.startY });
+
+/**
+ * Builds a crab of `type` at `(x, y)`, spawn hp and colour (spec §1/§2) — the one place both spawn
+ * paths (`spawnWave`, `spawnFormation`) build a `Crab`, so the veteran fields (spec §7 ruling) stay
+ * in one spot. Every field but `shield` starts neutral (-1/0/0/0/0): nothing reads them yet. A
+ * warden starts shielded (`shield = 1`), matching spec §2's rune shield at spawn; nothing else spawns
+ * through these paths today, so this is the only veteran-specific spawn behaviour this task adds.
+ */
+function spawnCrab(x: number, y: number, type: CrabType): Crab {
+  return {
+    x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp,
+    slot: -1, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0,
+  };
+}
 
 export function createGame(seed: string, run: RunConfig): GameState {
   const lives = run.lives + bonusLivesFor(run.octopi);
@@ -64,7 +78,7 @@ export function spawnWave(s: GameState, wave: number): void {
     for (let c = 0; c < CRAB.cols; c++) {
       const x = x0 + c * CRAB.gapX;
       const y = CRAB.startY + r * CRAB.gapY;
-      s.crabs.push({ x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp });
+      s.crabs.push(spawnCrab(x, y, type));
     }
   }
   s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
@@ -84,7 +98,7 @@ export function spawnFormation(
 ): void {
   s.crabs = formationPositions(spec.formation).map((p) => {
     const type = kindForTier(spec.kinds, p.tier);
-    return { x: p.x, y: p.y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp };
+    return spawnCrab(p.x, p.y, type);
   });
   s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
   s.waveTotal = s.crabs.length;

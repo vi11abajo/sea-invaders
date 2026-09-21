@@ -25,6 +25,7 @@ const FORMATION_NAMES: Record<Formation, string> = {
 
 const CRAB_NAMES: Record<CrabType, string> = {
   normal: 'Normal', armored: 'Armored', swift: 'Swift', heavy: 'Heavy', elder: 'Elder',
+  warden: 'Warden', herald: 'Herald', bubbler: 'Bubbler', bombardier: 'Bombardier', patriarch: 'Patriarch',
 };
 
 /**

@@ -28,7 +28,11 @@ export type OctopiVariant = 'base' | 'harpoon' | 'anchor' | 'trident';
 export type BulletKind =
   | 'crab' | 'straight' | 'zigzag' | 'large' | 'wave' | 'ring' | 'explosive' | 'fragment'
   | 'meteor' | 'berserk' | 'spiral' | 'gravity' | 'clone'
-  | 'heavy';
+  | 'heavy'
+  // The veteran and boss-6..10 shot kinds (spec §2 / §5.1): appended, so no old index moves. Their
+  // own motion (zigzag bubble, bursting charge, homing orb, aimed needle, ...) is a later task's
+  // work — for now any bullet with one of these kinds just flies straight like `crab`/`heavy` do.
+  | 'bubble' | 'charge' | 'firewall' | 'shard' | 'axe' | 'bolt' | 'orb' | 'needle';
 
 export interface Bullet {
   x: number;
@@ -49,6 +53,21 @@ export interface Crab {
   type: CrabType;
   /** Hit points left, counting down from `CRAB_TYPES[type].hp`. */
   hp: number;
+  /**
+   * The living-formation slot this crab occupies, an index into `GameState.formation.slots`; -1
+   * when unslotted (spec §3 — a later task's field, `march` waves never set it). Neutral value: -1.
+   */
+  slot: number;
+  /** Warden's rune shield (spec §2): 1 while up, 0 while broken. Neutral value: 0, except a spawned warden starts at 1. */
+  shield: 0 | 1;
+  /** Ticks until a broken warden shield restores itself (spec §2). Neutral value: 0. */
+  shieldTimer: number;
+  /** How many times a patriarch has revived a fallen crab of its wave, capped at 3 (spec §2). Neutral value: 0. */
+  rallies: number;
+  /** Ticks left in a patriarch's revive cadence (spec §2). Neutral value: 0. */
+  rallyTimer: number;
+  /** The squad this crab belongs to (a later task's boss squads, spec §5.1); 0 = none. Neutral value: 0. */
+  squad: number;
 }
 
 export type BossPhaseState = 'fighting' | 'transition';
@@ -108,7 +127,14 @@ export interface Drop {
 }
 
 export type GameEvent =
-  | { tick: number; type: 'wave_cleared' | 'level_cleared' | 'boss_spawn' | 'boss_phase' | 'boss_dead' | 'shield_break' | 'player_hit' | 'revived' }
+  | {
+      tick: number;
+      type:
+        | 'wave_cleared' | 'level_cleared' | 'boss_spawn' | 'boss_phase' | 'boss_dead' | 'shield_break' | 'player_hit' | 'revived'
+        // Veteran-skill events (spec §2): names only, nothing emits them yet — a later task wires in
+        // the shield, aura, bubble, charge, rally and rage skills that raise these.
+        | 'crab_shield_break' | 'crab_shield_up' | 'bubble_pop' | 'charge_burst' | 'crab_rallied' | 'formation_rage'
+    }
   | { tick: number; type: 'boss_ability'; name: 'regen' | 'shield' | 'meteor' | 'rage' | 'freeze' }
   | { tick: number; type: 'boss_teleport'; fromX: number; toX: number }
   | { tick: number; type: 'boss_clone'; leftX: number; rightX: number }
@@ -147,18 +173,27 @@ export interface GameState {
   scoreDecay: number;
 }
 
-/** Index of each CrabType in the state hash and the view frame, in declaration order. */
-export const TYPE_INDEX: Record<CrabType, number> = { normal: 0, armored: 1, swift: 2, heavy: 3, elder: 4 };
+/**
+ * Index of each CrabType in the state hash and the view frame, in declaration order: 0..4 the five
+ * legacy kinds (unchanged), 5..9 the veterans, appended (spec §2 — `TYPE_COLOUR` mirrors the same
+ * indices for the sprite colour).
+ */
+export const TYPE_INDEX: Record<CrabType, number> = {
+  normal: 0, armored: 1, swift: 2, heavy: 3, elder: 4,
+  warden: 5, herald: 6, bubbler: 7, bombardier: 8, patriarch: 9,
+};
 
 /**
  * Index of each BulletKind in the state hash and the view frame, in declaration order. The `fast`
- * kind went with the swift crab's own shot in core v8, so the list is 14 long, not 15; any consumer
- * keying off these numbers (the app's bullet drawing) needs the same list.
+ * kind went with the swift crab's own shot in core v8, so the list was 14 long, not 15, before the
+ * veteran and boss-6..10 kinds appended eight more (spec §2 / §5.1); any consumer keying off these
+ * numbers (the app's bullet drawing) needs the same list, old indices never moving.
  */
 export const KIND_INDEX: Record<BulletKind, number> = {
   crab: 0, straight: 1, zigzag: 2, large: 3, wave: 4, ring: 5, explosive: 6, fragment: 7,
   meteor: 8, berserk: 9, spiral: 10, gravity: 11, clone: 12,
   heavy: 13,
+  bubble: 14, charge: 15, firewall: 16, shard: 17, axe: 18, bolt: 19, orb: 20, needle: 21,
 };
 
 /**
