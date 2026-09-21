@@ -84,10 +84,13 @@ describe('formation slots', () => {
     expect(form(s).slots.every((sl) => sl.type === kindForTier(REEF_KINDS, sl.tier))).toBe(true);
   });
 
-  it('leaves a daily or practice wave unslotted', () => {
+  it('leaves a daily or practice wave without a formation, on the plain grid cells', () => {
     const s = createGame('daily', DAILY_RUN);
     expect(s.formation).toBeNull();
-    expect(s.crabs.every((c) => c.slot === -1)).toBe(true);
+    // No slots to live by, but every crab still names the grid cell it stands in (spec §2: the
+    // veteran skills need a cell off the formation too), so `freeSlots` has nothing to offer.
+    expect(s.crabs.map((c) => c.slot)).toEqual(s.crabs.map((_, i) => i));
+    expect(freeSlots(s)).toEqual([]);
   });
 
   it('lists the slots no living crab holds, so a later rally can find a free one', () => {

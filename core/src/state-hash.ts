@@ -46,5 +46,13 @@ export function hashState(s: GameState): string {
   } else {
     h.int(-1);
   }
+  // The veteran skill state (spec §2), appended after everything above so every older field keeps
+  // its place: the formation's rage, the kinds a daily/practice grid wave's rows spawned with (what
+  // a patriarch's rally brings back), and each crab's rally mark. The crab count is already hashed
+  // with the crabs themselves, so the trailing per-crab run below is unambiguous.
+  h.int(s.rageTicks);
+  h.int(s.gridRows.length);
+  for (const t of s.gridRows) h.int(TYPE_INDEX[t]);
+  for (const c of s.crabs) h.int(c.revived);
   return h.digest();
 }

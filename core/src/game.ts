@@ -11,16 +11,17 @@ import type { Crab, FormationSlot, GameState, Input } from './types';
 export const INITIAL_INPUT: Input = Object.freeze({ x: idiv(FIELD_W, 2), y: OCTOPI.startY });
 
 /**
- * Builds a crab of `type` at `(x, y)`, spawn hp and colour (spec §1/§2) — the one place both spawn
- * paths (`spawnWave`, `spawnFormation`) build a `Crab`, so the veteran fields (spec §7 ruling) stay
- * in one spot. Every field but `shield` starts neutral (-1/0/0/0/0): nothing reads them yet. A
- * warden starts shielded (`shield = 1`), matching spec §2's rune shield at spawn; nothing else spawns
- * through these paths today, so this is the only veteran-specific spawn behaviour this task adds.
+ * Builds a crab of `type` at `(x, y)`, spawn hp and colour (spec §1/§2) — the one place all three
+ * paths that make a `Crab` (`spawnWave`, `spawnFormation` and the patriarch's rally in
+ * `sim/veterans.ts`) go through, so the veteran fields (spec §7 ruling) stay in one spot. Every
+ * field but `shield` starts neutral (0). A warden starts shielded (`shield = 1`), matching spec §2's
+ * rune shield at spawn.
  */
-function spawnCrab(x: number, y: number, type: CrabType, slot = -1): Crab {
+export function spawnCrab(x: number, y: number, type: CrabType, slot = -1): Crab {
   return {
     x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp,
     slot, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0,
+    revived: 0,
   };
 }
 
@@ -51,6 +52,8 @@ export function createGame(seed: string, run: RunConfig): GameState {
     arrival: 0,
     formation: null,
     scoreDecay: 0,
+    rageTicks: 0,
+    gridRows: [],
   };
   if (run.level) {
     if (run.level.waves > 0) startLevelWave(s, 1);
@@ -66,6 +69,12 @@ export function createGame(seed: string, run: RunConfig): GameState {
  * per row drawn from that wave's pool (spec §2 — wave 1 is green only and every wave adds the next
  * kind, up to all five). Exactly one draw per row, as before, plus the direction draw; the colour
  * and hit points follow from the kind, so a blue crab means the same thing here as in the campaign.
+ *
+ * A grid wave carries no formation, but it does give every crab the cell it stands in
+ * (`slot = row * CRAB.cols + col`) and records each row's kind (spec §2): the herald's aura reads
+ * neighbourhoods off those cells and the patriarch's rally revives into the lowest empty one. The
+ * grid itself is unchanged — nothing about where a crab stands, how it moves or what it draws
+ * depends on the number, and no extra RNG draw is made for it.
  */
 export function spawnWave(s: GameState, wave: number): void {
   const rows = Math.min(2 + wave, 5);
@@ -75,12 +84,15 @@ export function spawnWave(s: GameState, wave: number): void {
   s.crabs = [];
   s.formation = null; // spec §3: only a campaign wave carries slots, and only it can live
   s.scoreDecay = 0; // spec C7: the score-decay clock resets at every wave start
+  s.rageTicks = 0; // spec §2: a rage belongs to the formation that lost its patriarch
+  s.gridRows = [];
   for (let r = 0; r < rows; r++) {
     const type = pool[s.rngWaves.nextInt(pool.length)]!;
+    s.gridRows.push(type);
     for (let c = 0; c < CRAB.cols; c++) {
       const x = x0 + c * CRAB.gapX;
       const y = CRAB.startY + r * CRAB.gapY;
-      s.crabs.push(spawnCrab(x, y, type));
+      s.crabs.push(spawnCrab(x, y, type, r * CRAB.cols + c));
     }
   }
   s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
@@ -125,6 +137,8 @@ export function spawnFormation(
     reformed: false,
     glideTicks: 0,
   };
+  s.rageTicks = 0; // spec §2: a rage belongs to the formation that lost its patriarch
+  s.gridRows = []; // a campaign wave carries a kind per cell in its slots instead
   s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
   s.waveTotal = s.crabs.length;
 }
@@ -167,6 +181,7 @@ export function nextWave(s: GameState): void {
   if (l.boss && s.boss === null) {
     s.arrival = 0;
     s.formation = null; // the level's waves are done: no slots for a boss round
+    s.rageTicks = 0; // and no formation left to rage over its patriarch (spec §2)
     spawnBoss(s, l.boss);
     return;
   }

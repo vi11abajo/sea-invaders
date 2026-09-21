@@ -18,6 +18,7 @@ export * from './sim/crabs';
 export * from './sim/living';
 export * from './sim/octopi';
 export * from './sim/revive';
+export * from './sim/veterans';
 export * from './state-hash';
 export * from './step';
 export * from './trig';

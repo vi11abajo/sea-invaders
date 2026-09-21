@@ -1,9 +1,13 @@
-import { ARRIVAL, CRAB, CRAB_SHOTS, ENEMY_SHOT, FIELD_H, FIELD_W, FIRE_WEIGHT, TUNING, scalePct } from '../config';
+import { ARRIVAL, CRAB, CRAB_SHOTS, ENEMY_SHOT, FIELD_H, FIELD_W, TUNING, scalePct } from '../config';
 import { idiv, isqrt } from '../fixed';
 import type { Bullet, Crab, GameState } from '../types';
 import { chilled, tamed } from './boosts';
 import { shotRadius } from './collide';
 import { moveLivingFormation } from './living';
+import {
+  burstCharge, driftBubble, fireWeight, flipBubble, hasHerald, heraldedSpeed, isHeralded, raged,
+  shotEntryFor,
+} from './veterans';
 
 const HALF = idiv(CRAB.size, 2);
 
@@ -41,11 +45,16 @@ export function pullShotsTowardGravity(s: GameState): void {
   }
 }
 
-/** Horizontal speed per tick: faster in later waves, as the formation thins out, by the level's reef, and slowed by SPEED_TAMER's stacks. */
+/**
+ * Horizontal speed per tick: faster in later waves, as the formation thins out, by the level's reef,
+ * half again as fast while the formation rages over a fallen patriarch (spec §2), and slowed by
+ * SPEED_TAMER's stacks. The rage lifts the wave's own speed and the tamer scales whatever comes out,
+ * so the boost and the player's answer to it compose rather than cancel.
+ */
 export function crabSpeed(s: GameState): number {
   const killed = s.waveTotal - s.crabs.length;
   const v = CRAB.baseSpeed + (s.wave - 1) + idiv(killed * 8, s.waveTotal) + (s.run.level?.speedOffset ?? 0);
-  return tamed(s, v);
+  return tamed(s, raged(s, v));
 }
 
 /**
@@ -147,13 +156,17 @@ export function marchCrabs(s: GameState): void {
  * `[0, total)`, then a walk through `s.crabs` in array order subtracting each weight — exactly one
  * RNG draw, the same as the uniform pick it replaces, so the draw count never depends on the kinds
  * on the field. Only ever called with at least one crab alive, so `total` is at least 1.
+ *
+ * A heralded crab weighs twice its kind's weight (spec §2): the walk is the same walk, over doubled
+ * weights, so the aura never costs a second draw. `aura` is `hasHerald(s)` — false for every wave
+ * with no herald in it, which makes the whole aura lookup disappear.
  */
-function pickShooter(s: GameState): Crab {
+function pickShooter(s: GameState, aura: boolean): Crab {
   let total = 0;
-  for (const c of s.crabs) total += FIRE_WEIGHT[c.type];
+  for (const c of s.crabs) total += fireWeight(s, c, aura);
   let r = s.rngFire.nextInt(total);
   for (const c of s.crabs) {
-    r -= FIRE_WEIGHT[c.type];
+    r -= fireWeight(s, c, aura);
     if (r < 0) return c;
   }
   return s.crabs[s.crabs.length - 1]!;
@@ -170,8 +183,11 @@ export function fireChance(wave: number, offset = 0): number {
 /** An `explosive` shot below this line splits into fragments immediately, fuse or not (spec §4.1 `explosive`). */
 const EXPLOSIVE_SPLIT_Y = idiv(FIELD_H * 2, 3);
 
-/** The four cardinal directions an `explosive` shot's fragments fly off in, speed 73 (spec §4.1 `explosive`). */
-const FRAGMENT_VECTORS: ReadonlyArray<readonly [number, number]> = [
+/**
+ * The four cardinal directions an `explosive` shot's fragments fly off in, speed 73 (spec §4.1
+ * `explosive`); the bombardier's bursting charge (spec §2) uses the same four.
+ */
+export const FRAGMENT_VECTORS: ReadonlyArray<readonly [number, number]> = [
   [73, 0],
   [0, 73],
   [-73, 0],
@@ -180,9 +196,14 @@ const FRAGMENT_VECTORS: ReadonlyArray<readonly [number, number]> = [
 
 /**
  * Moves enemy shots (a `zigzag` boss shot flips `vx` every 20 ticks via `data`; an `explosive`
- * shot's `data` counts down its fuse) and drops those off the field, then maybe fires one aimed
- * shot from one crab: `pickShooter` weights the choice by kind (spec §1) in a single RNG draw, and
- * the crab fires the one shot its kind's `CRAB_SHOTS` entry describes. Crab shots (`crab` and
+ * shot's `data` counts down its fuse; a `bubble` flips its drift on its own 40-tick clock and a
+ * `charge` bursts into fragments near Octopi, spec §2) and drops those off the field, then maybe
+ * fires one aimed shot from one crab: `pickShooter` weights the choice by kind (spec §1), doubled
+ * for a heralded crab (spec §2), in a single RNG draw, and the crab fires the one shot its kind's
+ * `CRAB_SHOTS` entry describes — a heralded crab's 1.2x faster, a bubbler's swapped for the plain
+ * crab shot while six bubbles are already in the water, a bubble's velocity replaced by its own
+ * sinking drift. The whole fire roll is half again as likely while the formation rages over a
+ * fallen patriarch (spec §2). Crab shots (`crab` and
  * `heavy`) are untouched by the zigzag/explosive branches and keep their own collision radius.
  * While ICE_FREEZE is active every enemy shot moves at half speed (owner ruling 2026-09-15, replacing
  * spec C5's movement-only rule): the stored `vx`/`vy` stay as fired and only the step is halved
@@ -199,6 +220,8 @@ export function updateEnemyShots(s: GameState): void {
     if (b.kind === 'zigzag') {
       b.data -= 1;
       if (b.data <= 0) { b.vx = -b.vx; b.data = 20; }
+    } else if (b.kind === 'bubble') {
+      flipBubble(b); // spec §2: the bubbler's own zigzag, on its own 40-tick clock
     } else if (b.kind === 'explosive') {
       b.data -= 1;
     }
@@ -209,6 +232,7 @@ export function updateEnemyShots(s: GameState): void {
       for (const [vx, vy] of FRAGMENT_VECTORS) kept.push({ x: b.x, y: b.y, vx, vy, kind: 'fragment', data: 0 });
       continue;
     }
+    if (b.kind === 'charge' && burstCharge(s, b, kept)) continue; // spec §2: the bombardier's charge
     const r = shotRadius(b);
     const aboveTop = b.y + r <= 0;
     if (b.x + r > 0 && b.x - r < FIELD_W && (!aboveTop || b.vy > 0) && b.y - r < FIELD_H) kept.push(b);
@@ -216,15 +240,19 @@ export function updateEnemyShots(s: GameState): void {
   s.enemyShots = kept;
   if (s.arrival > 0) return; // wave arriving: shots still fly, nothing new fires
   if (s.crabs.length === 0) return;
-  if (s.rngFire.nextInt(1000) >= fireChance(s.wave, s.run.level?.fireOffset ?? 0)) return;
-  const crab = pickShooter(s);
-  const entry = CRAB_SHOTS[crab.type];
+  if (s.rngFire.nextInt(1000) >= raged(s, fireChance(s.wave, s.run.level?.fireOffset ?? 0))) return;
+  const aura = hasHerald(s);
+  const crab = pickShooter(s, aura);
+  const entry = shotEntryFor(s, crab);
   const y = crab.y + HALF;
   const dx = s.octopi.x - crab.x;
   const dy = s.octopi.y - y;
   const len = isqrt(dx * dx + dy * dy);
-  const speed = entry.speed;
+  const heralded = aura && isHeralded(s, crab);
+  const speed = heralded ? heraldedSpeed(entry.speed) : entry.speed;
   const vx = len === 0 ? 0 : idiv(dx * speed, len);
   const vy = len === 0 ? speed : idiv(dy * speed, len);
-  s.enemyShots.push({ x: crab.x, y, vx, vy, kind: entry.kind, data: 0 });
+  const shot: Bullet = { x: crab.x, y, vx, vy, kind: entry.kind, data: 0 };
+  if (entry.kind === 'bubble') driftBubble(shot, s.octopi.x >= crab.x ? 1 : -1, heralded); // spec §2
+  s.enemyShots.push(shot);
 }

@@ -26,8 +26,12 @@ export const ROTATE_TICKS = 45;
 /** Ticks a reforming wave takes to glide into the spearhead (spec §3). */
 export const REFORM_TICKS = 60;
 
-/** The last template column of a split wave's left half; 4 to 7 are the right half (spec §3). */
-const SPLIT_COL = 3;
+/**
+ * The last template column of a split wave's left half; 4 to 7 are the right half (spec §3). The
+ * patriarch's rally needs it too: a revived crab of a split wave is placed off a living crab of its
+ * own half, because the two halves march apart and the wave's origin no longer describes either.
+ */
+export const SPLIT_COL = 3;
 
 /** A reformed wave marches `REFORM_SPEED_NUM / REFORM_SPEED_DEN` times as fast (spec §3: x1.25). */
 const REFORM_SPEED_NUM = 5;

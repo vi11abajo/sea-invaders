@@ -65,10 +65,16 @@ export interface Crab {
   shieldTimer: number;
   /** How many times a patriarch has revived a fallen crab of its wave, capped at 3 (spec §2). Neutral value: 0. */
   rallies: number;
-  /** Ticks left in a patriarch's revive cadence (spec §2). Neutral value: 0. */
+  /** Ticks a patriarch has counted towards its next revive, 0 to `RALLY_EVERY` (spec §2). Neutral value: 0. */
   rallyTimer: number;
   /** The squad this crab belongs to (a later task's boss squads, spec §5.1); 0 = none. Neutral value: 0. */
   squad: number;
+  /**
+   * Ticks left of a revived crab's rally mark (spec §7, frame flag bit 2): `REVIVED_TICKS` the
+   * moment a patriarch rallies it back, counting down to 0. Purely a renderer cue — nothing in the
+   * simulation reads it. Neutral value: 0.
+   */
+  revived: number;
 }
 
 /**
@@ -220,6 +226,19 @@ export interface GameState {
   formation: FormationState | null;
   /** Ticks elapsed on the wave-mode score-decay clock (spec C7); reset at every wave start. */
   scoreDecay: number;
+  /**
+   * Ticks left of the formation's rage after a patriarch of it died (spec §2): while it is above 0
+   * the wave marches and fires half again as fast. Refreshed, never stacked, and cleared at every
+   * wave start — the rage belongs to the formation that lost its patriarch, not to the run.
+   */
+  rageTicks: number;
+  /**
+   * The kind each row of a daily or practice grid wave spawned with, in row order (spec §2): a
+   * patriarch's rally has to know what a fallen grid cell was, and a grid row's kind is the whole of
+   * that answer (`spawnWave` paints a row in one kind). Empty for a campaign wave, which carries a
+   * kind per cell in `formation.slots`, and for a boss round.
+   */
+  gridRows: CrabType[];
 }
 
 /**

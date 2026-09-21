@@ -359,7 +359,8 @@ export function drawFrame(
     const kind = f.crabs[i + 2]!;
     const typeIndex = f.crabs[i + 3]!;
     const hp = f.crabs[i + 4]!;
-    // f.crabs[i + 5] is `flags` (bit 0 = shield up); not drawn yet, a later task's effect.
+    // f.crabs[i + 5] is `flags` (1 shield up, 2 heralded, 4 revived, 8 raging); not drawn yet, a
+    // later task's effects.
     const sprite = sprites.crabs[kind];
     if (sprite === undefined) continue;
     const lost = (MAX_HP_BY_TYPE_INDEX[typeIndex] ?? hp) - hp;

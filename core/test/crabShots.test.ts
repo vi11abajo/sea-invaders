@@ -7,7 +7,7 @@ import {
 function crab(type: CrabType, x = 2812, y = 1500): Crab {
   return {
     x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp,
-    slot: -1, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0,
+    slot: -1, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0,
   };
 }
 
@@ -64,14 +64,15 @@ describe('CRAB_SHOTS for the veterans (spec §2)', () => {
     }
   });
 
-  it('gives bubbler a bubble shot and bombardier a charge shot, each just flying straight and aimed for now', () => {
+  it('gives bubbler a bubble shot and bombardier an aimed charge', () => {
     expect(CRAB_SHOTS.bubbler).toEqual({ kind: 'bubble', speed: 60, damage: 1 });
     expect(CRAB_SHOTS.bombardier).toEqual({ kind: 'charge', speed: 100, damage: 2 });
 
-    // Fired the same way a legacy crab shot is (aimed at Octopi, dead ahead here so vx is 0):
-    // their own zigzag/bursting motion is a later task's work.
+    // A charge is fired the way a legacy crab shot is, aimed at Octopi and dead ahead here so vx is
+    // 0; a bubble sinks and drifts on its own instead (spec §2, covered in veterans.test.ts).
     const bubble = fire('bubbler').enemyShots[0]!;
-    expect({ kind: bubble.kind, vx: bubble.vx, vy: bubble.vy }).toEqual({ kind: 'bubble', vx: 0, vy: 60 });
+    expect({ kind: bubble.kind, vy: bubble.vy, drift: Math.abs(bubble.vx) })
+      .toEqual({ kind: 'bubble', vy: 60, drift: 30 });
     const charge = fire('bombardier').enemyShots[0]!;
     expect({ kind: charge.kind, vx: charge.vx, vy: charge.vy }).toEqual({ kind: 'charge', vx: 0, vy: 100 });
   });

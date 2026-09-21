@@ -3,6 +3,7 @@ import { clamp, idiv } from '../fixed';
 import type { Bullet, Crab, GameState } from '../types';
 import { isActive, rollDrop, scoreDecayPct } from './boosts';
 import { damageBoss, scoreMultiplier } from './boss';
+import { BUBBLE_RADIUS, CHARGE_RADIUS, enrage, shieldAbsorbs } from './veterans';
 
 /**
  * Kills a crab outright: rolls its drop, scores its points (wave-scaled, scaled by the wave-mode
@@ -16,33 +17,39 @@ export function killCrab(s: GameState, c: Crab): void {
   const base = CRAB_TYPES[c.type].points * s.wave;
   s.score += scoreMultiplier(s, idiv(base * scoreDecayPct(s), 100));
   s.kills += 1;
+  enrage(s, c); // spec §2: a dying patriarch enrages what is left of its formation
 }
 
 const CRAB_HALF = idiv(CRAB.size, 2);
 const BOSS_HALF_W = idiv(BOSS.width, 2);
 const BOSS_HALF_H = idiv(BOSS.height, 2);
 
-/** Enemy shot collision radius by kind: `large` is ×2, `ring` widens by its own `data`, `fragment`/`meteor`/`heavy` are fixed sizes, everything else is the base radius. */
+/** Enemy shot collision radius by kind: `large` is ×2, `ring` widens by its own `data`, `fragment`/`meteor`/`heavy`/`bubble`/`charge` are fixed sizes, everything else is the base radius. */
 export function shotRadius(b: Bullet): number {
   if (b.kind === 'large') return ENEMY_SHOT.radius * 2;
   if (b.kind === 'ring') return ENEMY_SHOT.radius + b.data;
   if (b.kind === 'fragment') return 48;
   if (b.kind === 'meteor') return 173;
   if (b.kind === 'heavy') return 154; // the red crab's shot: ENEMY_SHOT.radius * 1.6
+  if (b.kind === 'bubble') return BUBBLE_RADIUS; // spec §2: the bubbler's drifting bubble
+  if (b.kind === 'charge') return CHARGE_RADIUS; // spec §2: the bombardier's charge
   return ENEMY_SHOT.radius;
 }
 
 /**
- * Lives one enemy shot costs when it lands (spec §1): the red crab's `heavy` shot hits for two,
- * everything else — every other crab shot and every boss shot — for one.
+ * Lives one enemy shot costs when it lands (spec §1/§2): the red crab's `heavy` shot and the
+ * bombardier's `charge` hit for two, everything else — every other crab shot, the charge's own
+ * fragments and every boss shot — for one. SHIELD_BARRIER still absorbs the whole hit, however hard.
  */
 export function shotDamage(b: Bullet): 1 | 2 {
-  return b.kind === 'heavy' ? 2 : 1;
+  return b.kind === 'heavy' || b.kind === 'charge' ? 2 : 1;
 }
 
 /**
  * Each player shot hits the first crab it overlaps, or damages the boss box; a kill (hp reaches 0)
- * scores the type's points × wave (doubled by SCORE_MULTIPLIER). A PIERCING_BULLETS shot
+ * scores the type's points × wave (doubled by SCORE_MULTIPLIER). A shielded warden (spec §2) eats a
+ * non-piercing hit whole instead: no hit points lost, the shot consumed, the shield down for a
+ * while. A PIERCING_BULLETS shot
  * (`data & 1`) is never consumed by a crab hit — killing or not — so it keeps flying; the boss
  * branch still consumes it. Spec §5.2 is "one hit per crab per shot": a piercing shot that damages
  * a crab without killing it is pushed clear of that crab's overlap box (`shot.y` moved just past
@@ -65,6 +72,7 @@ export function hitCrabs(s: GameState): void {
       continue;
     }
     const c = s.crabs[i]!;
+    if (shieldAbsorbs(s, c, b)) continue; // spec §2: a warden's rune shield eats a non-piercing shot
     c.hp -= 1;
     if (c.hp <= 0) {
       s.crabs.splice(i, 1);
@@ -103,6 +111,7 @@ export function hitOctopi(s: GameState): void {
     const dy = y - clamp(y, c.y - CRAB_HALF, c.y + CRAB_HALF);
     if (dx * dx + dy * dy < r2) {
       s.crabs.splice(i, 1);
+      enrage(s, c); // spec §2: a patriarch that reaches Octopi enrages its formation all the same
       applyOctopiHit(s, 1);
       return;
     }

@@ -78,8 +78,8 @@ describe('snapshot', () => {
   it('packs a sextuple per crab: x, y, kind, typeIndex, hp, flags (bit 0 = shield up)', () => {
     const s = createGame('f', PRACTICE_RUN);
     s.crabs = [
-      { x: 1, y: 2, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 },
-      { x: 3, y: 4, kind: 5, type: 'warden', hp: 2, slot: 0, shield: 1, shieldTimer: 300, rallies: 0, rallyTimer: 0, squad: 0 },
+      { x: 1, y: 2, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 },
+      { x: 3, y: 4, kind: 5, type: 'warden', hp: 2, slot: 0, shield: 1, shieldTimer: 300, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 },
     ];
     const f = snapshot(s);
     expect(f.crabs.length).toBe(CRAB_STRIDE * 2);

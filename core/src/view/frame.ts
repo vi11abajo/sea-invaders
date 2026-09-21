@@ -1,5 +1,6 @@
 import { BOSS } from '../config';
 import { scoreDecayPct } from '../sim/boosts';
+import { crabFlags, hasHerald } from '../sim/veterans';
 import { BOOST_INDEX, KIND_INDEX, TYPE_INDEX, type GameState } from '../types';
 
 export interface BossFrame {
@@ -20,10 +21,11 @@ export interface BossFrame {
 }
 
 /**
- * Ints packed per crab in `Frame.crabs` (spec §7 ruling R3): x, y, kind, typeIndex, hp, flags. Only
- * bit 0 of `flags` is meaningful yet (mirrors `Crab.shield`, spec §2's warden); the rest are 0 until
- * a later task's aura/revive/rage skills raise them (bit 1 heralded, bit 2 revived, bit 3 raging,
- * spec §7). A consumer must never assume 5 ints per crab any more — use this constant.
+ * Ints packed per crab in `Frame.crabs` (spec §7 ruling R3): x, y, kind, typeIndex, hp, flags. All
+ * four flag bits are live (spec §7): bit 0 the warden's shield up, bit 1 heralded by a herald's
+ * aura, bit 2 revived by a patriarch within the last `REVIVED_TICKS` ticks, bit 3 the formation
+ * raging over a fallen patriarch. A consumer must never assume 5 ints per crab any more — use this
+ * constant.
  */
 export const CRAB_STRIDE = 6;
 
@@ -32,7 +34,7 @@ export interface Frame {
   tick: number;
   octopi: { x: number; y: number; invuln: number };
   lives: number;
-  /** `CRAB_STRIDE`-int groups: x, y, kind, typeIndex, hp, flags (bit 0 = shield up). */
+  /** `CRAB_STRIDE`-int groups: x, y, kind, typeIndex, hp, flags (1 shield up, 2 heralded, 4 revived, 8 raging). */
   crabs: number[];
   /** x, y pairs. */
   shots: number[];
@@ -91,7 +93,8 @@ function bossFrame(s: GameState): BossFrame | null {
 
 export function snapshot(s: GameState): Frame {
   const crabs: number[] = [];
-  for (const c of s.crabs) crabs.push(c.x, c.y, c.kind, TYPE_INDEX[c.type], c.hp, c.shield);
+  const aura = hasHerald(s); // hoisted: a wave with no herald never looks a neighbourhood up
+  for (const c of s.crabs) crabs.push(c.x, c.y, c.kind, TYPE_INDEX[c.type], c.hp, crabFlags(s, c, aura));
   const shots: number[] = [];
   for (const b of s.shots) shots.push(b.x, b.y);
   const enemyShots: number[] = [];

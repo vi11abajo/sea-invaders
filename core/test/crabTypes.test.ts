@@ -11,7 +11,7 @@ import {
 function crab(type: CrabType, x = 2812, y = 1500): Crab {
   return {
     x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp,
-    slot: -1, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0,
+    slot: -1, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0,
   };
 }
 
@@ -112,21 +112,25 @@ describe('crab kinds', () => {
 
   it('carries no dive state on a crab, only hp and the veteran fields spec §7 adds', () => {
     const s = createGame('t', PRACTICE_RUN);
-    expect(Object.keys(s.crabs[0]!)).toEqual(['x', 'y', 'kind', 'type', 'hp', 'slot', 'shield', 'shieldTimer', 'rallies', 'rallyTimer', 'squad']);
+    expect(Object.keys(s.crabs[0]!)).toEqual(['x', 'y', 'kind', 'type', 'hp', 'slot', 'shield', 'shieldTimer', 'rallies', 'rallyTimer', 'squad', 'revived']);
   });
 
   it('spawns every legacy-kind crab with the veteran fields at their neutral values', () => {
     const s = createGame('t', PRACTICE_RUN);
     spawnWave(s, 5); // the widest daily/practice pool: all five legacy kinds can come up
     expect(s.crabs.length).toBeGreaterThan(0);
-    for (const c of s.crabs) {
-      expect(c).toMatchObject({ slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 });
-    }
+    // A grid wave takes the cell it stands in as its slot (spec §2: the herald's neighbourhood and
+    // the patriarch's rally need one off the formation too); every other veteran field stays neutral.
+    s.crabs.forEach((c, i) => {
+      expect(c).toMatchObject({ slot: i, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 });
+    });
+    expect(s.crabs.map((c) => c.slot)).toEqual(s.crabs.map((_, i) => i));
+    expect(s.gridRows).toHaveLength(5);
     const l = levelById(25); // reef 5: all five legacy kinds, one per tier
     spawnFormation(s, { formation: l.formation, kinds: l.kinds });
     // A campaign wave takes its formation slot (spec §3); every other veteran field stays neutral.
     s.crabs.forEach((c, i) => {
-      expect(c).toMatchObject({ slot: i, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 });
+      expect(c).toMatchObject({ slot: i, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 });
     });
   });
 
@@ -135,7 +139,7 @@ describe('crab kinds', () => {
     spawnFormation(s, { formation: 'classic', kinds: ['warden'] });
     expect(s.crabs.length).toBeGreaterThan(0);
     s.crabs.forEach((c, i) => {
-      expect(c).toMatchObject({ type: 'warden', slot: i, shield: 1, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0 });
+      expect(c).toMatchObject({ type: 'warden', slot: i, shield: 1, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 });
     });
   });
 
@@ -195,7 +199,7 @@ describe('hashState', () => {
     const same = base();
     expect(hashState(s0)).toBe(hashState(same)); // same seed, same state: same hash
 
-    for (const field of ['slot', 'shield', 'shieldTimer', 'rallies', 'rallyTimer', 'squad'] as const) {
+    for (const field of ['slot', 'shield', 'shieldTimer', 'rallies', 'rallyTimer', 'squad', 'revived'] as const) {
       const s = base();
       const before = hashState(s);
       if (field === 'shield') s.crabs[0]!.shield = 1;
