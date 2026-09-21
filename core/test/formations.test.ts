@@ -162,6 +162,20 @@ describe('formation templates', () => {
 });
 
 describe('the whirlpool rings', () => {
+  /** The two ring orders of spec §3, transcribed here so a reordering has to be deliberate. */
+  const OUTER: ReadonlyArray<readonly [number, number]> = [
+    [0, 2], [0, 3], [0, 4], [0, 5], [1, 6], [2, 7], [3, 7], [4, 7], [5, 7], [6, 6],
+    [7, 5], [7, 4], [7, 3], [7, 2], [6, 1], [5, 0], [4, 0], [3, 0], [2, 0], [1, 1],
+  ];
+  const INNER: ReadonlyArray<readonly [number, number]> = [
+    [2, 3], [3, 2], [4, 2], [5, 3], [5, 4], [4, 5], [3, 5], [2, 4],
+  ];
+
+  it('travel the cells in the order the spec lists them, one for one', () => {
+    expect(WHIRLPOOL_RINGS.outer.map((cell) => [...cell])).toEqual(OUTER.map((cell) => [...cell]));
+    expect(WHIRLPOOL_RINGS.inner.map((cell) => [...cell])).toEqual(INNER.map((cell) => [...cell]));
+  });
+
   it('cover the whirlpool template exactly and disjointly', () => {
     const cells = formationPositions('whirlpool').map((p) => `${p.row},${p.col}`);
     const ringed = [...WHIRLPOOL_RINGS.outer, ...WHIRLPOOL_RINGS.inner].map(([r, c]) => `${r},${c}`);

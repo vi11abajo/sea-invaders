@@ -4,6 +4,7 @@ import {
   FORMATION_ORIGIN, REFORM_TARGET, WHIRLPOOL_RINGS, formationGapX, formationPositions,
 } from '../formations';
 import type { Crab, FormationSlot, FormationState, GameState } from '../types';
+import { chilled, tamed } from './boosts';
 import { crabStepFor, marchBlockOnce, marchSteps } from './crabs';
 
 /**
@@ -20,11 +21,40 @@ import { crabStepFor, marchBlockOnce, marchSteps } from './crabs';
 
 const HALF = idiv(CRAB.size, 2);
 
-/** Ticks a whirlpool crab takes to travel from its slot to the next one on its ring (spec §3). */
+/**
+ * March steps a whirlpool crab takes to travel from its slot to the next one on its ring (spec §3,
+ * amended by ruling R6: march steps, not wall-clock ticks). At the 90 % `TUNING.crabMovePct` the
+ * game ships with, and with nothing slowing the wave, that is 50 ticks.
+ */
 export const ROTATE_TICKS = 45;
 
-/** Ticks a reforming wave takes to glide into the spearhead (spec §3). */
+/** March steps a reforming wave takes to glide into the spearhead (spec §3); 66 ticks untroubled. */
 export const REFORM_TICKS = 60;
+
+/**
+ * What one unhindered march step is worth to a rotation or a glide. Both are crab movement, so both
+ * obey ICE_FREEZE and SPEED_TAMER like the march does (ruling R6) — but the march carries those
+ * slowdowns in the *size* of its step, not in how many steps it takes, and a counter that only ever
+ * moved by whole steps could not be halved. Counting a step as twenty units lets the very same
+ * `chilled` and `tamed` the march puts its displacement through apply to the counter exactly:
+ * ICE_FREEZE halves twenty to ten, SPEED_TAMER's tenths divide it evenly, and the two together
+ * still land on a whole number. `rotateTick` and `glideTicks` are counted in these units.
+ */
+export const MARCH_STEP_UNITS = 20;
+
+/** A whole ring step and a whole reform glide, in `MARCH_STEP_UNITS`. */
+const ROTATE_SPAN = ROTATE_TICKS * MARCH_STEP_UNITS;
+const REFORM_SPAN = REFORM_TICKS * MARCH_STEP_UNITS;
+
+/**
+ * How far this tick's march carries a rotation or a glide: the march steps the wave just took, in
+ * progress units, slowed exactly as the march slows its own step. Derived from the one step count
+ * the march itself used this tick — never a second `marchSteps` call with different inputs — so the
+ * counter and the march can never disagree about a tick the march sat out, which scores 0.
+ */
+function marchProgress(s: GameState, steps: number): number {
+  return chilled(s, tamed(s, steps * MARCH_STEP_UNITS), false);
+}
 
 /**
  * The last template column of a split wave's left half; 4 to 7 are the right half (spec §3). The
@@ -78,9 +108,9 @@ function buildRotation(): number[] {
   return next;
 }
 
-/** `a` to `b`, `t` ticks into a `ticks`-tick glide; exact at both ends, integers throughout. */
-function lerp(a: number, b: number, t: number, ticks: number): number {
-  return a + idiv((b - a) * t, ticks);
+/** `a` to `b`, `at` of the way through a glide of `span`; exact at both ends, integers throughout. */
+function lerp(a: number, b: number, at: number, span: number): number {
+  return a + idiv((b - a) * at, span);
 }
 
 /**
@@ -92,18 +122,31 @@ function lerp(a: number, b: number, t: number, ticks: number): number {
  * relative to another, so `origin + slot` still holds afterwards.
  */
 function keepInsideField(s: GameState, f: FormationState): void {
+  f.ox += slideInside(s.crabs, HALF, FIELD_W - HALF);
+}
+
+/**
+ * Slides `crabs` as one rigid group until every one of them sits between the crab-centre bounds
+ * `loX` and `hiX`, and returns how far it moved them. A group is always narrower than the band it
+ * lives in — no template comes near the field's width (the widest spans 4821 units of 5625) and a
+ * half of one is narrower than its side of the centre line, both pinned by `a wave that widens at a
+ * wall` in the tests — so only one bound can ever be over and the two corrections below can never
+ * fight over the group.
+ */
+function slideInside(crabs: readonly Crab[], loX: number, hiX: number): number {
+  if (crabs.length === 0) return 0;
   let minX = Number.MAX_SAFE_INTEGER;
   let maxX = -Number.MAX_SAFE_INTEGER;
-  for (const c of s.crabs) {
+  for (const c of crabs) {
     if (c.x < minX) minX = c.x;
     if (c.x > maxX) maxX = c.x;
   }
   let shift = 0;
-  if (maxX + HALF > FIELD_W) shift = FIELD_W - HALF - maxX;
-  if (minX + shift - HALF < 0) shift = HALF - minX;
-  if (shift === 0) return;
-  for (const c of s.crabs) c.x += shift;
-  f.ox += shift;
+  if (maxX > hiX) shift = hiX - maxX;
+  else if (minX < loX) shift = loX - minX;
+  if (shift === 0) return 0;
+  for (const c of crabs) c.x += shift;
+  return shift;
 }
 
 /** The slot indices of a wave that no living crab holds, ascending (a later rally picks the first). */
@@ -125,15 +168,18 @@ export function moveLivingFormation(s: GameState, f: FormationState): void {
 
 /**
  * The whirlpool (spec §3). The block marches and steps down as always, carrying the origin; on top
- * of that every crab travels its ring, one slot every `ROTATE_TICKS` ticks, gliding between the two
- * by the integer lerp. Rings turn on ticks, not on march steps, so the wheel keeps its pace through
- * the rest ticks `TUNING.crabMovePct` leaves in the march.
+ * of that every crab travels its ring, one slot every `ROTATE_TICKS` march steps, gliding between
+ * the two by the integer lerp. The wheel turns with the march and not against a clock of its own: a
+ * tick the march rests, or a wave held back by ICE_FREEZE or SPEED_TAMER, turns it that much less,
+ * and a ring step always ends with the crabs exactly on their new slots.
  */
 function rotate(s: GameState, f: FormationState): void {
   const steps = marchSteps(s.tick);
   for (let i = 0; i < steps; i++) marchBlockOnce(s, crabStepFor(s, s.dir));
-  f.rotateTick += 1;
-  if (f.rotateTick >= ROTATE_TICKS) {
+  f.rotateTick += marchProgress(s, steps);
+  if (f.rotateTick >= ROTATE_SPAN) {
+    // Any progress past the span is dropped rather than carried: a crab that has reached its slot
+    // is *on* it, and a step is only ever overshot by part of one tick's worth.
     f.rotateTick = 0;
     for (const c of s.crabs) if (c.slot >= 0) c.slot = WHIRLPOOL_NEXT[c.slot]!;
   }
@@ -141,8 +187,8 @@ function rotate(s: GameState, f: FormationState): void {
     if (c.slot < 0) continue;
     const from = f.slots[c.slot]!;
     const to = f.slots[WHIRLPOOL_NEXT[c.slot]!]!;
-    c.x = f.ox + lerp(from.x, to.x, f.rotateTick, ROTATE_TICKS);
-    c.y = f.oy + lerp(from.y, to.y, f.rotateTick, ROTATE_TICKS);
+    c.x = f.ox + lerp(from.x, to.x, f.rotateTick, ROTATE_SPAN);
+    c.y = f.oy + lerp(from.y, to.y, f.rotateTick, ROTATE_SPAN);
   }
   keepInsideField(s, f);
 }
@@ -156,6 +202,11 @@ function rotate(s: GameState, f: FormationState): void {
  *
  * The origin is not carried here: two halves that drift apart have no single point to hang off, so
  * a split wave leaves `ox`/`oy` where its arrival ended and steers by `dirL`/`dirR` alone.
+ *
+ * Each half is then slid back into its own band, for the same reason the other two behaviours are
+ * slid back onto the field: a half pressed against its margin while it is short of its outer column
+ * widens again the moment a crab is revived into that column, and a half left hanging over a bound
+ * fails it in both directions and turns round on every tick from then on.
  */
 function split(s: GameState, f: FormationState): void {
   const gap = idiv(formationGapX(f.name), 2);
@@ -165,6 +216,13 @@ function split(s: GameState, f: FormationState): void {
     f.dirL = marchHalf(s, f, true, f.dirL, HALF, centre - gap);
     f.dirR = marchHalf(s, f, false, f.dirR, centre + gap, FIELD_W - HALF);
   }
+  slideInside(halfCrabs(s, f, true), HALF, centre - gap);
+  slideInside(halfCrabs(s, f, false), centre + gap, FIELD_W - HALF);
+}
+
+/** The living crabs of one half of a split wave (spec §3: template columns 0-3 and 4-7). */
+function halfCrabs(s: GameState, f: FormationState, left: boolean): Crab[] {
+  return s.crabs.filter((c) => c.slot >= 0 && (f.slots[c.slot]!.col <= SPLIT_COL) === left);
 }
 
 /**
@@ -173,7 +231,7 @@ function split(s: GameState, f: FormationState): void {
  * half steps down when that bound is the field margin rather than the centre line.
  */
 function marchHalf(s: GameState, f: FormationState, left: boolean, dir: number, loX: number, hiX: number): number {
-  const crabs = s.crabs.filter((c) => c.slot >= 0 && (f.slots[c.slot]!.col <= SPLIT_COL) === left);
+  const crabs = halfCrabs(s, f, left);
   if (crabs.length === 0) return dir;
   const step = crabStepFor(s, dir);
   let hitsBound = false;
@@ -196,10 +254,11 @@ function marchHalf(s: GameState, f: FormationState, left: boolean, dir: number, 
 
 /**
  * The manta (spec §3). It marches as a plain block until it is halved, then falls back into the
- * spearhead: the survivors glide onto the new slots over `REFORM_TICKS` ticks, and from the moment
- * it reforms the wave marches a quarter faster. The glide closes the remaining distance to the slot
- * by `1 / glideTicks` each tick, so it is integer arithmetic throughout and lands exactly on the
- * slot on the last of the sixty ticks, however the origin marched underneath it meanwhile.
+ * spearhead: the survivors glide onto the new slots over `REFORM_TICKS` march steps, and from the
+ * moment it reforms the wave marches a quarter faster. The glide moves by the share of the distance
+ * still to cover that this tick's march is worth of the glide still to run, so it is integer
+ * arithmetic throughout, it slows with the march exactly as the rotation does, and its last step —
+ * where the two are equal — lands on the slot exactly, however the origin marched underneath it.
  */
 function reform(s: GameState, f: FormationState): void {
   if (!f.reformed) fallBack(s, f);
@@ -209,15 +268,17 @@ function reform(s: GameState, f: FormationState): void {
     marchBlockOnce(s, f.reformed ? idiv(step * REFORM_SPEED_NUM, REFORM_SPEED_DEN) : step);
   }
   if (f.glideTicks <= 0) return;
+  const moved = Math.min(marchProgress(s, steps), f.glideTicks);
+  if (moved <= 0) return;
   for (const c of s.crabs) {
     if (c.slot < 0) continue;
     const to = f.slots[c.slot]!;
     const dx = c.x - f.ox;
     const dy = c.y - f.oy;
-    c.x = f.ox + dx + idiv(to.x - dx, f.glideTicks);
-    c.y = f.oy + dy + idiv(to.y - dy, f.glideTicks);
+    c.x = f.ox + dx + idiv((to.x - dx) * moved, f.glideTicks);
+    c.y = f.oy + dy + idiv((to.y - dy) * moved, f.glideTicks);
   }
-  f.glideTicks -= 1;
+  f.glideTicks -= moved;
   keepInsideField(s, f);
 }
 
@@ -238,7 +299,7 @@ function fallBack(s: GameState, f: FormationState): void {
   f.slots = slots;
   order.forEach((c, i) => { c.slot = i; });
   f.reformed = true;
-  f.glideTicks = REFORM_TICKS;
+  f.glideTicks = REFORM_SPAN;
   s.events.push({ tick: s.tick, type: 'formation_reform' });
 }
 

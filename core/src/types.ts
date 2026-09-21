@@ -113,11 +113,15 @@ export interface FormationState {
   dirL: number;
   /** `split` only: the direction of the right half. */
   dirR: number;
-  /** `rotate` only: ticks into the current ring step, 0 when the crabs sit exactly on their slots. */
+  /**
+   * `rotate` only: how far the wave is into its current ring step, in `MARCH_STEP_UNITS` — the
+   * rotation counts march steps and slows with them, so this is not a clock. 0 when the crabs sit
+   * exactly on their slots.
+   */
   rotateTick: number;
   /** `reform` only: whether the wave has already fallen back into the spearhead. */
   reformed: boolean;
-  /** Ticks left of a reform glide; 0 when the crabs are settled. */
+  /** A reform glide's remaining distance in `MARCH_STEP_UNITS`; 0 when the crabs are settled. */
   glideTicks: number;
 }
 
