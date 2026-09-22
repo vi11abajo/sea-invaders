@@ -171,6 +171,7 @@ export interface BossState {
   /**
    * Crimson: ticks of rage left. Void/temporal freeze: ticks the player's shots stay frozen.
    * Templar: ticks his shell shield stays down after a swing, before `shieldUp` goes back to 1.
+   * Corsair: ticks left of Spikes' reflect window.
    */
   effectTicks: number;
   /** Void: spiral phase in degrees. */
@@ -190,7 +191,10 @@ export interface BossState {
   aimX: number;
   /** Huntsman: ticks the sight line is still shown for. Castellan: cold snap's own countdown, redrawn every time it reaches 0. */
   aimTicks: number;
-  /** Shots still to come in a staggered burst. */
+  /**
+   * Castellan: 0 or 1, whether the next phase-2 attack also throws the large shot. Corsair: 0 or 1,
+   * which of phase 3's two ability firings (a crew, Spikes) comes next.
+   */
   burst: number;
   /** Huntsman: ticks left of each mirrored boost class, in order offence, defence, control. */
   mirror: [number, number, number];

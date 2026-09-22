@@ -19,19 +19,43 @@ const CHAOS_POOL: BoostType[] = [
 const DROP_HALF = idiv(DROP.size, 2);
 
 /**
- * Rolls a drop at (x, y) on a crab kill: `DROP.chance`% chance, then a rarity roll (common < 50,
- * rare < 85, epic < 97, else legendary) and a uniform pick within that rarity's list (spec §5.1-5.2,
- * legacy `DISTRIBUTION` order). No-op when the run has boosts disabled.
+ * The rarity-then-item pick every drop makes (common < 50, rare < 85, epic < 97, else legendary,
+ * then a uniform pick within that rarity's list — spec §5.1-5.2, legacy `DISTRIBUTION` order). Two
+ * `rngBoosts` draws, shared by `rollDrop`'s own chance-gated drop and `spawnDrop`'s guaranteed one
+ * below, so the two can never disagree on how a drop's boost is chosen.
+ */
+function pickDropBoost(s: GameState): BoostType {
+  const r = s.rngBoosts.nextInt(100);
+  const rarity = r < 50 ? 'common' : r < 85 ? 'rare' : r < 97 ? 'epic' : 'legendary';
+  const list = RARITY_LISTS[rarity];
+  return list[s.rngBoosts.nextInt(list.length)]!;
+}
+
+/**
+ * Rolls a drop at (x, y) on a crab kill: `DROP.chance`% chance, then `pickDropBoost`'s own
+ * rarity-then-item pick. No-op when the run has boosts disabled.
  */
 export function rollDrop(s: GameState, x: number, y: number): void {
   if (!s.run.features.boosts) return;
   if (s.rngBoosts.nextInt(100) >= DROP.chance) return;
-  const r = s.rngBoosts.nextInt(100);
-  const rarity = r < 50 ? 'common' : r < 85 ? 'rare' : r < 97 ? 'epic' : 'legendary';
-  const list = RARITY_LISTS[rarity];
-  const boost = list[s.rngBoosts.nextInt(list.length)]!;
+  const boost = pickDropBoost(s);
   s.drops.push({ x, y, boost, ttl: DROP.ttl });
   s.events.push({ tick: s.tick, type: 'boost_drop', boost });
+}
+
+/**
+ * A guaranteed drop at (x, y) — spec §5.2, the Gold Corsair's boarding-crew loot
+ * (`sim/collide.ts`'s `lootCrewIfWiped`): skips `rollDrop`'s own chance roll entirely, so exactly two
+ * `rngBoosts` draws (`pickDropBoost`'s own rarity-then-item pick, the same two draws `rollDrop` makes
+ * for any drop it does decide to make), and always lands one. Pushes no `boost_drop` event of its
+ * own — the caller announces the drop under the spec's own name for this one (`crew_looted`), so
+ * this never double-announces the same drop under two names. No-op when the run has boosts disabled,
+ * mirroring `rollDrop`; every boss round's own run has them enabled today, so this is a defensive
+ * match rather than a path any current fight can reach.
+ */
+export function spawnDrop(s: GameState, x: number, y: number): void {
+  if (!s.run.features.boosts) return;
+  s.drops.push({ x, y, boost: pickDropBoost(s), ttl: DROP.ttl });
 }
 
 /**

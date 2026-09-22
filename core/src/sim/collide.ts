@@ -1,7 +1,7 @@
 import { BOSS, CRAB, CRAB_TYPES, ENEMY_SHOT, OCTOPI, SHOT } from '../config';
 import { clamp, idiv } from '../fixed';
 import type { Bullet, Crab, GameState } from '../types';
-import { isActive, rollDrop, scoreDecayPct } from './boosts';
+import { isActive, rollDrop, scoreDecayPct, spawnDrop } from './boosts';
 import { ORB_RADIUS, damageBoss, scoreMultiplier } from './boss';
 import { BUBBLE_RADIUS, CHARGE_RADIUS, enrage, shieldAbsorbs } from './veterans';
 
@@ -23,6 +23,29 @@ export function killCrab(s: GameState, c: Crab): void {
   s.score += scoreMultiplier(s, idiv(base * scoreDecayPct(s), 100));
   s.kills += 1;
   enrage(s, c); // spec §2: a dying patriarch enrages what is left of its formation
+  lootCrewIfWiped(s, c); // spec §5.2 kind 8: a boarding crew wiped by the player drops a guaranteed prize
+}
+
+/**
+ * Gold Corsair only (spec §5.2, kind 8): a boarding crew the player wipes out — every one of its
+ * crabs dead — drops one guaranteed boost at the last crab's own position, `crew_looted`. Sim-state
+ * only (ruling R18, no reading of `s.events`): detected synchronously, right here, the instant the
+ * crew's last crab is removed — the caller (`hitCrabs`, above) has already spliced `c` out of
+ * `s.crabs` by the time `killCrab` runs, so "no crab of this squad is left" is a plain scan of the
+ * crabs that remain, with nothing that has to survive to a later tick.
+ *
+ * A no-op the instant `c.squad` is 0 (every wave crab, and every crab of the first campaign) or the
+ * boss standing right now is not the Corsair (kinds 1-7, 9, 10, and no boss at all) — so this reads
+ * nothing and changes nothing for the Verdant Templar's own `line4` escort, or for any other fight.
+ * A crew popped whole at the Corsair's own death does not loot (task brief): `popSquads`
+ * (`sim/squads.ts`) removes every squad crab from `s.crabs` with one filter, never through
+ * `killCrab`, so this function is never reached for that removal at all.
+ */
+function lootCrewIfWiped(s: GameState, c: Crab): void {
+  if (c.squad <= 0 || s.boss?.kind !== 8) return;
+  for (const other of s.crabs) if (other.squad === c.squad) return; // the crew still has a survivor
+  spawnDrop(s, c.x, c.y);
+  s.events.push({ tick: s.tick, type: 'crew_looted' });
 }
 
 const CRAB_HALF = idiv(CRAB.size, 2);
@@ -79,7 +102,7 @@ export function hitCrabs(s: GameState): void {
     );
     if (i < 0) {
       if (s.boss && Math.abs(b.x - s.boss.x) * 2 < SHOT.w + BOSS.width && Math.abs(b.y - s.boss.y) * 2 < SHOT.h + BOSS.height) {
-        damageBoss(s, 1);
+        damageBoss(s, 1, b); // `b` is the player shot; the Gold Corsair's Spikes reads its x (spec §5.2)
         continue;
       }
       kept.push(b);

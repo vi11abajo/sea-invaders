@@ -1,7 +1,8 @@
 import type { Rng } from '../../rng';
-import type { BossKind, BossState, GameState } from '../../types';
+import type { Bullet, BossKind, BossState, GameState } from '../../types';
 import { AZURE_HOOKS } from './azure';
 import { CASTELLAN_HOOKS } from './castellan';
+import { CORSAIR_HOOKS } from './corsair';
 import { CRIMSON_HOOKS } from './crimson';
 import { EMERALD_HOOKS } from './emerald';
 import { SOLAR_HOOKS } from './solar';
@@ -12,6 +13,7 @@ import { VOID_HOOKS } from './void';
 // (the app and the tests read them from here, never by reaching into the module).
 export * from './templar';
 export * from './castellan';
+export * from './corsair';
 
 /**
  * Per-boss behaviour, looked up by `BOSS_HOOKS[b.kind]`. `attack` and `ability` are mandatory;
@@ -29,8 +31,16 @@ export interface BossHooks {
   ability(s: GameState, b: BossState): void;
   initialAbilityTimer(rng: Rng): number;
   nextAbilityTimer(rng: Rng): number;
-  /** Returns true when a shield absorbed the hit instead of the boss taking damage. */
-  onHit?(s: GameState, b: BossState): boolean;
+  /**
+   * Returns true when a shield absorbed the hit instead of the boss taking damage (or, the Gold
+   * Corsair's own Spikes, reflected it back down the field). `shot` is the player bullet that hit
+   * the boss box; every real hit through `collide.ts`'s `hitCrabs` supplies it, and it is undefined
+   * only when a caller (a test, mostly) reaches `damageBoss` directly without one. Added for the
+   * Corsair's task (spec §5.2): every `onHit` before it declares only `(s, b)` and TypeScript allows
+   * an implementation with fewer parameters to satisfy an interface that declares more, so this
+   * changes nothing for Azure's or the Verdant Templar's own shields.
+   */
+  onHit?(s: GameState, b: BossState, shot?: Bullet): boolean;
   cast?(s: GameState, b: BossState, id: number): void;
   tick?(s: GameState, b: BossState): void;
   /**
@@ -52,8 +62,8 @@ export interface BossHooks {
  * with it fails loudly rather than running a half-boss. `spawnBoss` reaches `initialAbilityTimer`
  * the moment it builds the state, so no fight can begin by accident. The shared plumbing those
  * bosses stand on — `BOSS_TABLE`, the new `BossState` fields, squads, obstacles, the new shot
- * kinds — is real; only the behaviours are still to come, one task each. Kinds 6 and 7 are written
- * (`templar.ts`, `castellan.ts`); 8 to 10 are still placeholders.
+ * kinds — is real; only the behaviours are still to come, one task each. Kinds 6, 7 and 8 are
+ * written (`templar.ts`, `castellan.ts`, `corsair.ts`); 9 and 10 are still placeholders.
  */
 function notWrittenYet(kind: number): BossHooks {
   const fail = (): never => {
@@ -71,7 +81,7 @@ export const BOSS_HOOKS: Record<BossKind, BossHooks> = {
   5: VOID_HOOKS,
   6: TEMPLAR_HOOKS,
   7: CASTELLAN_HOOKS,
-  8: notWrittenYet(8),
+  8: CORSAIR_HOOKS,
   9: notWrittenYet(9),
   10: notWrittenYet(10),
 };

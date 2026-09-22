@@ -364,12 +364,18 @@ export function updateBoss(s: GameState): void {
   s.destroyedObstacles = [];
 }
 
-/** Deals `amount` damage to the boss (unless a shield absorbs it), handling phase transitions and death. */
-export function damageBoss(s: GameState, amount: number): void {
+/**
+ * Deals `amount` damage to the boss (unless a shield absorbs it), handling phase transitions and
+ * death. `shot` is the player bullet that hit the boss box, forwarded to `hooks.onHit` so a boss
+ * whose shield reacts to *where* a shot landed (the Gold Corsair's Spikes, spec §5.2) can read it;
+ * every other boss's `onHit` ignores the extra argument, and every call site outside `collide.ts`'s
+ * own `hitCrabs` (mostly tests, forcing damage by hand) omits it, which is exactly why it is optional.
+ */
+export function damageBoss(s: GameState, amount: number, shot?: Bullet): void {
   const b = s.boss;
   if (!b || b.state === 'transition') return;
   const hooks = BOSS_HOOKS[b.kind];
-  if (hooks.onHit?.(s, b)) return; // shield absorbed it
+  if (hooks.onHit?.(s, b, shot)) return; // shield absorbed it (or, kind 8, reflected it)
   b.hp = Math.max(0, b.hp - amount);
   if (b.hp === 0) {
     const decayed = 100 - Math.floor(b.fightTicks / BOSS.decayEvery);
