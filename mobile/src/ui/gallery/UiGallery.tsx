@@ -14,6 +14,7 @@ import { PillButton } from '../PillButton';
 import { RubberSegment } from '../RubberSegment';
 import { SeekerBadge } from '../SeekerBadge';
 import { ShinyText } from '../ShinyText';
+import { StarBorder } from '../StarBorder';
 import { SquishSwitch } from '../SquishSwitch';
 import { Txt } from '../Txt';
 import { useAppFonts } from '../fonts';
@@ -131,6 +132,12 @@ export function UiGallery() {
           <ShinyText text="CAMPAIGN COMPLETE" fontSource={InstrumentSans_600SemiBold} size={16} color={COLORS.textSecondary} />
         </Section>
 
+        <Section title="Star Border">
+          <StarBorder style={styles.starBorderDemo} periodMs={4000}>
+            <Txt variant="label" tone="secondary">Orbiting glow</Txt>
+          </StarBorder>
+        </Section>
+
         <Section title="Surfaces">
           <Glass style={styles.card}>
             <Txt variant="label" tone="tertiary">Daily run · seed #214</Txt>
@@ -193,4 +200,8 @@ const styles = StyleSheet.create({
   card: { padding: 16, gap: 8 },
   stat: { minWidth: 120, gap: 2 },
   swatch: { width: 40, height: 40, borderRadius: 8 },
+  starBorderDemo: {
+    alignSelf: 'flex-start', borderRadius: RADIUS.pill, paddingHorizontal: 14, paddingVertical: 8,
+    backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder,
+  },
 });

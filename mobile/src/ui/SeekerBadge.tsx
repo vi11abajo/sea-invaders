@@ -1,7 +1,8 @@
 import { InstrumentSans_600SemiBold } from '@expo-google-fonts/instrument-sans/600SemiBold';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { GradientFill } from './GradientFill';
 import { ShinyText } from './ShinyText';
+import { StarBorder } from './StarBorder';
 import { RADIUS } from './tokens';
 
 const BADGE_GRADIENT = ['#9945FF', '#19FB9B'] as const;
@@ -10,10 +11,14 @@ const BADGE_GRADIENT = ['#9945FF', '#19FB9B'] as const;
  * loss reads as negligible). */
 const LABEL_SIZE = 9;
 
-/** SEEKER: a metallic sheen sweeping across the black label, on the purple-to-green gradient pill. */
+/**
+ * SEEKER: a metallic sheen sweeping across the black label, on the purple-to-green gradient pill,
+ * with a thin star-glow orbiting the pill's own rounded border (Star Border, kept subtle: a 4 s
+ * orbit, two dim 3 dp dots).
+ */
 export function SeekerBadge() {
   return (
-    <View style={styles.badge}>
+    <StarBorder style={styles.badge} periodMs={4000}>
       <GradientFill radius={RADIUS.pill} colors={BADGE_GRADIENT} />
       <ShinyText
         text="SEEKER"
@@ -23,7 +28,7 @@ export function SeekerBadge() {
         shineColor="#FFFFFF"
         periodMs={3200}
       />
-    </View>
+    </StarBorder>
   );
 }
 
