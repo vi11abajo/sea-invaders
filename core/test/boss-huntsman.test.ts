@@ -111,6 +111,7 @@ describe('Abyssal Huntsman — the sight line and the needle', () => {
     expect(needle!.vx).toBe(idiv(dx * NEEDLE_SPEED, len)); // aimed at the ORIGINAL (2000, 6000)
     expect(needle!.vy).toBe(idiv(dy * NEEDLE_SPEED, len));
     expect(b.burst).toBe(0); // phase 1: one needle, no re-aim
+    expect(s.events.filter((e) => e.type === 'boss_aim')).toHaveLength(1); // one line, one boss_aim (ruling R51)
   });
 
   it('flies the needle at ×1.25 while the control mirror is up', () => {
@@ -146,6 +147,7 @@ describe('Abyssal Huntsman — the burst from phase 2', () => {
     b.attackTimer = 1;
     updateBoss(s); // starts the burst: b.burst = 3, the 40-tick opener drawn
     expect(b.burst).toBe(3);
+    expect(s.events.filter((e) => e.type === 'boss_aim')).toHaveLength(1); // the opener's own line
 
     ticks(s, 39); // total 40: needle #1 fires, re-aim #1 (12 ticks) drawn to Octopi's current position
     expect(s.enemyShots.filter((e) => e.kind === 'needle')).toHaveLength(1);
@@ -154,6 +156,7 @@ describe('Abyssal Huntsman — the burst from phase 2', () => {
     expect(s.aims[5]).toBe(12);
     expect(s.aims[2]).toBe(1000);
     expect(s.aims[3]).toBe(5500);
+    expect(s.events.filter((e) => e.type === 'boss_aim')).toHaveLength(2); // ruling R51: every line, not just the opener
 
     s.octopi.x = 3000; // Octopi moves before the second re-aim
     s.octopi.y = 8000;
@@ -162,11 +165,13 @@ describe('Abyssal Huntsman — the burst from phase 2', () => {
     expect(b.burst).toBe(1);
     expect(s.aims[2]).toBe(3000); // followed Octopi to its new spot
     expect(s.aims[3]).toBe(8000);
+    expect(s.events.filter((e) => e.type === 'boss_aim')).toHaveLength(3);
 
     ticks(s, 12); // needle #3 fires; the burst ends, no further re-aim
     expect(s.enemyShots.filter((e) => e.kind === 'needle')).toHaveLength(3);
     expect(b.burst).toBe(0);
     expect(s.aims).toEqual([]);
+    expect(s.events.filter((e) => e.type === 'boss_aim')).toHaveLength(3); // exactly 3 for the whole burst, never a 4th
   });
 });
 
@@ -257,6 +262,7 @@ describe('Abyssal Huntsman — the honour guard (phase 4)', () => {
     expect(s.squads).toHaveLength(1);
     const guard = s.squads[0]!;
     expect(guard.alive).toBe(5);
+    expect(guard.dir).toBe(1); // a fixed direction, no draw (ruling R50, fix round 1)
     const crabs = s.crabs.filter((c) => c.squad === guard.id);
     expect(crabs).toHaveLength(5);
     expect(crabs.map((c) => c.type).sort()).toEqual([...HUNTSMAN_GUARD].sort());
@@ -500,6 +506,53 @@ describe('Abyssal Huntsman — Mirror wiring (sim/boosts.ts, ruling R25)', () =>
     s.drops.push({ x: s.octopi.x, y: s.octopi.y, boost: 'RAPID_FIRE', ttl: 100 });
     expect(() => updateBoosts(s)).not.toThrow();
   });
+
+  it('never mirrors a pickup that is not actually consumed (WAVE_BLAST, no crabs on screen, spec C4)', () => {
+    const s = createGame('huntsman-waveblast-not-consumed', { ...PRACTICE_RUN, features: { boosts: true } });
+    s.crabs = []; // applyWaveBlast (boostEffects.ts) returns false with no crabs: the pickup is not consumed
+    spawnBoss(s, 10);
+    const b = s.boss!;
+    s.drops.push({ x: s.octopi.x, y: s.octopi.y, boost: 'WAVE_BLAST', ttl: 100 });
+    updateBoosts(s);
+    expect(b.mirror).toEqual([0, 0, 0]); // the `onBoostPickup` call sits inside `if (result.consumed)`
+    expect(s.drops.some((d) => d.boost === 'WAVE_BLAST')).toBe(true); // the drop keeps falling, never consumed
+  });
+});
+
+describe('Abyssal Huntsman — the Mirror refreshes, never stacks (ruling R26)', () => {
+  it('resets the offence mirror\'s duration and halves whatever the attack timer currently is, on a repeat pickup', () => {
+    const s = arena();
+    const b = park(s);
+    BOSS_HOOKS[10].onBoostPickup!(s, b, 'RAPID_FIRE'); // 600 ticks
+    ticks(s, 100); // let it count down partway
+    expect(b.mirror[0]).toBe(500);
+    b.attackTimer = 80; // some unrelated running value by the time the second pickup lands
+    BOSS_HOOKS[10].onBoostPickup!(s, b, 'MULTI_SHOT'); // a second offence pickup
+    expect(b.mirror[0]).toBe(600); // reset to the fresh full duration, not 500 + 600
+    expect(b.attackTimer).toBe(40); // halved again from its CURRENT 80, not from the original 100
+  });
+
+  it('refills the defence mirror\'s shield to exactly 40 on a repeat pickup, never adding to what is left', () => {
+    const s = arena();
+    const b = park(s);
+    BOSS_HOOKS[10].onBoostPickup!(s, b, 'INVINCIBILITY');
+    expect(b.shieldHp).toBe(40);
+    for (let i = 0; i < 15; i++) damageBoss(s, 1); // 15 hits absorbed, 25 left
+    expect(b.shieldHp).toBe(25);
+    BOSS_HOOKS[10].onBoostPickup!(s, b, 'HEALTH_BOOST'); // a second defence pickup
+    expect(b.shieldHp).toBe(40); // refilled to 40, not 25 + 40
+    expect(b.mirror[1]).toBe(300); // HEALTH_BOOST's own duration (0 -> 300), refreshed
+  });
+
+  it('resets the control mirror\'s duration on a repeat pickup', () => {
+    const s = arena();
+    const b = park(s);
+    BOSS_HOOKS[10].onBoostPickup!(s, b, 'ICE_FREEZE'); // 600 ticks
+    ticks(s, 200);
+    expect(b.mirror[2]).toBe(400);
+    BOSS_HOOKS[10].onBoostPickup!(s, b, 'GRAVITY_WELL'); // a second control pickup
+    expect(b.mirror[2]).toBe(600); // reset to the fresh full duration, not 400 + 600
+  });
 });
 
 describe('Abyssal Huntsman — the RNG draw order', () => {
@@ -522,13 +575,13 @@ describe('Abyssal Huntsman — the RNG draw order', () => {
     expect(rng.log).toEqual([BOSS.attackJitter]);
   });
 
-  it('draws exactly one nextInt(2) for the honour guard direction, at phase 4 only', () => {
+  it('draws nothing at all on the way to phase 4: the honour guard\'s direction is fixed (ruling R50)', () => {
     const s = arena();
     park(s);
     const rng = scriptedRng({});
     s.rngBoss = rng.rng;
     toPhase(s, 4);
-    expect(rng.log).toEqual([2]);
+    expect(rng.log).toEqual([]);
   });
 
   it('is deterministic over 2000 ticks', () => {

@@ -193,7 +193,8 @@ export interface BossState {
   aimTicks: number;
   /**
    * Castellan: 0 or 1, whether the next phase-2 attack also throws the large shot. Corsair: 0 or 1,
-   * which of phase 3's two ability firings (a crew, Spikes) comes next.
+   * which of phase 3's two ability firings (a crew, Spikes) comes next. Huntsman: needles still owed
+   * in the current burst (0-3).
    */
   burst: number;
   /** Huntsman: ticks left of each mirrored boost class, in order offence, defence, control. */

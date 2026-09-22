@@ -13,14 +13,16 @@ import type { BossHooks } from './index';
  * a sight line fixes on Octopi for a spell, then a needle flies exactly the line it was shown on,
  * never chasing wherever Octopi has moved to since.
  *
- * **The sight line and the needle** (`attack`, `tick`, ruling R28): `attack` records the muzzle-to-
- * Octopi segment as a *real* group in `s.aims` — `[muzzle.x, muzzle.y, octopi.x, octopi.y, 0,
- * ticksLeft]`, `decoy = 0` — and raises `boss_aim`; the ordinary `tick` hook (which only ever runs
- * while the boss is fighting, never mid-transition) counts every group in `s.aims` down together with
- * `b.aimX`/`b.aimTicks`, exactly as the Verdant Templar's own `windup`/Frost Castellan's own
- * `aimTicks` already count down in their own `tick` hooks — a value set by `attack` is not spared its
- * first decrement on the very tick it starts (the same convention `templar.ts`'s own file doc names
- * for its wind-up). When the real group's own `ticksLeft` reaches 0 the needle flies exactly the
+ * **The sight line and the needle** (`attack`, `pushAimLine`, `tick`, ruling R28): `attack` records the
+ * muzzle-to-Octopi segment as a *real* group in `s.aims` — `[muzzle.x, muzzle.y, octopi.x, octopi.y,
+ * 0, ticksLeft]`, `decoy = 0` — via `pushAimLine`, which raises `boss_aim` for it (ruling R51, fix
+ * round 1: for *every* line pushed, the 40-tick opener and each 12-tick re-aim alike, not just the
+ * opener — the app cues the needle telegraph off it each time). The ordinary `tick` hook (which only
+ * ever runs while the boss is fighting, never mid-transition) counts every group in `s.aims` down
+ * together with `b.aimX`/`b.aimTicks`, exactly as the Verdant Templar's own `windup`/Frost Castellan's
+ * own `aimTicks` already count down in their own `tick` hooks — a value set by `attack` is not spared
+ * its first decrement on the very tick it starts (the same convention `templar.ts`'s own file doc
+ * names for its wind-up). When the real group's own `ticksLeft` reaches 0 the needle flies exactly the
  * segment it was drawn with — Octopi moving after the aim was fixed changes nothing, because nothing
  * about the needle's course is read again — and the group (with any decoys sharing its `ticksLeft`)
  * is dropped outright: `s.aims` holds live lines only, never one sitting at 0.
@@ -51,24 +53,27 @@ import type { BossHooks } from './index';
  * raised once per `attack` call, not once per line drawn — the same "one event per activation" the
  * Storm Tyrant's own `lane_warning` already keeps for its own multi-item firings — but a decoy pair
  * is pushed alongside *every* real group, the 40-tick opener and each 12-tick re-aim alike, each time
- * freshly mirrored about the boss's current x (it can have walked a little between them). A decoy's
- * far point is the real line's own far point shifted by the same offset as its own near point —
- * `toX + (leftX − b.x)`, clamped inside the field — so its line is a parallel copy of the real one,
- * never its own independent aim; it carries `decoy = 1`, counts down exactly alongside the real
- * group, and fires nothing when it reaches 0 — `tick` below only ever calls `castNeedle` for the one
- * group whose `decoy` is 0.
+ * freshly mirrored about the boss's current x (it can have walked a little between them). `attack`
+ * computes `mirrorXs(b)` once, for the `boss_clone` event, and hands that same pair into `pushAimLine`
+ * for the opener's own decoys (fix round 1, minor #4 — the two would otherwise read identical values
+ * off the same untouched `b.x` twice in one call); a re-aim from `tick` below has no such event to
+ * share the value with, so it calls `pushAimLine` with no pair and lets it compute a fresh one there,
+ * off whatever `b.x` the boss has walked to by then. A decoy's far point is the real line's own far
+ * point shifted by the same offset as its own near point — `toX + (leftX − b.x)`, clamped inside the
+ * field — so its line is a parallel copy of the real one, never its own independent aim; it carries
+ * `decoy = 1`, counts down exactly alongside the real group, and fires nothing when it reaches 0 —
+ * `tick` below only ever calls `castNeedle` for the one group whose `decoy` is 0.
  *
- * **The honour guard** (`onPhaseStart`, phase 4 only, ruling R30): one `guard5` squad, one veteran of
- * each of reef 10's own five kinds (`HUNTSMAN_GUARD`, tiers 0-4 — a five-kind roster maps tier for
- * tier, spec §1's own row for reef 10), in the squad band alongside every other boss's own escort
- * (`SQUAD_BAND`, `sim/bosses/tyrant.ts`'s own escort). Gated on the same cap every escort obeys
- * (rulings R15/R24): skipped outright, no retry later, once 4 or more squad crabs already live. The
- * direction is drawn, not alternated — unlike the Storm Tyrant's own escort, this squad only ever
- * raises once in a fight (there is only one phase 4), so there is no second firing for an alternating
- * rule to alternate against — but the draw itself is *unconditional*, made before the cap is ever
- * checked, the same "how many numbers a firing draws must never depend on how full the field already
- * is" rule the Frost Castellan's own Crystals raise and the Gold Corsair's own Boarding already
- * establish for their own fixed draw counts.
+ * **The honour guard** (`onPhaseStart`, phase 4 only, ruling R30, direction fixed by ruling R50 —
+ * fix round 1): one `guard5` squad, one veteran of each of reef 10's own five kinds (`HUNTSMAN_GUARD`,
+ * tiers 0-4 — a five-kind roster maps tier for tier, spec §1's own row for reef 10), in the squad band
+ * alongside every other boss's own escort (`SQUAD_BAND`, `sim/bosses/tyrant.ts`'s own escort). Gated
+ * on the same cap every escort obeys (rulings R15/R24): skipped outright, no retry later, once 4 or
+ * more squad crabs already live. The direction is a fixed 1 (marching right), no draw at all — the
+ * Verdant Templar's own `line4` warden escort uses the same fixed direction (`bosses/templar.ts`'s
+ * own `raiseWardenLine`); an earlier draft of this file drew `nextInt(2)` for it, but the controller's
+ * ruling (fix round 1) settled it as fixed, since this squad only ever raises once in a fight (there
+ * is only one phase 4) and there is no second firing for a direction to vary against.
  *
  * **Mirror** (`onBoostPickup`, `tickThroughTransition`, `onHit`, rulings R25-R27): the one mechanic of
  * this boss that is not driven by his own timers at all — see `ability`'s own doc below for why. Every
@@ -132,14 +137,13 @@ import type { BossHooks } from './index';
  *    draws nothing and `nextAbilityTimer` draws nothing (ruling R31).
  * 5. `runPending` (no `cast`/`pending` for this boss) and the ordinary `tick` hook (the sight-line/
  *    needle bookkeeping above) draw nothing at all.
- * 6. `onPhaseStart`, phase 4 only: exactly one `nextInt(2)` for the honour guard's marching direction,
- *    drawn unconditionally before the cap check (see the file doc above); `spawnSquad` itself draws
- *    nothing.
+ * 6. `onPhaseStart`, phase 4 only: draws nothing — the honour guard's direction is a fixed 1, no draw
+ *    at all (ruling R50, fix round 1); `spawnSquad` itself draws nothing either.
  * 7. `onBoostPickup`/`onHit`/`onTransition` all draw nothing — pure lookups and arithmetic.
  *
- * So a Huntsman fight draws only three numbers from `rngBoss` in its entire course beyond the ordinary
- * per-attack jitter: the spawn-time facing and jitter, and the honour guard's direction at phase 4.
- * `boss-huntsman.test.ts` pins this.
+ * So a Huntsman fight draws only two numbers from `rngBoss` in its entire course beyond the ordinary
+ * per-attack jitter: the spawn-time facing and jitter, and nothing else, ever. `boss-huntsman.test.ts`
+ * pins this.
  */
 
 /** One of the three classes every mirrorable `BoostType` falls into (spec §5.2); `undefined` for the two that mirror nothing at all (COIN_SHOWER, RANDOM_CHAOS). */
@@ -188,18 +192,27 @@ function mirrorXs(b: BossState): { leftX: number; rightX: number } {
 
 /**
  * Pushes one real sight-line group `[fromX, fromY, octopi.x, octopi.y, 0, ticksLeft]` onto `s.aims`,
- * records it in `b.aimX`/`b.aimTicks`, and — from phase 3 on (ruling R29) — a parallel decoy pair
- * alongside it, each a copy of the real line shifted by its own mirror offset and clamped inside the
- * field. Used both for the 40-tick opener and every 12-tick burst re-aim.
+ * records it in `b.aimX`/`b.aimTicks`, raises `boss_aim` for it (ruling R51, fix round 1: every line,
+ * not just the opener), and — from phase 3 on (ruling R29) — a parallel decoy pair alongside it, each
+ * a copy of the real line shifted by its own mirror offset and clamped inside the field. Used both for
+ * the 40-tick opener and every 12-tick burst re-aim. `mirror` lets a caller that already computed
+ * `mirrorXs(b)` for its own purpose (`attack`, for the `boss_clone` event) hand the same pair in rather
+ * than have this recompute an identical one off the same untouched `b.x` (fix round 1, minor #4); a
+ * re-aim from `tick` below has no such value to share and simply omits it, so this computes its own,
+ * fresh, off whatever `b.x` the boss has walked to by then.
  */
-function pushAimLine(s: GameState, b: BossState, fromX: number, fromY: number, ticksLeft: number): void {
+function pushAimLine(
+  s: GameState, b: BossState, fromX: number, fromY: number, ticksLeft: number,
+  mirror?: { leftX: number; rightX: number },
+): void {
   const toX = s.octopi.x;
   const toY = s.octopi.y;
   b.aimX = toX;
   b.aimTicks = ticksLeft;
   s.aims.push(fromX, fromY, toX, toY, 0, ticksLeft);
+  s.events.push({ tick: s.tick, type: 'boss_aim' });
   if (b.phase < 3) return;
-  const { leftX, rightX } = mirrorXs(b);
+  const { leftX, rightX } = mirror ?? mirrorXs(b);
   const leftToX = clamp(toX + (leftX - b.x), 0, FIELD_W);
   const rightToX = clamp(toX + (rightX - b.x), 0, FIELD_W);
   s.aims.push(leftX, fromY, leftToX, toY, 1, ticksLeft);
@@ -231,13 +244,12 @@ export const HUNTSMAN_HOOKS: BossHooks = {
     // Ruling R34: a line or burst from a previous attack is still live. No draw, no new line.
     if (b.aimTicks > 0) return;
     b.burst = burstSize(b.phase);
-    if (b.phase >= 3) {
-      const { leftX, rightX } = mirrorXs(b);
-      s.events.push({ tick: s.tick, type: 'boss_clone', leftX, rightX });
-    }
+    // Computed once (fix round 1, minor #4) and handed to `pushAimLine` below, which would otherwise
+    // read an identical pair off the same untouched `b.x` a second time this same call.
+    const mirror = b.phase >= 3 ? mirrorXs(b) : undefined;
+    if (mirror) s.events.push({ tick: s.tick, type: 'boss_clone', leftX: mirror.leftX, rightX: mirror.rightX });
     const m = muzzle(b);
-    pushAimLine(s, b, m.x, m.y, HUNTSMAN_LINE_OPEN);
-    s.events.push({ tick: s.tick, type: 'boss_aim' });
+    pushAimLine(s, b, m.x, m.y, HUNTSMAN_LINE_OPEN, mirror);
   },
   ability() {
     // Event-driven, not timed (ruling R31): see `onBoostPickup` below and the file doc.
@@ -281,12 +293,10 @@ export const HUNTSMAN_HOOKS: BossHooks = {
   },
   onPhaseStart(s, b) {
     if (b.phase !== 4) return;
-    // The direction is drawn unconditionally, before the cap check — a fixed draw count, the same
-    // rule the Frost Castellan's own Crystals raise and the Gold Corsair's own Boarding establish
-    // (see the file doc above).
-    const dir = s.rngBoss.nextInt(2) === 0 ? 1 : -1;
     if (liveSquadCrabs(s) >= HUNTSMAN_GUARD_CAP) return; // the cap every escort obeys (R15/R24)
-    spawnSquad(s, 'guard5', HUNTSMAN_GUARD, idiv(FIELD_W, 2), SQUAD_BAND.maxY, dir);
+    // Fixed direction, no draw at all (ruling R50, fix round 1) — the Verdant Templar's own `line4`
+    // warden escort marches the same way.
+    spawnSquad(s, 'guard5', HUNTSMAN_GUARD, idiv(FIELD_W, 2), SQUAD_BAND.maxY, 1);
   },
   tick(s, b) {
     if (b.aimTicks <= 0) return;
