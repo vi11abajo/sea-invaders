@@ -7,7 +7,7 @@ import { CLUSTER } from '../api/config';
 import { requestFaucet } from '../api/daily';
 import { buyItem, confirmPurchase, getShop, type ShopInfo, type ShopItem } from '../api/shop';
 import { onBackPress } from '../audio/onBackPress';
-import { Backdrop } from '../ui/Backdrop';
+import { BalatroBackdrop } from '../ui/BalatroBackdrop';
 import { BounceCard } from '../ui/BounceCard';
 import { PillButton } from '../ui/PillButton';
 import { SkrAmount, SkrIcon } from '../ui/SkrIcon';
@@ -198,7 +198,7 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
 
   return (
     <View style={styles.root}>
-      <Backdrop />
+      <BalatroBackdrop />
       <Animated.View style={[styles.fill, rise]}>
         <ScrollView
           contentContainerStyle={styles.content}
