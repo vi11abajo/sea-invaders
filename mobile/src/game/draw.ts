@@ -6,6 +6,7 @@ import {
   type BoostType, type CrabType, type Frame, type Layout,
 } from '@sea-invaders/core';
 import { BOSS_HEX, BOSS_RGB } from './bossPalette';
+import { LIGHTNING, LIGHTNING_HUE, LIGHTNING_INTENSITY, LIGHTNING_SIZE, LIGHTNING_SPEED } from './lightning';
 import { COLORS, SIGNATURE_GRADIENT } from '../ui/tokens';
 import { PIXEL_RATIO, type PreparedSprite, type PreparedSprites } from './sprites';
 
@@ -323,7 +324,9 @@ const LANE_WIDTH = FIELD_W / LANE_COUNT;
 const LANE_WARNING_COLOR = Skia.Color('#FF6666');
 /** The strike itself (`lane_strike`, one-shot): a brighter flash over the same width. */
 const LANE_STRIKE_COLOR = Skia.Color('#FFEE99');
-const LANE_STRIKE_LIFETIME = 12;
+// 18 ticks (0.3 s): long enough for the bolt shader to be read as a bolt, short enough to stay a
+// strike — the plain flash it replaced lasted 12.
+const LANE_STRIKE_LIFETIME = 18;
 
 /** Abyssal Huntsman's sight line (`frame.aim`): a thin line past the far point to the field edge. */
 const AIM_LINE_COLOR = Skia.Color('#FF5C5C');
@@ -1279,6 +1282,27 @@ export function drawFrame(
       // `entry.x` holds the lane index (`GameScreen.tsx` diffs `state.lanes` to find it), not a position.
       const laneX = px(laneLeftX(entry.x));
       const laneW = LANE_WIDTH * k;
+      if (LIGHTNING !== null) {
+        // The bolt itself (`lightning.ts`): the shader runs in the lane's own frame, so the canvas is
+        // moved to the lane's corner and the lane's size is the shader's resolution. One shader
+        // object per strike per frame — at most four lanes for 18 ticks, nothing per crab.
+        const shader = LIGHTNING.makeShader([
+          laneW, fieldRect.height, f.tick / 60, LIGHTNING_HUE, 0, LIGHTNING_SPEED,
+          LIGHTNING_INTENSITY * (1 - progress * 0.6), LIGHTNING_SIZE,
+        ]);
+        canvas.save();
+        canvas.translate(laneX, fieldRect.y);
+        paint.setShader(shader);
+        canvas.drawRect(scratch(0, 0, laneW, fieldRect.height), paint);
+        paint.setShader(null);
+        canvas.restore();
+        // A brief pale wash under the bolt so the whole lane still reads as struck at a glance.
+        paint.setColor(LANE_STRIKE_COLOR);
+        paint.setAlphaf((1 - progress) * 0.25);
+        canvas.drawRect(scratch(laneX, fieldRect.y, laneW, fieldRect.height), paint);
+        paint.setAlphaf(1);
+        continue;
+      }
       paint.setColor(LANE_STRIKE_COLOR);
       paint.setAlphaf((1 - progress) * 0.85);
       canvas.drawRect(scratch(laneX, fieldRect.y, laneW, fieldRect.height), paint);
