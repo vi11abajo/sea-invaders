@@ -154,14 +154,25 @@ export function hitCrabs(s: GameState): void {
 }
 
 /**
+ * Whether Octopi can be hit at all right now: not already under its post-hit invulnerability window,
+ * the run not already over, and INVINCIBILITY not active. The one guard `hitOctopi`'s own shot/crab/
+ * boss matching and `damageOctopiDirect`'s direct hit (fix round 1, reviewer minor — the Storm
+ * Tyrant's lane strike, `sim/bosses/tyrant.ts`) both check before doing anything else, factored out so
+ * the two can never drift apart.
+ */
+function octopiVulnerable(s: GameState): boolean {
+  if (s.octopi.invuln > 0 || s.over) return false;
+  return !isActive(s, 'INVINCIBILITY');
+}
+
+/**
  * Enemy shots, crab bodies and the boss box hurt Octopi unless it is invulnerable. A crab that
  * touches Octopi dies without score. INVINCIBILITY ignores every hit outright (no life loss, no
  * shield use, no crab removal). Otherwise SHIELD_BARRIER absorbs a hit (see `applyOctopiHit`) before
  * any life is lost.
  */
 export function hitOctopi(s: GameState): void {
-  if (s.octopi.invuln > 0 || s.over) return;
-  if (isActive(s, 'INVINCIBILITY')) return;
+  if (!octopiVulnerable(s)) return;
   const { x, y } = s.octopi;
   for (const b of s.enemyShots) {
     const dx = b.x - x;
@@ -215,16 +226,15 @@ function applyOctopiHit(s: GameState, damage: number): void {
 
 /**
  * Costs Octopi one life exactly as an enemy shot landing on it would (spec §5.2, the Storm Tyrant's
- * lane strike, `sim/bosses/tyrant.ts`): the same three guards `hitOctopi` checks before it ever goes
- * looking for a shot or a crab to land a hit — the post-hit invulnerability window, a run already
- * over, and the INVINCIBILITY boost — then the same SHIELD_BARRIER-or-lose-a-life effect every other
- * hit goes through (`applyOctopiHit`). A lane strike is not an entry in `s.enemyShots`, so it cannot
- * go through `hitOctopi`'s own shot-matching loop; this reuses the rest of that damage function with
- * only the matching skipped, not a different one — `hitOctopi` itself is untouched.
+ * lane strike, `sim/bosses/tyrant.ts`): the same `octopiVulnerable` guard `hitOctopi` checks before it
+ * ever goes looking for a shot or a crab to land a hit, then the same SHIELD_BARRIER-or-lose-a-life
+ * effect every other hit goes through (`applyOctopiHit`). A lane strike is not an entry in
+ * `s.enemyShots`, so it cannot go through `hitOctopi`'s own shot-matching loop; this reuses the rest
+ * of that damage function with only the matching skipped, not a different one — `hitOctopi` itself is
+ * untouched.
  */
 export function damageOctopiDirect(s: GameState, damage = 1): void {
-  if (s.octopi.invuln > 0 || s.over) return;
-  if (isActive(s, 'INVINCIBILITY')) return;
+  if (!octopiVulnerable(s)) return;
   applyOctopiHit(s, damage);
 }
 

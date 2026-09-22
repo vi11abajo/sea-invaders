@@ -104,6 +104,18 @@ import type { BossHooks } from './index';
  * sidesteps it exactly the way `TEMPLAR_GUARD` does: every tier maps to `bombardier`, so whichever
  * index `pair`'s two `1`s resolve to, both crabs come out bombardiers regardless.
  *
+ * **The escort cap** (fix round 1, ruling R24): a phase start whose own `liveSquadCrabs(s) >=
+ * TYRANT_ESCORT_CAP` (4) skips that occurrence outright — no spawn, no retry later, the phase simply
+ * opens without a fresh pair. `liveSquadCrabs` sums `Squad.alive` (`types.ts`) over every entry of
+ * `s.squads`, the same per-squad counter (fix round 1 of task 8, ruling R22) the Gold Corsair's own
+ * loot check already trusts as the single source of truth for "how many of this squad's crabs are
+ * still alive" — not a live scan of `s.crabs`, which the Corsair's own (earlier, task-8) crew cap
+ * uses instead (`s.crabs.filter((c) => c.squad > 0).length`, `corsair.ts`). Both read the same true
+ * count in real play (every path that kills a squad crab decrements `alive` and removes it from
+ * `s.crabs` in the same call, and `marchSquads` prunes an emptied-out squad from `s.squads` earlier
+ * in the very same tick, before `onPhaseStart` ever runs), so this is a shape choice, not a
+ * behavioural one — the reviewer's own R24 wording asks for the `alive`-sum shape specifically.
+ *
  * **The attack** (`attack`): a `castBolt` fork every attack, no draw. From phase 2 on, one `orb` is a
  * *candidate* every other attack — `b.burst` (scratch, this boss's own use of it) flips every attack
  * once `b.phase >= 2`, unconditionally, the same "the schedule never depends on whether anything
@@ -187,6 +199,16 @@ export const TYRANT_DISCHARGE_TICKS = 180;
  */
 export const TYRANT_ESCORT: readonly CrabType[] = ['bombardier', 'bombardier', 'bombardier', 'bombardier', 'bombardier'];
 
+/** Squad crabs alive at which a phase-start escort is skipped, no retry later (fix round 1, ruling R24). */
+export const TYRANT_ESCORT_CAP = 4;
+
+/** Squad crabs alive right now, summed across every squad (fix round 1, ruling R24). See the file doc. */
+function liveSquadCrabs(s: GameState): number {
+  let total = 0;
+  for (const q of s.squads) total += q.alive;
+  return total;
+}
+
 /** The lanes an in-flight `s.lanes` already carries, as a set (mirrors Castellan's `occupiedColumns`). */
 function occupiedLanes(s: GameState): Set<number> {
   const set = new Set<number>();
@@ -250,9 +272,11 @@ export const TYRANT_HOOKS: BossHooks = {
   initialAbilityTimer: abilityTimer,
   nextAbilityTimer: abilityTimer,
   onPhaseStart(s, b) {
-    // The escort (spec §5.2): phases 2 and 4 only, direction alternating with no draw.
-    if (b.phase === 2) spawnSquad(s, 'pair', TYRANT_ESCORT, idiv(FIELD_W, 2), SQUAD_BAND.maxY, 1);
-    else if (b.phase === 4) spawnSquad(s, 'pair', TYRANT_ESCORT, idiv(FIELD_W, 2), SQUAD_BAND.maxY, -1);
+    // The escort (spec §5.2): phases 2 and 4 only, direction alternating with no draw. Ruling R24
+    // (fix round 1): skipped outright, no retry later, once 4 or more squad crabs already live.
+    if (b.phase !== 2 && b.phase !== 4) return;
+    if (liveSquadCrabs(s) >= TYRANT_ESCORT_CAP) return;
+    spawnSquad(s, 'pair', TYRANT_ESCORT, idiv(FIELD_W, 2), SQUAD_BAND.maxY, b.phase === 2 ? 1 : -1);
   },
   tickThroughTransition(s, b) {
     // Discharge counts down first, so a strike below that sets it fresh is never shaved on the very

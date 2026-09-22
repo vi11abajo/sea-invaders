@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   BOLT_SPEED, BOLT_SPREAD, BOSS, BOSS_HOOKS, FIELD_W, INITIAL_INPUT, LANE_COUNT, PRACTICE_RUN,
-  SQUAD_BAND, TYRANT_DISCHARGE_TICKS, TYRANT_ESCORT, bossStats, createGame, damageBoss, hashState,
-  icos, idiv, isin, laneOf, muzzle, spawnBoss, spawnSquad, step, updateBoss,
+  SQUAD_BAND, TYRANT_DISCHARGE_TICKS, TYRANT_ESCORT, TYRANT_ESCORT_CAP, bossStats, createGame,
+  damageBoss, hashState, icos, idiv, isin, laneOf, muzzle, spawnBoss, spawnSquad, step, updateBoss,
 } from '../src';
 import type { BossState, GameState } from '../src';
 
@@ -453,6 +453,41 @@ describe('Storm Tyrant — escort', () => {
 
   it('is all-bombardier regardless of which tier the pair template resolves', () => {
     expect(TYRANT_ESCORT).toEqual(['bombardier', 'bombardier', 'bombardier', 'bombardier', 'bombardier']);
+  });
+
+  describe('fix round 1 — the escort cap (ruling R24)', () => {
+    it('spawns no pair at a phase start with 4 squad crabs already live', () => {
+      const s = arena();
+      park(s);
+      spawnSquad(s, 'pair', TYRANT_ESCORT, 500, SQUAD_BAND.maxY, 1);
+      s.squads[0]!.alive = TYRANT_ESCORT_CAP; // 4, at the cap
+      const squadsBefore = s.squads.length;
+      toPhase(s, 2);
+      expect(s.squads).toHaveLength(squadsBefore); // skipped outright, no retry later
+      expect(s.boss!.phase).toBe(2); // the phase itself still opened
+    });
+
+    it('spawns the pair at a phase start with only 3 squad crabs live', () => {
+      const s = arena();
+      park(s);
+      spawnSquad(s, 'pair', TYRANT_ESCORT, 500, SQUAD_BAND.maxY, 1);
+      s.squads[0]!.alive = TYRANT_ESCORT_CAP - 1; // 3, under the cap
+      const squadsBefore = s.squads.length;
+      toPhase(s, 2);
+      expect(s.squads).toHaveLength(squadsBefore + 1); // the phase-2 pair spawned
+    });
+
+    it('sums Squad.alive across every squad, not just one', () => {
+      const s = arena();
+      park(s);
+      spawnSquad(s, 'pair', TYRANT_ESCORT, 500, SQUAD_BAND.maxY, 1);
+      spawnSquad(s, 'pair', TYRANT_ESCORT, 1500, SQUAD_BAND.maxY, 1);
+      s.squads[0]!.alive = 2;
+      s.squads[1]!.alive = 2; // 4 total, split across two squads
+      const squadsBefore = s.squads.length;
+      toPhase(s, 2);
+      expect(s.squads).toHaveLength(squadsBefore); // still at the cap, still skipped
+    });
   });
 });
 
