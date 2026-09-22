@@ -114,11 +114,11 @@ export interface ReefWorld {
 }
 
 /**
- * Per-reef map world, transcribed from `CampaignMap.dc.html`'s `REEFS` table — reefs 1-5 only.
- * Reefs 6-10 have no bespoke world yet (out of task 13's scope, which only extended `REEF_NAMES`,
- * `REEF_ACCENT`, `REEF_LEGENDS`, `REEF_NEW_KIND` and `BOSS_ABILITY` per ruling R52); read this
- * through `reefWorldFor`, never by indexing it directly, so a reef past 5 falls back instead of
- * reading past the table's end now that reefs 6-10 are reachable on the map.
+ * Per-reef map world: reefs 1-5 transcribed from `CampaignMap.dc.html`'s `REEFS` table, reefs 6-10
+ * the reefs 6-10 design's second descent (ruling R63, task 13 fix round 1) — deeper and darker than
+ * the first five, each built around its own reef: `floraAccent` is that reef's `REEF_ACCENT`, and one
+ * `glow` colour is that reef's boss tint (`game/bossPalette.ts`'s `BOSS_HEX`). The five new entries'
+ * hex values are starting points the owner tunes on device, the way the first five once were.
  */
 export const REEF_WORLD: readonly ReefWorld[] = [
   {
@@ -161,16 +161,53 @@ export const REEF_WORLD: readonly ReefWorld[] = [
     floor: { colors: ['#241036', '#000000', '#000000'], positions: [0, 0.75, 1] },
     floraAccent: '#CA9FF5',
   },
+  // Reef 6, Sunken Bastion: drowned stone, green-grey over near-black.
+  {
+    bg: { colors: ['#1A322B', '#0D1A16', '#050A08'], positions: [0, 0.45, 1] },
+    glow: ['#2FBF71', '#55E9AB', '#3E5C52'],
+    ray: 'rgba(47,191,113,0.3)',
+    ray2: 'rgba(85,233,171,0.22)',
+    floor: { colors: ['#274A3F', '#050A08', '#050A08'], positions: [0, 0.75, 1] },
+    floraAccent: '#55E9AB',
+  },
+  // Reef 7, Glacier Reach: glacial pale blue and white light over deep navy.
+  {
+    bg: { colors: ['#0F2C4D', '#081A30', '#020814'], positions: [0, 0.45, 1] },
+    glow: ['#4AA8FF', '#DFF3FF', '#7FD4FF'],
+    ray: 'rgba(74,168,255,0.34)',
+    ray2: 'rgba(223,243,255,0.26)',
+    floor: { colors: ['#1B4468', '#020814', '#020814'], positions: [0, 0.75, 1] },
+    floraAccent: '#7FD4FF',
+  },
+  // Reef 8, Corsair Cove: amber/gold light over dark teal.
+  {
+    bg: { colors: ['#123B3E', '#0A2426', '#03100F'], positions: [0, 0.45, 1] },
+    glow: ['#FFB52E', '#FFC526', '#2E6B62'],
+    ray: 'rgba(255,181,46,0.34)',
+    ray2: 'rgba(255,197,38,0.26)',
+    floor: { colors: ['#1E5450', '#03100F', '#03100F'], positions: [0, 0.75, 1] },
+    floraAccent: '#FFC526',
+  },
+  // Reef 9, Stormbreak Shelf: storm grey with red lightning light.
+  {
+    bg: { colors: ['#1E242A', '#12161A', '#05060A'], positions: [0, 0.45, 1] },
+    glow: ['#FF4D4D', '#F4604F', '#5C6B78'],
+    ray: 'rgba(255,77,77,0.34)',
+    ray2: 'rgba(150,160,170,0.22)',
+    floor: { colors: ['#2A3238', '#05060A', '#05060A'], positions: [0, 0.75, 1] },
+    floraAccent: '#F4604F',
+  },
+  // Reef 10, The Hollow Throne: violet over black, the darkest of all.
+  {
+    bg: { colors: ['#0A0012', '#050009', '#000000'], positions: [0, 0.55, 1] },
+    glow: ['#B066FF', '#B57BFF', '#2C0A45'],
+    ray: 'rgba(176,102,255,0.4)',
+    ray2: 'rgba(181,123,255,0.22)',
+    floor: { colors: ['#150022', '#000000', '#000000'], positions: [0, 0.75, 1] },
+    floraAccent: '#B57BFF',
+  },
 ];
-
-/**
- * `REEF_WORLD[reef - 1]`, falling back to reef 5's world (`The Void`'s) for reefs 6-10: they don't
- * have a bespoke one yet, but the campaign map draws every reef now, so this must still return
- * something instead of reading past the table's end.
- */
-export function reefWorldFor(reef: number): ReefWorld {
-  return REEF_WORLD[reef - 1] ?? REEF_WORLD[REEF_WORLD.length - 1]!;
-}
+assertReefTable('REEF_WORLD', REEF_WORLD);
 
 export type LevelState = 'current' | 'cleared' | 'locked';
 

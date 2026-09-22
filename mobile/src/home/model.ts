@@ -1,3 +1,4 @@
+import { LEVEL_COUNT } from '@sea-invaders/core';
 import type { Cluster } from '../api/config';
 
 /** What Home shows. Every part is null until the service behind it exists. */
@@ -59,6 +60,6 @@ export function demoHomeModel(now: number): HomeModel {
       ticketPriceSkr: 10,
       cluster: 'devnet',
     },
-    campaign: { level: 9, total: 30 },
+    campaign: { level: 9, total: LEVEL_COUNT },
   };
 }

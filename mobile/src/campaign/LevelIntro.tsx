@@ -202,12 +202,14 @@ export function LevelIntro({
                 </View>
               ))}
             </View>
+            {/* Reefs 6-10 only, regular levels only (ruling R55, R64): names the reef's veteran the
+                same way the map's level sheet already names it for reefs 1-5 (`reefNewEnemyCopy`,
+                `REEF_NEW_KIND`) — no new copy style. Never on a boss row, matching the first
+                campaign's boss sheet, which never shows "New enemy this reef" either. */}
+            {level.reef >= FIRST_VETERAN_REEF && (
+              <Txt variant="body" tone="secondary">{`New enemy this reef: ${reefNewEnemyCopy(level.reef)}`}</Txt>
+            )}
           </>
-        )}
-        {/* Reefs 6-10 only (ruling R55): names the reef's veteran the same way the map's level sheet
-            already names it for reefs 1-5 (`reefNewEnemyCopy`, `REEF_NEW_KIND`) — no new copy style. */}
-        {level.reef >= FIRST_VETERAN_REEF && (
-          <Txt variant="body" tone="secondary">{`New enemy this reef: ${reefNewEnemyCopy(level.reef)}`}</Txt>
         )}
         <Txt variant="body" tone="secondary">{`Lives to play with: ${lives}`}</Txt>
         <VariantPicker selected={loadout.loadout.activeVariant} owned={loadout.loadout.owned} onPick={pick} onLocked={locked} />
