@@ -8,6 +8,7 @@ import { ArtSlot } from '../ArtSlot';
 import { Backdrop } from '../Backdrop';
 import { BlurText } from '../BlurText';
 import { BounceCard } from '../BounceCard';
+import { CountUp } from '../CountUp';
 import { EntranceRow } from '../EntranceRow';
 import { Glass } from '../Glass';
 import { GradientFill } from '../GradientFill';
@@ -34,6 +35,7 @@ export function UiGallery() {
   const [segment, setSegment] = useState<'today' | 'week'>('today');
   const [blurKey, setBlurKey] = useState(0);
   const [entranceKey, setEntranceKey] = useState(0);
+  const [countValue, setCountValue] = useState(1000);
 
   // System back closes the Home demo; otherwise it does what it normally does.
   useEffect(() => {
@@ -157,6 +159,13 @@ export function UiGallery() {
             </View>
           </View>
           <PillButton label="Replay" kind="secondary" height={36} onPress={() => setEntranceKey((k) => k + 1)} />
+        </Section>
+
+        <Section title="Count Up">
+          <CountUp value={countValue} format={formatInt}>
+            {(text) => <Txt variant="heroNumber">{text}</Txt>}
+          </CountUp>
+          <PillButton label="Add 4,231" kind="secondary" height={36} onPress={() => setCountValue((v) => v + 4231)} />
         </Section>
 
         <Section title="Surfaces">

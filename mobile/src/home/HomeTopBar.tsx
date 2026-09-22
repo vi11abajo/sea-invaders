@@ -1,6 +1,7 @@
 import { formatInt, shortAddress } from '@sea-invaders/core';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { CountUp } from '../ui/CountUp';
 import { GradientFill } from '../ui/GradientFill';
 import { SkrAmount } from '../ui/SkrIcon';
 import { COLORS, FONTS, RADIUS, REEF_LIFE, SIZE } from '../ui/tokens';
@@ -49,7 +50,9 @@ export function HomeTopBar({ wallet, onWallet, onShop }: HomeTopBarProps) {
       </Pressable>
       {wallet && (
         <Pressable accessibilityRole="button" accessibilityLabel="Top up SKR" onPress={onShop} hitSlop={PILL_SLOP} style={[styles.glass, styles.pill, styles.skrPill]}>
-          <SkrAmount value={formatInt(wallet.skr)} textStyle={styles.skr} size={12} />
+          <CountUp value={wallet.skr} duration={800} format={formatInt}>
+            {(text) => <SkrAmount value={text} textStyle={styles.skr} size={12} />}
+          </CountUp>
           <View style={styles.plus}>
             <Text style={styles.plusText}>+</Text>
           </View>

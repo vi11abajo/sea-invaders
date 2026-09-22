@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { RecordScore } from '../daily/RecordScore';
 import { TicketCard } from '../daily/TicketCard';
+import { CountUp } from '../ui/CountUp';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
 import { ShinyText } from '../ui/ShinyText';
@@ -129,7 +130,9 @@ export function DailyRunCard({ ranked, now, signedIn, onConnect, error = null, o
           <Txt variant="secondary" tone="tertiary" style={styles.small}>Pool</Txt>
           <View style={styles.pool}>
             <SkrIcon size={11} color={COLORS.info} />
-            <ShinyText text={formatSkr(ranked.poolSkr)} fontSource={GeistMono_500Medium} size={13} color={COLORS.info} />
+            <CountUp value={ranked.poolSkr} duration={800} format={formatSkr}>
+              {(text) => <ShinyText text={text} fontSource={GeistMono_500Medium} size={13} color={COLORS.info} />}
+            </CountUp>
           </View>
         </View>
       </View>

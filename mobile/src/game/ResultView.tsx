@@ -3,6 +3,7 @@ import { formatInt } from '@sea-invaders/core';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { onBackPress } from '../audio/onBackPress';
+import { CountUp } from '../ui/CountUp';
 import { GradientText } from '../ui/GradientText';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
@@ -69,7 +70,9 @@ export function ResultView({ title, titleShiny = false, score, stats, note, prim
             {title}
           </Txt>
         )}
-        <GradientText text={formatInt(score)} size={72} />
+        <CountUp value={score} from={0} duration={1200} format={formatInt}>
+          {(text) => <GradientText text={text} size={72} />}
+        </CountUp>
       </View>
       <View style={styles.pose} pointerEvents="none">
         <ActiveOctopi size={RESULT_POSE_SIZE} />
