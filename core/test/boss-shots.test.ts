@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AXE_FALL_TICKS, AXE_GRAVITY, AXE_VY0, BOLT_SPEED, BOLT_SPREAD, BOSS_SHOT, FIELD_W, FIREWALL_SLOTS,
-  NEEDLE_SPEED, ORB_HP, ORB_LIFE, ORB_STEER, ORB_VY, PRACTICE_RUN, SHARD_COUNT, castAxe, castBolt,
+  NEEDLE_SPEED, ORB_HP, ORB_LIFE, ORB_STEER, ORB_VY, OCTOPI, BOSS, muzzle, FIELD_H, PRACTICE_RUN, SHARD_COUNT, castAxe, castBolt,
   castFirewall, castNeedle, castOrb, castShardRing, createGame, firewallX, hitOrbs, icos, idiv, isin,
   isqrt, orbHp, orbTicks, shotDamage, shotRadius, spawnBoss, updateEnemyShots,
 } from '../src';
@@ -106,13 +106,13 @@ describe('shard ring', () => {
 describe('axe', () => {
   it('leaves the muzzle falling and reaches the target x exactly at the turn', () => {
     const s = arena();
-    castAxe(s, 1000, 500, 1000 + 60 * AXE_FALL_TICKS);
+    castAxe(s, 1000, 500, 1000 + 50 * AXE_FALL_TICKS); // 50 a tick keeps the turn inside the field
     const axe = s.enemyShots[0]!;
-    expect(axe).toMatchObject({ x: 1000, y: 500, vx: 60, vy: AXE_VY0, kind: 'axe' });
+    expect(axe).toMatchObject({ x: 1000, y: 500, vx: 50, vy: AXE_VY0, kind: 'axe' });
     expect(shotRadius(axe)).toBe(140);
     expect(shotDamage(axe)).toBe(1);
     for (let t = 0; t < AXE_FALL_TICKS; t++) tickShots(s);
-    expect(axe.x).toBe(1000 + 60 * AXE_FALL_TICKS);
+    expect(axe.x).toBe(1000 + 50 * AXE_FALL_TICKS);
     expect(axe.vy).toBe(0);
   });
 
@@ -259,5 +259,36 @@ describe('needle', () => {
     const speed = isqrt(b.vx * b.vx + b.vy * b.vy);
     expect(Math.abs(speed - NEEDLE_SPEED)).toBeLessThanOrEqual(2);
     expect(b.vx * 4).toBe(b.vy * 3); // the 3-4-5 aim, kept exactly
+  });
+});
+
+// The owner's balance note of 2026-09-22 (on-device): the Corsair's axe turned above every row Octopi
+// can stand on, and the Tyrant's orb only touched the home row as it died. Both shots must reach the
+// player now, measured from the muzzle a boss actually fires from.
+describe('reach of the boss shots (owner balance note 2026-09-22)', () => {
+  const muzzleY = BOSS.top + BOSS.height; // `muzzle(b)`: boss centre + half the box, at the resting y
+
+  it("the axe turns below Octopi's home row", () => {
+    const s = arena();
+    castAxe(s, 2800, muzzleY, 2800);
+    const axe = s.enemyShots[0]!;
+    let deepest = axe.y;
+    for (let t = 0; t < AXE_FALL_TICKS; t++) { tickShots(s); deepest = Math.max(deepest, axe.y); }
+    expect(deepest).toBeGreaterThan(OCTOPI.startY);
+    expect(deepest).toBeLessThan(OCTOPI.maxY); // it still turns inside the field, above the very bottom
+  });
+
+  it("the orb crosses Octopi's home row well before its life runs out", () => {
+    const s = arena();
+    castOrb(s, 2800, muzzleY);
+    const orb = s.enemyShots[0]!;
+    let crossed = -1;
+    for (let t = 1; t <= ORB_LIFE && s.enemyShots.length === 1; t++) {
+      tickShots(s);
+      if (crossed < 0 && orb.y >= OCTOPI.startY) crossed = t;
+    }
+    expect(crossed).toBeGreaterThan(0);
+    expect(crossed).toBeLessThan((ORB_LIFE * 2) / 3); // tick ~134 of 240 at ORB_VY 45 from the muzzle
+    expect(s.enemyShots).toEqual([]); // and it left through the bottom of the field before the cap
   });
 });

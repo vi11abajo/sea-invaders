@@ -164,9 +164,12 @@ describe('reefs 6-10 golden scenarios', () => {
     expect(r.events.some((e) => e.type === 'crystal_raised')).toBe(true);
   });
 
-  it('level48 (the Gold Corsair) reaches phase 2 and throws an axe', () => {
+  // Since the owner's balance note of 2026-09-22 the axe turns below Octopi's home row, and the
+  // dodge-only `survivor` script no longer lives to phase 2 here — so, as for the Templar and the
+  // Castellan (ruling R57), the scenario proves the Corsair bled and threw the axe, not the phase.
+  it('level48 (the Gold Corsair) takes damage and throws an axe', () => {
     const r = results['level48']!;
-    expect(r.maxBossPhase).toBeGreaterThanOrEqual(2);
+    expect(r.minBossHp).toBeLessThan(bossStats(8).hp);
     expect(r.shotKindsSeen.has('axe')).toBe(true);
   });
 

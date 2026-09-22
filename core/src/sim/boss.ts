@@ -128,7 +128,10 @@ export function castShardRing(s: GameState, x: number, y: number): void {
  * field and the usual prune drops it (a shot above the top edge is only kept while it still moves
  * down). Sideways it is a constant `vx`, chosen so the turn happens exactly over `targetX`.
  */
-export const AXE_VY0 = 120;
+// Owner's balance note 2026-09-22: at 120 the turn came at y 7200, above any Octopi (its rows run
+// 5000..10550, home 9650); at 162 the axe falls 6480 from the muzzle (y 3660) and turns at 10140,
+// just under the home row, so a player who does not move meets the blade.
+export const AXE_VY0 = 162;
 export const AXE_GRAVITY = 2;
 export const AXE_FALL_TICKS = idiv(AXE_VY0, AXE_GRAVITY);
 
@@ -165,7 +168,10 @@ export function castBolt(s: GameState, x: number, y: number): void {
 export const ORB_LIFE = 240;
 export const ORB_HP = 3;
 export const ORB_STEER = 3;
-export const ORB_VY = 30;
+// Owner's balance note 2026-09-22: at 30 the orb spent its whole life above Octopi and only touched
+// the home row as it died; at 45 it crosses the home row 2.2 s after the cast and leaves through the
+// bottom of the field at tick ~169, so `ORB_LIFE` is now only a cap on an orb that somehow stalls.
+export const ORB_VY = 45;
 export const ORB_VX_MAX = 90;
 /** An orb's collision radius (spec §5.1): the widest of the reefs 6-10 shots. */
 export const ORB_RADIUS = 170;

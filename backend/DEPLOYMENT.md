@@ -172,7 +172,7 @@ clone needs this step.
 **Core version contract.** The API verifies replays only against the exact `CORE_VERSION`
 of the core it was built with (`backend/src/services/rankedRuns.js` rejects any other version
 with `update_required`) and reports that version as `coreVersion` in `GET /api/daily/today`.
-`CORE_VERSION` is 11 since 2026-09-22 (11 opens reefs 6–10: five veteran crab kinds with skills, nine silhouettes of which three living, five bosses with squads and obstacles, sixty campaign levels; 10 gives every level its own fixed shuffle of silhouettes, one per wave; 9 chained them in a fixed order; 8 brings the new crab kinds, the weighted shooter, the
+`CORE_VERSION` is 12 since 2026-09-22 evening (12 is the owner's first balance note on the deep reefs: the Gold Corsair's axe turns below Octopi's home row and the Storm Tyrant's orb sinks fast enough to cross it; 11 opens reefs 6–10: five veteran crab kinds with skills, nine silhouettes of which three living, five bosses with squads and obstacles, sixty campaign levels; 10 gives every level its own fixed shuffle of silhouettes, one per wave; 9 chained them in a fixed order; 8 brings the new crab kinds, the weighted shooter, the
 two-life heavy shot and the silhouette formations; 7 slowed enemy shots under ICE_FREEZE; 3 brought the campaign, bosses and boosts of Phase 3A; 4 the legacy boost rules and player-shot motion of Phase 3A.1; 5 the rarer boost drops; 6 the octopi
 variants and mid-level revive of Phase 3B), so whenever the core version bumps, deploy the API and
 release the new APK together: runs recorded by an older app are rejected until it updates. Such a
