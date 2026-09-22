@@ -10,6 +10,7 @@ import { GradientFill } from '../GradientFill';
 import { GradientText } from '../GradientText';
 import { PillButton } from '../PillButton';
 import { SeekerBadge } from '../SeekerBadge';
+import { SquishSwitch } from '../SquishSwitch';
 import { Txt } from '../Txt';
 import { useAppFonts } from '../fonts';
 import { COLORS, RADIUS, REEF_LIFE, SIGNATURE_GRADIENT, type WorldTheme } from '../tokens';
@@ -22,6 +23,7 @@ export function UiGallery() {
   const { width } = useWindowDimensions();
   const [theme, setTheme] = useState<WorldTheme>('night');
   const [home, setHome] = useState<HomeModel | null>(null);
+  const [squish, setSquish] = useState(true);
 
   // System back closes the Home demo; otherwise it does what it normally does.
   useEffect(() => {
@@ -96,6 +98,13 @@ export function UiGallery() {
           <View style={styles.row}>
             <PillButton label="90 SKR" height={40} />
             <PillButton label="Owned" kind="secondary" height={40} disabled />
+          </View>
+        </Section>
+
+        <Section title="Squish Switch">
+          <View style={styles.row}>
+            <SquishSwitch value={squish} onValueChange={setSquish} />
+            <Txt variant="body" tone="secondary">{squish ? 'On' : 'Off'}</Txt>
           </View>
         </Section>
 

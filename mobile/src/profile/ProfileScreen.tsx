@@ -3,7 +3,7 @@ import { Canvas, Circle, LinearGradient, vec } from '@shopify/react-native-skia'
 import { PublicKey } from '@solana/web3.js';
 import { useMobileWallet } from '@wallet-ui/react-native-web3js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { ApiError } from '../api/client';
 import type { LoadoutChange } from '../api/profile';
@@ -16,6 +16,7 @@ import { ItemArt } from '../shop/ItemArt';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
 import { SeekerBadge } from '../ui/SeekerBadge';
+import { SquishSwitch } from '../ui/SquishSwitch';
 import { Toast } from '../ui/Toast';
 import { Txt } from '../ui/Txt';
 import { COLORS, FONTS, MOTION, RADIUS } from '../ui/tokens';
@@ -385,12 +386,7 @@ function SettingRow({ label, value, onChange }: { label: string; value: boolean;
   return (
     <View style={styles.settingRow}>
       <Txt variant="body">{label}</Txt>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        trackColor={{ false: COLORS.secondary, true: COLORS.success }}
-        thumbColor={COLORS.text}
-      />
+      <SquishSwitch value={value} onValueChange={onChange} />
     </View>
   );
 }
