@@ -7,6 +7,7 @@ import { OctopiAvatar } from '../game/OctopiArt';
 import { Backdrop } from '../ui/Backdrop';
 import { Glass } from '../ui/Glass';
 import { PillButton } from '../ui/PillButton';
+import { RubberSegment } from '../ui/RubberSegment';
 import { SeekerBadge } from '../ui/SeekerBadge';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS } from '../ui/tokens';
@@ -14,6 +15,11 @@ import { OCTOPI_SIZE, boardStyles } from './boardStyles';
 import { WeekBoard } from './WeekBoard';
 
 type Tab = 'today' | 'week';
+
+const TABS: readonly [{ value: Tab; label: string }, { value: Tab; label: string }] = [
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'Week' },
+];
 
 export function LeaderboardScreen({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>('today');
@@ -66,12 +72,7 @@ export function LeaderboardScreen({ onBack }: { onBack: () => void }) {
         <Txt variant="secondary" tone="tertiary">{tab === 'today' && day !== null ? `Seed #${day} · verified runs` : ' '}</Txt>
       </View>
       <View style={styles.tabs}>
-        <View style={styles.tab}>
-          <PillButton label="Today" kind={tab === 'today' ? 'primary' : 'glass'} onPress={() => setTab('today')} />
-        </View>
-        <View style={styles.tab}>
-          <PillButton label="Week" kind={tab === 'week' ? 'primary' : 'glass'} onPress={() => setTab('week')} />
-        </View>
+        <RubberSegment items={TABS} value={tab} onChange={setTab} />
       </View>
       {tab === 'today' ? (
         error !== null ? (
@@ -114,7 +115,6 @@ export function LeaderboardScreen({ onBack }: { onBack: () => void }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.app, paddingTop: 72, paddingHorizontal: 20, paddingBottom: 32 },
   head: { gap: 4, marginBottom: 20 },
-  tabs: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  tab: { flex: 1 },
+  tabs: { marginBottom: 16 },
   footer: { marginTop: 12 },
 });

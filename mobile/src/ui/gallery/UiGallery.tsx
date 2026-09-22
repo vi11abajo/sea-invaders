@@ -9,6 +9,7 @@ import { Glass } from '../Glass';
 import { GradientFill } from '../GradientFill';
 import { GradientText } from '../GradientText';
 import { PillButton } from '../PillButton';
+import { RubberSegment } from '../RubberSegment';
 import { SeekerBadge } from '../SeekerBadge';
 import { SquishSwitch } from '../SquishSwitch';
 import { Txt } from '../Txt';
@@ -24,6 +25,7 @@ export function UiGallery() {
   const [theme, setTheme] = useState<WorldTheme>('night');
   const [home, setHome] = useState<HomeModel | null>(null);
   const [squish, setSquish] = useState(true);
+  const [segment, setSegment] = useState<'today' | 'week'>('today');
 
   // System back closes the Home demo; otherwise it does what it normally does.
   useEffect(() => {
@@ -106,6 +108,14 @@ export function UiGallery() {
             <SquishSwitch value={squish} onValueChange={setSquish} />
             <Txt variant="body" tone="secondary">{squish ? 'On' : 'Off'}</Txt>
           </View>
+        </Section>
+
+        <Section title="Rubber Segment">
+          <RubberSegment
+            items={[{ value: 'today', label: 'Today' }, { value: 'week', label: 'Week' }] as const}
+            value={segment}
+            onChange={setSegment}
+          />
         </Section>
 
         <Section title="Surfaces">
