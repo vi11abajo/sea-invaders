@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { CORE_VERSION, REPLAY_MODE, checkGoldens, type Golden } from '../src';
+import { CORE_VERSION, REPLAY_MODE, bossStats, checkGoldens, type Golden } from '../src';
 import { GOLDEN_SCRIPTS, playScript, type PlayResult } from './golden-scripts';
 
 // Tests run from core/ (npm test in core/, and CI sets working-directory: core).
@@ -143,18 +143,24 @@ describe('reefs 6-10 golden scenarios', () => {
   // reach him — both cut the `survivor` dodge script's effective damage output far below what its
   // raw dodge-only strategy manages against the other three reefs 6-10 bosses, so Octopi dies
   // (`over`) well inside its 18,000-tick budget without either boss ever finishing its first phase.
-  // Ruling R39: lower the threshold to what the script actually reaches rather than touch the
+  // Ruling R39 first lowered these two to a bare `maxBossPhase >= 1`, but `spawnBoss` sets `phase: 1`
+  // at spawn and a boss-only level spawns its boss synchronously inside `createGame`, so that bound
+  // was trivially true on tick 1 of any script — it proved a boss stood there, not that it took any
+  // damage. Ruling R57 replaces it with `minBossHp < <that boss's starting hp>` (`bossStats(kind).hp`
+  // — the reefs 6-10 table, `core/src/config.ts`): a real, un-fakeable proof that the script's shots
+  // landed at least once, even though neither boss is ever forced into its second phase by this
+  // script. Their own signature events stay asserted alongside it. Still without touching the
   // survivor logic or the tuning knobs; the controller can decide at review whether a stronger script
-  // is worth writing for these two.
-  it('level36 (the Verdant Templar) reaches phase 1 and telegraphs a wind-up', () => {
+  // is worth writing for a phase-2 proof on these two.
+  it('level36 (the Verdant Templar) takes damage and telegraphs a wind-up', () => {
     const r = results['level36']!;
-    expect(r.maxBossPhase).toBeGreaterThanOrEqual(1);
+    expect(r.minBossHp).toBeLessThan(bossStats(6).hp);
     expect(r.events.some((e) => e.type === 'boss_windup')).toBe(true);
   });
 
-  it('level42 (the Frost Castellan) reaches phase 1 and raises a crystal', () => {
+  it('level42 (the Frost Castellan) takes damage and raises a crystal', () => {
     const r = results['level42']!;
-    expect(r.maxBossPhase).toBeGreaterThanOrEqual(1);
+    expect(r.minBossHp).toBeLessThan(bossStats(7).hp);
     expect(r.events.some((e) => e.type === 'crystal_raised')).toBe(true);
   });
 

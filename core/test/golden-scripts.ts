@@ -205,6 +205,14 @@ export interface PlayResult {
   /** The highest `s.boss.phase` seen at any point during the play (0 if no boss ever spawned). */
   maxBossPhase: number;
   /**
+   * The lowest `s.boss.hp` seen at any point during the play (controller ruling R57): proof a boss
+   * scenario's shots actually landed, not just that a boss stood there. `Infinity` if no boss ever
+   * spawned, or if one spawned but was never observed below its own starting hp on any sampled tick
+   * (the sentinel is never a real hit point count, so `minBossHp < startingHp` is always the right
+   * comparison — no separate "did a boss even spawn" check is needed alongside it).
+   */
+  minBossHp: number;
+  /**
    * Every crab kind seen alive on any tick of the play (controller ruling R39): what a veteran
    * scenario's assertion checks was actually fielded, sampled from `s.crabs` and never fed back into
    * the play.
@@ -225,7 +233,10 @@ export interface PlayResult {
  *
  * `kindsSeen`/`formationsSeen`/`shotKindsSeen` (controller ruling R39) are sampled once before the
  * first tick and once after every tick, straight off `s.crabs`/`s.formation`/`s.enemyShots` — pure
- * observation, nothing here ever changes what `step` sees or does.
+ * observation, nothing here ever changes what `step` sees or does. `minBossHp` (ruling R57) is
+ * sampled in the same place `maxBossPhase` is, right after each `step`, so a boss that spawns
+ * synchronously inside `createGame` (a boss-only level) is first sampled post-tick-1, not at spawn —
+ * irrelevant to finding a minimum, since spawn is always its highest hp.
  */
 export function playScript(name: string): PlayResult {
   const script = GOLDEN_SCRIPTS[name]!;
@@ -237,6 +248,7 @@ export function playScript(name: string): PlayResult {
   const s = createGame(seed, run);
   const rec = new ReplayRecorder(seed, mode, levelId, run.lives, run.octopi);
   let maxBossPhase = 0;
+  let minBossHp = Infinity;
   const kindsSeen = new Set<CrabType>();
   const formationsSeen = new Set<Formation>();
   const shotKindsSeen = new Set<BulletKind>();
@@ -250,7 +262,10 @@ export function playScript(name: string): PlayResult {
     const i = input(t, s);
     rec.record(t, i);
     step(s, i);
-    if (s.boss) maxBossPhase = Math.max(maxBossPhase, s.boss.phase);
+    if (s.boss) {
+      maxBossPhase = Math.max(maxBossPhase, s.boss.phase);
+      minBossHp = Math.min(minBossHp, s.boss.hp);
+    }
     observe();
   }
   return {
@@ -262,6 +277,7 @@ export function playScript(name: string): PlayResult {
     events: s.events,
     cleared: s.cleared,
     maxBossPhase,
+    minBossHp,
     kindsSeen,
     formationsSeen,
     shotKindsSeen,
