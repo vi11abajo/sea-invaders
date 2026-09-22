@@ -1,3 +1,5 @@
+import type { BossKind } from './types';
+
 /**
  * The eight silhouettes of the first campaign (spec §2, unchanged) plus the nine of the second
  * (spec §3, "Reefs 6-10"): five more static shapes, the three living ones — `whirlpool` rotates,
@@ -11,9 +13,9 @@ export type Formation =
 
 /**
  * The five legacy kinds (reefs 1-5, unchanged) plus the five veteran kinds of reefs 6-10 (spec §2,
- * "Reefs 6-10" design). This task only names the veterans and gives them their numbers (hp, points,
- * fire weight, shot) — no reef, roster or skill wiring yet, so a veteran never actually spawns
- * through the campaign or daily/practice paths until a later task adds it.
+ * "Reefs 6-10" design): warden, herald, bubbler, bombardier and patriarch, each with the skill
+ * `sim/veterans.ts` gives it. `REEF_ROSTERS` (spec §4) is where a veteran actually enters a reef's
+ * pool, and `ALL_KINDS` is where the daily/practice grid does.
  */
 export type CrabType =
   | 'normal' | 'armored' | 'swift' | 'heavy' | 'elder'
@@ -31,7 +33,15 @@ export interface LevelSpec {
   kinds: CrabType[];
   speedOffset: number;
   fireOffset: number;
-  boss?: 1 | 2 | 3 | 4 | 5;
+  boss?: BossKind;
+  /**
+   * Per-wave roster override (spec §4, reefs 6-10 only): when present, wave `w` fields
+   * `rosters[w-1]` instead of `kinds`. Only the first level of a reef (index 1) carries one — waves
+   * 1 and 3 the previous reef's roster, waves 2 and 4 the reef's own, so its new veteran is
+   * introduced gently rather than filling the very first wave. Every other row leaves this
+   * `undefined` and `startLevelWave` falls back to `kinds` for every wave.
+   */
+  rosters?: readonly (readonly CrabType[])[];
 }
 
 /**
@@ -51,6 +61,23 @@ const K2 = reefKinds(2);
 const K3 = reefKinds(3);
 const K4 = reefKinds(4);
 const K5 = reefKinds(5);
+
+/**
+ * The five reefs 6-10 rosters (spec §4), tier 0 (bottom row) through tier 4 (top row) left to
+ * right: each reef keeps its predecessor's veteran and its own new one, so a reef's headline
+ * mechanic always sits on the top tier. Five kinds per roster means `TIER_KINDS[5]` — the identity
+ * row — is what actually spreads them over a silhouette's tiers.
+ */
+const K6: CrabType[] = ['normal', 'armored', 'heavy', 'elder', 'warden'];
+const K7: CrabType[] = ['armored', 'swift', 'elder', 'warden', 'herald'];
+const K8: CrabType[] = ['armored', 'heavy', 'warden', 'herald', 'bubbler'];
+const K9: CrabType[] = ['swift', 'elder', 'warden', 'bubbler', 'bombardier'];
+const K10: CrabType[] = ['elder', 'warden', 'herald', 'bombardier', 'patriarch'];
+
+/** The five rosters above, keyed by reef: what a later task (and this file's own tests) reads them by. */
+export const REEF_ROSTERS: Readonly<Record<6 | 7 | 8 | 9 | 10, readonly CrabType[]>> = {
+  6: K6, 7: K7, 8: K8, 9: K9, 10: K10,
+};
 
 /**
  * The kind index a formation cell of each tier 0..4 takes from a pool of `n` kinds (spec §2,
@@ -77,31 +104,48 @@ export function kindForTier(kinds: readonly CrabType[], tier: number): CrabType 
 }
 
 /**
- * The crab kinds a daily or practice wave may draw a row from (spec §2): wave 1 is green only and
- * each wave adds the next kind, up to all five from wave 5 on. Colours mean the same thing here as
- * in the campaign.
+ * Every crab kind a daily or practice wave may ever draw a row from, in the order the pool widens
+ * through them (spec §2, §6): the five legacy kinds, then the five veterans in reef order.
+ */
+export const ALL_KINDS: readonly CrabType[] = [...REEF_KINDS, 'warden', 'herald', 'bubbler', 'bombardier', 'patriarch'];
+
+/**
+ * The crab kinds a daily or practice wave may draw a row from (spec §2, widened by spec §6): wave 1
+ * is green only and each wave adds the next kind of `ALL_KINDS` — the five legacy ones first, then
+ * one veteran per wave from wave 6 on — stopping once it has all ten from wave 10 on. Waves 1-5 are
+ * exactly the pre-reefs-6-10 behaviour (`REEF_KINDS.slice(0, wave)`), since `ALL_KINDS` starts with
+ * `REEF_KINDS` itself. Colours mean the same thing here as in the campaign.
  */
 export function dailyPool(wave: number): CrabType[] {
-  return REEF_KINDS.slice(0, Math.min(Math.max(wave, 1), REEF_KINDS.length));
+  return ALL_KINDS.slice(0, Math.min(Math.max(wave, 1), ALL_KINDS.length));
 }
 
 /**
  * Builds one level row: `reef`/`index` come from `id` (6 levels per reef, boss on the sixth).
- * `speedOffset`/`fireOffset` ramp both across reefs and across a reef's own levels (spec §14
- * amendment, table v2): `3*(reef-1) + (index-1)` and `8*(reef-1) + 3*(index-1)` for a regular row;
- * a boss row (index 6) drops the `(index-1)` term and uses only the reef base. Boss rows pass
- * `waves: 0` and the K-pool of their reef so the row still type-checks even though no wave is
- * spawned from it.
+ * `speedOffset`/`fireOffset` ramp both across reefs and across a reef's own levels, by one of two
+ * formulas depending which campaign `reef` falls in (controller ruling R36): reefs 1-5 keep the
+ * first campaign's own (spec §14 amendment, table v2) `3*(reef-1) + (index-1)` and
+ * `8*(reef-1) + 3*(index-1)`; reefs 6-10 use the second campaign's (spec §4) `14 + 2*(reef-6) +
+ * (index-1)` and `40 + 5*(reef-6) + 2*(index-1)`. Either way a boss row (index 6) drops the
+ * `(index-1)` term and uses only the reef base. Boss rows pass `waves: 0` and the K-pool of their
+ * reef so the row still type-checks even though no wave is spawned from it.
+ *
+ * `rosters`, present only on the first level of a reef 6-10 (spec §4), overrides `kinds` per wave;
+ * every other row leaves it undefined and `startLevelWave` falls back to `kinds` for every wave.
  */
 function row(
   id: number,
   formations: readonly Formation[],
   kinds: CrabType[],
-  boss?: 1 | 2 | 3 | 4 | 5,
+  boss?: BossKind,
+  rosters?: readonly (readonly CrabType[])[],
 ): LevelSpec {
   const reef = Math.floor((id - 1) / 6) + 1;
   const index = ((id - 1) % 6) + 1;
   const indexOffset = boss === undefined ? index - 1 : 0;
+  const offsets = reef <= 5
+    ? { speedOffset: 3 * (reef - 1) + indexOffset, fireOffset: 8 * (reef - 1) + 3 * indexOffset }
+    : { speedOffset: 14 + 2 * (reef - 6) + indexOffset, fireOffset: 40 + 5 * (reef - 6) + 2 * indexOffset };
   return {
     id,
     reef,
@@ -110,18 +154,19 @@ function row(
     formation: formations[0] ?? 'classic',
     formations,
     kinds,
-    speedOffset: 3 * (reef - 1) + indexOffset,
-    fireOffset: 8 * (reef - 1) + 3 * indexOffset,
+    ...offsets,
     ...(boss === undefined ? {} : { boss }),
+    ...(rosters === undefined ? {} : { rosters }),
   };
 }
 
 /**
- * The 30-level campaign table, transcribed verbatim from spec §2. Data only: balance changes edit
- * rows, never code. A row lists its waves' silhouettes in order - the first is the level's headline,
- * the rest a fixed shuffle drawn once (owner ruling 2026-09-17: no repeats within a level, and no
- * two neighbouring levels opening their second wave alike) - so a row carries no size —
- * the template's own shape sets the crab count.
+ * The 60-level campaign table: the first campaign's 30 rows (spec §2, byte-identical since core
+ * v10) followed by reefs 6-10's 30 (spec §4), both transcribed verbatim. Data only: balance changes
+ * edit rows, never code. A row lists its waves' silhouettes in order - the first is the level's
+ * headline, the rest a fixed shuffle drawn once (owner ruling 2026-09-17: no repeats within a
+ * level, and no two neighbouring levels opening their second wave alike) - so a row carries no size
+ * — the template's own shape sets the crab count.
  */
 export const LEVELS: readonly LevelSpec[] = [
   row(1, ['classic', 'shell'], K1),
@@ -158,6 +203,47 @@ export const LEVELS: readonly LevelSpec[] = [
   row(28, ['octopus', 'shell', 'ring', 'jellyfish', 'wreck'], K5),
   row(29, ['wreck', 'fish', 'diamond', 'classic', 'octopus'], K5),
   row(30, [], K5, 5),
+
+  // Reef 6: the warden joins K5's five (spec §4). Level 31, the reef's first, eases it in — waves 1
+  // and 3 still field K5 (the previous reef's pool), waves 2 and 4 already field K6.
+  row(31, ['wreck', 'octopus', 'crown', 'turtle'], K6, undefined, [K5, K6, K5, K6]),
+  row(32, ['manta', 'octopus', 'wreck', 'ring', 'trident'], K6),
+  row(33, ['whirlpool', 'anchor', 'ring', 'classic', 'diamond'], K6),
+  row(34, ['shell', 'ring', 'jellyfish', 'claws', 'turtle'], K6),
+  row(35, ['wreck', 'fish', 'whirlpool', 'ring', 'turtle'], K6),
+  row(36, [], K6, 6),
+
+  // Reef 7: the herald joins. Level 37 eases it in against K6.
+  row(37, ['trident', 'shell', 'wreck', 'turtle'], K7, undefined, [K6, K7, K6, K7]),
+  row(38, ['diamond', 'anchor', 'turtle', 'wreck', 'trident'], K7),
+  row(39, ['manta', 'crown', 'starfish', 'fish', 'jellyfish'], K7),
+  row(40, ['classic', 'claws', 'starfish', 'diamond', 'wreck'], K7),
+  row(41, ['jellyfish', 'starfish', 'anchor', 'manta', 'fish'], K7),
+  row(42, [], K7, 7),
+
+  // Reef 8: the bubbler joins. Level 43 eases it in against K7.
+  row(43, ['diamond', 'turtle', 'octopus', 'crown'], K8, undefined, [K7, K8, K7, K8]),
+  row(44, ['diamond', 'fish', 'classic', 'trident', 'claws'], K8),
+  row(45, ['anchor', 'ring', 'octopus', 'whirlpool', 'crown'], K8),
+  row(46, ['ring', 'anchor', 'shell', 'wreck', 'claws'], K8),
+  row(47, ['classic', 'fish', 'trident', 'turtle', 'whirlpool'], K8),
+  row(48, [], K8, 8),
+
+  // Reef 9: the bombardier joins. Level 49 eases it in against K8.
+  row(49, ['fish', 'crown', 'trident', 'jellyfish'], K9, undefined, [K8, K9, K8, K9]),
+  row(50, ['shell', 'wreck', 'turtle', 'anchor', 'fish'], K9),
+  row(51, ['shell', 'jellyfish', 'whirlpool', 'crown', 'anchor'], K9),
+  row(52, ['crown', 'ring', 'jellyfish', 'classic', 'whirlpool'], K9),
+  row(53, ['octopus', 'crown', 'shell', 'jellyfish', 'manta'], K9),
+  row(54, [], K9, 9),
+
+  // Reef 10: the patriarch joins. Level 55 eases it in against K9.
+  row(55, ['anchor', 'octopus', 'turtle', 'crown'], K10, undefined, [K9, K10, K9, K10]),
+  row(56, ['anchor', 'jellyfish', 'ring', 'trident', 'crown'], K10),
+  row(57, ['claws', 'diamond', 'shell', 'crown', 'manta'], K10),
+  row(58, ['trident', 'manta', 'anchor', 'whirlpool', 'shell'], K10),
+  row(59, ['manta', 'trident', 'jellyfish', 'octopus', 'wreck'], K10),
+  row(60, [], K10, 10),
 ];
 
 /** Looks up a level by id; throws on an unknown id (a replay or caller bug). */

@@ -1,7 +1,8 @@
 import {
   DAILY_RUN, FIELD_W, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder, Rng, clamp, createGame,
   hashState, idiv, levelById, levelSeed, step,
-  type Bullet, type GameEvent, type GameState, type Golden, type Input, type ReplayMode, type RunConfig,
+  type Bullet, type BulletKind, type CrabType, type Formation, type GameEvent, type GameState, type Golden,
+  type Input, type ReplayMode, type RunConfig,
 } from '../src';
 
 export interface GoldenScript {
@@ -122,8 +123,23 @@ function survivor(): (tick: number, s: GameState) => Input {
   };
 }
 
-const CAMPAIGN_RUN = (id: 6 | 30): RunConfig => ({
+/**
+ * The run a campaign golden script plays: reef lives, boosts on, base Octopi. Widened from
+ * `6 | 30` to `number` (controller ruling R35) so the reefs 6-10 scripts below can share it.
+ */
+const CAMPAIGN_RUN = (id: number): RunConfig => ({
   mode: 'campaign', level: levelById(id), lives: 5, features: { boosts: true }, octopi: 'base',
+});
+
+/**
+ * One campaign golden script on level `id`: the same `survivor` dodge as `level6`/`level30`,
+ * stopping early on `cleared || over` — `ticks: 18_000` is only the fallback cap for that early-exit
+ * loop. Shared by the reefs 6-10 scenarios of controller ruling R39 (veterans, living formations,
+ * bosses); `level6`/`level30` above predate this helper and are left as they were, byte for byte, so
+ * their recorded goldens never move for a reason unrelated to the game itself.
+ */
+const campaignScript = (id: number): GoldenScript => ({
+  ticks: 18_000, makeInput: survivor, run: CAMPAIGN_RUN(id), mode: REPLAY_MODE.campaign, seed: levelSeed('golden', id),
 });
 
 export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
@@ -148,8 +164,36 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   // the `rngBoosts` draw sequence changes. Until the game-speed tuning of 2026-09-13 this used the
   // non-dodging `wander` input, but its runs end too early with it. Core v8's enemy rework moved
   // every draw again and left `golden-boosted-0` with too few pickups, so the search ran once more:
-  // `golden-boosted-16` gives 8 pickups over 8171 ticks.
-  boosted: { ticks: 10_800, makeInput: survivor, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-16' },
+  // `golden-boosted-16` gave 8 pickups over 8171 ticks. Core v11's wave-scaled daily/practice pool
+  // (spec §6: a veteran joins from wave 6 on) moves every `rngWaves` draw again and dropped
+  // `golden-boosted-16` to 4, so the search ran a third time, from 0: `golden-boosted-5` gives 5
+  // pickups over 6347 ticks.
+  boosted: { ticks: 10_800, makeInput: survivor, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-5' },
+
+  // Reefs 6-10 (spec §4, controller ruling R39): veterans, living formations and bosses.
+  // Level 32 (6-2) opens with the manta and doubles as its scenario (`formationsSeen`/
+  // `formation_reform` in golden.test.ts); it also fields the warden.
+  level32: campaignScript(32), // warden (6-2) + manta (living)
+  level33: campaignScript(33), // whirlpool (living)
+  // R39 names level34 for the claws, but claws is that level's *fourth* wave (`shell, ring,
+  // jellyfish, claws, turtle`) and the `survivor` dodge script — never having faced a veteran-laden
+  // wave before, since every earlier golden script is either endless mode or a boss fight — does not
+  // survive that many wave transitions of a reef-6 chain: it dies (`over`) partway through wave 3,
+  // before claws is ever fielded. Level 57 (10-3, `claws, diamond, shell, crown, manta`) opens with
+  // claws instead, so it is fielded the instant the level starts, exactly as `level33`'s whirlpool
+  // and `level32`'s manta are — the same substitution the brief itself pre-authorises for the manta
+  // scenario (name a different level when the assigned one cannot show the behaviour in time), applied
+  // here to the same category of problem for a different living shape.
+  level57: campaignScript(57), // claws (living), replacing R39's level34 — see the comment above
+  level38: campaignScript(38), // herald
+  level44: campaignScript(44), // bubbler
+  level50: campaignScript(50), // bombardier
+  level56: campaignScript(56), // patriarch
+  level36: campaignScript(36), // boss 6, the Verdant Templar
+  level42: campaignScript(42), // boss 7, the Frost Castellan
+  level48: campaignScript(48), // boss 8, the Gold Corsair
+  level54: campaignScript(54), // boss 9, the Storm Tyrant
+  level60: campaignScript(60), // boss 10, the Abyssal Huntsman
 };
 
 export interface PlayResult {
@@ -160,6 +204,16 @@ export interface PlayResult {
   cleared: boolean;
   /** The highest `s.boss.phase` seen at any point during the play (0 if no boss ever spawned). */
   maxBossPhase: number;
+  /**
+   * Every crab kind seen alive on any tick of the play (controller ruling R39): what a veteran
+   * scenario's assertion checks was actually fielded, sampled from `s.crabs` and never fed back into
+   * the play.
+   */
+  kindsSeen: Set<CrabType>;
+  /** Every formation name `s.formation` carried on any tick (R39): what a living-formation scenario checks. */
+  formationsSeen: Set<Formation>;
+  /** Every enemy shot kind seen in `s.enemyShots` on any tick (R39): what the bubbler/Corsair scenarios check. */
+  shotKindsSeen: Set<BulletKind>;
 }
 
 /**
@@ -168,6 +222,10 @@ export interface PlayResult {
  * `golden-untuned.test.ts`, which plays these very scripts with the TUNING knobs mocked back to
  * 100 % — both go through this one function so the only difference between the two golden files is
  * the tuning itself.
+ *
+ * `kindsSeen`/`formationsSeen`/`shotKindsSeen` (controller ruling R39) are sampled once before the
+ * first tick and once after every tick, straight off `s.crabs`/`s.formation`/`s.enemyShots` — pure
+ * observation, nothing here ever changes what `step` sees or does.
  */
 export function playScript(name: string): PlayResult {
   const script = GOLDEN_SCRIPTS[name]!;
@@ -179,11 +237,21 @@ export function playScript(name: string): PlayResult {
   const s = createGame(seed, run);
   const rec = new ReplayRecorder(seed, mode, levelId, run.lives, run.octopi);
   let maxBossPhase = 0;
+  const kindsSeen = new Set<CrabType>();
+  const formationsSeen = new Set<Formation>();
+  const shotKindsSeen = new Set<BulletKind>();
+  const observe = (): void => {
+    for (const c of s.crabs) kindsSeen.add(c.type);
+    if (s.formation) formationsSeen.add(s.formation.name);
+    for (const b of s.enemyShots) shotKindsSeen.add(b.kind);
+  };
+  observe();
   for (let t = 1; t <= script.ticks && !s.over && !s.cleared; t++) {
     const i = input(t, s);
     rec.record(t, i);
     step(s, i);
     if (s.boss) maxBossPhase = Math.max(maxBossPhase, s.boss.phase);
+    observe();
   }
   return {
     golden: {
@@ -194,5 +262,8 @@ export function playScript(name: string): PlayResult {
     events: s.events,
     cleared: s.cleared,
     maxBossPhase,
+    kindsSeen,
+    formationsSeen,
+    shotKindsSeen,
   };
 }

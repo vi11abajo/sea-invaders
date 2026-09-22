@@ -146,12 +146,18 @@ export function spawnFormation(
  * from its first wave to its last. The formation spawns `ARRIVAL.drop` units above its slots and
  * descends into them over `ARRIVAL.ticks`; `nextWave`/`createGame` route every level wave through
  * here, so level 1 wave 1 arrives too.
+ *
+ * `kinds` normally comes straight off the level (`l.kinds`), but the first level of a reef 6-10
+ * overrides it per wave through `l.rosters` (spec §4): waves 1 and 3 field the previous reef's
+ * roster and waves 2 and 4 the reef's own, so the new veteran eases in rather than filling the very
+ * first wave. Every other level leaves `rosters` undefined, so this falls straight back to `l.kinds`
+ * and nothing here changes for it.
  */
 export function startLevelWave(s: GameState, wave: number): void {
   const l = s.run.level!;
   s.wave = wave;
   // Wave `wave` takes its own silhouette from the level's chain (the first wave is the headline).
-  spawnFormation(s, { formation: l.formations[wave - 1] ?? l.formation, kinds: l.kinds });
+  spawnFormation(s, { formation: l.formations[wave - 1] ?? l.formation, kinds: l.rosters?.[wave - 1] ?? l.kinds });
   for (const c of s.crabs) c.y -= ARRIVAL.drop;
   s.formation!.oy -= ARRIVAL.drop; // the origin drops with the wave, so `origin + slot` still holds
   s.arrival = ARRIVAL.ticks;

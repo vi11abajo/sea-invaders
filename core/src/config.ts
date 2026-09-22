@@ -107,8 +107,8 @@ export const CRAB = {
  * Hit points and score per crab kind: the five legacy kinds (spec §1, unchanged) plus the five
  * veteran kinds of reefs 6-10 (spec §2). `normal` matches CRAB.points and 1 hp, unchanged from
  * wave-mode behaviour; armored survives one hit and elder two, and the app draws the damage. The
- * veterans spawn nowhere yet (no reef, roster or daily-pool wiring), so these numbers currently
- * describe crabs no run can ever field — a later task wires each one's skill and adds it to a reef.
+ * veterans enter a reef's pool through `levels.ts`'s `REEF_ROSTERS` and the daily/practice grid
+ * through `ALL_KINDS` (core v11, spec §4/§6).
  */
 export const CRAB_TYPES = {
   normal: { hp: 1, points: 10 },

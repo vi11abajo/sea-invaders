@@ -1,3 +1,4 @@
+import type { BossKind } from '@sea-invaders/core';
 import { Canvas, Image } from '@shopify/react-native-skia';
 import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
@@ -11,7 +12,12 @@ const AUTO_ADVANCE_MS = 1500;
 const SPRITE_SIZE = 160;
 
 interface BossIntroProps {
-  kind: 1 | 2 | 3 | 4 | 5;
+  // Widened from `1 | 2 | 3 | 4 | 5` to `BossKind` so `level.boss` (now 1..10) still type-checks
+  // here (`LevelSpec.boss` widened for reefs 6-10, core task 11). `sprites.bosses`/`BOSS_NAMES`
+  // below still only cover kinds 1-5 — reef 6-10 art and names are Task 13's, not reached in the
+  // app today since `VISIBLE_REEFS` stays 5 (ruling R2) — so a kind 6-10 here falls back to
+  // `ArtSlot`/`undefined` exactly as an out-of-range kind always has.
+  kind: BossKind;
   onDone: () => void;
 }
 
