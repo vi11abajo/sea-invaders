@@ -294,9 +294,14 @@ export type GameEvent =
         | 'crab_shield_up' | 'formation_rage'
         // Raised once, by a `reform` wave falling back into the spearhead (spec §3).
         | 'formation_reform'
-        // The reefs 6-10 boss events (spec §5). `squad_popped` is raised here — once per squad that
-        // still had a crab standing when its boss died; every other name below belongs to one of
-        // the five boss tasks and nothing raises it yet.
+        // The reefs 6-10 boss events (spec §5), all live now. `squad_popped` is raised by
+        // `popSquads` (sim/squads.ts) once per squad that still had a crab standing when its boss
+        // died. The rest come from sim/bosses/*: `boss_windup` (Gold Corsair, Verdant Templar),
+        // `boss_block` (Verdant Templar, Abyssal Huntsman), `boss_aim` (Abyssal Huntsman),
+        // `boss_reflect` (Gold Corsair), `lane_warning`/`lane_strike`/`boss_discharged` (Storm
+        // Tyrant), `crystal_raised`/`crystal_shatter` (Frost Castellan) — and `crew_looted`, which
+        // sim/collide.ts raises when the Gold Corsair's boarding crew loses its last crab and drops
+        // its guaranteed boost.
         | 'squad_popped'
         | 'boss_block' | 'boss_windup' | 'crew_looted' | 'boss_discharged'
         | 'lane_warning' | 'lane_strike' | 'boss_aim' | 'boss_reflect'
