@@ -351,6 +351,17 @@ export function updateBoss(s: GameState): void {
   if (b.abilityTimer <= 0) { hooks.ability(s, b); b.abilityTimer = hooks.nextAbilityTimer(s.rngBoss); }
   runPending(s, b, hooks);
   hooks.tick?.(s, b);
+  // Fix round 2, controller ruling R19: `destroyedObstacles` (`sim/obstacles.ts`) is a channel a
+  // boss's own `tick` hook may drain (today, only the Frost Castellan's does, for his shard burst);
+  // whatever a tick call above left in it — whether that boss has no `tick` hook at all, or has one
+  // that has nothing to do with obstacles (Emerald's regen cooldown, say) — is swept here so the
+  // list never grows unbounded in a fight that isn't the Castellan's own. Unreached while
+  // `state === 'transition'` (the early `return` above), which is the whole fix: an obstacle
+  // destroyed mid-transition survives in the list until the boss's own `tick` gets a real chance to
+  // drain it, on the first tick fighting resumes, rather than being wiped every tick regardless. A
+  // no-op for kinds 1-5 (never populated) and for the Castellan's own fight (its `tick` already
+  // emptied the list above, so this reassigns `[]` to `[]`).
+  s.destroyedObstacles = [];
 }
 
 /** Deals `amount` damage to the boss (unless a shield absorbs it), handling phase transitions and death. */
@@ -364,6 +375,10 @@ export function damageBoss(s: GameState, amount: number): void {
     const decayed = 100 - Math.floor(b.fightTicks / BOSS.decayEvery);
     s.score += scoreMultiplier(s, idiv(bossStats(b.kind).score * Math.max(1, decayed), 100));
     s.boss = null;
+    // Fix round 2, controller ruling R19: with the boss gone, `updateBoss` will never run its own
+    // sweep of `destroyedObstacles` again (it returns immediately for `s.boss === null`), so
+    // whatever a destruction this very tick left pending is cleared here instead.
+    s.destroyedObstacles = [];
     s.events.push({ tick: s.tick, type: 'boss_dead' });
     // Spec §5.1: whatever the escort has left goes with its boss, without score. A no-op on every
     // fight of the first campaign, which never raises a squad.

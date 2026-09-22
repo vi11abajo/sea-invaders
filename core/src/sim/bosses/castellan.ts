@@ -55,16 +55,24 @@ import type { BossHooks } from './index';
  * broken in the shipped app despite every isolated core test passing). Instead, `hitObstacle`
  * (`sim/obstacles.ts`) appends the position of everything it removes to the sim-internal
  * `GameState.destroyedObstacles`, and this boss's `tick` hook below drains the whole list every
- * tick, in list order, then empties it — no watermark, so nothing can be mis-tracked across a phase
- * transition (`hitObstacle` keeps running through one regardless of the boss's `state`, but
- * `hooks.tick` does not, so entries can pile up in the list for the whole 120-tick transition and
- * still all drain correctly the instant `tick` runs again). `step.ts` also clears the list
- * unconditionally at the end of every tick, so a fight with no such boss (or a boss that never
- * drains it) can never accumulate stale entries.
+ * time it runs, in list order, then empties it — no watermark, so nothing can be mis-tracked.
  *
- * This is also why `step.ts` now runs `hitObstacle` *before* `updateBoss` rather than after: with
- * `hitObstacle` first, a crystal destroyed this tick is in `destroyedObstacles` by the time this
- * boss's own `tick` hook (called from inside `updateBoss`) looks — so the burst lands the same tick
+ * `hooks.tick` does not run during a boss phase transition (`updateBoss`, `sim/boss.ts`, returns
+ * before reaching it while `state === 'transition'`), but `hitObstacle` keeps running every tick
+ * regardless — so a crystal destroyed mid-transition sits in `destroyedObstacles`, undrained, for as
+ * long as the transition lasts (up to `BOSS.transitionTicks` = 120 ticks), and bursts on the first
+ * tick fighting resumes. This is deliberate (fix round 2, controller ruling R19): a fix-round-1
+ * version of this fix had `step.ts` clear the list unconditionally at the end of every tick as a
+ * safety net for a fight with no such boss, which wiped exactly this pending case before this boss's
+ * own `tick` ever got to look — the burst was lost, not delayed. The safety net now lives inside
+ * `updateBoss` itself instead (right after the point that would have dispatched `hooks.tick`, which
+ * the transition's own early `return` never reaches — see that function's own comment) and at the
+ * point a boss is removed at death (`damageBoss`), so it costs every other boss and every no-boss
+ * tick nothing while still never touching an entry that is genuinely still pending for this one.
+ *
+ * `step.ts` runs `hitObstacle` *before* `updateBoss` (fix round 1): with `hitObstacle` first, a
+ * crystal destroyed this tick is in `destroyedObstacles` by the time this boss's own `tick` hook
+ * (called from inside `updateBoss`) looks — so, outside a transition, the burst lands the same tick
  * as the destruction, not one tick late as an earlier round of this file had it.
  *
  * Every random draw is `rngBoss`. Order within a tick follows `updateBoss`'s own order — attack,

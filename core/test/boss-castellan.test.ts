@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BOSS, BOSS_HOOKS, BOSS_SHOT, CRYSTAL_COLUMNS, FIELD_W, INITIAL_INPUT, OCTOPI, PRACTICE_RUN,
   SHARD_COUNT, SHATTER_WARNING, bossStats, createGame, damageBoss, hashState, hitObstacle, icos,
-  idiv, isin, moveOctopi, spawnBoss, step, updateBoss,
+  idiv, isin, moveOctopi, raiseObstacle, spawnBoss, step, updateBoss,
 } from '../src';
 import type { BossState, GameState } from '../src';
 
@@ -267,7 +267,7 @@ describe('Frost Castellan — fix round 1: the burst does not depend on s.events
     for (const sh of shards) expect(sh).toMatchObject({ x, y });
   });
 
-  it('leaves destroyedObstacles empty at the end of every tick, whether or not a boss drained it', () => {
+  it('leaves destroyedObstacles empty right after a same-tick destroy-and-drain', () => {
     const s = arena();
     const b = park(s);
     b.abilityTimer = 1;
@@ -277,13 +277,65 @@ describe('Frost Castellan — fix round 1: the burst does not depend on s.events
     for (let i = 0; i < 12; i++) s.shots.push({ x, y: startY, vx: 0, vy: -240, kind: 'straight', data: 0 });
     step(s, INITIAL_INPUT); // destroys and drains the crystal in the same tick
     expect(s.destroyedObstacles).toEqual([]);
+  });
+});
 
-    // The safety net in step.ts: a fight with no boss to drain it on purpose still never lets a
-    // stray entry survive into the next tick.
-    const noBoss = createGame('castellan-safety-net', { ...PRACTICE_RUN, features: { boosts: false } });
-    noBoss.destroyedObstacles = [{ x: 1, y: 2 }];
-    step(noBoss, INITIAL_INPUT);
-    expect(noBoss.destroyedObstacles).toEqual([]);
+describe('Frost Castellan — fix round 2: a destruction pending through a transition is delayed, never lost (controller ruling R19)', () => {
+  it('bursts on the first tick fighting resumes, and only then, when a crystal is destroyed mid-transition', () => {
+    const s = arena();
+    const b = park(s);
+    b.abilityTimer = 1;
+    updateBoss(s); // raises 3 crystals (phase 1)
+    const { x, y } = s.obstacles[0]!;
+    const startY = y + 240; // one tick of vy -240 lands exactly on the crystal's own centre
+
+    // Force the transition into phase 2 (the same threshold `toPhaseThree` above uses for its own
+    // first half).
+    damageBoss(s, b.hp - idiv(b.maxHp * (b.maxPhases - 1), b.maxPhases));
+    expect(b.state).toBe('transition');
+
+    // Destroy the crystal mid-transition, through a real step(): `hitObstacle` keeps running every
+    // tick regardless of the boss's state, but `hooks.tick` (which drains `destroyedObstacles`) does
+    // not run again until fighting resumes.
+    for (let i = 0; i < 12; i++) s.shots.push({ x, y: startY, vx: 0, vy: -240, kind: 'straight', data: 0 });
+    step(s, INITIAL_INPUT);
+    expect(s.obstacles.some((o) => o.x === x && o.y === y)).toBe(false); // the crystal is gone
+    expect(s.enemyShots.filter((e) => e.kind === 'shard')).toHaveLength(0); // not yet — still transitioning
+    expect(s.destroyedObstacles).toEqual([{ x, y }]); // pending, not lost
+
+    // Run out the rest of the transition (120 ticks total; one already elapsed above). Even the very
+    // last tick of it (the one that flips `state` back to 'fighting') still hits the transition
+    // block's own unconditional `return` before `hooks.tick` — so this whole stretch drains nothing.
+    for (let i = 0; i < BOSS.transitionTicks - 1; i++) step(s, INITIAL_INPUT);
+    expect(b.phase).toBe(2);
+    expect(b.state).toBe('fighting');
+    expect(s.enemyShots.filter((e) => e.kind === 'shard')).toHaveLength(0);
+    expect(s.destroyedObstacles).toEqual([{ x, y }]); // still pending
+
+    // The first real fighting tick of phase 2: `hooks.tick` finally runs and drains it.
+    step(s, INITIAL_INPUT);
+    expect(s.enemyShots.filter((e) => e.kind === 'shard')).toHaveLength(SHARD_COUNT);
+    expect(s.destroyedObstacles).toEqual([]);
+  });
+
+  it('sweeps destroyedObstacles for a boss whose own tick hook has nothing to do with it (the no-consumer clear)', () => {
+    // Kind 1 (Emerald) has its own `tick` hook (its regen cooldown) — a real one, not a missing one —
+    // which knows nothing about obstacles. Its own fight never raises one in real play, so this is a
+    // hand-built scenario proving the generic sweep in `updateBoss` (not a Castellan-specific one)
+    // is what clears a stray entry, not the destination boss's own hook happening to care.
+    const s = createGame('castellan-other-boss', { ...PRACTICE_RUN, features: { boosts: false } });
+    s.crabs = [];
+    spawnBoss(s, 1);
+    const b = s.boss!;
+    b.attackTimer = 1_000_000;
+    b.secondaryTimer = 1_000_000;
+    b.abilityTimer = 1_000_000;
+    raiseObstacle(s, 'crystal', 2000, 3600, 500, 700, 12);
+    const startY = 3600 + 240;
+    for (let i = 0; i < 12; i++) s.shots.push({ x: 2000, y: startY, vx: 0, vy: -240, kind: 'straight', data: 0 });
+    step(s, INITIAL_INPUT);
+    expect(s.obstacles).toEqual([]);
+    expect(s.destroyedObstacles).toEqual([]);
   });
 });
 

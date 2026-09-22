@@ -335,14 +335,17 @@ export interface GameState {
   /** The arena objects standing right now (spec §5.1). Empty for every boss of the first campaign. */
   obstacles: Obstacle[];
   /**
-   * The position of every obstacle `hitObstacle` removed this very tick (spec §5.1, controller
-   * ruling R18, fix round 1): a boss whose own mechanic reacts to a destroyed obstacle (the Frost
-   * Castellan's shard burst) drains this in its own `tick` hook, then empties it — `step.ts` also
-   * clears it unconditionally at the end of every tick, so it never survives into the next one even
-   * for a fight with no such boss. `s.events` is a write-only outbox for the renderer (nothing in
-   * the sim may read it back — the app itself truncates it once a frame, which is exactly why this
-   * exists instead), so this is the sim-internal channel for exactly that purpose. Empty for every
-   * tick that destroys nothing, which is every tick of the first campaign.
+   * The position of every obstacle `hitObstacle` removed and not yet drained (spec §5.1, controller
+   * rulings R18/R19): a boss whose own mechanic reacts to a destroyed obstacle (the Frost Castellan's
+   * shard burst) drains this in its own `tick` hook, then empties it. `updateBoss` (`sim/boss.ts`)
+   * sweeps whatever a tick call left behind right after dispatching it — except while the boss is in
+   * a phase transition, so a destruction during one survives, undrained, until the first tick
+   * fighting resumes (fix round 2, R19 — a fix-round-1 version cleared this unconditionally every
+   * tick in `step.ts`, which lost exactly that pending case). Also cleared where a boss is removed at
+   * death (`damageBoss`). `s.events` is a write-only outbox for the renderer (nothing in the sim may
+   * read it back — the app itself truncates it once a frame, which is exactly why this exists
+   * instead), so this is the sim-internal channel for exactly that purpose. Empty for every tick that
+   * destroys nothing, which is every tick of the first campaign.
    */
   destroyedObstacles: { x: number; y: number }[];
   /**

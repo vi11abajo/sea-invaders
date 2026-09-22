@@ -44,11 +44,13 @@ export function step(s: GameState, input: Input): void {
   hitCrabs(s);
   hitOctopi(s);
   updateBoosts(s);
-  // Whichever boss reacts to a destruction (the Castellan's own `tick` hook, inside the `updateBoss`
-  // call above) already drained `destroyedObstacles` for itself; this is the safety net for every
-  // other case — no boss, or a boss that never drains it — so the list can never accumulate or leak
-  // into the next tick (fix round 1, controller ruling R18).
-  s.destroyedObstacles = [];
+  // `destroyedObstacles` is no longer swept here (fix round 2, controller ruling R19 — an
+  // unconditional per-tick clear at this point wiped an entry pushed during a boss phase transition
+  // before the boss's own `tick` hook, which does not run during one, ever got a chance to drain
+  // it). It is now swept from inside `updateBoss` itself (`sim/boss.ts`, right after the point that
+  // would have dispatched `hooks.tick`, which a transition's own early return never reaches) and at
+  // the point the boss is removed at death (`damageBoss`), so a destruction pending during a
+  // transition survives until the boss's own `tick` runs again instead of being lost.
   // Decrement before nextWave so a wave it spawns this same tick (arrival reset to 30) keeps its
   // full descent — marchCrabs already consumed this tick's old-wave arrival tick above, and the
   // new wave's own 30 ticks only start counting down from the next step() call.
