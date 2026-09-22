@@ -7,6 +7,7 @@ import {
 } from '@sea-invaders/core';
 import { BOSS_HEX, BOSS_RGB } from './bossPalette';
 import { LIGHTNING, LIGHTNING_HUE, LIGHTNING_INTENSITY, LIGHTNING_SIZE, LIGHTNING_SPEED } from './lightning';
+import { TUNNEL } from './tunnel';
 import { COLORS, SIGNATURE_GRADIENT } from '../ui/tokens';
 import { PIXEL_RATIO, type PreparedSprite, type PreparedSprites } from './sprites';
 
@@ -595,6 +596,19 @@ export function drawFrame(
     canvas.drawCircle(0, 0, 1, paint);
     canvas.restore();
     paint.setShader(null);
+    // Owner's pick 2026-09-22: the pull itself (`tunnel.ts`) — cables of light falling into the
+    // core, drawn over the gradient inside the very same disc, so the well keeps its size. One
+    // shader object per frame while a well is open; the gradient alone remains the fallback.
+    if (TUNNEL !== null) {
+      const side = glowRadius * 2;
+      const shader = TUNNEL.makeShader([side, side, f.tick / 60]);
+      canvas.save();
+      canvas.translate(wx - glowRadius, wy - glowRadius);
+      paint.setShader(shader);
+      canvas.drawCircle(glowRadius, glowRadius, glowRadius, paint);
+      paint.setShader(null);
+      canvas.restore();
+    }
   }
 
   // ICE_FREEZE (owner ruling): an ice sprite over every crab below, plus the legacy fog after them.
