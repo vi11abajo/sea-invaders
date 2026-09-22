@@ -2,6 +2,13 @@ import { BOOSTS, DROP, FIELD_H, FIELD_W, RARITY_LISTS, SCORE_DECAY, OCTOPI, WELL
 import { idiv, isqrt } from '../fixed';
 import type { ActiveBoost, BoostType, Bullet, Drop, GameState } from '../types';
 import { applyEffect, removeEffect } from './boostEffects';
+// Ruling R25: only for the one call site below, inside `updateBoosts`, never at this module's own
+// top level — `boosts → bosses → <boss module> → boss → boosts` closes a cycle back here, and this
+// import is the edge that closes it. It stays safe only because `BOSS_HOOKS` is never read until a
+// pickup actually happens, long after every module in the cycle has finished loading; the same
+// trap every reefs 6-10 boss module's own doc already calls out for reaching into `boss.ts`/
+// `boosts.ts` from a top-level read of its own.
+import { BOSS_HOOKS } from './bosses';
 
 /**
  * The pool RANDOM_CHAOS picks from (spec §5.2/C8): every boost except RANDOM_CHAOS itself, in
@@ -124,6 +131,10 @@ export function updateBoosts(s: GameState): void {
       const result = activateBoost(s, d.boost);
       if (result.consumed) {
         s.events.push({ tick: s.tick, type: 'boost_pickup', boost: d.boost });
+        // Ruling R25 (the Abyssal Huntsman's Mirror, spec §5.2): the drop's OWN boost, `d.boost` —
+        // never `result.type` — so a RANDOM_CHAOS pickup mirrors nothing, whatever it rolled.
+        // Undefined for kinds 1-9, so this changes nothing for them.
+        if (s.boss) BOSS_HOOKS[s.boss.kind].onBoostPickup?.(s, s.boss, d.boost);
         continue;
       }
       // Not consumed (WAVE_BLAST with no crabs, spec C4): the drop keeps falling, kept below.

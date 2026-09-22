@@ -1,10 +1,11 @@
 import type { Rng } from '../../rng';
-import type { Bullet, BossKind, BossState, GameState } from '../../types';
+import type { BoostType, Bullet, BossKind, BossState, GameState } from '../../types';
 import { AZURE_HOOKS } from './azure';
 import { CASTELLAN_HOOKS } from './castellan';
 import { CORSAIR_HOOKS } from './corsair';
 import { CRIMSON_HOOKS } from './crimson';
 import { EMERALD_HOOKS } from './emerald';
+import { HUNTSMAN_HOOKS } from './huntsman';
 import { SOLAR_HOOKS } from './solar';
 import { TEMPLAR_HOOKS } from './templar';
 import { TYRANT_HOOKS } from './tyrant';
@@ -16,6 +17,7 @@ export * from './templar';
 export * from './castellan';
 export * from './corsair';
 export * from './tyrant';
+export * from './huntsman';
 
 /**
  * Per-boss behaviour, looked up by `BOSS_HOOKS[b.kind]`. `attack` and `ability` are mandatory;
@@ -67,24 +69,18 @@ export interface BossHooks {
    * hook rather than splitting the discharge countdown into the ordinary `tick`).
    */
   tickThroughTransition?(s: GameState, b: BossState): void;
+  /**
+   * The player just picked up a boost drop (spec §5.2, the Abyssal Huntsman's Mirror): called from
+   * `sim/boosts.ts`, the one place a pickup is actually consumed, with the drop's own `type` — never
+   * whatever RANDOM_CHAOS resolved it to, so a chaos pickup never mirrors anything a direct one
+   * would. Only ever called while `s.boss` exists; undefined for every kind but 10, so nothing
+   * changes for kinds 1-9 (spec §10's invariance promise) — see `sim/bosses/huntsman.ts`'s own doc
+   * for the mirror classes and durations.
+   */
+  onBoostPickup?(s: GameState, b: BossState, type: BoostType): void;
 }
 
-/**
- * A placeholder for a boss of reefs 6-10 whose own task has not been written yet: starting a fight
- * with it fails loudly rather than running a half-boss. `spawnBoss` reaches `initialAbilityTimer`
- * the moment it builds the state, so no fight can begin by accident. The shared plumbing those
- * bosses stand on — `BOSS_TABLE`, the new `BossState` fields, squads, obstacles, the new shot
- * kinds — is real; only the behaviours are still to come, one task each. Kinds 6, 7, 8 and 9 are
- * written (`templar.ts`, `castellan.ts`, `corsair.ts`, `tyrant.ts`); 10 is still a placeholder.
- */
-function notWrittenYet(kind: number): BossHooks {
-  const fail = (): never => {
-    throw new Error(`boss kind ${kind} is not implemented yet`);
-  };
-  return { attack: fail, ability: fail, initialAbilityTimer: fail, nextAbilityTimer: fail };
-}
-
-/** Per-kind boss hooks, one real implementation per boss kind. */
+/** Per-kind boss hooks, one real implementation per boss kind. Kinds 6-10 (spec §5.2) are all written now — `templar.ts`, `castellan.ts`, `corsair.ts`, `tyrant.ts`, `huntsman.ts`. */
 export const BOSS_HOOKS: Record<BossKind, BossHooks> = {
   1: EMERALD_HOOKS,
   2: AZURE_HOOKS,
@@ -95,5 +91,5 @@ export const BOSS_HOOKS: Record<BossKind, BossHooks> = {
   7: CASTELLAN_HOOKS,
   8: CORSAIR_HOOKS,
   9: TYRANT_HOOKS,
-  10: notWrittenYet(10),
+  10: HUNTSMAN_HOOKS,
 };

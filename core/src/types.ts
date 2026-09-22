@@ -384,9 +384,12 @@ export interface GameState {
    */
   lanes: number[];
   /**
-   * The Abyssal Huntsman's sight lines, flat `[fromX, fromY, toX, decoy, ticksLeft]` groups (spec
-   * §5.2) — the state the frame's `aim` array is built from. Empty until that boss's own task fills
-   * it; a decoy's line carries `decoy = 1` and never fires.
+   * The Abyssal Huntsman's sight lines, flat `[fromX, fromY, toX, toY, decoy, ticksLeft]` groups
+   * (spec §7, amended 2026-09-22, ruling R32) — the state the frame's `aim` array is built from.
+   * Octopi moves on both axes (`sim/octopi.ts`, `OCTOPI.minY..maxY`), so a line described by an x
+   * alone could not be drawn or flown; the far point now carries both `toX` and `toY`, and the real
+   * line (`decoy = 0`) is the single source of truth for where the next needle goes. A decoy's line
+   * carries `decoy = 1` and never fires.
    */
   aims: number[];
   /**

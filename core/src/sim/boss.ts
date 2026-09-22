@@ -231,15 +231,19 @@ function touchesOrb(p: Bullet, b: Bullet): boolean {
 export const NEEDLE_SPEED = idiv(BOSS_SHOT.speed * 16, 10);
 
 /**
- * A needle along the line from `(fromX, fromY)` to `(toX, toY)` at `NEEDLE_SPEED` (spec §5.2). The
- * aim is spent the moment it is fired: the shot flies the line it was given and never tracks.
+ * A needle along the line from `(fromX, fromY)` to `(toX, toY)` at `NEEDLE_SPEED`, scaled by
+ * `mult1000` (spec §5.2; the Huntsman's own control mirror passes 1250 for its ×1.25 — the same
+ * `mult1000` idiom `castStraight`/`castRing` already use, default 1000 keeping every existing
+ * caller's output identical). The aim is spent the moment it is fired: the shot flies the line it
+ * was given and never tracks.
  */
-export function castNeedle(s: GameState, fromX: number, fromY: number, toX: number, toY: number): void {
+export function castNeedle(s: GameState, fromX: number, fromY: number, toX: number, toY: number, mult1000 = 1000): void {
   const dx = toX - fromX;
   const dy = toY - fromY;
   const len = isqrt(dx * dx + dy * dy);
-  const vx = len === 0 ? 0 : idiv(dx * NEEDLE_SPEED, len);
-  const vy = len === 0 ? NEEDLE_SPEED : idiv(dy * NEEDLE_SPEED, len);
+  const speed = idiv(NEEDLE_SPEED * mult1000, 1000);
+  const vx = len === 0 ? 0 : idiv(dx * speed, len);
+  const vy = len === 0 ? speed : idiv(dy * speed, len);
   s.enemyShots.push({ x: fromX, y: fromY, vx, vy, kind: 'needle', data: 0 });
 }
 
@@ -270,6 +274,18 @@ export function dischargeMult(b: BossState, amount: number): number {
 export function rageDelay(b: BossState, d: number): number {
   if (b.kind === 4 && b.effectTicks > 0) return idiv(d * 100, 155);
   return d;
+}
+
+/**
+ * Halves a delay `d` while the Abyssal Huntsman's own offence mirror is running (kind 10 only, spec
+ * §5.2's Mirror row): a player's offence boost picked up mid-fight (`sim/bosses/huntsman.ts`'s own
+ * `onBoostPickup`) halves how often he fires for as long as `b.mirror[0]` still counts down. Applied
+ * at the one line in `updateBoss` below that redraws `attackTimer` after an attack, the same
+ * kind-gated-multiplier idiom `rageDelay`/`dischargeMult` already use for Crimson/Tyrant, so this
+ * reads one field and changes no arithmetic for kinds 1-9.
+ */
+export function mirrorDelay(b: BossState, d: number): number {
+  return b.kind === 10 && b.mirror[0] > 0 ? idiv(d, 2) : d;
 }
 
 /** Emerald's secondary-attack timer: 1.0-2.2 s. */
@@ -361,7 +377,7 @@ export function updateBoss(s: GameState): void {
   }
   const hooks = BOSS_HOOKS[b.kind];
   b.attackTimer -= 1;
-  if (b.attackTimer <= 0) { hooks.attack(s, b); b.attackTimer = rageDelay(b, attackDelay(s, b.phase)); }
+  if (b.attackTimer <= 0) { hooks.attack(s, b); b.attackTimer = mirrorDelay(b, rageDelay(b, attackDelay(s, b.phase))); }
   if (hooks.secondary) { b.secondaryTimer -= 1; if (b.secondaryTimer <= 0) { hooks.secondary(s, b); b.secondaryTimer = secondaryDelay(s); } }
   b.abilityTimer -= 1;
   if (b.abilityTimer <= 0) { hooks.ability(s, b); b.abilityTimer = hooks.nextAbilityTimer(s.rngBoss); }

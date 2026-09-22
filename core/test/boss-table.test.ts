@@ -15,8 +15,6 @@ function arena(kind: BossKind = 1, lives = PRACTICE_RUN.lives): GameState {
 
 const LEGACY = [1, 2, 3, 4, 5] as const;
 const NEW = [6, 7, 8, 9, 10] as const;
-/** The bosses of reefs 6-10 whose own task has not run yet, so their hooks still throw. */
-const UNWRITTEN = [10] as const;
 
 describe('the boss table', () => {
   it('holds the five new bosses of spec 5', () => {
@@ -48,13 +46,10 @@ describe('the boss table', () => {
     for (const k of NEW) expect(bossStats(k)).toEqual(BOSS_TABLE[k]);
   });
 
-  it('refuses to start a fight with a boss whose hooks are not written yet', () => {
-    // Kinds 6-9 have their own hooks now (`bosses/templar.ts`, `castellan.ts`, `corsair.ts`,
-    // `tyrant.ts`, spec §5.2 rows 6-9); 10 is still a stub, and a fight with it has to fail loudly
-    // rather than run half a boss.
-    for (const k of UNWRITTEN) {
+  it('starts a fight with every one of the five reef 6-10 bosses (all now written — templar.ts, castellan.ts, corsair.ts, tyrant.ts, huntsman.ts)', () => {
+    for (const k of NEW) {
       const s = createGame('stub', { ...PRACTICE_RUN, features: { boosts: false } });
-      expect(() => spawnBoss(s, k)).toThrow(/not implemented yet/);
+      expect(() => spawnBoss(s, k)).not.toThrow();
     }
   });
 });
@@ -139,13 +134,13 @@ describe('the view frame', () => {
   it('copies the lanes, the sight lines and the cold snap straight through', () => {
     const s = arena();
     s.lanes = [2, 45, 5, 30];
-    s.aims = [1000, 2000, 3000, 0, 40];
+    s.aims = [1000, 2000, 3000, 4000, 0, 40]; // ruling R32: fromX, fromY, toX, toY, decoy, ticksLeft
     s.chillTicks = 77;
     const f = snapshot(s);
     expect(LANE_STRIDE).toBe(2);
-    expect(AIM_STRIDE).toBe(5);
+    expect(AIM_STRIDE).toBe(6);
     expect(f.lanes).toEqual([2, 45, 5, 30]);
-    expect(f.aim).toEqual([1000, 2000, 3000, 0, 40]);
+    expect(f.aim).toEqual([1000, 2000, 3000, 4000, 0, 40]);
     expect(f.chill).toBe(77);
     expect(f.lanes).not.toBe(s.lanes); // a copy, safe to hand to the UI thread
   });
@@ -172,7 +167,7 @@ describe('the state hash', () => {
     expect(mutated((s) => spawnSquad(s, 'pair', REEF_KINDS, 2000, SQUAD_BAND.minY, 1))).toBe(true);
     expect(mutated((s) => raiseObstacle(s, 'crystal', 2000, 3600, 500, 700, 12))).toBe(true);
     expect(mutated((s) => { s.lanes = [1, 20]; })).toBe(true);
-    expect(mutated((s) => { s.aims = [1, 2, 3, 0, 40]; })).toBe(true);
+    expect(mutated((s) => { s.aims = [1, 2, 3, 4, 0, 40]; })).toBe(true);
     expect(mutated((s) => { s.chillTicks = 5; })).toBe(true);
     expect(mutated((s) => { s.boss!.shieldUp = 1; })).toBe(true);
     expect(mutated((s) => { s.boss!.windup = 45; })).toBe(true);
@@ -227,7 +222,7 @@ describe('the new per-tick work costs a legacy fight nothing', () => {
     const loadedCounts = countDraws(loaded);
     raiseObstacle(loaded, 'crystal', 2000, 3600, 500, 700, 12);
     loaded.lanes = [2, 600];
-    loaded.aims = [1000, 2000, 3000, 0, 600];
+    loaded.aims = [1000, 2000, 3000, 4000, 0, 600];
     loaded.chillTicks = 600;
     for (let t = 0; t < 600; t++) step(loaded, INITIAL_INPUT);
 
@@ -245,7 +240,7 @@ describe('the new per-tick work costs a legacy fight nothing', () => {
     for (let t = 0; t < 600; t++) step(plain, INITIAL_INPUT);
     const loaded = arena(1, 99);
     loaded.lanes = [2, 600];
-    loaded.aims = [1000, 2000, 3000, 0, 600];
+    loaded.aims = [1000, 2000, 3000, 4000, 0, 600];
     for (let t = 0; t < 600; t++) step(loaded, INITIAL_INPUT);
     expect(loaded.boss).toEqual(plain.boss);
   });

@@ -45,8 +45,13 @@ export const OBSTACLE_STRIDE = 6;
 /** Ints packed per lightning lane in `Frame.lanes` (spec §7): lane, ticksLeft. */
 export const LANE_STRIDE = 2;
 
-/** Ints packed per sight line in `Frame.aim` (spec §7): fromX, fromY, toX, decoy, ticksLeft. */
-export const AIM_STRIDE = 5;
+/**
+ * Ints packed per sight line in `Frame.aim` (spec §7, amended 2026-09-22, ruling R32): fromX, fromY,
+ * toX, toY, decoy, ticksLeft. Grew from 5 to 6 ints when the far point picked up its own `toY` —
+ * Octopi moves on both axes, so a line named by an x alone could not be drawn or flown to the same
+ * place.
+ */
+export const AIM_STRIDE = 6;
 
 /** Plain-number copy of what the renderer needs; safe to hand to the UI thread every frame. */
 export interface Frame {
@@ -78,7 +83,7 @@ export interface Frame {
   obstacles: number[];
   /** `LANE_STRIDE`-int groups: lane, ticksLeft. */
   lanes: number[];
-  /** `AIM_STRIDE`-int groups: fromX, fromY, toX, decoy (1 for a decoy's line), ticksLeft. */
+  /** `AIM_STRIDE`-int groups: fromX, fromY, toX, toY, decoy (1 for a decoy's line), ticksLeft. */
   aim: number[];
   /** Ticks left of the cold snap slowing Octopi (spec §5.2); 0 when it is not in effect. */
   chill: number;
