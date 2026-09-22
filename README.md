@@ -120,4 +120,4 @@ Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
 
 ## License
 
-All rights reserved. The source is published for reading and evaluation; see [LICENSE](LICENSE). Third-party notices stay in the files they apply to: the landing page's cursor and screen gallery are plain-JS adaptations of React Bits components (MIT + Commons Clause), credited in `site/index.html`.
+All rights reserved. The source is published for reading and evaluation; see [LICENSE](LICENSE). Third-party notices stay in the files they apply to: the landing page's cursor and screen gallery are plain-JS adaptations of React Bits components (MIT + Commons Clause), credited in `site/index.html`, and the Storm Tyrant's lightning is that library's `Lightning` shader ported to Skia's SkSL, credited in `mobile/src/game/lightning.ts`.
