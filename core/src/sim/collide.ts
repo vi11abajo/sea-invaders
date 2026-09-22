@@ -214,6 +214,21 @@ function applyOctopiHit(s: GameState, damage: number): void {
 }
 
 /**
+ * Costs Octopi one life exactly as an enemy shot landing on it would (spec §5.2, the Storm Tyrant's
+ * lane strike, `sim/bosses/tyrant.ts`): the same three guards `hitOctopi` checks before it ever goes
+ * looking for a shot or a crab to land a hit — the post-hit invulnerability window, a run already
+ * over, and the INVINCIBILITY boost — then the same SHIELD_BARRIER-or-lose-a-life effect every other
+ * hit goes through (`applyOctopiHit`). A lane strike is not an entry in `s.enemyShots`, so it cannot
+ * go through `hitOctopi`'s own shot-matching loop; this reuses the rest of that damage function with
+ * only the matching skipped, not a different one — `hitOctopi` itself is untouched.
+ */
+export function damageOctopiDirect(s: GameState, damage = 1): void {
+  if (s.octopi.invuln > 0 || s.over) return;
+  if (isActive(s, 'INVINCIBILITY')) return;
+  applyOctopiHit(s, damage);
+}
+
+/**
  * Costs Octopi `damage` lives (one by default, two for a red crab's `heavy` shot): lives never go
  * below zero, the run ends when they reach it, and however many lives the hit took it is still one
  * hit — one invulnerability window, one clearing of the enemy shots, one `player_hit` event.

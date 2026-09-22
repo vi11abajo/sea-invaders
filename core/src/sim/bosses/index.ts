@@ -7,6 +7,7 @@ import { CRIMSON_HOOKS } from './crimson';
 import { EMERALD_HOOKS } from './emerald';
 import { SOLAR_HOOKS } from './solar';
 import { TEMPLAR_HOOKS } from './templar';
+import { TYRANT_HOOKS } from './tyrant';
 import { VOID_HOOKS } from './void';
 
 // The reefs 6-10 bosses are written one task at a time; each one's own module carries its constants
@@ -14,6 +15,7 @@ import { VOID_HOOKS } from './void';
 export * from './templar';
 export * from './castellan';
 export * from './corsair';
+export * from './tyrant';
 
 /**
  * Per-boss behaviour, looked up by `BOSS_HOOKS[b.kind]`. `attack` and `ability` are mandatory;
@@ -55,6 +57,16 @@ export interface BossHooks {
    * boss that opens a phase with something of its own does it here (the Templar's warden line).
    */
   onPhaseStart?(s: GameState, b: BossState): void;
+  /**
+   * Runs every tick the boss exists, including while it is transitioning between phases — the one
+   * hook `updateBoss` calls before it ever looks at `state`, ahead of the `state === 'transition'`
+   * check that skips every other per-tick hook outright (`tick` above included). For a mechanic that
+   * must not pause when the fight itself does: today only the Storm Tyrant's own lanes (spec §5.2 —
+   * "lanes already warned keep counting down through a transition") and, for simplicity, his
+   * discharge window alongside them (`sim/bosses/tyrant.ts`'s own doc explains why both live in one
+   * hook rather than splitting the discharge countdown into the ordinary `tick`).
+   */
+  tickThroughTransition?(s: GameState, b: BossState): void;
 }
 
 /**
@@ -62,8 +74,8 @@ export interface BossHooks {
  * with it fails loudly rather than running a half-boss. `spawnBoss` reaches `initialAbilityTimer`
  * the moment it builds the state, so no fight can begin by accident. The shared plumbing those
  * bosses stand on — `BOSS_TABLE`, the new `BossState` fields, squads, obstacles, the new shot
- * kinds — is real; only the behaviours are still to come, one task each. Kinds 6, 7 and 8 are
- * written (`templar.ts`, `castellan.ts`, `corsair.ts`); 9 and 10 are still placeholders.
+ * kinds — is real; only the behaviours are still to come, one task each. Kinds 6, 7, 8 and 9 are
+ * written (`templar.ts`, `castellan.ts`, `corsair.ts`, `tyrant.ts`); 10 is still a placeholder.
  */
 function notWrittenYet(kind: number): BossHooks {
   const fail = (): never => {
@@ -82,6 +94,6 @@ export const BOSS_HOOKS: Record<BossKind, BossHooks> = {
   6: TEMPLAR_HOOKS,
   7: CASTELLAN_HOOKS,
   8: CORSAIR_HOOKS,
-  9: notWrittenYet(9),
+  9: TYRANT_HOOKS,
   10: notWrittenYet(10),
 };

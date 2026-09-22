@@ -254,6 +254,18 @@ export function rageMult(b: BossState, v: number): number {
   return v;
 }
 
+/**
+ * Doubles `amount` while the Storm Tyrant (kind 9) is discharged from his own lightning
+ * (`b.discharged > 0`, spec §5.2 row 9), unchanged otherwise — the same kind-gated-multiplier idiom
+ * as `rageMult`/`rageDelay` above, so `damageBoss` needs no boss-kind branch of its own. `b.discharged`
+ * is 0 for every kind but 9 for the whole of a fight (nothing else ever sets it, `spawnBoss`'s own
+ * neutral value), so this is a no-op — reads one field, changes no arithmetic — for kinds 1-8 and 10.
+ */
+export function dischargeMult(b: BossState, amount: number): number {
+  if (b.kind === 9 && b.discharged > 0) return amount * 2;
+  return amount;
+}
+
 /** Shrinks a delay `d` to match rage's ×1.55 attack frequency while Crimson is raging, unchanged otherwise. */
 export function rageDelay(b: BossState, d: number): number {
   if (b.kind === 4 && b.effectTicks > 0) return idiv(d * 100, 155);
@@ -331,6 +343,11 @@ export function updateBoss(s: GameState): void {
   const speed = rageMult(b, BOSS.speed);
   const next = b.x + (b.vx > 0 ? speed : -speed);
   if (next - half < 0 || next + half > FIELD_W) b.vx = -b.vx; else b.x = next;
+  // Reefs 6-10 (spec §5.2): a mechanic that has to keep advancing even through a phase transition —
+  // today only the Storm Tyrant's own lanes and discharge window, `sim/bosses/tyrant.ts` — runs here,
+  // before the transition check below ever looks at `state`. Undefined for every other kind, so this
+  // reads and changes nothing for kinds 1-8 and 10 (see `BossHooks.tickThroughTransition`'s own doc).
+  BOSS_HOOKS[b.kind].tickThroughTransition?.(s, b);
   if (b.state === 'transition') {
     b.transitionTicks -= 1;
     if (b.transitionTicks === 0) {
@@ -375,7 +392,7 @@ export function damageBoss(s: GameState, amount: number, shot?: Bullet): void {
   if (!b || b.state === 'transition') return;
   const hooks = BOSS_HOOKS[b.kind];
   if (hooks.onHit?.(s, b, shot)) return; // shield absorbed it (or, kind 8, reflected it)
-  b.hp = Math.max(0, b.hp - amount);
+  b.hp = Math.max(0, b.hp - dischargeMult(b, amount));
   if (b.hp === 0) {
     const decayed = 100 - Math.floor(b.fightTicks / BOSS.decayEvery);
     s.score += scoreMultiplier(s, idiv(bossStats(b.kind).score * Math.max(1, decayed), 100));
