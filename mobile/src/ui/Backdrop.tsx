@@ -74,7 +74,7 @@ export function Backdrop({ theme = 'night', variant = 'menu', floorGlow = false 
             <Ray w={w} h={h} x={w * 0.65} color={rayVecB} opacity={rayB} time={rayTime} />
           </Group>
         ) : (
-          <Group opacity={play ? 0.5 : 1}>
+          <Group opacity={play ? 0.5 : 1} layer={<Paint><Blur blur={18} mode="decal" /></Paint>}>
             <GradientRay x={w * 0.1} width={w * 0.3} h={h} skew={-0.244} colors={[rayColorA, fadedOut(rayColorA)]} opacity={rayA} />
             <GradientRay x={w * 0.55} width={w * 0.25} h={h} skew={-0.349} colors={[rayColorB, fadedOut(rayColorB)]} opacity={rayB} />
           </Group>

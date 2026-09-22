@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { PanResponder, StyleSheet, View } from 'react-native';
+import { PanResponder, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import Animated, {
   interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withSpring, type WithSpringConfig,
 } from 'react-native-reanimated';
@@ -78,18 +78,36 @@ export function SquishSwitch({ value, onValueChange, disabled = false }: SquishS
     [progress, squash, onValueChange],
   );
 
+  // A tap, without the responder: `onTouchStart`/`onTouchEnd` reach the view whether or not the
+  // list scrolled it (a scroll ends in `onTouchCancel`, which toggles nothing), and `granted`
+  // keeps a drag that ended near its start from toggling twice.
+  const touchStart = useRef({ x: 0, y: 0 });
+  const granted = useRef(false);
+  const onTouchStart = useCallback((event: GestureResponderEvent) => {
+    touchStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
+    granted.current = false;
+  }, []);
+  const onTouchEnd = useCallback((event: GestureResponderEvent) => {
+    const wasDrag = granted.current;
+    granted.current = false;
+    if (disabled || wasDrag) return;
+    const dx = event.nativeEvent.pageX - touchStart.current.x;
+    const dy = event.nativeEvent.pageY - touchStart.current.y;
+    if (Math.hypot(dx, dy) <= TAP_SLOP) commit(!valueRef.current);
+  }, [commit, disabled]);
+
   const pan = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !disabled,
-      // Gated on a horizontal-dominant, past-slop move so a vertical scroll attempt that starts on
-      // the switch (it sits inside `ProfileScreen`'s `ScrollView`) is left for the list, not captured
-      // here. A plain tap still toggles: `onStartShouldSetPanResponder` above already grants the
-      // responder on touch-down regardless of direction, so `onPanResponderRelease`'s own `!moved`
-      // branch still runs for a tap that never triggers this at all.
+      // Never claimed on touch-down: on Android a start claim is what makes the parent
+      // `ScrollView` (Profile) give up the touch, so a vertical scroll that begins on the switch
+      // would die here. The switch only takes a horizontal-dominant, past-slop move (a drag); a
+      // plain tap is handled by the `onTouchEnd` below, outside the responder system.
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_event, gesture) => (
         !disabled && Math.abs(gesture.dx) > Math.abs(gesture.dy) && Math.abs(gesture.dx) > 2
       ),
       onPanResponderGrant: () => {
+        granted.current = true;
         dragging.current = true;
         startX.current = MIN_X + progress.value * (MAX_X - MIN_X);
       },
@@ -129,6 +147,8 @@ export function SquishSwitch({ value, onValueChange, disabled = false }: SquishS
   return (
     <View
       {...pan.panHandlers}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled }}
       hitSlop={HIT_SLOP}
