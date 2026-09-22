@@ -975,7 +975,9 @@ export function drawFrame(
         canvas.save();
         canvas.translate(x, y);
         canvas.rotate((f.tick * 12) % 360, 0, 0);
-        canvas.scale(baseR * 1.3, baseR * 1.3);
+        // Owner's on-device note 2026-09-22: twice the blade it had at 1.3 — the axe reads as a thrown
+        // weapon now, not a spark. The core's hitbox (140 units, `shotRadius`) is about this size.
+        canvas.scale(baseR * 2.6, baseR * 2.6);
         canvas.drawRect(AXE_BLADE_UNIT, paint);
         canvas.restore();
         break;
