@@ -1,4 +1,4 @@
-import { levelById } from '@sea-invaders/core';
+import { LEVEL_COUNT, levelById } from '@sea-invaders/core';
 import { MobileWalletProvider } from '@wallet-ui/react-native-web3js';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -58,7 +58,7 @@ function routeFor(url: string | null): Route {
   const level = /^seainvaders:\/\/level\/(\d+)/.exec(url);
   if (level) {
     const id = Number(level[1]);
-    if (Number.isInteger(id) && id >= 1 && id <= 30) return { kind: 'level', id, tide: /[?&]tide=1(&|$)/.test(url) };
+    if (Number.isInteger(id) && id >= 1 && id <= LEVEL_COUNT) return { kind: 'level', id, tide: /[?&]tide=1(&|$)/.test(url) };
   }
   return 'app';
 }
