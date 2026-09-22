@@ -1,3 +1,4 @@
+import { InstrumentSans_500Medium } from '@expo-google-fonts/instrument-sans/500Medium';
 import { formatInt } from '@sea-invaders/core';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -5,6 +6,7 @@ import { onBackPress } from '../audio/onBackPress';
 import { GradientText } from '../ui/GradientText';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
+import { ShinyText } from '../ui/ShinyText';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS } from '../ui/tokens';
 import { ActiveOctopi } from './OctopiArt';
@@ -25,6 +27,9 @@ interface ResultSecondary {
 interface ResultViewProps {
   /** e.g. "Run over"; shown in caps. */
   title: string;
+  /** A metallic sheen sweeps across `title` instead of the plain label style — the campaign's own
+   * finish line, so it reads as a bigger moment than an ordinary level result. */
+  titleShiny?: boolean;
   score: number;
   stats: ResultStat[];
   /** Small line under the primary button. */
@@ -41,7 +46,7 @@ interface ResultViewProps {
 }
 
 /** End of a run: the score in the signature gradient, Octopi's pose (in the run's look) and a sheet of stats and actions. */
-export function ResultView({ title, score, stats, note, primaryLabel = 'Play again', onPlayAgain, secondary, onBack, extra }: ResultViewProps) {
+export function ResultView({ title, titleShiny = false, score, stats, note, primaryLabel = 'Play again', onPlayAgain, secondary, onBack, extra }: ResultViewProps) {
   return (
     <View style={styles.root}>
       {onBack !== undefined && (
@@ -50,9 +55,20 @@ export function ResultView({ title, score, stats, note, primaryLabel = 'Play aga
         </Pressable>
       )}
       <View style={styles.head} pointerEvents="none">
-        <Txt variant="label" tone="secondary" style={styles.title}>
-          {title}
-        </Txt>
+        {titleShiny ? (
+          <ShinyText
+            text={title.toUpperCase()}
+            fontSource={InstrumentSans_500Medium}
+            size={12}
+            color={COLORS.textSecondary}
+            shineColor="#FFFFFF"
+            periodMs={2200}
+          />
+        ) : (
+          <Txt variant="label" tone="secondary" style={styles.title}>
+            {title}
+          </Txt>
+        )}
         <GradientText text={formatInt(score)} size={72} />
       </View>
       <View style={styles.pose} pointerEvents="none">

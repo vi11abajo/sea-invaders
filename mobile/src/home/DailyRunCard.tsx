@@ -1,11 +1,12 @@
+import { GeistMono_500Medium } from '@expo-google-fonts/geist-mono/500Medium';
 import { formatCountdown, formatInt } from '@sea-invaders/core';
 import { useEffect, type ReactNode } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { RecordScore } from '../daily/RecordScore';
 import { TicketCard } from '../daily/TicketCard';
-import { GradientText } from '../ui/GradientText';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
+import { ShinyText } from '../ui/ShinyText';
 import { SkrIcon } from '../ui/SkrIcon';
 import { Txt } from '../ui/Txt';
 import { COLORS, RADIUS, SIZE } from '../ui/tokens';
@@ -126,7 +127,7 @@ export function DailyRunCard({ ranked, now, signedIn, onConnect, error = null, o
           <Txt variant="secondary" tone="tertiary" style={styles.small}>Pool</Txt>
           <View style={styles.pool}>
             <SkrIcon size={11} color={COLORS.info} />
-            <GradientText text={formatSkr(ranked.poolSkr)} size={13} />
+            <ShinyText text={formatSkr(ranked.poolSkr)} fontSource={GeistMono_500Medium} size={13} color={COLORS.info} />
           </View>
         </View>
       </View>

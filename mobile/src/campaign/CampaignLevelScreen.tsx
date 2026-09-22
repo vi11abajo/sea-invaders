@@ -297,6 +297,7 @@ export function CampaignLevelScreen({
             return (
               <ResultView
                 title={TITLE.campaign_complete}
+                titleShiny
                 score={outcome.score}
                 stats={stats}
                 primaryLabel="Map"

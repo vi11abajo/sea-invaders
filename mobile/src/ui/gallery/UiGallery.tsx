@@ -1,3 +1,4 @@
+import { InstrumentSans_600SemiBold } from '@expo-google-fonts/instrument-sans/600SemiBold';
 import { formatCountdown, formatInt, shortAddress } from '@sea-invaders/core';
 import { useEffect, useState, type ReactNode } from 'react';
 import { BackHandler, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -12,6 +13,7 @@ import { GradientText } from '../GradientText';
 import { PillButton } from '../PillButton';
 import { RubberSegment } from '../RubberSegment';
 import { SeekerBadge } from '../SeekerBadge';
+import { ShinyText } from '../ShinyText';
 import { SquishSwitch } from '../SquishSwitch';
 import { Txt } from '../Txt';
 import { useAppFonts } from '../fonts';
@@ -123,6 +125,10 @@ export function UiGallery() {
         <Section title="Blur Text">
           <BlurText key={blurKey} variant="headline" text="Storm Tyrant" />
           <PillButton label="Replay" kind="secondary" height={36} onPress={() => setBlurKey((k) => k + 1)} />
+        </Section>
+
+        <Section title="Shiny Text">
+          <ShinyText text="CAMPAIGN COMPLETE" fontSource={InstrumentSans_600SemiBold} size={16} color={COLORS.textSecondary} />
         </Section>
 
         <Section title="Surfaces">
