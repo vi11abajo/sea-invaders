@@ -41,6 +41,13 @@ export function createGame(seed: string, run: RunConfig): GameState {
     scoreDecay: 0,
     rageTicks: 0,
     gridRows: [],
+    // The boss arena of reefs 6-10 (spec §5.1): empty on every run until a boss of kinds 6..10
+    // raises something.
+    squads: [],
+    obstacles: [],
+    lanes: [],
+    aims: [],
+    chillTicks: 0,
   };
   if (run.level) {
     if (run.level.waves > 0) startLevelWave(s, 1);

@@ -2,7 +2,7 @@ import { BOSS, CRAB, CRAB_TYPES, ENEMY_SHOT, OCTOPI, SHOT } from '../config';
 import { clamp, idiv } from '../fixed';
 import type { Bullet, Crab, GameState } from '../types';
 import { isActive, rollDrop, scoreDecayPct } from './boosts';
-import { damageBoss, scoreMultiplier } from './boss';
+import { ORB_RADIUS, damageBoss, scoreMultiplier } from './boss';
 import { BUBBLE_RADIUS, CHARGE_RADIUS, enrage, shieldAbsorbs } from './veterans';
 
 /**
@@ -11,10 +11,15 @@ import { BUBBLE_RADIUS, CHARGE_RADIUS, enrage, shieldAbsorbs } from './veterans'
  * by `hitCrabs` (a lethal bullet hit) and WAVE_BLAST (spec C4, `boostEffects.ts`) so the two paths
  * can never disagree on scoring. The caller removes `c` from `s.crabs` itself (a splice by index in
  * `hitCrabs`, a filter in WAVE_BLAST).
+ *
+ * The wave multiplier has a floor of 1 (spec §5.1: a squad crab "scores normally"): a boss level
+ * spawns no wave at all, so `s.wave` is 0 on the one round squad crabs are ever shot down in, and
+ * without the floor every one of them would be worth nothing. It changes no other path — a crab
+ * only ever exists on a round that has a wave number of at least 1.
  */
 export function killCrab(s: GameState, c: Crab): void {
   rollDrop(s, c.x, c.y);
-  const base = CRAB_TYPES[c.type].points * s.wave;
+  const base = CRAB_TYPES[c.type].points * Math.max(1, s.wave);
   s.score += scoreMultiplier(s, idiv(base * scoreDecayPct(s), 100));
   s.kills += 1;
   enrage(s, c); // spec §2: a dying patriarch enrages what is left of its formation
@@ -24,7 +29,11 @@ const CRAB_HALF = idiv(CRAB.size, 2);
 const BOSS_HALF_W = idiv(BOSS.width, 2);
 const BOSS_HALF_H = idiv(BOSS.height, 2);
 
-/** Enemy shot collision radius by kind: `large` is ×2, `ring` widens by its own `data`, `fragment`/`meteor`/`heavy`/`bubble`/`charge` are fixed sizes, everything else is the base radius. */
+/**
+ * Enemy shot collision radius by kind: `large` is ×2, `ring` widens by its own `data`,
+ * `fragment`/`meteor`/`heavy`/`bubble`/`charge` and the reefs 6-10 `axe`/`bolt`/`orb`/`needle` are
+ * fixed sizes, everything else — `firewall` and `shard` among them — is the base radius.
+ */
 export function shotRadius(b: Bullet): number {
   if (b.kind === 'large') return ENEMY_SHOT.radius * 2;
   if (b.kind === 'ring') return ENEMY_SHOT.radius + b.data;
@@ -33,13 +42,18 @@ export function shotRadius(b: Bullet): number {
   if (b.kind === 'heavy') return 154; // the red crab's shot: ENEMY_SHOT.radius * 1.6
   if (b.kind === 'bubble') return BUBBLE_RADIUS; // spec §2: the bubbler's drifting bubble
   if (b.kind === 'charge') return CHARGE_RADIUS; // spec §2: the bombardier's charge
+  if (b.kind === 'axe') return 140; // spec §5.1: the Corsair's boomerang
+  if (b.kind === 'bolt') return 80; // spec §5.1: the Tyrant's fork, thin and fast
+  if (b.kind === 'orb') return ORB_RADIUS; // spec §5.1: the Tyrant's homing orb
+  if (b.kind === 'needle') return 70; // spec §5.1: the Huntsman's needle, the thinnest of them all
   return ENEMY_SHOT.radius;
 }
 
 /**
- * Lives one enemy shot costs when it lands (spec §1/§2): the red crab's `heavy` shot and the
+ * Lives one enemy shot costs when it lands (spec §1/§2/§5.1): the red crab's `heavy` shot and the
  * bombardier's `charge` hit for two, everything else — every other crab shot, the charge's own
- * fragments and every boss shot — for one. SHIELD_BARRIER still absorbs the whole hit, however hard.
+ * fragments, every boss shot and all six of the reefs 6-10 kinds — for one. SHIELD_BARRIER still
+ * absorbs the whole hit, however hard.
  */
 export function shotDamage(b: Bullet): 1 | 2 {
   return b.kind === 'heavy' || b.kind === 'charge' ? 2 : 1;

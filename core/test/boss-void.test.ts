@@ -197,7 +197,7 @@ describe('Void Sovereign (kind 5)', () => {
     const s = fresh();
     const b = s.boss!;
     activateBoost(s, 'AUTO_TARGET');
-    s.crabs = [{ x: 5000, y: 500, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }];
+    s.crabs = [{ x: 5000, y: 500, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }];
     s.shots = [{ x: 1000, y: 5000, vx: 0, vy: -SHOT.speed, kind: 'straight', data: 0 }];
     VOID.ability(s, b);
     expect(b.effectTicks).toBe(180);

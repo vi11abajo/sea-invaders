@@ -6,22 +6,22 @@ describe('hitCrabs', () => {
     const s = createGame('t', PRACTICE_RUN);
     s.wave = 2;
     s.crabs = [
-      { x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 },
-      { x: 1000, y: 1100, kind: 1, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 },
+      { x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 },
+      { x: 1000, y: 1100, kind: 1, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 },
     ];
     s.shots = [
       { x: 1000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 0 },
       { x: 4000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 0 },
     ];
     hitCrabs(s);
-    expect(s.crabs).toEqual([{ x: 1000, y: 1100, kind: 1, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }]);
+    expect(s.crabs).toEqual([{ x: 1000, y: 1100, kind: 1, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }]);
     expect(s.shots).toEqual([{ x: 4000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 0 }]);
     expect(s).toMatchObject({ score: 20, kills: 1 });
   });
 
   it('uses box overlap: 324 off-centre hits, 325 misses', () => {
     const s = createGame('t', PRACTICE_RUN);
-    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }];
+    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }];
     s.shots = [{ x: 1325, y: 1000, vx: 0, vy: 0, kind: 'straight', data: 0 }];
     hitCrabs(s);
     expect(s.crabs).toHaveLength(1);
@@ -36,7 +36,7 @@ describe('hitCrabs', () => {
     // (SHOT.speed is slower than the overlap window is wide) — the case the fix in `hitCrabs`
     // guards against by pushing a surviving piercing shot clear of the box it just hit.
     const s = createGame('t', PRACTICE_RUN);
-    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'armored', hp: 2, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }];
+    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'armored', hp: 2, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }];
     s.shots = [{ x: 1000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 1 }]; // PIERCING_BULLETS bit
     hitCrabs(s);
     expect(s.crabs[0]!.hp).toBe(1);
@@ -51,8 +51,8 @@ describe('hitCrabs', () => {
   it('a piercing shot passing through two stacked armored crabs damages each exactly once', () => {
     const s = createGame('t', PRACTICE_RUN);
     s.crabs = [
-      { x: 1000, y: 1000, kind: 0, type: 'armored', hp: 2, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 },
-      { x: 1000, y: 400, kind: 0, type: 'armored', hp: 2, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }, // further up the shot's path
+      { x: 1000, y: 1000, kind: 0, type: 'armored', hp: 2, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 },
+      { x: 1000, y: 400, kind: 0, type: 'armored', hp: 2, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }, // further up the shot's path
     ];
     s.shots = [{ x: 1000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 1 }];
     hitCrabs(s); // hits crab 0 only
@@ -97,7 +97,7 @@ describe('hitOctopi', () => {
 
   it('destroys a crab that touches Octopi and costs a life', () => {
     const s = createGame('t', PRACTICE_RUN);
-    s.crabs = [{ x: s.octopi.x + 400, y: s.octopi.y, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }];
+    s.crabs = [{ x: s.octopi.x + 400, y: s.octopi.y, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }];
     hitOctopi(s);
     expect(s.octopi.lives).toBe(2);
     expect(s.crabs).toHaveLength(0);
@@ -168,7 +168,7 @@ describe('step with collisions', () => {
   it('spawns the next wave when the last crab dies', () => {
     const s = createGame('t', PRACTICE_RUN);
     const y = s.octopi.y - 1500;
-    s.crabs = [{ x: s.octopi.x, y, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }];
+    s.crabs = [{ x: s.octopi.x, y, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }];
     s.waveTotal = 1;
     s.shots = [{ x: s.octopi.x, y: y + 240, vx: 0, vy: -240, kind: 'straight', data: 0 }];
     step(s, INITIAL_INPUT);

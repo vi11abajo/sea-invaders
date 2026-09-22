@@ -82,7 +82,7 @@ describe('PIERCING_BULLETS', () => {
     for (let t = 1; t <= 8; t++) updateShots(s);
     expect(s.shots).toHaveLength(1);
     expect(s.shots[0]!.data & 1).toBe(1);
-    s.crabs = [{ x: s.shots[0]!.x, y: s.shots[0]!.y, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }];
+    s.crabs = [{ x: s.shots[0]!.x, y: s.shots[0]!.y, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }];
     hitCrabs(s);
     expect(s.crabs).toHaveLength(0);
     expect(s.shots).toHaveLength(1); // the shot kept flying
@@ -92,7 +92,7 @@ describe('PIERCING_BULLETS', () => {
   it('a non-piercing shot is consumed by the kill', () => {
     const s = createGame('t', PRACTICE_RUN);
     s.shots = [{ x: 1000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
-    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }];
+    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }];
     hitCrabs(s);
     expect(s.shots).toHaveLength(0);
   });
@@ -132,7 +132,7 @@ describe('SHIELD_BARRIER', () => {
   it('still removes a crab that touches the shielded Octopi', () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'SHIELD_BARRIER');
-    s.crabs = [{ x: s.octopi.x + 100, y: s.octopi.y, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }];
+    s.crabs = [{ x: s.octopi.x + 100, y: s.octopi.y, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }];
     hitOctopi(s);
     expect(s.crabs).toHaveLength(0);
     expect(s.octopi.lives).toBe(3);
@@ -162,7 +162,7 @@ describe('INVINCIBILITY', () => {
   it('ignores a crab-body hit too, without removing the crab', () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'INVINCIBILITY');
-    s.crabs = [{ x: s.octopi.x, y: s.octopi.y, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }];
+    s.crabs = [{ x: s.octopi.x, y: s.octopi.y, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }];
     hitOctopi(s);
     expect(s.octopi.lives).toBe(3);
     expect(s.crabs).toHaveLength(1);
@@ -188,7 +188,7 @@ describe('SCORE_MULTIPLIER', () => {
   it('doubles points on a crab kill while active', () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'SCORE_MULTIPLIER');
-    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0 }];
+    s.crabs = [{ x: 1000, y: 1000, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }];
     s.shots = [{ x: 1000, y: 1000, vx: 0, vy: -240, kind: 'straight', data: 0 }];
     hitCrabs(s);
     expect(s.score).toBe(CRAB_TYPES.normal.points * 2 * s.wave);

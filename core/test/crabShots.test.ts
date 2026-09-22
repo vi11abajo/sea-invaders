@@ -7,7 +7,7 @@ import {
 function crab(type: CrabType, x = 2812, y = 1500): Crab {
   return {
     x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp,
-    slot: -1, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0,
+    slot: -1, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1,
   };
 }
 

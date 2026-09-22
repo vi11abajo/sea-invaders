@@ -38,12 +38,23 @@ function autoTargetPoint(s: GameState, b: Bullet): { x: number; y: number } | nu
   return best;
 }
 
-/** Moves Octopi toward the target, at most OCTOPI.maxStep per axis per tick, inside its allowed area. */
+/**
+ * Moves Octopi toward the target, at most `OCTOPI.maxStep` per axis per tick, inside its allowed
+ * area.
+ *
+ * The Frost Castellan's cold snap (spec §5.2) cuts that cap to two thirds on **both** axes while
+ * `s.chillTicks` is above 0, and one tick of the snap is spent here — the one place in the tick
+ * Octopi moves, so a snap of N ticks is exactly N slowed moves. With `chillTicks` at 0, which is
+ * every tick of the first campaign, the cap is untouched and nothing counts down.
+ */
 export function moveOctopi(s: GameState, input: Input): void {
+  const chilling = s.chillTicks > 0;
+  const maxStep = chilling ? idiv(OCTOPI.maxStep * 2, 3) : OCTOPI.maxStep;
+  if (chilling) s.chillTicks -= 1;
   const tx = clamp(input.x | 0, HALF, FIELD_W - HALF);
   const ty = clamp(input.y | 0, OCTOPI.minY, OCTOPI.maxY);
-  s.octopi.x += clamp(tx - s.octopi.x, -OCTOPI.maxStep, OCTOPI.maxStep);
-  s.octopi.y += clamp(ty - s.octopi.y, -OCTOPI.maxStep, OCTOPI.maxStep);
+  s.octopi.x += clamp(tx - s.octopi.x, -maxStep, maxStep);
+  s.octopi.y += clamp(ty - s.octopi.y, -maxStep, maxStep);
 }
 
 /**

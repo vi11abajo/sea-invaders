@@ -71,8 +71,15 @@ export interface Crab {
    * after every rally. Neutral value: 0.
    */
   rallyTimer: number;
-  /** The squad this crab belongs to (a later task's boss squads, spec §5.1); 0 = none. Neutral value: 0. */
+  /** The squad this crab belongs to (the boss squads of spec §5.1); 0 = none. Neutral value: 0. */
   squad: number;
+  /**
+   * A squad crab's own place in its squad's tiny grid, packed as `row * SQUAD_CELL_STRIDE + col`
+   * (spec §5.1). A squad crab holds no formation slot (`slot` stays -1 — there is no wave to revive
+   * into), so this is the only thing that says which crabs stand next to each other, which is what
+   * the herald's aura reads. Neutral value: -1, for every crab that marches with a wave.
+   */
+  cell: number;
   /**
    * Ticks left of a revived crab's rally mark (spec §7, frame flag bit 2): `REVIVED_TICKS` the
    * moment a patriarch rallies it back, counting down to 0. Purely a renderer cue — nothing in the
@@ -131,8 +138,17 @@ export interface FormationState {
 
 export type BossPhaseState = 'fighting' | 'transition';
 
+/** Every boss of both campaigns: 1..5 are the first campaign's, 6..10 the reefs 6-10 five (spec §5). */
+export type BossKind = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+
+/**
+ * The bosses whose hit points, phases and score come from `BOSS_TABLE` rather than from the legacy
+ * `baseHp + hpStep*(kind-1)` / `maxPhases = kind` / `scoreBase*kind` formulas (spec §5).
+ */
+export type TableBossKind = 6 | 7 | 8 | 9 | 10;
+
 export interface BossState {
-  kind: 1 | 2 | 3 | 4 | 5;
+  kind: BossKind;
   hp: number;
   maxHp: number;
   phase: number;
@@ -157,6 +173,25 @@ export interface BossState {
   spiral: number;
   /** Pending delayed casts as [ticksLeft, castId] pairs. */
   pending: number[];
+  // The eight fields below belong to the bosses of reefs 6-10 (spec §5.2). Every one of them is 0
+  // (`[0, 0, 0]` for `mirror`) at spawn and stays there for the whole of a kind-1..5 fight: nothing
+  // in the first campaign's five hooks reads or writes one.
+  /** Templar: 1 while the shell shield is up (player shots bounce off it), 0 while it is down. */
+  shieldUp: number;
+  /** Ticks left of a telegraphed wind-up before the attack it announces lands. */
+  windup: number;
+  /** Templar: the firewall slot the next wall leaves open (with the slot to its right). */
+  gapSlot: number;
+  /** Huntsman: the x his sight line was fixed on; the needle flies at it however Octopi moves after. */
+  aimX: number;
+  /** Huntsman: ticks the sight line is still shown for. */
+  aimTicks: number;
+  /** Shots still to come in a staggered burst. */
+  burst: number;
+  /** Huntsman: ticks left of each mirrored boost class, in order offence, defence, control. */
+  mirror: [number, number, number];
+  /** Tyrant: ticks left of the window after a strike in which he takes double damage. */
+  discharged: number;
 }
 
 export type BoostType =
@@ -185,6 +220,32 @@ export interface Drop {
   ttl: number;
 }
 
+/**
+ * One living squad of crabs a boss fights alongside (spec §5.1). Its crabs are the ones in
+ * `GameState.crabs` carrying this `id` in `Crab.squad`; the squad itself only has to remember which
+ * way it is marching, because it never descends and never changes shape.
+ */
+export interface Squad {
+  /** 1 and up; `Crab.squad` holds it, and 0 means "no squad". */
+  id: number;
+  /** March direction: 1 = right, -1 = left. */
+  dir: number;
+}
+
+/** The arena objects a boss can raise (spec §5.1). `crystal` is the Frost Castellan's. */
+export type ObstacleKind = 'crystal';
+
+/** A box standing on the arena that eats shots from both sides (spec §5.1). `x`/`y` is its centre. */
+export interface Obstacle {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Player shots left before it shatters; an enemy shot never costs it one. */
+  hp: number;
+  kind: ObstacleKind;
+}
+
 export type GameEvent =
   | {
       tick: number;
@@ -195,7 +256,16 @@ export type GameEvent =
         | 'crab_shield_break' | 'crab_shield_up' | 'bubble_pop' | 'charge_burst' | 'crab_rallied' | 'formation_rage'
         // Raised once, by a `reform` wave falling back into the spearhead (spec §3).
         | 'formation_reform'
+        // The reefs 6-10 boss events (spec §5). `squad_popped` is raised here — once per squad that
+        // still had a crab standing when its boss died; every other name below belongs to one of
+        // the five boss tasks and nothing raises it yet.
+        | 'squad_popped'
+        | 'boss_block' | 'boss_windup' | 'crew_looted' | 'boss_discharged'
+        | 'lane_warning' | 'lane_strike' | 'boss_aim' | 'boss_reflect'
+        | 'crystal_raised' | 'crystal_shatter'
     }
+  /** An arena object shattered by player fire (spec §5.1), at the position it stood on. */
+  | { tick: number; type: 'obstacle_destroyed'; x: number; y: number }
   | { tick: number; type: 'boss_ability'; name: 'regen' | 'shield' | 'meteor' | 'rage' | 'freeze' }
   | { tick: number; type: 'boss_teleport'; fromX: number; toX: number }
   | { tick: number; type: 'boss_clone'; leftX: number; rightX: number }
@@ -247,6 +317,30 @@ export interface GameState {
    * kind per cell in `formation.slots`, and for a boss round.
    */
   gridRows: CrabType[];
+  /**
+   * The squads marching beside a boss right now (spec §5.1), in the order they were raised. Empty
+   * outside a boss fight and for every boss of the first campaign.
+   */
+  squads: Squad[];
+  /** The arena objects standing right now (spec §5.1). Empty for every boss of the first campaign. */
+  obstacles: Obstacle[];
+  /**
+   * The Storm Tyrant's lanes, flat `[lane, ticksLeft]` pairs (spec §5.2): a lane warns for
+   * `ticksLeft` ticks and then strikes. Empty until that boss's own task fills it.
+   */
+  lanes: number[];
+  /**
+   * The Abyssal Huntsman's sight lines, flat `[fromX, fromY, toX, decoy, ticksLeft]` groups (spec
+   * §5.2) — the state the frame's `aim` array is built from. Empty until that boss's own task fills
+   * it; a decoy's line carries `decoy = 1` and never fires.
+   */
+  aims: number[];
+  /**
+   * Ticks left of the Frost Castellan's cold snap (spec §5.2): while it is above 0 Octopi's per-axis
+   * step cap is two thirds of `OCTOPI.maxStep`. 0 the rest of the time, and nothing but that boss
+   * can ever raise it.
+   */
+  chillTicks: number;
 }
 
 /**
@@ -284,6 +378,32 @@ export const BOOST_INDEX: Record<BoostType, number> = {
   WAVE_BLAST: 9, COIN_SHOWER: 10, GRAVITY_WELL: 11, PIERCING_BULLETS: 12,
   RANDOM_CHAOS: 13, SPEED_TAMER: 14,
 };
+
+/** Index of each ObstacleKind in the state hash and the view frame, in declaration order. */
+export const OBSTACLE_INDEX: Record<ObstacleKind, number> = { crystal: 0 };
+
+/**
+ * How many columns a squad's cell packing leaves room for (spec §5.1): `Crab.cell` is
+ * `row * SQUAD_CELL_STRIDE + col`, one int instead of a second and third `Crab` field. Eight is a
+ * comfortable ceiling — the widest squad template is five crabs across — and it keeps the two
+ * accessors below a shift and a mask in spirit while staying plain integer arithmetic.
+ */
+export const SQUAD_CELL_STRIDE = 8;
+
+/** The packed cell of the squad place at `row`, `col`. */
+export function squadCell(row: number, col: number): number {
+  return row * SQUAD_CELL_STRIDE + col;
+}
+
+/** The row of a packed squad cell; -1 for the neutral cell of a crab that is in no squad. */
+export function squadCellRow(cell: number): number {
+  return cell < 0 ? -1 : Math.trunc(cell / SQUAD_CELL_STRIDE);
+}
+
+/** The column of a packed squad cell; -1 for the neutral cell of a crab that is in no squad. */
+export function squadCellCol(cell: number): number {
+  return cell < 0 ? -1 : cell % SQUAD_CELL_STRIDE;
+}
 
 /** Index of each FormationBehaviour in the state hash, in declaration order. */
 export const BEHAVIOUR_INDEX: Record<FormationBehaviour, number> = { march: 0, rotate: 1, split: 2, reform: 3 };

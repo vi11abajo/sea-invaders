@@ -1,5 +1,7 @@
 import { Hasher } from './hash';
-import { BEHAVIOUR_INDEX, BOOST_INDEX, KIND_INDEX, TYPE_INDEX, type GameState } from './types';
+import {
+  BEHAVIOUR_INDEX, BOOST_INDEX, KIND_INDEX, OBSTACLE_INDEX, TYPE_INDEX, type GameState,
+} from './types';
 
 /** Hash of every simulation field in a fixed order. Equal hashes mean equal game states. */
 export function hashState(s: GameState): string {
@@ -54,5 +56,28 @@ export function hashState(s: GameState): string {
   h.int(s.gridRows.length);
   for (const t of s.gridRows) h.int(TYPE_INDEX[t]);
   for (const c of s.crabs) h.int(c.revived);
+  // The boss arena of reefs 6-10 (spec §5.1/§5.2), appended after everything above so every older
+  // field keeps its place: the squads, the arena objects, the Tyrant's lanes, the cold snap, the
+  // Huntsman's sight lines, the eight new `BossState` fields (in their own guarded block, so a
+  // round with no boss is unambiguous exactly as the older boss block is), and each crab's squad
+  // cell. The crab count is already hashed with the crabs themselves, so the trailing per-crab run
+  // is unambiguous.
+  h.int(s.squads.length);
+  for (const q of s.squads) h.int(q.id).int(q.dir);
+  h.int(s.obstacles.length);
+  for (const o of s.obstacles) h.int(o.x).int(o.y).int(o.w).int(o.h).int(o.hp).int(OBSTACLE_INDEX[o.kind]);
+  h.int(s.lanes.length);
+  for (const v of s.lanes) h.int(v);
+  h.int(s.chillTicks);
+  h.int(s.aims.length);
+  for (const v of s.aims) h.int(v);
+  if (s.boss) {
+    const b = s.boss;
+    h.int(b.shieldUp).int(b.windup).int(b.gapSlot).int(b.aimX).int(b.aimTicks).int(b.burst)
+      .int(b.mirror[0]).int(b.mirror[1]).int(b.mirror[2]).int(b.discharged);
+  } else {
+    h.int(-1);
+  }
+  for (const c of s.crabs) h.int(c.cell);
   return h.digest();
 }

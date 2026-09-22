@@ -1,7 +1,10 @@
 import { CRAB, CRAB_SHOTS, FIRE_WEIGHT, SHOT } from '../config';
 import { idiv } from '../fixed';
 import type { CrabType } from '../levels';
-import type { Bullet, BulletKind, Crab, FormationState, GameState } from '../types';
+import {
+  squadCellCol, squadCellRow, type Bullet, type BulletKind, type Crab, type FormationState,
+  type GameState,
+} from '../types';
 import { FRAGMENT_VECTORS, insideField, spawnCrab } from './crabs';
 import { SPLIT_COL, freeSlots } from './living';
 
@@ -117,9 +120,11 @@ export function updateVeterans(s: GameState): void {
   const living = s.crabs.length;
   for (let i = 0; i < living; i++) {
     const c = s.crabs[i]!;
-    if (c.type !== 'patriarch' || c.rallies >= RALLY_CAP) continue;
-    // A patriarch that reached the field with no clock armed — a hand-built state, a later task's
-    // boss squad — falls back to the plain cadence rather than never rallying at all.
+    // Spec §5.1: a patriarch marching in a boss's squad never rallies — there is no formation to
+    // revive into, and a squad's shape is fixed for as long as it lives.
+    if (c.type !== 'patriarch' || c.squad > 0 || c.rallies >= RALLY_CAP) continue;
+    // A patriarch that reached the field with no clock armed — a hand-built state — falls back to
+    // the plain cadence rather than never rallying at all.
     if (c.rallyTimer <= 0) c.rallyTimer = RALLY_EVERY;
     c.rallyTimer -= 1;
     if (c.rallyTimer > 0) continue;
@@ -316,9 +321,16 @@ function colOf(s: GameState, slot: number): number {
  * that cell's neighbourhood with it. Heralds never buff heralds — their own aura or another's — and
  * two heralds beside the same crab are worth no more than one: the answer is a yes or a no, so
  * auras cannot stack.
+ *
+ * A crab marching in a boss's squad (spec §5.1) holds no slot, so its neighbourhood is read off the
+ * squad's own tiny grid instead — `Crab.cell` — and only ever against heralds of the *same* squad:
+ * two squads that happen to march past each other are two different formations, and neither one's
+ * herald reaches into the other.
  */
 export function isHeralded(s: GameState, c: Crab): boolean {
-  if (c.type === 'herald' || c.slot < 0) return false;
+  if (c.type === 'herald') return false;
+  if (c.squad > 0) return heraldedInSquad(s, c);
+  if (c.slot < 0) return false;
   const row = rowOf(s, c.slot);
   if (row < 0) return false;
   const col = colOf(s, c.slot);
@@ -327,6 +339,18 @@ export function isHeralded(s: GameState, c: Crab): boolean {
     const hr = rowOf(s, h.slot);
     if (hr < 0) continue;
     if (Math.abs(hr - row) <= 1 && Math.abs(colOf(s, h.slot) - col) <= 1) return true;
+  }
+  return false;
+}
+
+/** Whether a herald of `c`'s own squad stands on one of the eight cells around `c` (spec §5.1). */
+function heraldedInSquad(s: GameState, c: Crab): boolean {
+  if (c.cell < 0) return false;
+  const row = squadCellRow(c.cell);
+  const col = squadCellCol(c.cell);
+  for (const h of s.crabs) {
+    if (h.type !== 'herald' || h.squad !== c.squad || h.cell < 0) continue;
+    if (Math.abs(squadCellRow(h.cell) - row) <= 1 && Math.abs(squadCellCol(h.cell) - col) <= 1) return true;
   }
   return false;
 }

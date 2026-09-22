@@ -1,5 +1,5 @@
 import type { Rng } from '../../rng';
-import type { BossState, GameState } from '../../types';
+import type { BossKind, BossState, GameState } from '../../types';
 import { AZURE_HOOKS } from './azure';
 import { CRIMSON_HOOKS } from './crimson';
 import { EMERALD_HOOKS } from './emerald';
@@ -23,11 +23,30 @@ export interface BossHooks {
   tick?(s: GameState, b: BossState): void;
 }
 
+/**
+ * A placeholder for a boss of reefs 6-10 whose own task has not been written yet: starting a fight
+ * with it fails loudly rather than running a half-boss. `spawnBoss` reaches `initialAbilityTimer`
+ * the moment it builds the state, so no fight can begin by accident. The shared plumbing those
+ * bosses stand on — `BOSS_TABLE`, the new `BossState` fields, squads, obstacles, the new shot
+ * kinds — is real; only the five behaviours are still to come, one task each.
+ */
+function notWrittenYet(kind: number): BossHooks {
+  const fail = (): never => {
+    throw new Error(`boss kind ${kind} is not implemented yet`);
+  };
+  return { attack: fail, ability: fail, initialAbilityTimer: fail, nextAbilityTimer: fail };
+}
+
 /** Per-kind boss hooks, one real implementation per boss kind. */
-export const BOSS_HOOKS: Record<1 | 2 | 3 | 4 | 5, BossHooks> = {
+export const BOSS_HOOKS: Record<BossKind, BossHooks> = {
   1: EMERALD_HOOKS,
   2: AZURE_HOOKS,
   3: SOLAR_HOOKS,
   4: CRIMSON_HOOKS,
   5: VOID_HOOKS,
+  6: notWrittenYet(6),
+  7: notWrittenYet(7),
+  8: notWrittenYet(8),
+  9: notWrittenYet(9),
+  10: notWrittenYet(10),
 };

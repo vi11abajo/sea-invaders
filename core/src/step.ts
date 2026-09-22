@@ -1,8 +1,9 @@
 import { nextWave } from './game';
 import { advanceScoreDecay, updateBoosts } from './sim/boosts';
-import { updateBoss } from './sim/boss';
+import { hitOrbs, updateBoss } from './sim/boss';
 import { hitCrabs, hitOctopi } from './sim/collide';
 import { marchCrabs, pullShotsTowardGravity, updateEnemyShots } from './sim/crabs';
+import { hitObstacle } from './sim/obstacles';
 import { moveOctopi, updateShots } from './sim/octopi';
 import { popBubbles, updateVeterans } from './sim/veterans';
 import type { GameState, Input } from './types';
@@ -24,9 +25,14 @@ export function step(s: GameState, input: Input): void {
   pullShotsTowardGravity(s);
   updateBoss(s);
   advanceScoreDecay(s);
-  // Both sides' shots have moved by now, so a player shot meets the bubble it is flying into before
-  // it can reach anything behind it (spec §2).
+  // Both sides' shots have moved by now (and the boss has cast whatever this tick owed), so this is
+  // where everything standing between a shot and its target gets its say, before any hit is scored:
+  // first the arena objects, which eat both sides' fire whole (spec §5.1), then the bubbler's
+  // bubbles (spec §2) and the Tyrant's orbs (spec §5.1), each of which a player shot has to chew
+  // through. A tick with no crystal, no bubble and no orb on the field leaves all three at once.
+  hitObstacle(s);
   popBubbles(s);
+  hitOrbs(s);
   hitCrabs(s);
   hitOctopi(s);
   updateBoosts(s);

@@ -1,12 +1,14 @@
 import {
   ARRIVAL, CRAB, CRAB_SHOTS, CRAB_TYPES, ENEMY_SHOT, FIELD_H, FIELD_W, TUNING, TYPE_COLOUR, scalePct,
 } from '../config';
-import { idiv, isqrt } from '../fixed';
+import { clamp, idiv, isqrt } from '../fixed';
 import type { CrabType } from '../levels';
 import type { Bullet, Crab, GameState } from '../types';
 import { chilled, tamed } from './boosts';
+import { AXE_GRAVITY, ORB_STEER, ORB_VX_MAX, orbTicks } from './boss';
 import { shotRadius } from './collide';
 import { moveLivingFormation } from './living';
+import { halvedWhileBoss, marchSquads } from './squads';
 import {
   burstCharge, driftBubble, fireWeight, flipBubble, hasHerald, heraldedSpeed, isHeralded, raged,
   shotEntryFor,
@@ -29,7 +31,7 @@ export function spawnCrab(x: number, y: number, type: CrabType, slot = -1): Crab
   return {
     x, y, kind: TYPE_COLOUR[type], type, hp: CRAB_TYPES[type].hp,
     slot, shield: type === 'warden' ? 1 : 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0,
-    revived: 0,
+    revived: 0, cell: -1,
   };
 }
 
@@ -160,8 +162,19 @@ function marchOnce(s: GameState): void {
  *
  * A wave whose behaviour is anything but `march` hands its movement to `sim/living.ts`; every other
  * wave — daily, practice and every static silhouette — takes the block march below, unchanged.
+ *
+ * A boss's squads (spec §5.1) are the one thing on the field that does not march with a wave, and
+ * with one of them standing the tick goes to `marchSquads` instead. The two can never want the tick
+ * at the same time: a boss round carries no wave at all (a boss level has `waves: 0`, and
+ * `nextWave` only calls the boss up once the last wave is cleared), so while `s.squads` is not
+ * empty every crab on the field is a squad crab. Should a future task ever field both at once, this
+ * is the line that has to learn to tell them apart — `Crab.squad` is how.
  */
 export function marchCrabs(s: GameState): void {
+  if (s.squads.length > 0) {
+    marchSquads(s);
+    return;
+  }
   if (s.crabs.length === 0) return;
   if (s.arrival > 0) {
     const speed = chilled(s, tamed(s, ARRIVAL.speed), false);
@@ -227,9 +240,22 @@ export const FRAGMENT_VECTORS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /**
+ * One tick of a homing orb (spec §5.1): its sideways velocity turns towards Octopi by at most
+ * `ORB_STEER` units — less when Octopi is nearer than that, so the turn settles rather than jitters
+ * — capped at `ORB_VX_MAX` either way, its sinking `vy` untouched; and one tick comes off the life
+ * packed into `data` (`ticksLeft * 4 + hp`, so a whole tick is 4).
+ */
+function steerOrb(s: GameState, b: Bullet): void {
+  b.vx = clamp(b.vx + clamp(s.octopi.x - b.x, -ORB_STEER, ORB_STEER), -ORB_VX_MAX, ORB_VX_MAX);
+  b.data -= 4;
+}
+
+/**
  * Moves enemy shots (a `zigzag` boss shot flips `vx` every 20 ticks via `data`; an `explosive`
  * shot's `data` counts down its fuse; a `bubble` flips its drift on its own 40-tick clock and a
- * `charge` bursts into fragments near Octopi, spec §2) and drops those off the field, then maybe
+ * `charge` bursts into fragments near Octopi, spec §2; an `axe` loses `AXE_GRAVITY` of its fall
+ * every tick so it turns and climbs back out, and an `orb` steers towards Octopi and spends a tick
+ * of its packed life, spec §5.1) and drops those off the field, then maybe
  * fires one aimed shot from one crab: `pickShooter` weights the choice by kind (spec §1), doubled
  * for a heralded crab (spec §2), in a single RNG draw, and the crab fires the one shot its kind's
  * `CRAB_SHOTS` entry describes — a heralded crab's 1.2x faster, a bubbler's swapped for the plain
@@ -256,6 +282,10 @@ export function updateEnemyShots(s: GameState): void {
       flipBubble(b); // spec §2: the bubbler's own zigzag, on its own 40-tick clock
     } else if (b.kind === 'explosive') {
       b.data -= 1;
+    } else if (b.kind === 'axe') {
+      b.vy -= AXE_GRAVITY; // spec §5.1: the boomerang's parabola down and back up
+    } else if (b.kind === 'orb') {
+      steerOrb(s, b); // spec §5.1: the homing orb turns towards Octopi and spends a tick of life
     }
     const bossShot = !CRAB_SHOT_KINDS.has(b.kind);
     b.x += chilled(s, b.vx, bossShot);
@@ -265,6 +295,7 @@ export function updateEnemyShots(s: GameState): void {
       continue;
     }
     if (b.kind === 'charge' && burstCharge(s, b, kept)) continue; // spec §2: the bombardier's charge
+    if (b.kind === 'orb' && orbTicks(b) <= 0) continue; // spec §5.1: it has swum out its life
     const r = shotRadius(b);
     const aboveTop = b.y + r <= 0;
     if (b.x + r > 0 && b.x - r < FIELD_W && (!aboveTop || b.vy > 0) && b.y - r < FIELD_H) kept.push(b);
@@ -272,7 +303,10 @@ export function updateEnemyShots(s: GameState): void {
   s.enemyShots = kept;
   if (s.arrival > 0) return; // wave arriving: shots still fly, nothing new fires
   if (s.crabs.length === 0) return;
-  if (s.rngFire.nextInt(1000) >= raged(s, fireChance(s.wave, s.run.level?.fireOffset ?? 0))) return;
+  // Spec §5.1: a boss's squads fire by exactly these rules, at half the chance while their boss is
+  // alive. `halvedWhileBoss` is the identity with no boss on the field, and a boss fight of the
+  // first campaign never reaches this line at all — it has no crabs.
+  if (s.rngFire.nextInt(1000) >= halvedWhileBoss(s, raged(s, fireChance(s.wave, s.run.level?.fireOffset ?? 0)))) return;
   const aura = hasHerald(s);
   const crab = pickShooter(s, aura);
   const entry = shotEntryFor(s, crab);

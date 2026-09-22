@@ -1,6 +1,6 @@
 import { idiv } from './fixed';
 import type { CrabType } from './levels';
-import type { BoostType, BulletKind, OctopiVariant } from './types';
+import type { BoostType, BulletKind, OctopiVariant, TableBossKind } from './types';
 
 /**
  * Gameplay constants in milli-units and ticks. The playfield is fixed and
@@ -241,6 +241,21 @@ export const BOSS = {
 
 /** Boss bullets: same base speed as crab shots, radius scaled from legacy BULLET_SIZE 10px. */
 export const BOSS_SHOT = { speed: 110, radius: 96 } as const;
+
+/**
+ * Hit points, phases and score base of the bosses of reefs 6-10 (spec §5). The first campaign's
+ * five are deliberately absent: they keep taking their numbers from `BOSS.baseHp`/`BOSS.hpStep`,
+ * `maxPhases = kind` and `BOSS.scoreBase * kind`, and `bossStats` is the one place that chooses.
+ * `score` is the *whole* base (what `scoreBase * kind` yields for a legacy boss), before the fight's
+ * own decay and SCORE_MULTIPLIER.
+ */
+export const BOSS_TABLE: Readonly<Record<TableBossKind, { hp: number; phases: number; score: number }>> = {
+  6: { hp: 700, phases: 2, score: 12000 },
+  7: { hp: 800, phases: 3, score: 14000 },
+  8: { hp: 900, phases: 3, score: 16000 },
+  9: { hp: 1000, phases: 4, score: 18000 },
+  10: { hp: 1200, phases: 4, score: 20000 },
+};
 
 /**
  * Campaign-only wave arrival (spec §14 amendment): a level wave spawns `drop` units above its
