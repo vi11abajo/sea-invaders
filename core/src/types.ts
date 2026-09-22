@@ -270,6 +270,12 @@ export type GameEvent =
     }
   /** An arena object shattered by player fire (spec §5.1), at the position it stood on. */
   | { tick: number; type: 'obstacle_destroyed'; x: number; y: number }
+  /**
+   * The Frost Castellan's cold snap fires (spec §5.2): `s.chillTicks` is set to 180. No existing
+   * `boss_ability` name fits (those are all one-per-boss ability labels; cold snap is reef 7's
+   * secondary mechanic, on its own timer, not the "Crystals" ability), so this is its own event.
+   */
+  | { tick: number; type: 'cold_snap' }
   | { tick: number; type: 'boss_ability'; name: 'regen' | 'shield' | 'meteor' | 'rage' | 'freeze' }
   | { tick: number; type: 'boss_teleport'; fromX: number; toX: number }
   | { tick: number; type: 'boss_clone'; leftX: number; rightX: number }

@@ -16,7 +16,7 @@ function arena(kind: BossKind = 1, lives = PRACTICE_RUN.lives): GameState {
 const LEGACY = [1, 2, 3, 4, 5] as const;
 const NEW = [6, 7, 8, 9, 10] as const;
 /** The bosses of reefs 6-10 whose own task has not run yet, so their hooks still throw. */
-const UNWRITTEN = [7, 8, 9, 10] as const;
+const UNWRITTEN = [8, 9, 10] as const;
 
 describe('the boss table', () => {
   it('holds the five new bosses of spec 5', () => {
