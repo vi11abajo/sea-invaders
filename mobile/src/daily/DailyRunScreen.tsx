@@ -77,10 +77,12 @@ export function DailyRunScreen({ onExit, ticket, onBuyTicket, onFaucet, ticketBu
     setPhase((p) => (p.kind === 'error' && p.retryUpload ? { kind: 'uploading', ...p.retryUpload } : p));
   }, []);
 
-  // Buying a ticket only helps if it succeeds; a decline or failure leaves this same prompt on screen.
-  const buyThenRetry = useCallback(async () => {
+  // Buying a ticket only helps if it succeeds; a decline or failure leaves this same prompt on
+  // screen. Returns the outcome so `TicketCard` can drive its tear-off animation from it.
+  const buyThenRetry = useCallback(async (): Promise<boolean> => {
     const bought = await onBuyTicket();
     if (bought) begin();
+    return bought;
   }, [onBuyTicket, begin]);
 
   useEffect(() => {
@@ -176,7 +178,7 @@ export function DailyRunScreen({ onExit, ticket, onBuyTicket, onFaucet, ticketBu
               priceSkr={ticket.priceSkr}
               skrBalance={ticket.skrBalance}
               cluster={ticket.cluster}
-              onBuy={() => void buyThenRetry()}
+              onBuy={buyThenRetry}
               onFaucet={() => void onFaucet()}
               busy={ticketBusy}
             />

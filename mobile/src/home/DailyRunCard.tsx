@@ -62,7 +62,9 @@ interface DailyRunCardProps {
   /** A failed "today" fetch's message while signed in; null while it is still loading or has succeeded. */
   error?: string | null;
   onPlay: () => void;
-  onBuyTicket: () => void;
+  /** Buys a ranked ticket on-chain; resolves false when declined or failed — `TicketCard` drives its
+   * tear-off animation from this outcome. */
+  onBuyTicket: () => Promise<boolean>;
   onFaucet: () => void;
   /** Called once a record transaction is confirmed, so `recordedBest` refreshes and the hint clears. */
   onRecorded: () => void;

@@ -108,7 +108,7 @@ export function HomeScreen({ model, onPractice, onDaily, onCampaign, onLeaderboa
             onConnect={onWallet}
             error={dailyError}
             onPlay={onDaily}
-            onBuyTicket={() => void onBuyTicket()}
+            onBuyTicket={onBuyTicket}
             onFaucet={() => void onFaucet()}
             onRecorded={onRecorded}
             skrBalance={model.wallet?.skr ?? 0}
