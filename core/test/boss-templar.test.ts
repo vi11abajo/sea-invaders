@@ -11,15 +11,21 @@ import type { BossState, Bullet, GameState } from '../src';
  * The Verdant Templar, boss kind 6 (spec §5.2 row 6). Every number below is the spec's or the
  * task brief's, in ticks at 60 Hz.
  *
- * The RNG draw order of one swing, which these tests pin (`rngBoss` only — the boss never touches
- * another stream):
+ * Fix round 1 amended the swing's rhythm (ruling R14) and Bulwark (ruling R15) — see
+ * `sim/bosses/templar.ts`'s own doc comment for the cycle's four beats. The RNG draw order of one
+ * cycle, which these tests pin (`rngBoss` only — the boss never touches another stream):
  *
  * 1. `nextInt(TEMPLAR_GAP_SLOTS)` — the doorway of the wall to come, drawn by `attack` at the very
  *    start of the wind-up so the renderer can telegraph it for all 45 ticks.
  * 2. `nextInt(BOSS.attackJitter)` — `attackDelay`'s jitter, drawn by `updateBoss` itself right
- *    after the attack hook returns.
+ *    after the attack hook returns. Its *value* no longer drives anything (`tick` overwrites the
+ *    timer before this swing can run long enough to matter) but the draw itself still happens,
+ *    unconditionally, for every boss kind.
  * 3. (phase 2 only) `nextInt(TEMPLAR_GAP_SLOTS)` — the doorway of the staggered second wall, drawn
  *    once when the first wall falls, 45 ticks after draw 1.
+ * 4. `nextInt(BOSS.attackJitter)` — the *real* jitter for the next rest, drawn by `tick` the instant
+ *    the shield comes back up (new in fix round 1 — this draw did not exist before R14, and it is
+ *    what actually times the pause before the next wind-up).
  *
  * Off that cadence sit only the two shared timers: `secondaryDelay`'s `nextInt(73)` every time the
  * zigzag timer runs out and `nextAbilityTimer`'s `nextInt(241)` every time Bulwark does.
@@ -39,6 +45,21 @@ function arena(seed = 'templar'): GameState {
 /** The same arena with the warden line swept away too, for the tests that watch the boss alone. */
 function soloArena(seed = 'templar'): GameState {
   const s = arena(seed);
+  s.crabs = [];
+  s.squads = [];
+  return s;
+}
+
+/**
+ * A solo arena whose spawn-time draws (facing, `attackDelay(1)`, `secondaryDelay`,
+ * `initialAbilityTimer`) come off a scripted `rng` instead of the seed, so a whole cycle's timing
+ * can be pinned exactly (fix round 1, ruling R14).
+ */
+function scriptedArena(rng: GameState['rngBoss']): GameState {
+  const s = createGame('templar-cycle', { ...PRACTICE_RUN, features: { boosts: false } });
+  s.crabs = [];
+  s.rngBoss = rng;
+  spawnBoss(s, 6);
   s.crabs = [];
   s.squads = [];
   return s;
@@ -198,10 +219,12 @@ describe('Verdant Templar — the sword swing', () => {
     expect(b.shieldUp).toBe(1);
   });
 
-  it('raises the shield again mid-wind-up when the old window runs out before the new wall', () => {
-    // Phase 1's attack cadence (120-180 ticks) is shorter than a whole swing (45 + 120), so a
-    // wind-up can start while the shield is still down. The two counters are independent: the old
-    // window closes on its own time and the new wall opens a fresh one.
+  it('keeps windup and the shield-down window independent even if a new one is forced early', () => {
+    // Fix round 1 (ruling R14) holds the shared `attackTimer` through the whole of a swing, so
+    // natural cadence can no longer start a wind-up before the old shield-down window has run out
+    // (see "the cycle" below for the natural-cadence pin). `announce()` forces one anyway, straight
+    // through that hold — this only checks that `windup` and `effectTicks` still don't interfere
+    // with each other if something ever does force an overlap by hand.
     const s = soloArena();
     const b = park(s);
     announce(s);
@@ -228,6 +251,82 @@ describe('Verdant Templar — the sword swing', () => {
     damageBoss(s, 1);
     expect(b.hp).toBe(699);
     expect(s.events.filter((e) => e.type === 'boss_block')).toHaveLength(1);
+  });
+});
+
+describe('Verdant Templar — the cycle (fix round 1, ruling R14)', () => {
+  it('rests for the drawn attackDelay, winds up 45 ticks, stays down 120, then rests again on a fresh draw', () => {
+    // Three width-61 draws happen before the second rest is over: the real draw for rest 1 (drawn
+    // by `spawnBoss`), the shared reset's "wasted" draw the instant the first wind-up begins (its
+    // value is thrown away — see the file's own doc comment, draw 2 of the cycle), and the real
+    // draw for rest 2 the instant the shield returns. Jitter 0, 0, 30: rest 1 is 120 (jitter 0),
+    // the wasted draw is irrelevant, rest 2 is 150 (jitter 30) — a different length, so it can only
+    // be a fresh draw, not a leftover of rest 1's.
+    const { rng } = scriptedRng({ [BOSS.attackJitter]: [0, 0, 30] });
+    const s = scriptedArena(rng);
+    const b = s.boss!;
+    expect(b.phase).toBe(1);
+
+    const REST_1 = BOSS.attackBase; // + jitter 0
+    ticks(s, REST_1 - 1);
+    expect({ shieldUp: b.shieldUp, windup: b.windup }).toEqual({ shieldUp: 1, windup: 0 });
+    updateBoss(s); // attackTimer reaches 0: the wind-up begins, on schedule
+    expect(s.events).toContainEqual({ tick: s.tick, type: 'boss_windup' });
+    expect(b).toMatchObject({ shieldUp: 1, windup: TEMPLAR_WINDUP - 1 });
+
+    ticks(s, TEMPLAR_WINDUP - 2);
+    expect(b.shieldUp).toBe(1);
+    expect(wall(s)).toHaveLength(0);
+    updateBoss(s); // the 45th tick of the wind-up: the wall falls, the shield drops
+    expect(b.shieldUp).toBe(0);
+    expect(wall(s)).toHaveLength(FIREWALL_SLOTS - 2);
+
+    ticks(s, TEMPLAR_SHIELD_DOWN - 1);
+    expect(b.shieldUp).toBe(0);
+    updateBoss(s); // the 120th tick down: the shield returns, and a fresh attackDelay is drawn
+    expect(b).toMatchObject({ shieldUp: 1, windup: 0 });
+
+    const REST_2 = BOSS.attackBase + 30; // the second scripted jitter — proves the draw is fresh
+    ticks(s, REST_2 - 1);
+    expect({ shieldUp: b.shieldUp, windup: b.windup }).toEqual({ shieldUp: 1, windup: 0 });
+    updateBoss(s); // the second wind-up begins exactly on its own schedule — no overlap crept in
+    expect(b).toMatchObject({ shieldUp: 1, windup: TEMPLAR_WINDUP - 1 });
+  });
+
+  it('keeps the shield up at least 45% of a long run in both phases', () => {
+    // Every individual cycle already clears 45%: phase 1's rest is 120-180 ticks against a 165-tick
+    // wind-up + down, phase 2's is 96-156 — worst case (120+45)/(120+45+120) = 57.9% and
+    // (96+45)/(96+45+120) = 54.0%. The long run (the real seeded `rngBoss`, natural cadence, no
+    // forcing) is the belt-and-braces measurement the ruling asks for.
+    for (const phase of [1, 2] as const) {
+      const s = soloArena(`templar-uptime-${phase}`);
+      s.boss!.phase = phase;
+      let up = 0;
+      const N = 6000;
+      for (let i = 0; i < N; i++) {
+        s.enemyShots = [];
+        updateBoss(s);
+        if (s.boss!.shieldUp === 1) up++;
+      }
+      expect(up / N).toBeGreaterThanOrEqual(0.45);
+    }
+  });
+
+  it('casts a zigzag pair only when the shield was up at the start of that tick, and one appears within a few thousand ticks of phase 2', () => {
+    const s = soloArena('templar-zigzag');
+    s.boss!.phase = 2;
+    let firstZigzagTick = -1;
+    const N = 6000;
+    for (let i = 0; i < N; i++) {
+      const wasUp = s.boss!.shieldUp === 1;
+      s.enemyShots = [];
+      updateBoss(s);
+      if (s.enemyShots.some((x) => x.kind === 'zigzag')) {
+        expect(wasUp).toBe(true);
+        if (firstZigzagTick < 0) firstZigzagTick = i;
+      }
+    }
+    expect(firstZigzagTick).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -377,6 +476,45 @@ describe('Verdant Templar — the warden line', () => {
     hitCrabs(s);
     expect(b.hp).toBe(700);
     expect(s.events).toContainEqual({ tick: s.tick, type: 'boss_block' });
+  });
+});
+
+describe('Verdant Templar — Bulwark refills the wall (fix round 1, ruling R15)', () => {
+  it('raises a second line4 of four wardens when fewer than four squad crabs stand and the shield is up', () => {
+    const s = arena(); // the fight-start line4: squad 1, four wardens
+    const b = park(s);
+    s.crabs = s.crabs.slice(0, 3); // thin the escort to three
+    b.abilityTimer = 1;
+    updateBoss(s);
+    expect(s.events).toContainEqual({ tick: s.tick, type: 'boss_ability', name: 'shield' });
+    expect(s.squads.map((q) => q.id)).toEqual([1, 2]);
+    const refilled = s.crabs.filter((c) => c.squad === 2);
+    expect(refilled).toHaveLength(4);
+    for (const c of refilled) expect(c.type).toBe('warden');
+  });
+
+  it('does nothing while the shield is down, even with the escort wiped out', () => {
+    const s = arena();
+    const b = park(s);
+    announce(s);
+    ticks(s, TEMPLAR_WINDUP - 1);
+    expect(b.shieldUp).toBe(0);
+    s.crabs = [];
+    s.squads = [];
+    b.abilityTimer = 1;
+    updateBoss(s);
+    expect(s.events.filter((e) => e.type === 'boss_ability')).toHaveLength(0);
+    expect(s.squads).toEqual([]);
+  });
+
+  it('does nothing when four or more squad crabs already stand, even with the shield up', () => {
+    const s = arena(); // already four wardens standing
+    const b = park(s);
+    b.abilityTimer = 1;
+    updateBoss(s);
+    expect(s.events).toContainEqual({ tick: s.tick, type: 'boss_ability', name: 'shield' });
+    expect(s.squads.map((q) => q.id)).toEqual([1]); // no refill
+    expect(s.crabs).toHaveLength(4);
   });
 });
 

@@ -3,7 +3,7 @@ import { idiv } from '../../fixed';
 import type { CrabType } from '../../levels';
 import type { Rng } from '../../rng';
 import type { BossState, GameState } from '../../types';
-import { castFirewall, castZigzag, muzzle } from '../boss';
+import { attackDelay, castFirewall, castZigzag, muzzle } from '../boss';
 import { SQUAD_BAND, spawnSquad } from '../squads';
 import type { BossHooks } from './index';
 
@@ -12,29 +12,63 @@ import type { BossHooks } from './index';
  * with windows in it. Nothing he does reaches Octopi while his guard is closed, and nothing the
  * player does reaches him either — the only opening is the one he makes himself.
  *
- * Every attack is one sword swing, and a swing is three beats:
+ * A cycle (fix round 1, ruling R14 — the shield spends about half of it up) is four beats:
  *
- * 1. **Wind-up**, `TEMPLAR_WINDUP` ticks. `boss_windup` goes out on the first of them and the
- *    doorway of the wall to come is drawn *here*, into `b.gapSlot`, so the renderer can telegraph
- *    it for the whole wind-up rather than springing it on the player with the wall.
- * 2. **The wall**, on the last tick of the wind-up: a `firewall` across the field at the muzzle's
+ * 1. **Rest**, `attackDelay(s, phase)` ticks, shield up. This is the pause the spec amendment names
+ *    — "the next swing's timer starts when the shield comes back up" — measured from the instant
+ *    the *previous* cycle's opening closed, not from the moment the previous wind-up began. Only the
+ *    shared secondary timer runs during it: a zigzag pair in phase 2 (`secondary`), gated on the
+ *    shield being up exactly as before.
+ * 2. **Wind-up**, `TEMPLAR_WINDUP` ticks, shield still up. `boss_windup` goes out on the first of
+ *    them and the doorway of the wall to come is drawn *here*, into `b.gapSlot`, so the renderer can
+ *    telegraph it for the whole wind-up rather than springing it on the player with the wall.
+ * 3. **The wall**, on the last tick of the wind-up: a `firewall` across the field at the muzzle's
  *    own depth, with the two-slot doorway at `b.gapSlot`. The shield drops with it.
- * 3. **The opening**, `TEMPLAR_SHIELD_DOWN` ticks measured from the wall: the only ticks of the
- *    fight on which the Templar can be hurt. Then the shield is back up.
+ * 4. **The opening**, `TEMPLAR_SHIELD_DOWN` ticks measured from the wall: the only ticks of the
+ *    fight on which the Templar can be hurt. Then the shield is back up and beat 1 starts over.
+ *
+ * Beats 2-4 are driven exactly as before, by `b.windup` and `b.effectTicks`. Beat 1 rides the boss's
+ * ordinary shared `attackTimer`/`attack()` machinery (`updateBoss`, `sim/boss.ts`) rather than a
+ * field of its own: `tick()` below *holds* `b.attackTimer` at a value bigger than a whole swing for
+ * every tick of beats 2-4 (reasserted every one of those ticks, so it can never reach zero early and
+ * call `attack` again mid-swing — the overlap the pre-amendment cadence allowed is gone) and lets it
+ * go the instant the shield comes back up, at the very tick it draws the fresh `attackDelay` that
+ * times the next beat 1. `onPhaseStart` does the same when a phase turn hands the shield back up
+ * early — but only from phase 2 on: phase 1's own rest is already timed by the draw `spawnBoss`
+ * makes before this hook ever runs, and drawing again there would only throw that draw away.
+ * `onTransition`'s `guardUp` never redraws: the transition itself freezes `attackTimer` (see
+ * `updateBoss`'s early return for `state === 'transition'`), so a draw made there would sit unused
+ * and be overwritten the moment the phase actually starts.
  *
  * Phase 2 adds two things: the swing throws a second, staggered wall `TEMPLAR_SECOND_WALL_DELAY`
  * ticks after the first with a doorway at least `TEMPLAR_GAP_MIN_DISTANCE` slots from it (so the
- * player cannot simply stand in one doorway and wait), and a zigzag pair comes out between swings on
+ * player cannot simply stand in one doorway and wait), and a zigzag pair comes out during beat 1 on
  * the shared secondary timer while the shield is up.
  *
- * A `line4` of wardens marches with him from the start of each phase (`onPhaseStart`). They are
- * ordinary squad crabs — the rune shield of spec §2 included, which is why the Trident's piercing
- * shot is the one that walks through the line and still finds the boss behind it.
+ * A `line4` of wardens marches with him from the start of each phase (`onPhaseStart`), and Bulwark
+ * (`ability`) raises one more while the shield is up if the escort has thinned below four squad
+ * crabs (fix round 1, ruling R15). They are ordinary squad crabs — the rune shield of spec §2
+ * included, which is why the Trident's piercing shot is the one that walks through the line and
+ * still finds the boss behind it.
  *
- * Every draw is one `rngBoss.nextInt`, and the order inside a swing is fixed: the doorway first
- * (`attack`), then `attackDelay`'s jitter (drawn by `updateBoss` itself, right after the hook
- * returns), then in phase 2 the second doorway when the first wall falls. `boss-templar.test.ts`
- * pins that sequence.
+ * Every draw is one `rngBoss.nextInt`, and the order inside one cycle is fixed:
+ *
+ * 1. `nextInt(TEMPLAR_GAP_SLOTS)` — the doorway, drawn by `attack` at the start of the wind-up.
+ * 2. `nextInt(BOSS.attackJitter)` — `attackDelay`'s jitter, drawn by `updateBoss` itself right after
+ *    `attack` returns. Beat 1 no longer times anything off this draw's *value* — `tick` overwrites
+ *    the timer it sets before the swing can run long enough for it to matter — but the shared reset
+ *    runs unconditionally for every boss kind, so the draw itself cannot be skipped or moved.
+ * 3. (phase 2 only) `nextInt(TEMPLAR_GAP_SLOTS)` — the second doorway, drawn once when the first
+ *    wall falls, exactly as before.
+ * 4. `nextInt(BOSS.attackJitter)` — the *real* jitter for the next beat 1, drawn by `tick` the
+ *    instant the shield comes back up (fix round 1, new: this draw did not exist before R14).
+ *
+ * `boss-templar.test.ts` pins that sequence and the cycle's timings. The doorway triple pinned
+ * against seed `templar` did *not* need re-measuring for this fix round — checked, not assumed: the
+ * test that pins it forces each wind-up with `announce()` well before a shield-down window could
+ * ever run out on its own, so draw 4 never fires inside that specific test and the three draw-1s it
+ * reads stay exactly where they were. A test that let the boss run on natural cadence long enough to
+ * reach a real draw 4 would need its own, separately measured pin.
  */
 
 /** Ticks of telegraphed wind-up before the wall falls (spec §5.2: 45). */
@@ -73,11 +107,21 @@ export const TEMPLAR_GUARD: readonly CrabType[] = ['warden', 'warden', 'warden',
  * Cast ids queued in `b.pending`. The staggered second wall carries its own doorway in the id —
  * `SECOND_WALL + gap`, `gap` in `0..TEMPLAR_GAP_SLOTS - 1` — so the doorway is drawn once, when the
  * first wall falls and the second is queued, and nothing has to remember it in the meantime. (The
- * next swing's own draw overwrites `b.gapSlot` long after this wall has fallen — `attackDelay` never
- * comes back inside 96 ticks and the second wall is 30 ticks out — but a queued wall that carries
- * its own doorway cannot be wrong about it whatever the timers do.)
+ * next swing's own draw overwrites `b.gapSlot` only once a whole cycle has resolved — wind-up plus
+ * shield-down, `TEMPLAR_WINDUP + TEMPLAR_SHIELD_DOWN` ticks, fix round 1 ruling R14 — far longer
+ * than the second wall's 30-tick delay, but a queued wall that carries its own doorway cannot be
+ * wrong about it whatever the timers do.)
  */
 const SECOND_WALL = 10;
+
+/**
+ * What `b.attackTimer` is held at through every tick of the wind-up and the shield-down window
+ * (fix round 1, ruling R14): bigger than a whole swing, so the shared `updateBoss` decrement can
+ * never bring it to zero and fire `attack` again before the shield has come back up. `tick` below
+ * reasserts this value on every such tick — it does not need to survive on its own — and only stops
+ * once the shield is up again, at which point a real `attackDelay` replaces it.
+ */
+const TEMPLAR_ATTACK_HOLD = TEMPLAR_WINDUP + TEMPLAR_SHIELD_DOWN;
 
 /** Bulwark's timer: 8-12 s (task brief), at the fight's start and after every use. */
 function abilityTimer(rng: Rng): number {
@@ -161,12 +205,14 @@ export const TEMPLAR_HOOKS: BossHooks = {
   ability(s, b) {
     // Bulwark (spec §5, reef 6's ability label) is the shell shield itself: the Templar plants it
     // again. The ticks after a swing are the only window the player has on this boss, so Bulwark
-    // never cuts one short — while the shield is down it does nothing at all (task brief). With no
-    // swing resolving, the shield is already up and all Bulwark does is announce itself for the
-    // renderer and the crest sound. The escort the brief calls this ability's real job does not run
-    // on this timer: a warden line comes with each phase, through `onPhaseStart`.
+    // never cuts one short — while the shield is down it does nothing at all, and the timer simply
+    // re-arms (task brief, unchanged by the amendment). With the shield up it always announces
+    // itself for the renderer and the crest sound, and — fix round 1, ruling R15 — on top of that
+    // raises one more `line4` at the warden line's own anchor if the escort has thinned below four
+    // squad crabs; four or more already standing, and there is nothing more to do this tick.
     if (b.shieldUp === 0) return;
     s.events.push({ tick: s.tick, type: 'boss_ability', name: 'shield' });
+    if (s.crabs.filter((c) => c.squad > 0).length < 4) raiseWardenLine(s);
   },
   initialAbilityTimer: abilityTimer,
   nextAbilityTimer: abilityTimer,
@@ -183,20 +229,42 @@ export const TEMPLAR_HOOKS: BossHooks = {
   },
   tick(s, b) {
     // The shield-down window first, so a swing landing on this very tick opens a whole one.
+    let justOpened = false;
     if (b.effectTicks > 0) {
       b.effectTicks -= 1;
-      if (b.effectTicks === 0) b.shieldUp = 1;
+      if (b.effectTicks === 0) {
+        b.shieldUp = 1;
+        justOpened = true;
+      }
     }
     if (b.windup > 0) {
       b.windup -= 1;
       if (b.windup === 0) swing(s, b);
     }
+    // Fix round 1, ruling R14: `attackTimer` only really counts down through beat 1 (rest, shield
+    // up). Every tick of the wind-up or the shield-down window it is held above a whole swing, so
+    // the shared decrement in `updateBoss` can never bring it to zero and call `attack` again before
+    // this swing has fully resolved; the instant the shield comes back up it is handed a freshly
+    // drawn `attackDelay`, which is what actually times the next wind-up.
+    if (b.windup > 0 || b.shieldUp === 0) {
+      b.attackTimer = TEMPLAR_ATTACK_HOLD;
+    } else if (justOpened) {
+      b.attackTimer = attackDelay(s, b.phase);
+    }
   },
   onTransition(_s, b) {
+    // No redraw here: the transition freezes `attackTimer` (see `updateBoss`'s early return for
+    // `state === 'transition'`), so a draw made now would sit unused until `onPhaseStart` overwrites
+    // it below — one draw, not two, for the same event.
     guardUp(b);
   },
   onPhaseStart(s, b) {
     guardUp(b);
+    // Fix round 1, ruling R14: a phase start hands the shield back up (early, cutting a resolving
+    // swing short, for every phase after the first) or starts the fight with it already up (phase
+    // 1, where `spawnBoss` has already drawn the very first `attackDelay` before this hook runs —
+    // drawing again here would only throw that draw away).
+    if (b.phase > 1) b.attackTimer = attackDelay(s, b.phase);
     raiseWardenLine(s);
   },
 };
