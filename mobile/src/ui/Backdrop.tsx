@@ -65,10 +65,18 @@ export function Backdrop({ theme = 'night', variant = 'menu', floorGlow = false 
             <Band w={w} y={h * 0.8} height={h * 0.18} colors={['#8752F3', '#9945FF']} opacity={0.16} />
           </Group>
         )}
-        {LIGHT_RAYS !== null && (
-          <Group opacity={play ? 0.5 : 1}>
+        {LIGHT_RAYS !== null && !play ? (
+          // The shader rays are for the menus only: on the first device look (2026-09-23) they held
+          // the game loop at 54 fps (it runs 86-106 without), so the play variant keeps the two
+          // skewed gradient rays the file always drew, at half strength as before.
+          <Group>
             <Ray w={w} h={h} x={w * 0.35} color={rayVecA} opacity={rayA} time={rayTime} />
             <Ray w={w} h={h} x={w * 0.65} color={rayVecB} opacity={rayB} time={rayTime} />
+          </Group>
+        ) : (
+          <Group opacity={play ? 0.5 : 1}>
+            <GradientRay x={w * 0.1} width={w * 0.3} h={h} skew={-0.244} colors={[rayColorA, fadedOut(rayColorA)]} opacity={rayA} />
+            <GradientRay x={w * 0.55} width={w * 0.25} h={h} skew={-0.349} colors={[rayColorB, fadedOut(rayColorB)]} opacity={rayB} />
           </Group>
         )}
         {night && floorGlow && (
@@ -83,6 +91,24 @@ export function Backdrop({ theme = 'night', variant = 'menu', floorGlow = false 
         )}
       </Canvas>
     </View>
+  );
+}
+
+/** The same `rgba(...)` colour with its alpha at 0: the far end of a gradient ray. */
+function fadedOut(rgba: string): string {
+  return rgba.replace(/,\s*[\d.]+\)$/, ',0)');
+}
+
+/** The pre-shader ray: a skewed vertical gradient, still used by the play variant (see above). */
+function GradientRay({ x, width, h, skew, colors, opacity }: {
+  x: number; width: number; h: number; skew: number; colors: [string, string]; opacity: SharedValue<number>;
+}) {
+  return (
+    <Group opacity={opacity} origin={vec(x, 0)} transform={[{ skewX: skew }]}>
+      <Rect x={x} y={-h * 0.1} width={width} height={h * 1.2}>
+        <LinearGradient start={vec(0, 0)} end={vec(0, h)} colors={colors} />
+      </Rect>
+    </Group>
   );
 }
 
