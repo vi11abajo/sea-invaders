@@ -161,8 +161,14 @@ export function UiGallery() {
           <PillButton label="Replay" kind="secondary" height={36} onPress={() => setEntranceKey((k) => k + 1)} />
         </Section>
 
-        <Section title="Count Up">
+        <Section title="Count Up · retext (SKR balance, result score)">
           <CountUp value={countValue} format={formatIntWorklet} style={TYPE.heroNumber} />
+        </Section>
+
+        <Section title="Count Up · throttled (result score's gradient, the pool's sheen)">
+          <CountUp value={countValue} duration={800} mode="throttled" format={formatInt}>
+            {(text) => <GradientText text={text} size={30} />}
+          </CountUp>
           <PillButton label="Add 4,231" kind="secondary" height={36} onPress={() => setCountValue((v) => v + 4231)} />
         </Section>
 

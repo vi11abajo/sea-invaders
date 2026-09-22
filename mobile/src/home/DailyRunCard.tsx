@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { RecordScore } from '../daily/RecordScore';
 import { TicketCard } from '../daily/TicketCard';
+import { CountUp } from '../ui/CountUp';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
 import { ShinyText } from '../ui/ShinyText';
@@ -129,12 +130,14 @@ export function DailyRunCard({ ranked, now, signedIn, onConnect, error = null, o
           <Txt variant="secondary" tone="tertiary" style={styles.small}>Pool</Txt>
           <View style={styles.pool}>
             <SkrIcon size={11} color={COLORS.info} />
-            {/* Count Up review round: `ShinyText` draws into a Skia `Canvas` sized from the text's own
-                measured glyph width, so a live counter would still need a React-level re-render for
-                every changing digit count — the point of `CountUp`'s "ReText" fix was to remove that
-                per-frame React work entirely, which a Skia target can't accept. Dropped the count-up
-                here and kept the sheen on the plain formatted amount instead of half-fixing it. */}
-            <ShinyText text={formatSkr(ranked.poolSkr)} fontSource={GeistMono_500Medium} size={13} color={COLORS.info} />
+            {/* Count Up fix round 2: throttled mode bridges to React at most once every 80 ms (and
+                once more, unconditionally, on the exact final value) instead of `ShinyText`'s own
+                Skia `Canvas` re-measuring on every animation frame — see `CountUp.tsx`'s doc for the
+                exact cadence. `ShinyText` itself memoises its glyph measurement by string, so those
+                ~10 throttled updates cost ~10 measurements, not sixty. */}
+            <CountUp value={ranked.poolSkr} duration={800} mode="throttled" format={formatSkr}>
+              {(text) => <ShinyText text={text} fontSource={GeistMono_500Medium} size={13} color={COLORS.info} />}
+            </CountUp>
           </View>
         </View>
       </View>

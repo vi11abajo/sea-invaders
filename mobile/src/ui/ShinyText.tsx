@@ -1,5 +1,5 @@
 import { Canvas, LinearGradient, Text as SkiaText, useFont, vec, type DataSourceParam } from '@shopify/react-native-skia';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import {
   cancelAnimation, Easing, useDerivedValue, useSharedValue, withRepeat, withTiming,
@@ -29,7 +29,10 @@ interface ShinyTextProps {
  * on instead — a fixed 5-stop gradient (`color`/`shineColor`/`color`, the reference's own stops)
  * slides across the glyphs by animating the gradient's `start`/`end` points on the UI thread; the
  * colour stops themselves never change, so this is the same cost as a static `GradientText` draw
- * plus one cheap derived vector, not a per-frame re-render.
+ * plus one cheap derived vector, not a per-frame re-render. The glyph measurement itself
+ * (`getGlyphWidths`/`getMetrics`) is memoised by `[font, text]` — a caller driving `text` from a
+ * throttled `CountUp` (the weekly pool) re-renders this a handful of times as the number counts up,
+ * never once per animation frame, and each distinct string is measured only once.
  */
 export function ShinyText({ text, fontSource, size, color = 'rgba(255,255,255,0.55)', shineColor = COLORS.text, periodMs = 2600, style }: ShinyTextProps) {
   const font = useFont(fontSource, size);
@@ -41,10 +44,12 @@ export function ShinyText({ text, fontSource, size, color = 'rgba(255,255,255,0.
     return () => cancelAnimation(progress);
   }, [progress, periodMs]);
 
-  const width = font === null ? 0 : Math.ceil(font.getGlyphWidths(font.getGlyphIDs(text)).reduce((sum, w) => sum + w, 0)) + 1;
-  const metrics = font?.getMetrics();
-  const ascent = metrics?.ascent ?? 0;
-  const height = metrics === undefined ? 0 : Math.ceil(metrics.descent - metrics.ascent);
+  const { width, height, ascent } = useMemo(() => {
+    if (font === null) return { width: 0, height: 0, ascent: 0 };
+    const w = Math.ceil(font.getGlyphWidths(font.getGlyphIDs(text)).reduce((sum, gw) => sum + gw, 0)) + 1;
+    const m = font.getMetrics();
+    return { width: w, height: Math.ceil(m.descent - m.ascent), ascent: m.ascent };
+  }, [font, text]);
   // The sweep band travels one text-width-and-a-half past each edge, so it fully clears the glyphs
   // before looping back — matches the reference's 200%-wide sliding background.
   const span = width * 1.6;
