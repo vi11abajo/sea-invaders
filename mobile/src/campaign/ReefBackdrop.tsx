@@ -1,5 +1,5 @@
 import {
-  BlendColor, Blur, Canvas, ColorMatrix, Group, Image, LinearGradient, Paint, Path, Rect, Skia, useImage, vec,
+  BlendColor, Blur, Canvas, ColorMatrix, Group, Image, LinearGradient, Paint, Path, Rect, Shader, Skia, useImage, vec,
   type SkImage, type SkPath,
 } from '@shopify/react-native-skia';
 import { levelById, LEVELS_PER_REEF } from '@sea-invaders/core';
@@ -9,6 +9,7 @@ import Animated, {
   Easing, useAnimatedStyle, useDerivedValue, useSharedValue, withRepeat, withTiming, type SharedValue,
 } from 'react-native-reanimated';
 import { KeyArtScrim } from '../ui/KeyArtScrim';
+import { LIGHT_RAYS, RAY_TIME_SPAN_S, rayColorVec3 } from '../ui/lightRays';
 import { MOTION } from '../ui/tokens';
 import {
   REEF_KEY_ART, REEF_KEY_ART_BACKGROUND, REEF_KEY_ART_BLEND, REEF_KEY_ART_BOSS_LOOM, REEF_KEY_ART_DIM, REEF_KEY_ART_SCRIM,
@@ -83,10 +84,6 @@ export function ReefBackdrop({ reef, variant = 'map', bossSprite = null, floorBo
   );
 }
 
-function toTransparent(rgba: string): string {
-  return rgba.replace(/[\d.]+\)$/, '0)');
-}
-
 function buildDomePath(width: number, height: number, floorBottom: number): SkPath {
   const rx = width * 0.6;
   const ry = DOME_HEIGHT;
@@ -107,13 +104,17 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
   const rayA = useSharedValue<number>(MOTION.raysMin);
   const rayB = useSharedValue<number>(MOTION.raysMax);
   const drift = useSharedValue(0);
+  // Owner's pick 2026-09-22 evening: the shader's own slow-breathing clock, the same long-lap ramp
+  // `BalatroBackdrop.tsx`/`Backdrop.tsx` use — `rayA`/`rayB` above still drive each ray's own opacity.
+  const rayTime = useSharedValue(0);
 
   useEffect(() => {
     const easing = Easing.inOut(Easing.quad);
     rayA.value = withRepeat(withTiming(MOTION.raysMax, { duration: 4500, easing }), -1, true);
     rayB.value = withRepeat(withTiming(MOTION.raysMin, { duration: 5500, easing }), -1, true);
     drift.value = withRepeat(withTiming(1, { duration: 3500, easing }), -1, true);
-  }, [rayA, rayB, drift]);
+    rayTime.value = withRepeat(withTiming(RAY_TIME_SPAN_S, { duration: RAY_TIME_SPAN_S * 1000, easing: Easing.linear }), -1, false);
+  }, [rayA, rayB, drift, rayTime]);
 
   // Drift 0..-10 dp, matching CSS `@keyframes drift`: a plain numeric derived value (no array/object
   // rebuilt per frame) fed straight into `Image`'s own `y`.
@@ -155,10 +156,12 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
               <LinearGradient start={vec(0, 0)} end={vec(width, 0)} colors={[...world.glow]} />
             </Rect>
           </Group>
-          <Group opacity={RAYS_OPACITY[variant]} layer={<Paint><Blur blur={18} mode="decal" /></Paint>}>
-            <Ray x={width * 0.14} width={width * 0.26} h={height} skew={-0.244} color={world.ray} opacity={rayA} />
-            <Ray x={width * 0.58} width={width * 0.18} h={height} skew={-0.349} color={world.ray2} opacity={rayB} />
-          </Group>
+          {LIGHT_RAYS !== null && (
+            <Group opacity={RAYS_OPACITY[variant]}>
+              <Ray w={width} h={height} x={width * 0.4} color={rayColorVec3(world.ray)} opacity={rayA} time={rayTime} />
+              <Ray w={width} h={height} x={width * 0.6} color={rayColorVec3(world.ray2)} opacity={rayB} time={rayTime} />
+            </Group>
+          )}
         </>
       )}
       {bossSprite !== null && (
@@ -181,13 +184,26 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
   );
 }
 
-function Ray({ x, width, h, skew, color, opacity }: {
-  x: number; width: number; h: number; skew: number; color: string; opacity: SharedValue<number>;
+/**
+ * Owner's pick 2026-09-22 evening (`../ui/lightRays.ts`, React Bits `LightRays`): one full-canvas
+ * shader fill anchored above the screen, in place of the skewed gradient rect this used to draw.
+ * `opacity` is the same per-ray breathing animation the file always had; `time` is shared by both
+ * rays. No blur wrapper any more — the shader's own falloff is already soft.
+ */
+function Ray({ w, h, x, color, opacity, time }: {
+  w: number; h: number; x: number; color: [number, number, number]; opacity: SharedValue<number>; time: SharedValue<number>;
 }) {
+  const uniforms = useDerivedValue(() => ({
+    iResolution: [w, h],
+    iTime: time.value,
+    rayPos: [x, -0.15 * h],
+    rayDir: [0, 1],
+    raysColor: color,
+  }), [w, h, x, color, time]);
   return (
-    <Group opacity={opacity} origin={vec(x, 0)} transform={[{ skewX: skew }]}>
-      <Rect x={x} y={-h * 0.1} width={width} height={h * 0.9}>
-        <LinearGradient start={vec(0, 0)} end={vec(0, h * 0.8)} colors={[color, toTransparent(color)]} />
+    <Group opacity={opacity}>
+      <Rect x={0} y={0} width={w} height={h}>
+        <Shader source={LIGHT_RAYS!} uniforms={uniforms} />
       </Rect>
     </Group>
   );

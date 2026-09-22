@@ -620,6 +620,14 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           pushEffect('boss_clone', ev.tick, ev.leftX, 0, ev.rightX);
         } else if (ev.type === 'cold_snap') {
           pushEffect('cold_snap', ev.tick, state.octopi.x, state.octopi.y);
+        } else if (ev.type === 'revived') {
+          // Owner's pick 2026-09-22 (`magicRings.ts`): the Tide's return, rings around Octopi's own
+          // position at the moment `revive(state)` recorded the event (`core/src/sim/revive.ts`).
+          pushEffect('revive_rings', ev.tick, state.octopi.x, state.octopi.y);
+        } else if (ev.type === 'boss_phase') {
+          // Same pick: rings around the boss on a phase change, at its position right now — a phase
+          // change never kills the boss, so `state.boss` is always set here.
+          if (state.boss) pushEffect('phase_rings', ev.tick, state.boss.x, state.boss.y);
         } else if (ev.type === 'lane_strike') {
           const lane = struckLanes[struckLaneIndex];
           struckLaneIndex += 1;

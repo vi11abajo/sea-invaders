@@ -2,11 +2,13 @@ import { BlendMode, BlurStyle, ClipOp, FilterMode, MipmapMode, PaintStyle, Skia,
 import {
   AIM_STRIDE, BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, BUBBLE_RADIUS, CHARGE_RADIUS, CRAB_STRIDE, CRAB_TYPES,
   DROP, ENEMY_SHOT, FIELD_W, FIREWALL_SLOTS, KIND_INDEX, LANE_COUNT, LANE_STRIDE, OBSTACLE_STRIDE,
-  RARITY_ORDER, OCTOPI, TYPE_INDEX,
+  ORB_RADIUS, RARITY_ORDER, OCTOPI, TYPE_INDEX,
   type BoostType, type CrabType, type Frame, type Layout,
 } from '@sea-invaders/core';
 import { BOSS_HEX, BOSS_RGB } from './bossPalette';
 import { LIGHTNING, LIGHTNING_HUE, LIGHTNING_INTENSITY, LIGHTNING_SIZE, LIGHTNING_SPEED } from './lightning';
+import { MAGIC_RINGS } from './magicRings';
+import { ORB } from './orb';
 import { TUNNEL } from './tunnel';
 import { COLORS, SIGNATURE_GRADIENT } from '../ui/tokens';
 import { PIXEL_RATIO, type PreparedSprite, type PreparedSprites } from './sprites';
@@ -442,7 +444,10 @@ function laneLeftX(lane: number): number {
 export type EffectKind =
   | 'crab_shield_break' | 'bubble_pop' | 'charge_burst' | 'crab_rallied' | 'formation_rage'
   | 'crystal_shatter' | 'obstacle_destroyed' | 'boss_windup' | 'boss_reflect'
-  | 'lane_strike' | 'boss_clone' | 'cold_snap';
+  | 'lane_strike' | 'boss_clone' | 'cold_snap'
+  // Owner's pick 2026-09-22 evening (React Bits `MagicRings`, `magicRings.ts`): the Tide's return
+  // around Octopi, and a boss's phase change around itself.
+  | 'revive_rings' | 'phase_rings';
 
 export interface EffectEntry {
   kind: EffectKind;
@@ -472,6 +477,8 @@ const EFFECT_LIFETIME: Record<EffectKind, number> = {
   lane_strike: LANE_STRIKE_LIFETIME,
   boss_clone: 90,
   cold_snap: 25,
+  revive_rings: 60,
+  phase_rings: 45,
 };
 
 /** The cap `GameScreen.tsx`'s own `pushEffect` enforces (ruling R49); exported so it is declared once. */
@@ -491,6 +498,11 @@ export function effectExpired(entry: EffectEntry, tick: number): boolean {
 const IMPACT_BURST_COLOR = Skia.Color('#FFFFFF');
 const RAGE_WAVE_COLOR = Skia.Color('rgba(255,51,51,0.35)');
 const COLD_SNAP_COLOR = Skia.Color('rgba(174,232,255,0.7)');
+/** The Tide's own teal (`tokens.ts`'s `info`/`SIGNATURE_GRADIENT` stop), for `revive_rings`. */
+const REVIVE_RING_COLOR = Skia.Color('#28E0B9');
+/** `revive_rings`'/`phase_rings`' own disc size, relative to Octopi's/the boss's own box. */
+const REVIVE_RING_RADIUS_SCALE = 1.5;
+const PHASE_RING_RADIUS_SCALE = 0.85;
 /** `formation_rage`'s band, in dp (unscaled): its own height, and half that as the offset centring it on `waveY`. */
 const RAGE_WAVE_BAND_H = 20;
 const RAGE_WAVE_BAND_OFFSET = 10;
@@ -516,6 +528,57 @@ const DROP_GLOW_COLOR: ReturnType<typeof Skia.Color>[] = Object.entries(BOOST_IN
   },
   [],
 );
+
+/**
+ * Star Border sweep (owner's pick 2026-09-22 evening, React Bits `StarBorder`, MIT + Commons Clause,
+ * https://reactbits.dev — the same credit `lightning.ts`/`tunnel.ts` already carry): `epic`/
+ * `legendary` drops only, one `SkColor` per `BOOST_INDEX` slot when its rarity qualifies, built once
+ * alongside `DROP_GLOW_COLOR` above by the same reduce over `BOOST_INDEX`, `undefined` otherwise.
+ * The original CSS component orbits two gradient blobs along a rectangle's border; a drop is a
+ * circle, so the same "two travelling highlights" idea becomes two arcs sweeping the glow disc's own
+ * rim — paths/arcs only, no shader.
+ */
+const DROP_STAR_RARITY: (('epic' | 'legendary') | undefined)[] = Object.entries(BOOST_INDEX).reduce<
+  (('epic' | 'legendary') | undefined)[]
+>((table, [type, index]) => {
+  const rarity = BOOSTS[type as BoostType].rarity;
+  if (rarity === 'epic' || rarity === 'legendary') table[index] = rarity;
+  return table;
+}, []);
+/** The one shared blur mask for the arcs' soft outer layer — built once, never per drop. */
+const STAR_ARC_GLOW = Skia.MaskFilter.MakeBlur(BlurStyle.Normal, 3, true);
+const STAR_ARC_SWEEP_DEG = 44;
+const STAR_ARC_RADIUS_SCALE = 1.18;
+/** Orbit period (ticks), core stroke width (dp) and core alpha, by rarity — legendary faster and brighter. */
+const STAR_ARC_LOOK: Record<'epic' | 'legendary', { period: number; stroke: number; alpha: number }> = {
+  epic: { period: 90, stroke: 3, alpha: 0.6 },
+  legendary: { period: 55, stroke: 3.5, alpha: 0.9 },
+};
+
+/** Draws the two orbiting arcs for one `epic`/`legendary` drop at `(cx, cy)`, radius `radius` (dp). */
+function drawDropStarBorder(
+  canvas: Canvas, paint: Paint, cx: number, cy: number, radius: number, tick: number,
+  color: ReturnType<typeof Skia.Color>, rarity: 'epic' | 'legendary',
+) {
+  'worklet';
+  const look = STAR_ARC_LOOK[rarity];
+  const angle = ((tick % look.period) / look.period) * 360;
+  const rect = scratch(cx - radius, cy - radius, radius * 2, radius * 2);
+  paint.setStyle(STROKE);
+  paint.setColor(color);
+  paint.setMaskFilter(STAR_ARC_GLOW);
+  paint.setStrokeWidth(look.stroke * 2);
+  paint.setAlphaf(look.alpha * 0.5);
+  canvas.drawArc(rect, angle, STAR_ARC_SWEEP_DEG, false, paint);
+  canvas.drawArc(rect, angle + 180, STAR_ARC_SWEEP_DEG, false, paint);
+  paint.setMaskFilter(null);
+  paint.setStrokeWidth(look.stroke);
+  paint.setAlphaf(look.alpha);
+  canvas.drawArc(rect, angle, STAR_ARC_SWEEP_DEG, false, paint);
+  canvas.drawArc(rect, angle + 180, STAR_ARC_SWEEP_DEG, false, paint);
+  paint.setStyle(FILL);
+  paint.setAlphaf(1);
+}
 
 /**
  * Draws `sprite` with its top-left corner at `(left, top)`. When this sprite's own pre-scale
@@ -1006,6 +1069,24 @@ export function drawFrame(
         break;
       }
       case KIND_INDEX.orb: {
+        // Owner's pick 2026-09-22 (`orb.ts`): the shader fills a square around the shot, side
+        // `2 * ORB_RADIUS * k * 1.6` — the extra 1.6 is the halo's own room to extend past the
+        // 170-unit collision ball while its bright body still reads as that same ball (the shader's
+        // own `INNER_RADIUS = 0.6`, `0.6 * 1.6 ~= 0.96`, puts the bright core right at the ball's
+        // edge). One shader object per orb per frame, same as `lane_strike`'s own `LIGHTNING` above.
+        if (ORB !== null) {
+          const halfSide = ORB_RADIUS * k * 1.6;
+          const side = halfSide * 2;
+          const shader = ORB.makeShader([side, side, f.tick / 60]);
+          canvas.save();
+          canvas.translate(x - halfSide, y - halfSide);
+          paint.setShader(shader);
+          canvas.drawRect(scratch(0, 0, side, side), paint);
+          paint.setShader(null);
+          canvas.restore();
+          break;
+        }
+        // Fallback: the plain pulsing circle it always drew.
         const pulse = 0.5 + 0.5 * Math.sin(f.tick / 6);
         const orbR = baseR * (1 + 0.4 * pulse);
         paint.setColor(ORB_COLOR);
@@ -1143,6 +1224,10 @@ export function drawFrame(
       paint.setAlphaf(DROP_GLOW_ALPHA);
       canvas.drawCircle(x, y, glowRadius, paint);
       paint.setAlphaf(1);
+      const starRarity = DROP_STAR_RARITY[typeIndex];
+      if (starRarity !== undefined) {
+        drawDropStarBorder(canvas, paint, x, y, glowRadius * STAR_ARC_RADIUS_SCALE, f.tick, glowColor, starRarity);
+      }
       const icon = sprites.boosts[typeIndex];
       if (icon !== undefined) drawSpriteAt(canvas, paint, icon, x - icon.w / 2, y - icon.h / 2);
     }
@@ -1322,6 +1407,47 @@ export function drawFrame(
       paint.setColor(LANE_STRIKE_COLOR);
       paint.setAlphaf((1 - progress) * 0.85);
       canvas.drawRect(scratch(laneX, fieldRect.y, laneW, fieldRect.height), paint);
+      paint.setAlphaf(1);
+      continue;
+    }
+    if (entry.kind === 'revive_rings' || entry.kind === 'phase_rings') {
+      // Owner's pick 2026-09-22 (`magicRings.ts`): the Tide's return around Octopi, a boss's phase
+      // change around itself. `phase_rings` needs the boss's own current box, still alive mid-fight
+      // (a phase change never kills it) — `bossColor` is the same per-kind colour the enemy-shot
+      // block above already computed. No position data of their own beyond the captured (x, y).
+      const isPhase = entry.kind === 'phase_rings';
+      const boss = f.boss;
+      if (isPhase && boss === null) continue;
+      const ringColor = isPhase ? bossColor : REVIVE_RING_COLOR;
+      const ringRadius = isPhase
+        ? Math.max(boss!.w, boss!.h) * PHASE_RING_RADIUS_SCALE * k
+        : OCTOPI.size * REVIVE_RING_RADIUS_SCALE * k;
+      const rcx = px(entry.x);
+      const rcy = py(entry.y);
+      const shaderTime = age / 60; // relative to this entry's own start, not the global clock
+      if (MAGIC_RINGS !== null) {
+        const side = ringRadius * 2;
+        const shader = MAGIC_RINGS.makeShader([side, side, shaderTime, ringColor[0]!, ringColor[1]!, ringColor[2]!]);
+        canvas.save();
+        canvas.translate(rcx - ringRadius, rcy - ringRadius);
+        paint.setShader(shader);
+        paint.setAlphaf(1 - progress);
+        canvas.drawRect(scratch(0, 0, side, side), paint);
+        paint.setShader(null);
+        paint.setAlphaf(1);
+        canvas.restore();
+        continue;
+      }
+      // Fallback: three fading concentric ring strokes, the same shape most one-shot effects use.
+      paint.setStyle(STROKE);
+      paint.setColor(ringColor);
+      for (let ringIdx = 0; ringIdx < 3; ringIdx++) {
+        const t = Math.min(1, progress + ringIdx * 0.15);
+        paint.setStrokeWidth(Math.max(1, 3 * (1 - t)));
+        paint.setAlphaf(Math.max(0, (1 - t) * 0.7));
+        canvas.drawCircle(rcx, rcy, ringRadius * (0.3 + t * 0.7), paint);
+      }
+      paint.setStyle(FILL);
       paint.setAlphaf(1);
       continue;
     }

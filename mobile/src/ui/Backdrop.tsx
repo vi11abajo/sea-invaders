@@ -1,7 +1,10 @@
 import { Blur, Canvas, Group, LinearGradient, Paint, Rect, Shader, Skia, vec } from '@shopify/react-native-skia';
 import { useEffect } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Easing, useSharedValue, withRepeat, withTiming, type SharedValue } from 'react-native-reanimated';
+import {
+  Easing, useDerivedValue, useSharedValue, withRepeat, withTiming, type SharedValue,
+} from 'react-native-reanimated';
+import { LIGHT_RAYS, RAY_TIME_SPAN_S, rayColorVec3 } from './lightRays';
 import { MOTION, WORLD_GRADIENT, type WorldTheme } from './tokens';
 
 /** Fine monochrome noise at 7% alpha (premultiplied output). */
@@ -11,15 +14,11 @@ half4 main(float2 p) {
   return half4(half3(n) * 0.07, 0.07);
 }`);
 
-const RAY_COLORS: Record<WorldTheme, [[string, string], [string, string]]> = {
-  night: [
-    ['rgba(153,69,255,0.45)', 'rgba(153,69,255,0)'],
-    ['rgba(40,224,185,0.4)', 'rgba(40,224,185,0)'],
-  ],
-  day: [
-    ['rgba(255,255,255,0.4)', 'rgba(255,255,255,0)'],
-    ['rgba(255,255,255,0.3)', 'rgba(255,255,255,0)'],
-  ],
+/** Owner's pick 2026-09-22 evening: each theme's two rays, one peak colour apiece (the `LIGHT_RAYS`
+ * shader computes its own falloff, so no gradient stop pair is needed any more). */
+const RAY_COLORS: Record<WorldTheme, [string, string]> = {
+  night: ['rgba(153,69,255,0.45)', 'rgba(40,224,185,0.4)'],
+  day: ['rgba(255,255,255,0.4)', 'rgba(255,255,255,0.3)'],
 };
 
 interface BackdropProps {
@@ -34,17 +33,24 @@ export function Backdrop({ theme = 'night', variant = 'menu', floorGlow = false 
   const { width: w, height: h } = useWindowDimensions();
   const rayA = useSharedValue<number>(MOTION.raysMin);
   const rayB = useSharedValue<number>(MOTION.raysMax);
+  // Owner's pick 2026-09-22 evening: the shader's own slow-breathing clock, the same long-lap ramp
+  // `BalatroBackdrop.tsx` uses for its `iTime` — `rayA`/`rayB` above still drive each ray's own
+  // opacity exactly as they always did.
+  const rayTime = useSharedValue(0);
 
   useEffect(() => {
     const easing = Easing.inOut(Easing.quad);
     rayA.value = withRepeat(withTiming(MOTION.raysMax, { duration: MOTION.raysMs, easing }), -1, true);
     rayB.value = withRepeat(withTiming(MOTION.raysMin, { duration: MOTION.raysMs + 700, easing }), -1, true);
-  }, [rayA, rayB]);
+    rayTime.value = withRepeat(withTiming(RAY_TIME_SPAN_S, { duration: RAY_TIME_SPAN_S * 1000, easing: Easing.linear }), -1, false);
+  }, [rayA, rayB, rayTime]);
 
   const world = WORLD_GRADIENT[theme];
   const night = theme === 'night';
   const play = variant === 'play';
   const [rayColorA, rayColorB] = RAY_COLORS[theme];
+  const rayVecA = rayColorVec3(rayColorA);
+  const rayVecB = rayColorVec3(rayColorB);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -59,10 +65,12 @@ export function Backdrop({ theme = 'night', variant = 'menu', floorGlow = false 
             <Band w={w} y={h * 0.8} height={h * 0.18} colors={['#8752F3', '#9945FF']} opacity={0.16} />
           </Group>
         )}
-        <Group opacity={play ? 0.5 : 1} layer={<Paint><Blur blur={18} mode="decal" /></Paint>}>
-          <Ray x={w * 0.1} width={w * 0.3} h={h} skew={-0.244} colors={rayColorA} opacity={rayA} />
-          <Ray x={w * 0.55} width={w * 0.25} h={h} skew={-0.349} colors={rayColorB} opacity={rayB} />
-        </Group>
+        {LIGHT_RAYS !== null && (
+          <Group opacity={play ? 0.5 : 1}>
+            <Ray w={w} h={h} x={w * 0.35} color={rayVecA} opacity={rayA} time={rayTime} />
+            <Ray w={w} h={h} x={w * 0.65} color={rayVecB} opacity={rayB} time={rayTime} />
+          </Group>
+        )}
         {night && floorGlow && (
           <Rect x={0} y={h * 0.66} width={w} height={h * 0.34}>
             <LinearGradient start={vec(0, h * 0.66)} end={vec(0, h)} colors={['rgba(25,251,155,0)', 'rgba(25,251,155,0.15)']} />
@@ -86,13 +94,27 @@ function Band({ w, y, height, colors, opacity }: { w: number; y: number; height:
   );
 }
 
-function Ray({ x, width, h, skew, colors, opacity }: {
-  x: number; width: number; h: number; skew: number; colors: [string, string]; opacity: SharedValue<number>;
+/**
+ * Owner's pick 2026-09-22 evening (`lightRays.ts`, React Bits `LightRays`): one full-canvas shader
+ * fill anchored above the screen, in place of the skewed gradient rect this used to draw. `opacity`
+ * is the same per-ray breathing animation the file always had; `time` is shared by both rays, driving
+ * the shader's own slow pulse. No blur wrapper any more — the shader's own falloff is already soft,
+ * and skipping the extra blur pass is most of this replacement's performance budget.
+ */
+function Ray({ w, h, x, color, opacity, time }: {
+  w: number; h: number; x: number; color: [number, number, number]; opacity: SharedValue<number>; time: SharedValue<number>;
 }) {
+  const uniforms = useDerivedValue(() => ({
+    iResolution: [w, h],
+    iTime: time.value,
+    rayPos: [x, -0.15 * h],
+    rayDir: [0, 1],
+    raysColor: color,
+  }), [w, h, x, color, time]);
   return (
-    <Group opacity={opacity} origin={vec(x, 0)} transform={[{ skewX: skew }]}>
-      <Rect x={x} y={-h * 0.1} width={width} height={h * 1.2}>
-        <LinearGradient start={vec(0, 0)} end={vec(0, h)} colors={colors} />
+    <Group opacity={opacity}>
+      <Rect x={0} y={0} width={w} height={h}>
+        <Shader source={LIGHT_RAYS!} uniforms={uniforms} />
       </Rect>
     </Group>
   );
