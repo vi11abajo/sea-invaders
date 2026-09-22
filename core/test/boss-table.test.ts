@@ -15,6 +15,8 @@ function arena(kind: BossKind = 1, lives = PRACTICE_RUN.lives): GameState {
 
 const LEGACY = [1, 2, 3, 4, 5] as const;
 const NEW = [6, 7, 8, 9, 10] as const;
+/** The bosses of reefs 6-10 whose own task has not run yet, so their hooks still throw. */
+const UNWRITTEN = [7, 8, 9, 10] as const;
 
 describe('the boss table', () => {
   it('holds the five new bosses of spec 5', () => {
@@ -47,7 +49,9 @@ describe('the boss table', () => {
   });
 
   it('refuses to start a fight with a boss whose hooks are not written yet', () => {
-    for (const k of NEW) {
+    // Kind 6 has its own hooks now (`bosses/templar.ts`, spec §5.2 row 6); 7 to 10 are still stubs,
+    // one task each, and a fight with one has to fail loudly rather than run half a boss.
+    for (const k of UNWRITTEN) {
       const s = createGame('stub', { ...PRACTICE_RUN, features: { boosts: false } });
       expect(() => spawnBoss(s, k)).toThrow(/not implemented yet/);
     }

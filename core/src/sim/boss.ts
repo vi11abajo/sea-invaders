@@ -317,6 +317,9 @@ export function spawnBoss(s: GameState, kind: BossKind): void {
     shieldUp: 0, windup: 0, gapSlot: 0, aimX: 0, aimTicks: 0, burst: 0, mirror: [0, 0, 0], discharged: 0,
   };
   s.events.push({ tick: s.tick, type: 'boss_spawn' });
+  // Phase 1 begins the moment the boss stands. Undefined for every boss of the first campaign, so
+  // this adds nothing to their spawn — no draw, no field touched (spec §10).
+  hooks.onPhaseStart?.(s, s.boss);
 }
 
 /** Advances the boss by one tick: movement, phase transitions, attack/secondary/ability timers, pending casts. `fightTicks` (which drives the score decay) pauses while POINTS_FREEZE is active (spec §5.2). */
@@ -331,7 +334,13 @@ export function updateBoss(s: GameState): void {
   if (next - half < 0 || next + half > FIELD_W) b.vx = -b.vx; else b.x = next;
   if (b.state === 'transition') {
     b.transitionTicks -= 1;
-    if (b.transitionTicks === 0) { b.phase += 1; b.state = 'fighting'; s.events.push({ tick: s.tick, type: 'boss_phase' }); }
+    if (b.transitionTicks === 0) {
+      b.phase += 1;
+      b.state = 'fighting';
+      s.events.push({ tick: s.tick, type: 'boss_phase' });
+      // The new phase begins here. Undefined for kinds 1-5, so their transition is untouched.
+      BOSS_HOOKS[b.kind].onPhaseStart?.(s, b);
+    }
     return;
   }
   const hooks = BOSS_HOOKS[b.kind];
@@ -365,5 +374,7 @@ export function damageBoss(s: GameState, amount: number): void {
   if (b.phase < b.maxPhases && b.hp <= idiv(b.maxHp * (b.maxPhases - b.phase), b.maxPhases)) {
     b.state = 'transition';
     b.transitionTicks = BOSS.transitionTicks;
+    // The fight pauses. Undefined for kinds 1-5, so their transition is untouched (spec §10).
+    hooks.onTransition?.(s, b);
   }
 }

@@ -168,7 +168,10 @@ export interface BossState {
   shieldHp: number;
   /** Emerald: ticks until regeneration may fire again. */
   regenCooldown: number;
-  /** Crimson: ticks of rage left. Void/temporal freeze: ticks the player's shots stay frozen. */
+  /**
+   * Crimson: ticks of rage left. Void/temporal freeze: ticks the player's shots stay frozen.
+   * Templar: ticks his shell shield stays down after a swing, before `shieldUp` goes back to 1.
+   */
   effectTicks: number;
   /** Void: spiral phase in degrees. */
   spiral: number;
