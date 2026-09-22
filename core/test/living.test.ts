@@ -170,7 +170,7 @@ describe('the whirlpool rotates', () => {
     const next = whirlpoolNext();
     const before = s.crabs.map((c) => c.slot);
     const ticks = advanceSteps(s, ROTATE_TICKS);
-    // 45 march steps is 50 ticks at the 90 % `TUNING.crabMovePct` the game ships with.
+    // 45 march steps is 50 ticks at the game's default 90 % `TUNING.crabMovePct`.
     expect({ steps: ROTATE_TICKS, ticks }).toEqual({ steps: 45, ticks: 50 });
     expect(s.crabs.map((c) => c.slot)).toEqual(before.map((i) => next[i]));
     expect(form(s).rotateTick).toBe(0);
@@ -341,7 +341,7 @@ describe('the manta reforms', () => {
     expect(s.crabs.every((c) => onSlot(s, c))).toBe(false);
     expect(form(s).glideTicks).toBe(MARCH_STEP_UNITS); // one march step of the sixty still to go
     const last = advanceSteps(s, 1);
-    // 60 march steps is 66 ticks at the 90 % `TUNING.crabMovePct` the game ships with.
+    // 60 march steps is 66 ticks at the game's default 90 % `TUNING.crabMovePct`.
     expect({ ticks: ticks + last }).toEqual({ ticks: 66 });
     expect(form(s).glideTicks).toBe(0);
     expect(s.crabs.every((c) => onSlot(s, c))).toBe(true);

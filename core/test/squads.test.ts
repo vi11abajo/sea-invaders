@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   BOSS, CRAB, CRAB_TYPES, DROP, FIELD_W, INITIAL_INPUT, OCTOPI, PRACTICE_RUN, REEF_KINDS, SQUAD_BAND,
   SQUAD_GAP_X, SQUAD_ROW_GAP, SQUAD_TEMPLATES, createGame, damageBoss, fireChance, halvedWhileBoss,
-  hitCrabs, idiv, insideField, isHeralded, levelById, marchSquads, marchSteps, popSquads, spawnBoss,
-  spawnSquad, squadStep, step, updateEnemyShots, updateVeterans,
+  hitCrabs, hitOctopi, idiv, insideField, isHeralded, levelById, marchSquads, marchSteps, popSquads,
+  spawnBoss, spawnSquad, squadStep, step, updateEnemyShots, updateVeterans,
 } from '../src';
 import type { GameState } from '../src';
 
@@ -245,6 +245,18 @@ describe('squad crabs dying', () => {
     expect(s.crabs).toHaveLength(1);
     expect(s.kills).toBe(1);
     expect(s.score).toBe(CRAB_TYPES.armored.points * s.wave);
+  });
+
+  it('counts a squad crab down when it dies by walking into Octopi, not only when it is shot (minor #3)', () => {
+    const s = arena();
+    spawnSquad(s, 'pair', ['armored'], 2000, SQUAD_BAND.minY, 1);
+    expect(s.squads[0]!.alive).toBe(2);
+    const c = s.crabs[0]!;
+    c.x = s.octopi.x;
+    c.y = s.octopi.y; // dead centre on Octopi: the crab-touch branch of hitOctopi takes it
+    hitOctopi(s);
+    expect(s.crabs).toHaveLength(1);
+    expect(s.squads[0]!.alive).toBe(1);
   });
 
   it('still scores on a boss level, where the round never had a wave number', () => {

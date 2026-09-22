@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   AIM_STRIDE, BOSS, BOSS_TABLE, FIELD_W, INITIAL_INPUT, LANE_STRIDE, OBSTACLE_INDEX,
-  OBSTACLE_STRIDE, OCTOPI, PRACTICE_RUN, REEF_KINDS, SQUAD_BAND, bossStats, createGame, hashState,
-  idiv, isTableBoss, moveOctopi, raiseObstacle, snapshot, spawnBoss, spawnSquad, step,
+  OBSTACLE_STRIDE, OCTOPI, PRACTICE_RUN, REEF_KINDS, SQUAD_BAND, bossStats, createGame, damageBoss,
+  hashState, idiv, isTableBoss, moveOctopi, raiseObstacle, snapshot, spawnBoss, spawnSquad, step,
 } from '../src';
 import type { BossKind, GameState, Rng } from '../src';
 
@@ -76,6 +76,22 @@ describe('the new boss state fields', () => {
     expect(s.destroyedObstacles).toEqual([]);
     expect(s.lanes).toEqual([]);
     expect(s.aims).toEqual([]);
+    expect(s.chillTicks).toBe(0);
+  });
+});
+
+describe('the arena at a boss death (final fix wave, minor #2)', () => {
+  it('clears the lanes, sight lines, obstacles and cold snap the instant a reefs 6-10 boss dies', () => {
+    const s = arena(7); // Frost Castellan: no onHit shield of its own to complicate the killing hit
+    s.lanes = [2, 45];
+    s.aims = [1000, 2000, 3000, 4000, 0, 40];
+    raiseObstacle(s, 'crystal', 2000, 3600, 500, 700, 12);
+    s.chillTicks = 77;
+    damageBoss(s, s.boss!.hp); // exactly lethal
+    expect(s.boss).toBeNull();
+    expect(s.lanes).toEqual([]);
+    expect(s.aims).toEqual([]);
+    expect(s.obstacles).toEqual([]);
     expect(s.chillTicks).toBe(0);
   });
 });
@@ -191,6 +207,18 @@ describe('the state hash', () => {
     const before = hashState(withSquad());
     const s = withSquad();
     s.squads[0]!.alive -= 1; // everything else about the two states is identical
+    expect(hashState(s)).not.toBe(before);
+  });
+
+  it("covers a squad's own bossKind, not just its id, dir and alive count", () => {
+    const withBossKind = (): GameState => {
+      const s = arena();
+      spawnSquad(s, 'pair', REEF_KINDS, 2000, SQUAD_BAND.minY, 1);
+      return s;
+    };
+    const before = hashState(withBossKind());
+    const s = withBossKind();
+    s.squads[0]!.bossKind = 8; // everything else about the two states is identical
     expect(hashState(s)).not.toBe(before);
   });
 });

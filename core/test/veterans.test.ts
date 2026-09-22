@@ -465,6 +465,31 @@ describe('the patriarch rallies the fallen', () => {
     expect(ev && { x: ev.x, y: ev.y }).toEqual({ x: back.x, y: back.y });
   });
 
+  it("brings back the kind that actually stood on a whirlpool's slot, not the template cell's own, once the ring has turned it over", () => {
+    // spec §2: "restored with the kind it spawned with" is the *crab's* own kind — a whirlpool's ring
+    // carries different tiers through the same cell, so the cell's template kind and the kind
+    // actually marching through it can disagree.
+    const s = landed('whirlpool', PATRIARCH_POOL);
+    // Slot 23 (row 6, col 6, tier 1 -> elder) rotates onto slot 27 (row 7, col 5, tier 0 -> normal)
+    // after one ring step (`WHIRLPOOL_NEXT`): exactly the case where the two disagree.
+    const elder = at(s, 23);
+    expect(elder.type).toBe('elder');
+    expect(form(s).slots[27]!.type).toBe('normal');
+    advance(s, 50); // ROTATE_TICKS (45 march steps) is 50 ticks at the game's default march cadence
+    expect(form(s).rotateTick).toBe(0);
+    expect(at(s, 27)).toBe(elder); // the same crab, now on the far slot
+    expect(form(s).slots[27]!.type).toBe('elder'); // the slot's own kind rode the ring right with it
+
+    s.crabs = s.crabs.filter((c) => c !== elder);
+    expect(freeSlots(s)).toEqual([27]);
+    const p = s.crabs.find((c) => c.type === 'patriarch')!;
+    p.rallyTimer = 1;
+    advance(s, 1);
+    expect(count(s, 'crab_rallied')).toBe(1);
+    const back = s.crabs[s.crabs.length - 1]!;
+    expect({ slot: back.slot, type: back.type }).toEqual({ slot: 27, type: 'elder' }); // not 'normal'
+  });
+
   it('stops at RALLY_CAP revives, however long the patriarch lives', () => {
     const s = wreck();
     const p = at(s, 0);

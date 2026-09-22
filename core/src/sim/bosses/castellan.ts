@@ -52,7 +52,7 @@ import type { BossHooks } from './index';
  * **The destroyed-crystal burst does not read `s.events`** (fix round 1, controller ruling R18 —
  * `s.events` is a write-only outbox for the renderer; the app itself truncates it once a frame
  * (`GameScreen.tsx`), so a fix-round-0 version of this file that watermarked into it was reliably
- * broken in the shipped app despite every isolated core test passing). Instead, `hitObstacle`
+ * broken in the released app despite every isolated core test passing). Instead, `hitObstacle`
  * (`sim/obstacles.ts`) appends the position of everything it removes to the sim-internal
  * `GameState.destroyedObstacles`, and this boss's `tick` hook below drains the whole list every
  * time it runs, in list order, then empties it — no watermark, so nothing can be mis-tracked.
@@ -104,7 +104,7 @@ const CRYSTAL_Y = 3600;
  * The six columns a crystal may stand on (spec §5.2's "six fixed columns"), spread evenly inside
  * the march margins — `formations.ts`'s own `MARCH_MARGIN`, the room a formation keeps clear of the
  * field edges, reused here for exactly the reason it exists: nothing should be asked to stand right
- * on the edge of the field. `FIELD_W - 2*MARCH_MARGIN` (4825) divides evenly by 5 with the shipped
+ * on the edge of the field. `FIELD_W - 2*MARCH_MARGIN` (4825) divides evenly by 5 with the current
  * geometry, so all six columns land on whole numbers with nothing left over: 400, 1365, 2330, 3295,
  * 4260, 5225 — `MARCH_MARGIN + i*965` for `i` in 0..5.
  */

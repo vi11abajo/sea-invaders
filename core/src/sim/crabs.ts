@@ -240,10 +240,13 @@ export const FRAGMENT_VECTORS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /**
- * One tick of a homing orb (spec §5.1): its sideways velocity turns towards Octopi by at most
- * `ORB_STEER` units — less when Octopi is nearer than that, so the turn settles rather than jitters
- * — capped at `ORB_VX_MAX` either way, its sinking `vy` untouched; and one tick comes off the life
- * packed into `data` (`ticksLeft * 4 + hp`, so a whole tick is 4).
+ * One tick of a homing orb (spec §5.1): its sideways velocity `vx` accumulates towards Octopi by at
+ * most `ORB_STEER` units a tick — the clamp bounds the *turn*, not `vx` itself, so this does not
+ * damp. `vx` keeps climbing for as long as Octopi sits further away than `ORB_STEER`, carries the
+ * orb past Octopi's x, and then climbs back the other way, so the orb overshoots and oscillates
+ * about Octopi's x rather than settling on it, bounded either way by `|vx| ≤ ORB_VX_MAX`. `vy`
+ * (its sinking speed) is untouched, and one tick comes off the life packed into `data`
+ * (`ticksLeft * 4 + hp`, so a whole tick is 4).
  */
 function steerOrb(s: GameState, b: Bullet): void {
   b.vx = clamp(b.vx + clamp(s.octopi.x - b.x, -ORB_STEER, ORB_STEER), -ORB_VX_MAX, ORB_VX_MAX);

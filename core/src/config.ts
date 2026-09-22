@@ -50,7 +50,7 @@ export function piercingFor(variant: OctopiVariant): boolean {
  * Game-speed tuning in percent of the original speeds (100 = unchanged, below 100 slower, above
  * faster). Change these knobs rather than the values they scale: every derived speed follows.
  * Owner tuning 2026-09-13: Octopi's shots -20 %, crab movement -10 %, crab fire rate -10 %.
- * Any change alters every replay, so it ships with a CORE_VERSION bump and regenerated goldens.
+ * Any change alters every replay, so the release carries a CORE_VERSION bump and regenerated goldens.
  */
 export const TUNING = {
   /** How fast Octopi's shots fly: scales `UNTUNED_SPEED.octopiShot` into `SHOT.speed`. */
@@ -249,7 +249,7 @@ export const BOSS_SHOT = { speed: 110, radius: 96 } as const;
  * `score` is the *whole* base (what `scoreBase * kind` yields for a legacy boss), before the fight's
  * own decay and SCORE_MULTIPLIER.
  */
-export const BOSS_TABLE: Readonly<Record<TableBossKind, { hp: number; phases: number; score: number }>> = {
+export const BOSS_TABLE: Readonly<Record<TableBossKind, Readonly<{ hp: number; phases: number; score: number }>>> = {
   6: { hp: 700, phases: 2, score: 12000 },
   7: { hp: 800, phases: 3, score: 14000 },
   8: { hp: 900, phases: 3, score: 16000 },

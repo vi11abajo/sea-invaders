@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CORE_VERSION, INITIAL_INPUT, MAX_REPLAY_INPUTS, MAX_REPLAY_TICKS, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
-  createGame, decodeReplay, encodeReplay, hashState, runReplay, step, type Input, type Replay,
+  CORE_VERSION, INITIAL_INPUT, LEVEL_COUNT, MAX_REPLAY_INPUTS, MAX_REPLAY_TICKS, PRACTICE_RUN, REPLAY_MODE,
+  ReplayRecorder, createGame, decodeReplay, encodeReplay, hashState, runReplay, step, type Input, type Replay,
 } from '../src';
 
 describe('hashState', () => {
@@ -156,6 +156,14 @@ describe('replay codec', () => {
     expect(decodeReplay(encodeReplay(r))).toEqual(r);
   });
 
+  it('round-trips a campaign replay whose level id lands in reefs 6-10, beyond the first campaign', () => {
+    const r: Replay = {
+      version: 1, mode: REPLAY_MODE.campaign, levelId: 45, lives: 3, octopi: 'base', seed: 'reef8', ticks: 200,
+      inputs: [10, 1000, 2000, 150, 500, 1500],
+    };
+    expect(decodeReplay(encodeReplay(r))).toEqual(r);
+  });
+
   it('rejects truncated input, trailing bytes and a non-ASCII seed', () => {
     const bytes = encodeReplay({
       version: 1, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, octopi: 'base', seed: 's', ticks: 10, inputs: [1, 2, 3],
@@ -204,9 +212,15 @@ describe('replay codec', () => {
     expect(() => decodeReplay(bytes)).toThrow('replay mode invalid');
   });
 
-  it('rejects a levelId beyond 30', () => {
-    const bytes = Uint8Array.from([...varintBytes(2), ...varintBytes(0), ...varintBytes(31)]);
+  it('rejects a levelId beyond LEVEL_COUNT and accepts the boundary itself', () => {
+    expect(LEVEL_COUNT).toBe(60);
+    const bytes = Uint8Array.from([...varintBytes(2), ...varintBytes(0), ...varintBytes(LEVEL_COUNT + 1)]);
     expect(() => decodeReplay(bytes)).toThrow('replay level out of range');
+    const valid: Replay = {
+      version: 1, mode: REPLAY_MODE.campaign, levelId: LEVEL_COUNT, lives: 3, octopi: 'base', seed: '', ticks: 1,
+      inputs: [],
+    };
+    expect(() => decodeReplay(encodeReplay(valid))).not.toThrow();
   });
 
   it('rejects lives beyond 255', () => {

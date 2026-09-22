@@ -191,6 +191,7 @@ export function hitOctopi(s: GameState): void {
     if (dx * dx + dy * dy < r2) {
       s.crabs.splice(i, 1);
       enrage(s, c); // spec §2: a patriarch that reaches Octopi enrages its formation all the same
+      countDownSquad(s, c); // a squad crab that walks into Octopi still counts down its squad's alive
       applyOctopiHit(s, 1);
       return;
     }

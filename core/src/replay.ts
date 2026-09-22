@@ -1,3 +1,4 @@
+import { LEVEL_COUNT } from './campaign/progress';
 import { createGame, INITIAL_INPUT } from './game';
 import { LEVELS } from './levels';
 import type { RunConfig, RunMode } from './run';
@@ -195,7 +196,7 @@ export function decodeReplay(bytes: Uint8Array): Replay {
   const mode = read();
   if (mode !== 0 && mode !== 1 && mode !== 2) throw new Error('replay mode invalid');
   const levelId = read();
-  if (levelId > 30) throw new Error('replay level out of range');
+  if (levelId > LEVEL_COUNT) throw new Error('replay level out of range');
   const lives = read();
   if (lives > 255) throw new Error('replay lives out of range');
   const octopiIndex = read();

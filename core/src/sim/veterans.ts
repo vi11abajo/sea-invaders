@@ -151,8 +151,11 @@ export function armRallies(s: GameState): void {
 
 /**
  * One revive by the patriarch `p` (spec §2): a fallen crab of its wave comes back with the kind its
- * slot fields and full hp, marked as revived for the renderer. The revived crab counts for the clear
- * condition and scores again, exactly like any other crab of the wave.
+ * slot fields and full hp, marked as revived for the renderer. On a whirlpool, that slot's own kind
+ * follows the ring right along with the crabs (`rotate`, `sim/living.ts`), so what comes back is
+ * always the kind that was actually standing on that cell, not the template's original one for it.
+ * The revived crab counts for the clear condition and scores again, exactly like any other crab of
+ * the wave.
  *
  * Nothing happens when no slot qualifies (see `rallyTarget`); that spends none of the patriarch's
  * three revives, and it tries again at its next rally.

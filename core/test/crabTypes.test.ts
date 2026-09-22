@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CRAB_TYPES, PRACTICE_RUN, REEF_KINDS, TYPE_COLOUR, TYPE_INDEX, createGame, crabSpeed, hashState, hitCrabs,
-  hitOctopi, kindForTier, levelById, marchCrabs, marchSteps, spawnFormation, spawnWave, type Crab, type CrabType,
+  CRAB_TYPES, KIND_INDEX, PRACTICE_RUN, REEF_KINDS, TYPE_COLOUR, TYPE_INDEX, createGame, crabSpeed, hashState,
+  hitCrabs, hitOctopi, kindForTier, levelById, marchCrabs, marchSteps, spawnFormation, spawnWave, type Crab,
+  type CrabType,
 } from '../src';
 
 /**
@@ -54,6 +55,15 @@ describe('crab kinds', () => {
     expect(TYPE_COLOUR).toEqual({
       normal: 0, armored: 1, swift: 4, heavy: 3, elder: 2,
       warden: 5, herald: 6, bubbler: 7, bombardier: 8, patriarch: 9,
+    });
+  });
+
+  it('pins every bullet kind to its own state-hash/view-frame index, legacy 0-13 and reefs 6-10 14-21', () => {
+    expect(KIND_INDEX).toEqual({
+      crab: 0, straight: 1, zigzag: 2, large: 3, wave: 4, ring: 5, explosive: 6, fragment: 7,
+      meteor: 8, berserk: 9, spiral: 10, gravity: 11, clone: 12,
+      heavy: 13,
+      bubble: 14, charge: 15, firewall: 16, shard: 17, axe: 18, bolt: 19, orb: 20, needle: 21,
     });
   });
 

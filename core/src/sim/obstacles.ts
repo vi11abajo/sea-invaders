@@ -27,9 +27,12 @@ import type { Bullet, GameState, Obstacle, ObstacleKind } from '../types';
  * write-only outbox for the renderer — this keeps working exactly as before, unconditionally, for
  * whatever the app wants to do with it) and a `{x, y}` entry appended to
  * `GameState.destroyedObstacles` (the sim-internal channel a boss's own hooks may read back from,
- * since reading `s.events` back is not allowed — controller ruling R18). `step.ts` clears the second
- * list at the end of every tick, so a boss that never drains it (or a fight with none at all) can
- * never accumulate stale entries.
+ * since reading `s.events` back is not allowed — controller ruling R18). `updateBoss` (`sim/boss.ts`)
+ * sweeps the second list right after `hooks.tick` runs, but not while the boss sits in
+ * `state === 'transition'` (fix round 2, controller ruling R19 — a destruction mid-transition survives
+ * until fighting resumes rather than being wiped early), and `damageBoss` sweeps it once more at the
+ * boss's own death, so a boss that never drains it (or a fight with none at all) can never accumulate
+ * stale entries.
  */
 
 /** Raises an obstacle of `kind` centred on `x`, `y`, `w` by `h` units, with `hp` player hits in it. */

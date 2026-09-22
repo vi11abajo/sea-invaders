@@ -23,8 +23,8 @@ const HALF = idiv(CRAB.size, 2);
 
 /**
  * March steps a whirlpool crab takes to travel from its slot to the next one on its ring (spec §3,
- * amended by ruling R6: march steps, not wall-clock ticks). At the 90 % `TUNING.crabMovePct` the
- * game ships with, and with nothing slowing the wave, that is 50 ticks.
+ * amended by ruling R6: march steps, not wall-clock ticks). At the game's default 90 %
+ * `TUNING.crabMovePct`, and with nothing slowing the wave, that is 50 ticks.
  */
 export const ROTATE_TICKS = 45;
 
@@ -80,7 +80,7 @@ const SPEARHEAD: ReadonlyArray<Omit<FormationSlot, 'type'>> = formationPositions
  * A wave reforms only once it is down to this many crabs or fewer (spec §3), which is exactly the
  * number of spearhead slots — so every survivor is guaranteed a place.
  */
-export const REFORM_MAX = SPEARHEAD.length;
+const REFORM_MAX = SPEARHEAD.length;
 
 /**
  * The slot each whirlpool slot turns into, built once from the ring lists of spec §3 and checked as
@@ -181,6 +181,13 @@ function rotate(s: GameState, f: FormationState): void {
     // Any progress past the span is dropped rather than carried: a crab that has reached its slot
     // is *on* it, and a step is only ever overshot by part of one tick's worth.
     f.rotateTick = 0;
+    // The slots' own kinds ride the same ring the crabs do (spec §2: a rally restores the kind the
+    // fallen crab actually spawned with): without this, `slots[*].type` stays put while `c.slot`
+    // moves on, so a later rally into a slot the ring has since carried a different kind through
+    // would hand back the template's original kind for that cell rather than the kind that was
+    // actually standing there.
+    const types = f.slots.map((sl) => sl.type);
+    for (let i = 0; i < f.slots.length; i++) f.slots[WHIRLPOOL_NEXT[i]!]!.type = types[i]!;
     for (const c of s.crabs) if (c.slot >= 0) c.slot = WHIRLPOOL_NEXT[c.slot]!;
   }
   for (const c of s.crabs) {

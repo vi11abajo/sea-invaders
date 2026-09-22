@@ -48,7 +48,7 @@ export const SQUAD_ROW_GAP = 600;
  * descends. Further rows of a multi-row template hang below the anchor at `SQUAD_ROW_GAP`.
  *
  * The spec names two bounds: `BOSS.top + BOSS.height + 300` (below the boss box) and
- * `OCTOPI.minY − 1200` (well above Octopi). With the shipped geometry they cross — 3960 against
+ * `OCTOPI.minY − 1200` (well above Octopi). With the current geometry they cross — 3960 against
  * 3800, because the boss box is 2960 units tall and reaches down to 3660 — so they cannot both
  * hold, and ruling R12 settles it in favour of the boss box: the band runs from half a crab below
  * the boss box (3925, the shallowest anchor whose sprite is not drawn *inside* the boss) down to

@@ -221,7 +221,13 @@ export function hitOrbs(s: GameState): void {
   s.shots = kept;
 }
 
-/** Whether a player shot's box overlaps an orb's, the same box test `popBubbles` uses for a bubble. */
+/**
+ * Whether a player shot's box overlaps an orb's, the same box test `popBubbles` uses for a bubble.
+ * Deliberately wider than the radius-`ORB_RADIUS` circle `hitOctopi` tests the same orb's collision
+ * against Octopi with — the same trade-off `touchesBubble`'s own doc explains for the bubble: a
+ * player shot is a box, so the cheap box test is the one that matches the rest of `hitCrabs`, and the
+ * corners buy a little extra reach on the diagonal.
+ */
 function touchesOrb(p: Bullet, b: Bullet): boolean {
   return Math.abs(p.x - b.x) * 2 < SHOT.w + ORB_RADIUS * 2
     && Math.abs(p.y - b.y) * 2 < SHOT.h + ORB_RADIUS * 2;
@@ -322,7 +328,7 @@ export function isTableBoss(kind: BossKind): kind is TableBossKind {
  * `200 + 100*(kind-1)`), `kind` phases, `BOSS.scoreBase * kind` score — and only kinds 6..10 read
  * the explicit table of spec §5. This is the single place the two rules meet.
  */
-export function bossStats(kind: BossKind): { hp: number; phases: number; score: number } {
+export function bossStats(kind: BossKind): Readonly<{ hp: number; phases: number; score: number }> {
   if (isTableBoss(kind)) return BOSS_TABLE[kind];
   return { hp: BOSS.baseHp + BOSS.hpStep * (kind - 1), phases: kind, score: BOSS.scoreBase * kind };
 }
@@ -417,6 +423,13 @@ export function damageBoss(s: GameState, amount: number, shot?: Bullet): void {
     // sweep of `destroyedObstacles` again (it returns immediately for `s.boss === null`), so
     // whatever a destruction this very tick left pending is cleared here instead.
     s.destroyedObstacles = [];
+    // Final fix wave, minor #2: the rest of the arena goes with the boss too, so the last frame
+    // under the level-cleared overlay carries no lightning band, sight line, crystal or chill —
+    // nothing a boss-6..10 fight can leave behind survives its own death.
+    s.lanes = [];
+    s.aims = [];
+    s.obstacles = [];
+    s.chillTicks = 0;
     s.events.push({ tick: s.tick, type: 'boss_dead' });
     // Spec §5.1: whatever the escort has left goes with its boss, without score — but not
     // synchronously, not any more (fix round 1, controller ruling R22). `popSquads` itself runs once,
