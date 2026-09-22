@@ -60,6 +60,16 @@ const form = (s: GameState): FormationState => s.formation!;
 const at = (s: GameState, slot: number): Crab => s.crabs.find((c) => c.slot === slot)!;
 const onSlot = (s: GameState, c: Crab) => ({ x: c.x - form(s).ox, y: c.y - form(s).oy });
 const count = (s: GameState, type: string) => s.events.filter((e) => e.type === type).length;
+/**
+ * The first event of `type`, its `x`/`y` payload exposed (ruling R60, task 12 fix round 1): a plain
+ * cast rather than `Extract<GameEvent, { type: T }>`, which collapses to `never` here — the member
+ * these four events share has `type: 'crab_shield_break' | 'bubble_pop' | 'charge_burst' |
+ * 'crab_rallied'`, a union itself, and `Extract` needs a member whose own `type` is assignable to
+ * the single literal `T`, which a wider union never is.
+ */
+function eventOf(s: GameState, type: 'crab_shield_break' | 'bubble_pop' | 'charge_burst' | 'crab_rallied'): { x: number; y: number } | undefined {
+  return s.events.find((e) => e.type === type) as { x: number; y: number } | undefined;
+}
 
 /** Runs the veteran tick alone: timers, rallies and rage, with nothing moving. */
 function tickVeterans(s: GameState, ticks: number): void {
@@ -110,6 +120,9 @@ describe('the warden raises a rune shield', () => {
       .toEqual({ hp: CRAB_TYPES.warden.hp, shield: 0, timer: SHIELD_REGROW_TICKS, shots: 0 });
     expect(count(s, 'crab_shield_break')).toBe(1);
     expect(s.crabs).toHaveLength(1);
+    // Ruling R60 (task 12 fix round 1): the event carries the warden's own position.
+    const ev = eventOf(s, 'crab_shield_break');
+    expect(ev && { x: ev.x, y: ev.y }).toEqual({ x: c.x, y: c.y });
   });
 
   it('regrows the shield exactly SHIELD_REGROW_TICKS ticks after it broke', () => {
@@ -313,6 +326,9 @@ describe('the bubbler blows bubbles', () => {
       expect({ data, bubbles: s.enemyShots.length, shots: s.shots.length })
         .toEqual({ data, bubbles: 0, shots: data });
       expect(count(s, 'bubble_pop')).toBe(1);
+      // Ruling R60 (task 12 fix round 1): the event carries the popped bubble's own position.
+      const ev = eventOf(s, 'bubble_pop');
+      expect(ev && { x: ev.x, y: ev.y }).toEqual({ x: 1000, y: 3000 });
     }
   });
 
@@ -390,6 +406,9 @@ describe('the bombardier throws a bursting charge', () => {
       ['fragment', 2000, burstY + 99, -73, 0],
       ['fragment', 2000, burstY + 99, 0, -73],
     ]);
+    // Ruling R60 (task 12 fix round 1): the event carries the charge's own position, at the moment it burst.
+    const ev = eventOf(s, 'charge_burst');
+    expect(ev && { x: ev.x, y: ev.y }).toEqual({ x: 2000, y: burstY + 99 });
   });
 
   it('follows Octopi down: the burst depth is measured off its current y', () => {
@@ -441,6 +460,9 @@ describe('the patriarch rallies the fallen', () => {
     expect(CRAB_TYPES[slot.type].hp).toBeGreaterThan(1); // a full-hp revive is worth asserting
     expect(onSlot(s, back)).toEqual({ x: slot.x, y: slot.y });
     expect(freeSlots(s)).toEqual([8, 20]);
+    // Ruling R60 (task 12 fix round 1): the event carries the revived crab's own position.
+    const ev = eventOf(s, 'crab_rallied');
+    expect(ev && { x: ev.x, y: ev.y }).toEqual({ x: back.x, y: back.y });
   });
 
   it('stops at RALLY_CAP revives, however long the patriarch lives', () => {

@@ -164,7 +164,7 @@ function rally(s: GameState, p: Crab): void {
   back.revived = REVIVED_TICKS;
   s.crabs.push(back);
   p.rallies += 1;
-  s.events.push({ tick: s.tick, type: 'crab_rallied' });
+  s.events.push({ tick: s.tick, type: 'crab_rallied', x: back.x, y: back.y });
 }
 
 /**
@@ -293,7 +293,7 @@ export function shieldAbsorbs(s: GameState, c: Crab, b: Bullet): boolean {
   if (c.shield !== 1 || (b.data & 1) !== 0) return false;
   c.shield = 0;
   c.shieldTimer = SHIELD_REGROW_TICKS;
-  s.events.push({ tick: s.tick, type: 'crab_shield_break' });
+  s.events.push({ tick: s.tick, type: 'crab_shield_break', x: c.x, y: c.y });
   return true;
 }
 
@@ -409,7 +409,7 @@ export function flipBubble(b: Bullet): void {
 export function burstCharge(s: GameState, b: Bullet, out: Bullet[]): boolean {
   if (b.y < s.octopi.y - CHARGE_BURST_GAP) return false;
   for (const [vx, vy] of FRAGMENT_VECTORS) out.push({ x: b.x, y: b.y, vx, vy, kind: 'fragment', data: 0 });
-  s.events.push({ tick: s.tick, type: 'charge_burst' });
+  s.events.push({ tick: s.tick, type: 'charge_burst', x: b.x, y: b.y });
   return true;
 }
 
@@ -452,8 +452,9 @@ export function popBubbles(s: GameState): void {
       kept.push(p);
       continue;
     }
+    const bubble = s.enemyShots[i]!;
     s.enemyShots.splice(i, 1);
-    s.events.push({ tick: s.tick, type: 'bubble_pop' });
+    s.events.push({ tick: s.tick, type: 'bubble_pop', x: bubble.x, y: bubble.y });
     if ((p.data & 1) !== 0) kept.push(p);
   }
   s.shots = kept;

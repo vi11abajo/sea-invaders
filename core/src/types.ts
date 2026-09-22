@@ -286,9 +286,12 @@ export type GameEvent =
       tick: number;
       type:
         | 'wave_cleared' | 'level_cleared' | 'boss_spawn' | 'boss_phase' | 'boss_dead' | 'shield_break' | 'player_hit' | 'revived'
-        // Veteran-skill events (spec §2): names only, nothing emits them yet — a later task wires in
-        // the shield, aura, bubble, charge, rally and rage skills that raise these.
-        | 'crab_shield_break' | 'crab_shield_up' | 'bubble_pop' | 'charge_burst' | 'crab_rallied' | 'formation_rage'
+        // Veteran-skill events (spec §2) with no position of their own: `crab_shield_up` (the app
+        // reads the crab's own `Frame.crabs` flags while the shield is up) and `formation_rage` (a
+        // field-wide state, not a place). `crab_shield_break`/`bubble_pop`/`charge_burst`/
+        // `crab_rallied` moved to their own member below (app ruling R60, task 12 fix round 1) —
+        // each has a specific crab's or bullet's own position to carry.
+        | 'crab_shield_up' | 'formation_rage'
         // Raised once, by a `reform` wave falling back into the spearhead (spec §3).
         | 'formation_reform'
         // The reefs 6-10 boss events (spec §5). `squad_popped` is raised here — once per squad that
@@ -299,6 +302,15 @@ export type GameEvent =
         | 'lane_warning' | 'lane_strike' | 'boss_aim' | 'boss_reflect'
         | 'crystal_raised' | 'crystal_shatter'
     }
+  /**
+   * The four veteran-skill events with a specific position of their own (spec §2, app ruling R60,
+   * task 12 fix round 1): a warden's shield breaking, a bubbler's bubble popping, a bombardier's
+   * charge bursting and a patriarch's revive, each at the crab's or bullet's own `x`/`y` at the
+   * instant it happens. Before this, the event carried only `tick` and the app scanned `state.crabs`
+   * (or fell back to Octopi's own position) to guess a place to draw a one-shot effect at — fragile,
+   * since `Array.find` returns only the first match and two same-tick occurrences shared one spot.
+   */
+  | { tick: number; type: 'crab_shield_break' | 'bubble_pop' | 'charge_burst' | 'crab_rallied'; x: number; y: number }
   /** An arena object shattered by player fire (spec §5.1), at the position it stood on. */
   | { tick: number; type: 'obstacle_destroyed'; x: number; y: number }
   /**

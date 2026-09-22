@@ -1,7 +1,6 @@
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
-  BOOST_INDEX, CRAB_SHOTS, CRAB_TYPES, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
-  REVIVED_TICKS, SHIELD_REGROW_TICKS,
+  BOOST_INDEX, CRAB_SHOTS, CRAB_TYPES, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, LANE_STRIDE, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
   OCTOPI, TIDE_REVIVE_LIVES, createGame, fitField, formatInt, revive, snapshot, step, touchToInput,
   type BoostType, type BossFrame, type Bullet, type BulletKind, type Crab, type Frame, type GameEvent, type Input, type OctopiVariant, type Replay,
   type ReplayMode, type RunConfig,
@@ -266,22 +265,6 @@ function damagedCrabCount(crabs: readonly Crab[]): number {
   let count = 0;
   for (const c of crabs) if (c.hp < CRAB_TYPES[c.type].hp) count += 1;
   return count;
-}
-
-/**
- * `crab_shield_break`/`crab_rallied` (`GameEvent`) carry no position of their own — unlike
- * `boost_pickup`'s WAVE_BLAST, which reads `state.octopi` at the same instant (`GameScreen`'s own
- * frame loop), there is no single state field for "the crab this just happened to". `shieldTimer`/
- * `revived` are set to their own full value the very tick the break/rally happens and only ever count
- * down from there, so a crab caught at exactly that value is the one the event just fired for, found
- * with one `Array.find` over `state.crabs` rather than guessed at.
- */
-function crabJustBrokeShield(c: Crab): boolean {
-  return c.shield === 0 && c.shieldTimer === SHIELD_REGROW_TICKS;
-}
-
-function crabJustRallied(c: Crab): boolean {
-  return c.revived === REVIVED_TICKS;
 }
 
 /**
@@ -578,15 +561,21 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       // own — so the struck lane is found the only other way available, by diffing `state.lanes`
       // against what it held at the end of the previous rendered frame: a lane leaves that array only
       // by striking (`tickThroughTransition`, `core/src/sim/bosses/tyrant.ts`), never any other way.
+      // The diff gives the *lane*; the matching `lane_strike` event below (consumed in the same order
+      // lanes struck, `tickThroughTransition`'s own loop order) gives the *tick* — fix round 1: a
+      // catch-up batch that runs several ticks in one rendered frame must not stamp an early strike
+      // with the batch's own final `state.tick`, or it reads as already aged the first time it draws.
+      const struckLanes: number[] = [];
       if (prevLanes.length > 0) {
         const stillWarned = new Set<number>();
-        for (let i = 0; i < state.lanes.length; i += 2) stillWarned.add(state.lanes[i]!);
-        for (let i = 0; i < prevLanes.length; i += 2) {
+        for (let i = 0; i < state.lanes.length; i += LANE_STRIDE) stillWarned.add(state.lanes[i]!);
+        for (let i = 0; i < prevLanes.length; i += LANE_STRIDE) {
           const lane = prevLanes[i]!;
-          if (!stillWarned.has(lane)) pushEffect('lane_strike', state.tick, lane, 0);
+          if (!stillWarned.has(lane)) struckLanes.push(lane);
         }
       }
       prevLanes = state.lanes.slice();
+      let struckLaneIndex = 0;
       for (const ev of state.events) {
         if (ev.type === 'boss_phase') {
           bannerText = `PHASE ${state.boss?.phase ?? 0}`;
@@ -597,40 +586,40 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           // Only emitted when the blast actually fired (with no crabs the drop is not consumed).
           if (ev.boost === 'WAVE_BLAST') blast.value = { tick: ev.tick, x: state.octopi.x, y: state.octopi.y };
         }
-        // The reefs 6-10 one-shot visuals (ruling R45): captured from the event itself where it
-        // carries a position (`obstacle_destroyed`, `boss_clone`), from `state` at this same instant
-        // where it does not (the WAVE_BLAST precedent above) — `crab_shield_break`/`crab_rallied` find
-        // the crab it just happened to (see `crabJustBrokeShield`/`crabJustRallied`), `bubble_pop`/
-        // `charge_burst`/`formation_rage`/`cold_snap` fall back to Octopi's own position (none of the
-        // four carry one of their own to read), and `boss_windup` only ever draws a marker for the
-        // Verdant Templar's own firewall gap (kind 6) — Gold Corsair's Spikes reuses the same event
-        // name for its own wind-up but has no gap of its own to show.
-        if (ev.type === 'crab_shield_break') {
-          const c = state.crabs.find(crabJustBrokeShield);
-          pushEffect('crab_shield_break', ev.tick, c?.x ?? state.octopi.x, c?.y ?? state.octopi.y);
-        } else if (ev.type === 'crab_rallied') {
-          const c = state.crabs.find(crabJustRallied);
-          pushEffect('crab_rallied', ev.tick, c?.x ?? state.octopi.x, c?.y ?? state.octopi.y);
-        } else if (ev.type === 'bubble_pop') {
-          pushEffect('bubble_pop', ev.tick, state.octopi.x, state.octopi.y);
-        } else if (ev.type === 'charge_burst') {
-          pushEffect('charge_burst', ev.tick, state.octopi.x, state.octopi.y);
+        // The reefs 6-10 one-shot visuals (ruling R45, R60-R62): every entry is stamped with the
+        // event's own `ev.tick`, never `state.tick` — a catch-up batch's later ticks must not age an
+        // earlier one's effect before it is ever drawn. `crab_shield_break`/`bubble_pop`/
+        // `charge_burst`/`crab_rallied` now carry their own `x`/`y` from the core (ruling R60, fix
+        // round 1) — no more scanning `state.crabs` or falling back to Octopi's position.
+        // `crystal_shatter` carries no position (Shatter is boss-wide, not per-crystal): one entry,
+        // position unused, drives the 120-tick warning tint on every crystal drawn (ruling R61).
+        // `boss_windup` fires for two different bosses under one name: kind 6 (Verdant Templar) draws
+        // the firewall gap marker from `gapSlot`; kind 8 (Gold Corsair, ruling R62) draws a flickering
+        // spike-flash telegraph instead, so both are captured, distinguished by `f.boss.kind` at draw
+        // time (`draw.ts`).
+        if (ev.type === 'crab_shield_break' || ev.type === 'bubble_pop' || ev.type === 'charge_burst' || ev.type === 'crab_rallied') {
+          pushEffect(ev.type, ev.tick, ev.x, ev.y);
         } else if (ev.type === 'formation_rage') {
           pushEffect('formation_rage', ev.tick, state.octopi.x, state.octopi.y);
         } else if (ev.type === 'crystal_shatter') {
-          for (const o of state.obstacles) pushEffect('crystal_shatter', ev.tick, o.x, o.y);
+          pushEffect('crystal_shatter', ev.tick, 0, 0);
         } else if (ev.type === 'obstacle_destroyed') {
           pushEffect('obstacle_destroyed', ev.tick, ev.x, ev.y);
         } else if (ev.type === 'boss_block') {
           if (state.boss) pushEffect('boss_block', ev.tick, state.boss.x, state.boss.y);
         } else if (ev.type === 'boss_windup') {
           if (state.boss?.kind === 6) pushEffect('boss_windup', ev.tick, state.boss.gapSlot, 0);
+          else if (state.boss?.kind === 8) pushEffect('boss_windup', ev.tick, 0, 0);
         } else if (ev.type === 'boss_reflect') {
           if (state.boss) pushEffect('boss_reflect', ev.tick, state.boss.x, state.boss.y);
         } else if (ev.type === 'boss_clone') {
           pushEffect('boss_clone', ev.tick, ev.leftX, 0, ev.rightX);
         } else if (ev.type === 'cold_snap') {
           pushEffect('cold_snap', ev.tick, state.octopi.x, state.octopi.y);
+        } else if (ev.type === 'lane_strike') {
+          const lane = struckLanes[struckLaneIndex];
+          struckLaneIndex += 1;
+          if (lane !== undefined) pushEffect('lane_strike', ev.tick, lane, 0);
         }
         if (ev.type === 'boss_ability') {
           sounds.push(BOSS_ABILITY_SFX[ev.name]);

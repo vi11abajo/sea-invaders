@@ -302,6 +302,18 @@ const CRYSTAL_CRACK_LINES: readonly (readonly [number, number, number, number])[
 ];
 /** A crystal at full 12 hp shows no cracks; every 2 hp lost reveals one more of the six lines above. */
 const CRYSTAL_FULL_HP = 12;
+/**
+ * Shatter's own warning (ruling R61, fix round 1): every crystal in `frame.obstacles` pulses this
+ * tint for `CRYSTAL_SHATTER_WARN_TICKS` ticks after a `crystal_shatter` event — the Frost Castellan's
+ * own warning length (`SHATTER_WARNING`, `core/src/sim/bosses/castellan.ts`, not exported, so the
+ * ruling's own number is used verbatim, the same "literal over a private core constant" call already
+ * made for `CRYSTAL_FULL_HP` above) — faster than the lane warning's own pulse, so the two read as
+ * different urgencies. The one-shot flash the app drew before this fix round is folded into this
+ * window's own start rather than kept separately (see the fix-round report for why).
+ */
+const CRYSTAL_SHATTER_WARN_TICKS = 120;
+const CRYSTAL_SHATTER_PULSE_PERIOD = 10;
+const CRYSTAL_WARN_COLOR = Skia.Color('rgba(255,140,140,0.6)');
 
 /** Storm Tyrant's lanes (`frame.lanes`): the field split into `LANE_COUNT` equal vertical strips. */
 const LANE_WIDTH = FIELD_W / LANE_COUNT;
@@ -330,6 +342,12 @@ const BOSS_DOME_STROKE = 4;
 const SPIKE_FLASH_COLOR = Skia.Color('rgba(255,214,102,0.9)');
 const SPIKE_FLASH_STROKE = 3;
 const SPIKE_POINTS = 14;
+/**
+ * Spikes' own wind-up telegraph (ruling R62, fix round 1): the same saw-tooth outline as `reflecting`
+ * above, but flickering — visible on alternate `CORSAIR_FLICKER_BEAT_TICKS`-tick beats — for the 45
+ * ticks between the `boss_windup` event and `boss_reflect` turning `reflecting` on for real.
+ */
+const CORSAIR_FLICKER_BEAT_TICKS = 3;
 const SAWTOOTH_PATH = Skia.Path.Polygon(
   Array.from({ length: SPIKE_POINTS * 2 }, (_, i) => {
     const deg = (i * 180) / SPIKE_POINTS;
@@ -414,7 +432,7 @@ const EFFECT_LIFETIME: Record<EffectKind, number> = {
   charge_burst: 20,
   crab_rallied: 30,
   formation_rage: 40,
-  crystal_shatter: 30,
+  crystal_shatter: CRYSTAL_SHATTER_WARN_TICKS,
   obstacle_destroyed: 25,
   boss_block: 15,
   boss_windup: FIREWALL_GAP_LIFETIME,
@@ -538,6 +556,15 @@ export function drawFrame(
     }
   }
 
+  // Shatter's own warning (ruling R61, fix round 1): the latest `crystal_shatter` entry's tick, if
+  // any is still within its own 120-tick window — read once, applied to every crystal below.
+  let shatterTick = -1;
+  for (const entry of effects.entries) {
+    if (entry.kind === 'crystal_shatter' && entry.tick > shatterTick) shatterTick = entry.tick;
+  }
+  const shatterAge = shatterTick >= 0 ? f.tick - shatterTick : -1;
+  const shatterWarning = shatterAge >= 0 && shatterAge < CRYSTAL_SHATTER_WARN_TICKS;
+
   // Frost Castellan's crystals (`frame.obstacles`, spec §7/§8): a faceted diamond in a cold tint,
   // terrain drawn early so crabs, shots and the boss all render over it. Cracks scale with the
   // literal `12 - hp` (ruling R45), never a decoded core constant (see `CRYSTAL_FULL_HP`'s own doc).
@@ -564,6 +591,19 @@ export function drawFrame(
         canvas.drawLine(ox + x0 * ow, oy + y0 * oh, ox + x1 * ow, oy + y1 * oh, paint);
       }
       paint.setStyle(FILL);
+    }
+    if (shatterWarning) {
+      // Every crystal on the field pulses, not only the ones standing when the warning fired — the
+      // window is boss-wide (ruling R61), and a crystal raised mid-window shatters with the rest.
+      const pulse = 0.5 + 0.5 * Math.sin((shatterAge * 2 * Math.PI) / CRYSTAL_SHATTER_PULSE_PERIOD);
+      paint.setColor(CRYSTAL_WARN_COLOR);
+      paint.setAlphaf(0.25 + 0.4 * pulse);
+      canvas.save();
+      canvas.translate(ox, oy);
+      canvas.scale(ow, oh);
+      canvas.drawPath(CRYSTAL_UNIT_PATH, paint);
+      canvas.restore();
+      paint.setAlphaf(1);
     }
   }
 
@@ -1011,6 +1051,30 @@ export function drawFrame(
       canvas.restore();
       paint.setStyle(FILL);
     }
+    if (b.kind === 8) {
+      // Gold Corsair's Spikes telegraph (`boss_windup`, ruling R62, fix round 1): the same saw-tooth
+      // as `reflecting` above, flickering for the 45 ticks before `boss_reflect` turns it on for
+      // real. Only the most recent `boss_windup` entry matters, the same "latest wins" rule the
+      // ghosts (`boss_clone`) already use above.
+      let windupTick = -1;
+      for (const entry of effects.entries) {
+        if (entry.kind === 'boss_windup' && entry.tick > windupTick) windupTick = entry.tick;
+      }
+      const windupAge = windupTick >= 0 ? f.tick - windupTick : -1;
+      if (windupAge >= 0 && windupAge < EFFECT_LIFETIME.boss_windup && Math.floor(windupAge / CORSAIR_FLICKER_BEAT_TICKS) % 2 === 0) {
+        const sw3 = b.w * k * 1.05;
+        const sh3 = b.h * k * 1.05;
+        paint.setStyle(STROKE);
+        paint.setStrokeWidth(SPIKE_FLASH_STROKE);
+        paint.setColor(SPIKE_FLASH_COLOR);
+        canvas.save();
+        canvas.translate(bx, by);
+        canvas.scale(sw3, sh3);
+        canvas.drawPath(SAWTOOTH_PATH, paint);
+        canvas.restore();
+        paint.setStyle(FILL);
+      }
+    }
   }
 
   // Drops: a soft glow disc in the rarity colour, with the boost's own icon over it.
@@ -1144,7 +1208,13 @@ export function drawFrame(
   // loop, drawn purely as a function of `f.tick - entry.tick`, dropped past their own lifetime.
   // `boss_clone`'s ghosts are drawn inline with the boss above (they need its current sprite/y).
   for (const entry of effects.entries) {
-    if (entry.kind === 'boss_clone') continue;
+    // Drawn inline elsewhere, with data this loop doesn't have: `boss_clone`'s ghosts need the boss's
+    // current sprite/y (in the boss block above); Gold Corsair's own `boss_windup` flicker (kind 8,
+    // ruling R62) needs the boss's box too, so it is drawn there alongside `reflecting`, not here.
+    // `crystal_shatter` (ruling R61) no longer draws a one-shot burst at all — it only ever drives the
+    // continuous per-crystal warning tint above, computed once before the crystal loop.
+    if (entry.kind === 'boss_clone' || entry.kind === 'crystal_shatter') continue;
+    if (entry.kind === 'boss_windup' && f.boss?.kind === 8) continue;
     const age = f.tick - entry.tick;
     const lifetime = EFFECT_LIFETIME[entry.kind];
     if (age < 0 || age >= lifetime) continue;
@@ -1159,8 +1229,9 @@ export function drawFrame(
       continue;
     }
     if (entry.kind === 'boss_windup') {
-      // Verdant Templar only (`GameScreen.tsx` only captures this for kind 6): the firewall's own
-      // two-slot doorway, telegraphed for the wind-up. `entry.x` holds the gap slot, not a position.
+      // Verdant Templar only — Gold Corsair's own `boss_windup` (kind 8) was already skipped above,
+      // drawn instead in the boss block below. The firewall's own two-slot doorway, telegraphed for
+      // the wind-up; `entry.x` holds the gap slot, not a position.
       const gapSlot = entry.x;
       const barW = Math.max(2, FIREWALL_GAP_BAR_W * k * 0.25);
       const leftX = px(firewallSlotX(gapSlot));
@@ -1187,7 +1258,7 @@ export function drawFrame(
     const ey = py(entry.y);
     let color = IMPACT_BURST_COLOR;
     if (entry.kind === 'charge_burst') color = CHARGE_GLOW_COLOR;
-    else if (entry.kind === 'crystal_shatter' || entry.kind === 'obstacle_destroyed') color = CRYSTAL_COLOR;
+    else if (entry.kind === 'obstacle_destroyed') color = CRYSTAL_COLOR;
     else if (entry.kind === 'bubble_pop') color = BUBBLE_COLOR;
     else if (entry.kind === 'crab_rallied') color = RALLY_MARK_COLOR;
     else if (entry.kind === 'crab_shield_break') color = WARDEN_SHIELD_COLOR;
