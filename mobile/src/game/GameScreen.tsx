@@ -22,7 +22,7 @@ import { COLORS, FONTS } from '../ui/tokens';
 import { GameHud, type HudBadge, type HudBoost } from './GameHud';
 import { PauseSheet, RevivedSheet } from './PauseSheet';
 import { RESULT_POSE_SIZE, ResultView } from './ResultView';
-import { EFFECT_CAP, drawFrame, type EffectEntry, type Effects, type WaveBlast } from './draw';
+import { EFFECT_CAP, drawFrame, effectExpired, type EffectEntry, type Effects, type WaveBlast } from './draw';
 import { RunOctopiContext, octopiTint, useActiveSkin } from './skins';
 import { primeOctopiArt, usePreparedSprites, useSprites } from './sprites';
 
@@ -461,7 +461,13 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     effects.value = { entries: effectEntries };
     const pushEffect = (kind: EffectEntry['kind'], tick: number, x: number, y: number, x2 = 0): void => {
       const entry: EffectEntry = { kind, tick, x, y, x2 };
-      effectEntries = effectEntries.length >= EFFECT_CAP ? [...effectEntries.slice(1), entry] : [...effectEntries, entry];
+      // Drop entries past their own kind's lifetime first (fix round: a frequent kind — the
+      // Templar's/Huntsman's own `boss_block`, now dropped from this list entirely below — used to
+      // sit at the cap permanently and evict a still-live entry of a different kind on every push),
+      // then fall back to the oldest-first cap (ruling R49) only if the list is still full.
+      const live = effectEntries.filter((e) => !effectExpired(e, tick));
+      live.push(entry);
+      effectEntries = live.length > EFFECT_CAP ? live.slice(live.length - EFFECT_CAP) : live;
       effects.value = { entries: effectEntries };
     };
     let prevLanes: number[] = [...state.lanes];
@@ -605,8 +611,6 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           pushEffect('crystal_shatter', ev.tick, 0, 0);
         } else if (ev.type === 'obstacle_destroyed') {
           pushEffect('obstacle_destroyed', ev.tick, ev.x, ev.y);
-        } else if (ev.type === 'boss_block') {
-          if (state.boss) pushEffect('boss_block', ev.tick, state.boss.x, state.boss.y);
         } else if (ev.type === 'boss_windup') {
           if (state.boss?.kind === 6) pushEffect('boss_windup', ev.tick, state.boss.gapSlot, 0);
           else if (state.boss?.kind === 8) pushEffect('boss_windup', ev.tick, 0, 0);

@@ -1,4 +1,4 @@
-import type { CrabType, Formation, LevelSpec } from '@sea-invaders/core';
+import { bossStats, type CrabType, type Formation, type LevelSpec } from '@sea-invaders/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
@@ -94,6 +94,9 @@ export function LevelIntro({
   level, practice, lives, loadout, signedIn, connecting, signInError, onConnect, onOpenShop, onPlay, onBack,
 }: LevelIntroProps) {
   const reefName = REEF_NAMES[level.reef - 1];
+  // Phases come from the boss's own stats (`bossStats`, area A), never from `kind`/`reef` directly —
+  // reefs 6-10 read `BOSS_TABLE` and no longer match either number.
+  const bossPhases = level.boss !== undefined ? bossStats(level.boss).phases : 0;
   const { equip, refresh } = loadout;
   const [connectOpen, setConnectOpen] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
@@ -189,14 +192,14 @@ export function LevelIntro({
         {level.boss !== undefined ? (
           <>
             <Txt variant="headline">{BOSS_NAMES[level.boss - 1]}</Txt>
-            <Txt variant="body" tone="secondary">{`${level.boss} phase${level.boss > 1 ? 's' : ''}`}</Txt>
+            <Txt variant="body" tone="secondary">{`${bossPhases} phase${bossPhases === 1 ? '' : 's'}`}</Txt>
           </>
         ) : (
           <>
             <Txt variant="headline">{level.formations.map(formationLabel).join(' → ')}</Txt>
             <Txt variant="body" tone="secondary">{`${level.waves} wave${level.waves === 1 ? '' : 's'}`}</Txt>
             <View style={styles.chips}>
-              {[...new Set(level.kinds)].map((kind) => (
+              {[...new Set(level.rosters?.flat() ?? level.kinds)].map((kind) => (
                 <View key={kind} style={styles.chip}>
                   <Txt variant="secondary">{CRAB_NAMES[kind]}</Txt>
                 </View>

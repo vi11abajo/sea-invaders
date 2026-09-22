@@ -1,4 +1,5 @@
 import type { TextStyle } from 'react-native';
+import type { BossKind } from '@sea-invaders/core';
 import { BOSS_COLOR } from '../game/GameHud';
 import type { ReefBackdropVariant } from './ReefBackdrop';
 
@@ -8,7 +9,9 @@ import type { ReefBackdropVariant } from './ReefBackdrop';
  * place of `ReefBackdrop`'s water gradient, glow band, light rays, seabed dome and flora, with the
  * looming boss drawn clearer, the level path drawn bolder and a scrim plus text shadows keeping the
  * header readable on the bright water. Set this to `false` to bring the previous world back: every
- * key-art-only value below switches off with it and nothing else changes.
+ * key-art-only value below switches off with it and nothing else changes — including reefs 6-10's
+ * own `REEF_WORLD` entries (ruling R63, `campaign/reefs.ts`), which stay dormant, never drawn, while
+ * this flag is on and only take over once it is switched off.
  */
 export const REEF_KEY_ART_BACKGROUND = true;
 export const REEF_KEY_ART = require('../../assets/home-bg.jpg');
@@ -36,7 +39,9 @@ export const REEF_KEY_ART_TEXT_SHADOW: TextStyle | undefined = REEF_KEY_ART_BACK
   ? { textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }
   : undefined;
 
-/** The boss colour of reef 1..10 - boss kind = reef number (the map's `sprites.bosses[reef - 1]`, the HUD's `BOSS_COLOR[kind - 1]`). */
-export function reefKeyArtTint(reef: number): string {
-  return BOSS_COLOR[reef - 1] ?? BOSS_COLOR[0]!;
+/** The boss colour for a boss kind (the map's `sprites.bosses[kind - 1]`, the HUD's `BOSS_COLOR[kind - 1]`).
+ * Takes the kind itself, not the reef number — a reef's boss level (`levelById(reef * LEVELS_PER_REEF).boss`)
+ * carries the kind today, so callers pass that rather than assuming boss kind equals reef number. */
+export function reefKeyArtTint(bossKind: BossKind): string {
+  return BOSS_COLOR[bossKind - 1] ?? BOSS_COLOR[0]!;
 }

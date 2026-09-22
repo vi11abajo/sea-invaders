@@ -8,7 +8,7 @@ import Animated, {
   Easing, interpolate, useAnimatedStyle, useSharedValue, withRepeat, withTiming,
 } from 'react-native-reanimated';
 import {
-  currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEF_LIVES, REEFS, TYPE_COLOUR,
+  bossStats, currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEF_LIVES, REEFS, TYPE_COLOUR,
   type CampaignProgress,
 } from '@sea-invaders/core';
 import { hapticLight, hapticTap } from '../audio/haptics';
@@ -175,8 +175,8 @@ function Header({ reef, progress, onBack }: { reef: number; progress: CampaignPr
           {REEF_NAMES[reef - 1]}
         </Txt>
       </View>
-      <View style={styles.livesPill} accessible accessibilityLabel={`${Math.max(0, Math.min(5, lives))} of 5 reef lives`}>
-        {Array.from({ length: 5 }, (_, i) => (
+      <View style={styles.livesPill} accessible accessibilityLabel={`${Math.max(0, Math.min(REEF_LIVES, lives))} of ${REEF_LIVES} reef lives`}>
+        {Array.from({ length: REEF_LIVES }, (_, i) => (
           <View key={i} style={[styles.lifeDot, { backgroundColor: i < lives ? COLORS.success : 'rgba(255,255,255,0.22)' }]} />
         ))}
       </View>
@@ -679,6 +679,10 @@ function BossSheet({ reef, progress, sprites, onPlay, onClose }: BossSheetProps)
   const bossSprite = sprites?.bosses[reef - 1]?.[0] ?? null;
   const lives = practice ? REEF_LIVES : livesForEntry(progress);
   const ability = BOSS_ABILITY[reef - 1];
+  // Phases come from the boss's own stats, not the reef number — reefs 6-10 read `BOSS_TABLE` and no
+  // longer have `phases === reef`. The boss row's own kind (`levelById(id).boss`), not `reef as
+  // BossKind`, in case a reef's boss kind ever stops matching its reef number.
+  const phases = bossStats(levelById(id).boss!).phases;
   const [view, setView] = useState<SheetView>('main');
   const toggleInfo = () => setView((v) => (v === 'main' ? 'info' : 'main'));
 
@@ -691,7 +695,7 @@ function BossSheet({ reef, progress, sprites, onPlay, onClose }: BossSheetProps)
           onBack={() => setView('main')}
           rows={[
             { label: 'Boss', value: BOSS_NAMES[reef - 1] },
-            { label: 'Phases', value: String(reef) },
+            { label: 'Phases', value: String(phases) },
             { label: 'Ability', value: ability },
             { label: 'Reef lives', value: String(lives) },
           ]}
@@ -702,10 +706,10 @@ function BossSheet({ reef, progress, sprites, onPlay, onClose }: BossSheetProps)
             sprite={bossSprite}
             kicker={`REEF ${reef} BOSS`}
             title={BOSS_NAMES[reef - 1]}
-            subtitle={`${reef} ${reef === 1 ? 'phase' : 'phases'} · ability: ${ability}`}
+            subtitle={`${phases} ${phases === 1 ? 'phase' : 'phases'} · ability: ${ability}`}
           />
           <View style={styles.tiles}>
-            <StatTile label="Phases" value={String(reef)} />
+            <StatTile label="Phases" value={String(phases)} />
             <StatTile label="Ability" value={ability} />
             <StatTile label="Lives" value={String(lives)} />
           </View>

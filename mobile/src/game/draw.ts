@@ -251,14 +251,17 @@ function scratch(x: number, y: number, width: number, height: number): Rect {
 
 /** Warden's rune shield (frame flag bit 0): a stroked arc around the crab, gapped rather than a full ring. */
 const WARDEN_SHIELD_COLOR = Skia.Color('rgba(80,220,255,0.85)');
+/** dp (unscaled) — a HUD-scale stroke, not a milli-unit one, so it is never multiplied by `k`. */
 const WARDEN_SHIELD_STROKE_W = 3;
 /** Herald's aura (frame flag bit 1): a thin pulsing ring, plus a faint link line to the nearest herald. */
 const HERALD_RING_COLOR = Skia.Color('rgba(255,221,120,0.8)');
+/** dp (unscaled), same reasoning as `WARDEN_SHIELD_STROKE_W`. */
 const HERALD_RING_STROKE_W = 2;
 const HERALD_LINK_STROKE_W = 2;
 const HERALD_LINK_ALPHA = 0.32;
 /** Patriarch's rally mark (frame flag bit 2): a small gold ring over a just-revived crab. */
 const RALLY_MARK_COLOR = Skia.Color('rgba(255,210,60,0.9)');
+/** dp (unscaled), same reasoning as `WARDEN_SHIELD_STROKE_W`. */
 const RALLY_MARK_STROKE_W = 2;
 /** Formation rage (frame flag bit 3): a red tint pulse over a raging crab. */
 const CRAB_RAGE_TINT_COLOR = Skia.Color('#FF3333');
@@ -348,15 +351,41 @@ const SPIKE_POINTS = 14;
  * ticks between the `boss_windup` event and `boss_reflect` turning `reflecting` on for real.
  */
 const CORSAIR_FLICKER_BEAT_TICKS = 3;
-const SAWTOOTH_PATH = Skia.Path.Polygon(
-  Array.from({ length: SPIKE_POINTS * 2 }, (_, i) => {
-    const deg = (i * 180) / SPIKE_POINTS;
-    const r = i % 2 === 0 ? 0.5 : 0.36;
-    const rad = (deg * Math.PI) / 180;
-    return { x: r * Math.cos(rad), y: r * Math.sin(rad) };
-  }),
-  true,
-);
+/** Unit-radius (1) saw-tooth points, built once — the geometry both spike blocks below share. */
+const SAWTOOTH_UNIT_POINTS: readonly { x: number; y: number }[] = Array.from({ length: SPIKE_POINTS * 2 }, (_, i) => {
+  const deg = (i * 180) / SPIKE_POINTS;
+  const r = i % 2 === 0 ? 0.5 : 0.36;
+  const rad = (deg * Math.PI) / 180;
+  return { x: r * Math.cos(rad), y: r * Math.sin(rad) };
+});
+/**
+ * Scratch path reused every frame for the saw-tooth outline (never reallocated — `rewind()` clears it
+ * without releasing storage, the same discipline `SCRATCH_RECT` above already follows). Both spike
+ * blocks rebuild it from `SAWTOOTH_UNIT_POINTS` in absolute screen coordinates via `drawSpikeFlash`
+ * below, so `SPIKE_FLASH_STROKE` stays a constant dp width regardless of the boss's own box size,
+ * instead of being stretched by a `canvas.scale` the way a unit path was stroked before this fix (the
+ * rule `CRYSTAL_CRACK_LINES` above already follows for its own unit diamond's cracks).
+ */
+const SPIKE_FLASH_PATH = Skia.Path.Make();
+/** Draws the saw-tooth outline centred at `(cx, cy)` with half-extents `(rx, ry)` (screen dp), shared
+ * by `reflecting` and its ruling-R62 wind-up flicker so the fix lives in one place. */
+function drawSpikeFlash(canvas: Canvas, paint: Paint, cx: number, cy: number, rx: number, ry: number) {
+  'worklet';
+  SPIKE_FLASH_PATH.rewind();
+  for (let i = 0; i < SAWTOOTH_UNIT_POINTS.length; i++) {
+    const p = SAWTOOTH_UNIT_POINTS[i]!;
+    const x = cx + p.x * rx;
+    const y = cy + p.y * ry;
+    if (i === 0) SPIKE_FLASH_PATH.moveTo(x, y);
+    else SPIKE_FLASH_PATH.lineTo(x, y);
+  }
+  SPIKE_FLASH_PATH.close();
+  paint.setStyle(STROKE);
+  paint.setStrokeWidth(SPIKE_FLASH_STROKE);
+  paint.setColor(SPIKE_FLASH_COLOR);
+  canvas.drawPath(SPIKE_FLASH_PATH, paint);
+  paint.setStyle(FILL);
+}
 /** Storm Tyrant's discharge window (`discharged`): a golden crackle tint over the boss sprite. */
 const DISCHARGE_FILTER = Skia.ColorFilter.MakeBlend(Skia.Color('#FFD24D'), BlendMode.Modulate);
 
@@ -408,7 +437,7 @@ function laneLeftX(lane: number): number {
  */
 export type EffectKind =
   | 'crab_shield_break' | 'bubble_pop' | 'charge_burst' | 'crab_rallied' | 'formation_rage'
-  | 'crystal_shatter' | 'obstacle_destroyed' | 'boss_block' | 'boss_windup' | 'boss_reflect'
+  | 'crystal_shatter' | 'obstacle_destroyed' | 'boss_windup' | 'boss_reflect'
   | 'lane_strike' | 'boss_clone' | 'cold_snap';
 
 export interface EffectEntry {
@@ -434,7 +463,6 @@ const EFFECT_LIFETIME: Record<EffectKind, number> = {
   formation_rage: 40,
   crystal_shatter: CRYSTAL_SHATTER_WARN_TICKS,
   obstacle_destroyed: 25,
-  boss_block: 15,
   boss_windup: FIREWALL_GAP_LIFETIME,
   boss_reflect: 20,
   lane_strike: LANE_STRIKE_LIFETIME,
@@ -445,9 +473,28 @@ const EFFECT_LIFETIME: Record<EffectKind, number> = {
 /** The cap `GameScreen.tsx`'s own `pushEffect` enforces (ruling R49); exported so it is declared once. */
 export const EFFECT_CAP = 32;
 
+/**
+ * Whether `entry` has outlived its own kind's lifetime as of `tick` (fix round: `pushEffect` uses
+ * this to drop expired entries before it ever needs to evict by age, so a burst of one frequent kind
+ * — the Templar's/Huntsman's own `boss_block`, which used to flood this same list — can no longer
+ * push out an unrelated entry that is still within its own window). `EFFECT_LIFETIME` itself stays
+ * module-private; this is the one door `GameScreen.tsx` needs into it.
+ */
+export function effectExpired(entry: EffectEntry, tick: number): boolean {
+  return tick - entry.tick >= EFFECT_LIFETIME[entry.kind];
+}
+
 const IMPACT_BURST_COLOR = Skia.Color('#FFFFFF');
 const RAGE_WAVE_COLOR = Skia.Color('rgba(255,51,51,0.35)');
 const COLD_SNAP_COLOR = Skia.Color('rgba(174,232,255,0.7)');
+/** `formation_rage`'s band, in dp (unscaled): its own height, and half that as the offset centring it on `waveY`. */
+const RAGE_WAVE_BAND_H = 20;
+const RAGE_WAVE_BAND_OFFSET = 10;
+/** The small ring burst shared by most one-shot kinds below, in dp (unscaled): its stroke tapers from
+ * this width to 0, and its radius grows from `BURST_RING_RADIUS0` by this much, both over the entry's lifetime. */
+const BURST_RING_STROKE_W0 = 3;
+const BURST_RING_RADIUS0 = 18;
+const BURST_RING_RADIUS_GROWTH = 30;
 
 /** Rarity colour by `RARITY_ORDER` index (0..3): common, rare, epic, legendary. */
 const RARITY_COLOR_HEX = ['#ffffff', '#00ddff', '#9f00ff', '#ffd700'] as const;
@@ -670,7 +717,7 @@ export function drawFrame(
     if ((flags & 1) !== 0) {
       const r = sprite.w * 0.6;
       paint.setStyle(STROKE);
-      paint.setStrokeWidth(WARDEN_SHIELD_STROKE_W * k);
+      paint.setStrokeWidth(WARDEN_SHIELD_STROKE_W);
       paint.setColor(WARDEN_SHIELD_COLOR);
       canvas.drawArc(scratch(cx - r, cy - r, r * 2, r * 2), -110, 220, false, paint);
       paint.setStyle(FILL);
@@ -678,7 +725,7 @@ export function drawFrame(
     if ((flags & 2) !== 0) {
       const ringR = sprite.w * 0.56 + 3 * Math.sin(f.tick / 6);
       paint.setStyle(STROKE);
-      paint.setStrokeWidth(HERALD_RING_STROKE_W * k);
+      paint.setStrokeWidth(HERALD_RING_STROKE_W);
       paint.setColor(HERALD_RING_COLOR);
       canvas.drawCircle(cx, cy, ringR, paint);
       if (heraldCount > 0) {
@@ -705,7 +752,7 @@ export function drawFrame(
     if ((flags & 4) !== 0) {
       const rallyR = sprite.w * 0.5;
       paint.setStyle(STROKE);
-      paint.setStrokeWidth(RALLY_MARK_STROKE_W * k);
+      paint.setStrokeWidth(RALLY_MARK_STROKE_W);
       paint.setColor(RALLY_MARK_COLOR);
       canvas.drawCircle(cx, cy, rallyR, paint);
       paint.setStyle(FILL);
@@ -738,7 +785,10 @@ export function drawFrame(
   }
 
   // Abyssal Huntsman's sight line (`frame.aim`, spec §7/§8): a thin line from the near point past the
-  // far one to the field edge, bright for the real line, half alpha for a decoy, fading with ticksLeft.
+  // far one to the field edge, fading with ticksLeft. Ruling R65: a decoy's line draws identically to
+  // the real one — the ghost boss's own 45% alpha (`draw.ts`'s boss block below) is the only tell, so
+  // the player can't read the bluff for free off the line itself. `decoy` is still read out of the
+  // frame (unused below) so the renderer could tell them apart again later without a frame change.
   if (f.aim.length > 0) {
     canvas.save();
     canvas.clipRect(fieldRect, ClipOp.Intersect, true);
@@ -749,12 +799,12 @@ export function drawFrame(
       const ay0 = py(f.aim[i + 1]!);
       const ax1 = px(f.aim[i + 2]!);
       const ay1 = py(f.aim[i + 3]!);
-      const decoy = f.aim[i + 4]!;
+      // f.aim[i + 4] is `decoy` — read for the frame's own shape, not used for alpha (ruling R65).
       const ticksLeft = f.aim[i + 5]!;
       const fade = Math.min(1, ticksLeft / AIM_FADE_TICKS);
       const farX = ax1 + (ax1 - ax0) * AIM_EXTEND;
       const farY = ay1 + (ay1 - ay0) * AIM_EXTEND;
-      paint.setAlphaf((decoy === 1 ? 0.5 : 1) * 0.55 * fade);
+      paint.setAlphaf(0.55 * fade);
       canvas.drawLine(ax0, ay0, farX, farY, paint);
     }
     paint.setAlphaf(1);
@@ -1038,18 +1088,10 @@ export function drawFrame(
       paint.setStyle(FILL);
     }
     if (b.reflecting === 1) {
-      // Gold Corsair's Spikes: a jagged saw-tooth outline around the boss box.
-      const sw2 = b.w * k * 1.05;
-      const sh2 = b.h * k * 1.05;
-      paint.setStyle(STROKE);
-      paint.setStrokeWidth(SPIKE_FLASH_STROKE);
-      paint.setColor(SPIKE_FLASH_COLOR);
-      canvas.save();
-      canvas.translate(bx, by);
-      canvas.scale(sw2, sh2);
-      canvas.drawPath(SAWTOOTH_PATH, paint);
-      canvas.restore();
-      paint.setStyle(FILL);
+      // Gold Corsair's Spikes: a jagged saw-tooth outline around the boss box, stroked in absolute dp
+      // (`drawSpikeFlash`) rather than inside a `canvas.scale`, which would stretch the stroke width
+      // by the boss's own box size.
+      drawSpikeFlash(canvas, paint, bx, by, b.w * k * 1.05, b.h * k * 1.05);
     }
     if (b.kind === 8) {
       // Gold Corsair's Spikes telegraph (`boss_windup`, ruling R62, fix round 1): the same saw-tooth
@@ -1062,17 +1104,7 @@ export function drawFrame(
       }
       const windupAge = windupTick >= 0 ? f.tick - windupTick : -1;
       if (windupAge >= 0 && windupAge < EFFECT_LIFETIME.boss_windup && Math.floor(windupAge / CORSAIR_FLICKER_BEAT_TICKS) % 2 === 0) {
-        const sw3 = b.w * k * 1.05;
-        const sh3 = b.h * k * 1.05;
-        paint.setStyle(STROKE);
-        paint.setStrokeWidth(SPIKE_FLASH_STROKE);
-        paint.setColor(SPIKE_FLASH_COLOR);
-        canvas.save();
-        canvas.translate(bx, by);
-        canvas.scale(sw3, sh3);
-        canvas.drawPath(SAWTOOTH_PATH, paint);
-        canvas.restore();
-        paint.setStyle(FILL);
+        drawSpikeFlash(canvas, paint, bx, by, b.w * k * 1.05, b.h * k * 1.05);
       }
     }
   }
@@ -1224,7 +1256,7 @@ export function drawFrame(
       const waveY = fieldRect.y + progress * fieldRect.height;
       paint.setColor(RAGE_WAVE_COLOR);
       paint.setAlphaf((1 - progress) * 0.8);
-      canvas.drawRect(scratch(fieldRect.x, waveY - 10 * k, fieldRect.width, 20 * k), paint);
+      canvas.drawRect(scratch(fieldRect.x, waveY - RAGE_WAVE_BAND_OFFSET, fieldRect.width, RAGE_WAVE_BAND_H), paint);
       paint.setAlphaf(1);
       continue;
     }
@@ -1264,10 +1296,10 @@ export function drawFrame(
     else if (entry.kind === 'crab_shield_break') color = WARDEN_SHIELD_COLOR;
     else if (entry.kind === 'cold_snap') color = COLD_SNAP_COLOR;
     paint.setStyle(STROKE);
-    paint.setStrokeWidth(Math.max(1, 3 * (1 - progress) * k));
+    paint.setStrokeWidth(Math.max(1, BURST_RING_STROKE_W0 * (1 - progress)));
     paint.setColor(color);
     paint.setAlphaf(1 - progress);
-    canvas.drawCircle(ex, ey, (18 + progress * 30) * k, paint);
+    canvas.drawCircle(ex, ey, BURST_RING_RADIUS0 + progress * BURST_RING_RADIUS_GROWTH, paint);
     paint.setStyle(FILL);
     paint.setAlphaf(1);
   }

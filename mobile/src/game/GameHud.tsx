@@ -147,6 +147,13 @@ function ComboPill({ combo }: { combo: number }) {
   );
 }
 
+/**
+ * Above this many shield hit points, the pips give way to a "Shield ×N" count (the Huntsman's
+ * defence mirror sets `shieldHp` to 40, which would otherwise spill 40 pips out of the card).
+ * Azure's water shield (5) is well under the cap and keeps its pips unchanged.
+ */
+const SHIELD_PIP_CAP = 10;
+
 /** Name, HP bar with phase notches, shield pips and status tags: spec §4.3. */
 function BossBar({ boss }: { boss: BossFrame }) {
   const color = BOSS_COLOR[boss.kind - 1] ?? COLORS.text;
@@ -179,13 +186,16 @@ function BossBar({ boss }: { boss: BossFrame }) {
           <View key={left} style={[styles.bossNotch, { left: `${left}%` }]} />
         ))}
       </View>
-      {boss.shieldHp > 0 && (
-        <View style={styles.shieldPips}>
-          {Array.from({ length: boss.shieldHp }, (_, i) => (
-            <View key={i} style={styles.shieldPip} />
-          ))}
-        </View>
-      )}
+      {boss.shieldHp > 0 &&
+        (boss.shieldHp > SHIELD_PIP_CAP ? (
+          <Text style={styles.chipTime}>{`Shield ×${boss.shieldHp}`}</Text>
+        ) : (
+          <View style={styles.shieldPips}>
+            {Array.from({ length: boss.shieldHp }, (_, i) => (
+              <View key={i} style={styles.shieldPip} />
+            ))}
+          </View>
+        ))}
     </View>
   );
 }

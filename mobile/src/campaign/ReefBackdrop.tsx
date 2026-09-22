@@ -2,6 +2,7 @@ import {
   BlendColor, Blur, Canvas, ColorMatrix, Group, Image, LinearGradient, Paint, Path, Rect, Skia, useImage, vec,
   type SkImage, type SkPath,
 } from '@shopify/react-native-skia';
+import { levelById, LEVELS_PER_REEF } from '@sea-invaders/core';
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
@@ -13,7 +14,11 @@ import {
   REEF_KEY_ART, REEF_KEY_ART_BACKGROUND, REEF_KEY_ART_BLEND, REEF_KEY_ART_BOSS_LOOM, REEF_KEY_ART_DIM, REEF_KEY_ART_SCRIM,
   reefKeyArtTint,
 } from './reefBackground';
-import { REEF_ACCENT, REEF_WORLD } from './reefs';
+import { FIRST_VETERAN_REEF, REEF_ACCENT, REEF_WORLD } from './reefs';
+
+/** Ruling R66 (fix round): on top of `REEF_KEY_ART_DIM`, reefs `FIRST_VETERAN_REEF` and up (the
+ * second campaign) get this much extra dim so they read deeper/darker than the first five. */
+const REEF_KEY_ART_DEEP_DIM = 0.15;
 
 /** Flora bar sizes and sway periods, `CampaignMap.dc.html`'s `FLORA` table. Bars 0, 3, 6 use the reef's `floraAccent`. */
 const FLORA = [
@@ -120,6 +125,14 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
   const keyArt = useImage(REEF_KEY_ART_BACKGROUND ? REEF_KEY_ART : null);
   // The looming boss: the design's faint ghost on the gradient, a clearer figure on the busy art.
   const bossLoom = REEF_KEY_ART_BACKGROUND ? REEF_KEY_ART_BOSS_LOOM : { opacity: BOSS_LOOM_OPACITY, blur: BOSS_LOOM_BLUR };
+  // Ruling R66 (fix round): reefs 6-10 tint the key art with the reef's own accent instead of the
+  // boss colour (reef 9's accent and reef 4's boss colour are both hue 0, which made the two
+  // backdrops read pixel-identical), plus an extra dim, so the second campaign reads deeper and
+  // darker. Below `FIRST_VETERAN_REEF`, unchanged: the boss's own colour, from its real kind
+  // (`levelById(...).boss`), not `reef as BossKind`.
+  const isDeepReef = reef >= FIRST_VETERAN_REEF;
+  const keyArtTint = isDeepReef ? REEF_ACCENT[reef - 1]! : reefKeyArtTint(levelById(reef * LEVELS_PER_REEF).boss!);
+  const keyArtDim = REEF_KEY_ART_DIM[variant] + (isDeepReef ? REEF_KEY_ART_DEEP_DIM : 0);
 
   return (
     <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -130,9 +143,9 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
         keyArt !== null && (
           <>
             <Image image={keyArt} x={0} y={0} width={width} height={height} fit="cover">
-              <BlendColor color={reefKeyArtTint(reef)} mode={REEF_KEY_ART_BLEND} />
+              <BlendColor color={keyArtTint} mode={REEF_KEY_ART_BLEND} />
             </Image>
-            <Rect x={0} y={0} width={width} height={height} color={`rgba(0,0,0,${REEF_KEY_ART_DIM[variant]})`} />
+            <Rect x={0} y={0} width={width} height={height} color={`rgba(0,0,0,${keyArtDim})`} />
           </>
         )
       ) : (
