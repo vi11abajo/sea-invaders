@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CRAB, CRAB_TYPES, DROP, FIELD_W, INITIAL_INPUT, OCTOPI, PRACTICE_RUN, REEF_KINDS, SQUAD_BAND,
+  BOSS, CRAB, CRAB_TYPES, DROP, FIELD_W, INITIAL_INPUT, OCTOPI, PRACTICE_RUN, REEF_KINDS, SQUAD_BAND,
   SQUAD_GAP_X, SQUAD_ROW_GAP, SQUAD_TEMPLATES, createGame, damageBoss, fireChance, halvedWhileBoss,
   hitCrabs, idiv, insideField, isHeralded, levelById, marchSquads, marchSteps, popSquads, spawnBoss,
   spawnSquad, squadStep, step, updateEnemyShots, updateVeterans,
@@ -77,15 +77,31 @@ describe('squad templates and spawning', () => {
 });
 
 describe('the squad band', () => {
-  it('is the strip between the two bounds spec 5.1 names', () => {
-    expect(SQUAD_BAND.maxY).toBe(700 + 2960 + 300); // BOSS.top + BOSS.height + 300
-    expect(SQUAD_BAND.minY).toBe(OCTOPI.minY - 1200);
-    expect(SQUAD_BAND.minY).toBeLessThanOrEqual(SQUAD_BAND.maxY);
+  const BOX_BOTTOM = BOSS.top + BOSS.height; // 3660
+  const HALF = idiv(CRAB.size, 2);
+
+  it('runs from half a crab below the boss box down to the spec bound (ruling R12)', () => {
+    expect(SQUAD_BAND.minY).toBe(BOX_BOTTOM + HALF); // 3925
+    expect(SQUAD_BAND.maxY).toBe(BOX_BOTTOM + 300); // 3960
+    expect(SQUAD_BAND.minY).toBeLessThan(SQUAD_BAND.maxY);
   });
 
-  it('keeps even a two-row squad clear of Octopi at its own ceiling', () => {
-    const lowest = SQUAD_BAND.maxY + SQUAD_ROW_GAP + idiv(CRAB.size, 2);
-    expect(lowest).toBeLessThan(OCTOPI.minY - OCTOPI.hitRadius);
+  it('leaves water between a crew two rows, rather than one solid block', () => {
+    expect(SQUAD_ROW_GAP).toBeGreaterThan(CRAB.size);
+  });
+
+  it('draws a crew anchored anywhere in the band below the boss box and above Octopi', () => {
+    for (const anchor of [SQUAD_BAND.minY, 3940, SQUAD_BAND.maxY]) {
+      const s = arena();
+      spawnSquad(s, 'crew', REEF_KINDS, idiv(FIELD_W, 2), anchor, 1);
+      const tops = s.crabs.map((c) => c.y - HALF);
+      const bottoms = s.crabs.map((c) => c.y + HALF);
+      // Not one crab is drawn inside the boss box, and not one reaches Octopi's own water.
+      expect({ anchor, inBox: Math.min(...tops) < BOX_BOTTOM }).toEqual({ anchor, inBox: false });
+      expect({ anchor, inWater: Math.max(...bottoms) >= OCTOPI.minY }).toEqual({ anchor, inWater: false });
+      // And Octopi at its own ceiling still cannot be touched by the bottom row.
+      expect(Math.max(...bottoms)).toBeLessThan(OCTOPI.minY - OCTOPI.hitRadius);
+    }
   });
 
   it('clamps an origin above or below the band back into it', () => {

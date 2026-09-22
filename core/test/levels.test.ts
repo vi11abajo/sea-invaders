@@ -32,6 +32,17 @@ describe('LEVELS', () => {
     }
   });
 
+  it('gives no boss level a wave, so a boss round is only ever a boss and its squads', () => {
+    // `marchCrabs` hands the whole tick to `marchSquads` as soon as a squad stands, on the strength
+    // of a boss round never carrying a wave (spec §5.1). Were a boss level ever given waves, wave
+    // crabs and squad crabs would share `s.crabs`, the wave would stop marching and its invasion
+    // check would stop running — a silent hang rather than a crash. This pins the premise as data:
+    // the day someone gives a boss level a wave, this fails instead of the game.
+    const bossLevels = LEVELS.filter((l) => l.boss !== undefined);
+    expect(bossLevels.length).toBeGreaterThan(0);
+    for (const l of bossLevels) expect({ id: l.id, waves: l.waves }).toEqual({ id: l.id, waves: 0 });
+  });
+
   it('matches the waves and formation of the spec table row for row', () => {
     for (const [id, waves, formation] of TABLE) {
       expect({ id, waves: levelById(id).waves, formation: levelById(id).formation }).toEqual({ id, waves, formation });

@@ -1,4 +1,4 @@
-import { BOSS, CRAB, FIELD_W, OCTOPI } from '../config';
+import { BOSS, CRAB, FIELD_W } from '../config';
 import { clamp, idiv } from '../fixed';
 import { kindForTier, type CrabType } from '../levels';
 import { squadCell, type Crab, type GameState, type Squad } from '../types';
@@ -26,29 +26,39 @@ import { raged } from './veterans';
  * `marchCrabs` leans on that: with a squad on the field it hands the whole tick to `marchSquads`.
  */
 
+/** Half a crab sprite: the reach of a crab's box either side of its centre. */
+const HALF = idiv(CRAB.size, 2);
+
+/** The character code of '0', so reading a template digit costs no string allocation. */
+const ZERO = 48;
+
 /** The column spacing inside a squad: the same gap a wave's grid uses. */
 export const SQUAD_GAP_X = CRAB.gapX;
 
 /**
- * The row spacing inside a squad. Deliberately tighter than `CRAB.gapY`: the band below is barely
- * one crab deep, and a two-row squad hanging off its lower edge has to stay clear of Octopi even
- * when Octopi swims right up to its own ceiling (`OCTOPI.minY`). At 560 the bottom row's lowest
- * edge lands 55 units above Octopi's reach there, which `squads.test.ts` pins.
+ * The row spacing inside a squad. Tighter than `CRAB.gapY` (700), because the band below is barely
+ * one crab deep and a two-row squad hangs off it; wide enough that the two rows of a `crew` do not
+ * touch — 600 against a 530-unit sprite leaves 70 units of water between them — and that the bottom
+ * row still stays clear of Octopi at its own ceiling. `squads.test.ts` pins both ends.
  */
-export const SQUAD_ROW_GAP = 560;
+export const SQUAD_ROW_GAP = 600;
 
 /**
- * The band a squad marches in (spec §5.1), which it never leaves because it never descends.
+ * The band a squad's anchor row marches in (spec §5.1), which it never leaves because a squad never
+ * descends. Further rows of a multi-row template hang below the anchor at `SQUAD_ROW_GAP`.
  *
- * The spec names the two bounds `BOSS.top + BOSS.height + 300` (below the boss box) and
+ * The spec names two bounds: `BOSS.top + BOSS.height + 300` (below the boss box) and
  * `OCTOPI.minY − 1200` (well above Octopi). With the shipped geometry they cross — 3960 against
- * 3800, because the boss box is 2960 units tall and reaches down to 3660 — so the band is not a
- * range but the 160-unit strip *between* them, and that is what a squad's anchor row is clamped
- * into. Further rows of a multi-row template hang below the anchor at `SQUAD_ROW_GAP`.
+ * 3800, because the boss box is 2960 units tall and reaches down to 3660 — so they cannot both
+ * hold, and ruling R12 settles it in favour of the boss box: the band runs from half a crab below
+ * the boss box (3925, the shallowest anchor whose sprite is not drawn *inside* the boss) down to
+ * the spec's own `+300` (3960). A squad therefore sits 1040 to 1075 units above Octopi's ceiling
+ * rather than the spec's 1200 — still far outside Octopi's reach, which `squads.test.ts` pins for
+ * both rows of a `crew` anchored anywhere in the band.
  */
 export const SQUAD_BAND = {
-  minY: Math.min(BOSS.top + BOSS.height + 300, OCTOPI.minY - 1200),
-  maxY: Math.max(BOSS.top + BOSS.height + 300, OCTOPI.minY - 1200),
+  minY: BOSS.top + BOSS.height + HALF,
+  maxY: BOSS.top + BOSS.height + 300,
 } as const;
 
 /** The tiny formations a boss can send out (spec §5.1). */
@@ -66,11 +76,6 @@ export const SQUAD_TEMPLATES: Readonly<Record<SquadTemplate, readonly string[]>>
   pair: ['11'],
   guard5: ['01234'],
 };
-
-const HALF = idiv(CRAB.size, 2);
-
-/** The character code of '0', so reading a template digit costs no string allocation. */
-const ZERO = 48;
 
 /** The next free squad id: one past the highest one standing, so ids start again at 1 on an empty arena. */
 function nextSquadId(s: GameState): number {

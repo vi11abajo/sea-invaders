@@ -1,5 +1,5 @@
 import { BOSS, BOSS_SHOT, BOSS_TABLE, FIELD_W, SHOT } from '../config';
-import { idiv, isqrt } from '../fixed';
+import { clamp, idiv, isqrt } from '../fixed';
 import { icos, isin } from '../trig';
 import type { Bullet, BossKind, BossState, GameState, TableBossKind } from '../types';
 import { isActive } from './boosts';
@@ -89,11 +89,19 @@ export function firewallX(slot: number): number {
 /**
  * A wall of straight shots across the whole field with one two-slot doorway in it (spec §5.2): all
  * nine slots but `gapSlot` and the slot to its right, so seven shots, at `BOSS_SHOT.speed` straight
- * down. `gapSlot` runs 0..7 — the gap always has a right-hand neighbour to take with it.
+ * down.
+ *
+ * The doorway is **always exactly two slots wide** — that is the contract, not a precondition on
+ * the caller (ruling R13). The gap needs a right-hand neighbour to take with it, so `gapSlot` is
+ * clamped into `0..FIREWALL_SLOTS - 2`: a caller drawing the slot nearest `rngBoss.nextInt(9)` can
+ * hand this an 8, and a wall with a one-slot doorway would be a materially harder wall on one draw
+ * in nine. Callers should draw `rngBoss.nextInt(8)`; whatever they hand over, the wall is seven
+ * shots with a two-slot doorway.
  */
 export function castFirewall(s: GameState, y: number, gapSlot: number): void {
+  const gap = clamp(gapSlot, 0, FIREWALL_SLOTS - 2);
   for (let i = 0; i < FIREWALL_SLOTS; i++) {
-    if (i === gapSlot || i === gapSlot + 1) continue;
+    if (i === gap || i === gap + 1) continue;
     s.enemyShots.push({ x: firewallX(i), y, vx: 0, vy: BOSS_SHOT.speed, kind: 'firewall', data: 0 });
   }
 }

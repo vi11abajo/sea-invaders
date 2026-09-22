@@ -20,6 +20,15 @@ function tickShots(s: GameState): void {
   updateEnemyShots(s);
 }
 
+/** The firewall slots no shot of the wall standing in `s` occupies, ascending. */
+function freeSlots(s: GameState): number[] {
+  const free: number[] = [];
+  for (let i = 0; i < FIREWALL_SLOTS; i++) {
+    if (!s.enemyShots.some((b) => b.x === firewallX(i))) free.push(i);
+  }
+  return free;
+}
+
 describe('firewall', () => {
   it('lays nine slots evenly across the field', () => {
     expect(FIREWALL_SLOTS).toBe(9);
@@ -47,11 +56,22 @@ describe('firewall', () => {
     for (let gap = 0; gap <= FIREWALL_SLOTS - 2; gap++) {
       const s = arena();
       castFirewall(s, 1000, gap);
-      const free: number[] = [];
-      for (let i = 0; i < FIREWALL_SLOTS; i++) {
-        if (!s.enemyShots.some((b) => b.x === firewallX(i))) free.push(i);
-      }
-      expect(free).toEqual([gap, gap + 1]);
+      expect(freeSlots(s)).toEqual([gap, gap + 1]);
+    }
+  });
+
+  it('still leaves a two-slot doorway when the gap is out of range (ruling R13)', () => {
+    // Spec §5.2 draws "the slot nearest rngBoss.nextInt(9)", which yields 8 one time in nine; a
+    // doorway one slot wide would be a materially harder wall. The helper's contract is the
+    // doorway, not a precondition on the caller.
+    for (const gap of [FIREWALL_SLOTS - 1, FIREWALL_SLOTS, 100, -1, -100]) {
+      const s = arena();
+      castFirewall(s, 1000, gap);
+      const free = freeSlots(s);
+      expect({ gap, shots: s.enemyShots.length, width: free.length, adjacent: free[1]! - free[0]! })
+        .toEqual({ gap, shots: FIREWALL_SLOTS - 2, width: 2, adjacent: 1 });
+      expect(free[0]).toBeGreaterThanOrEqual(0);
+      expect(free[1]).toBeLessThanOrEqual(FIREWALL_SLOTS - 1);
     }
   });
 

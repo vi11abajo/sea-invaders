@@ -30,9 +30,10 @@ export type BulletKind =
   | 'crab' | 'straight' | 'zigzag' | 'large' | 'wave' | 'ring' | 'explosive' | 'fragment'
   | 'meteor' | 'berserk' | 'spiral' | 'gravity' | 'clone'
   | 'heavy'
-  // The veteran and boss-6..10 shot kinds (spec §2 / §5.1): appended, so no old index moves. Their
-  // own motion (zigzag bubble, bursting charge, homing orb, aimed needle, ...) is a later task's
-  // work — for now any bullet with one of these kinds just flies straight like `crab`/`heavy` do.
+  // The veteran and boss-6..10 shot kinds (spec §2 / §5.1): appended, so no old index moves. Each
+  // one that has a motion of its own carries it in `updateEnemyShots` — the bubbler's drifting
+  // bubble, the bombardier's bursting charge, the Corsair's boomerang `axe` and the Tyrant's homing
+  // `orb`; `firewall`, `shard`, `bolt` and `needle` fly the straight line they were cast on.
   | 'bubble' | 'charge' | 'firewall' | 'shard' | 'axe' | 'bolt' | 'orb' | 'needle';
 
 export interface Bullet {
