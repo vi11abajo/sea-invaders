@@ -45,6 +45,7 @@ export function createGame(seed: string, run: RunConfig): GameState {
     // raises something.
     squads: [],
     obstacles: [],
+    destroyedObstacles: [],
     lanes: [],
     aims: [],
     chillTicks: 0,

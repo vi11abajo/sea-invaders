@@ -23,19 +23,32 @@ export function step(s: GameState, input: Input): void {
   if (s.over) return;
   updateEnemyShots(s);
   pullShotsTowardGravity(s);
+  // The arena objects eat both sides' fire whole (spec §5.1) *before* the boss's own update, so a
+  // boss whose `tick` hook reacts to a destruction it caused this very tick (the Frost Castellan's
+  // shard burst, fix round 1, controller ruling R18) sees it the same tick rather than one tick
+  // late. Moving `hitObstacle` ahead of `updateBoss` costs kinds 1-5 (and kind 6) nothing: with no
+  // obstacle ever standing on their arena, `hitObstacle` is an unconditional no-op wherever it sits
+  // in the tick. The one visible cost is the Castellan's own: a shot he casts this very tick (from
+  // the `updateBoss` call below) is not checked against a crystal until the next tick — unobservable
+  // today, since every shot he casts starts at his own muzzle, nowhere near y 3600 where a crystal
+  // stands.
+  hitObstacle(s);
   updateBoss(s);
   advanceScoreDecay(s);
-  // Both sides' shots have moved by now (and the boss has cast whatever this tick owed), so this is
-  // where everything standing between a shot and its target gets its say, before any hit is scored:
-  // first the arena objects, which eat both sides' fire whole (spec §5.1), then the bubbler's
-  // bubbles (spec §2) and the Tyrant's orbs (spec §5.1), each of which a player shot has to chew
-  // through. A tick with no crystal, no bubble and no orb on the field leaves all three at once.
-  hitObstacle(s);
+  // Before any hit is scored: the bubbler's bubbles (spec §2) and the Tyrant's orbs (spec §5.1),
+  // each of which a player shot has to chew through before it can reach a crab, the boss box or
+  // Octopi (`hitCrabs`, `hitOctopi`). A tick with no bubble and no orb on the field leaves both at
+  // once.
   popBubbles(s);
   hitOrbs(s);
   hitCrabs(s);
   hitOctopi(s);
   updateBoosts(s);
+  // Whichever boss reacts to a destruction (the Castellan's own `tick` hook, inside the `updateBoss`
+  // call above) already drained `destroyedObstacles` for itself; this is the safety net for every
+  // other case — no boss, or a boss that never drains it — so the list can never accumulate or leak
+  // into the next tick (fix round 1, controller ruling R18).
+  s.destroyedObstacles = [];
   // Decrement before nextWave so a wave it spawns this same tick (arrival reset to 30) keeps its
   // full descent — marchCrabs already consumed this tick's old-wave arrival tick above, and the
   // new wave's own 30 ticks only start counting down from the next step() call.

@@ -79,5 +79,11 @@ export function hashState(s: GameState): string {
     h.int(-1);
   }
   for (const c of s.crabs) h.int(c.cell);
+  // `destroyedObstacles` (fix round 1, controller ruling R18), appended last of all so every older
+  // field keeps its place: a sim-internal, single-tick channel that is empty at the start and the
+  // end of every tick but a boss's own destroying one, so it is usually empty and this usually costs
+  // one int.
+  h.int(s.destroyedObstacles.length);
+  for (const o of s.destroyedObstacles) h.int(o.x).int(o.y);
   return h.digest();
 }

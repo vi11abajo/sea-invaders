@@ -77,6 +77,7 @@ describe('the new boss state fields', () => {
     }
     expect(s.squads).toEqual([]);
     expect(s.obstacles).toEqual([]);
+    expect(s.destroyedObstacles).toEqual([]);
     expect(s.lanes).toEqual([]);
     expect(s.aims).toEqual([]);
     expect(s.chillTicks).toBe(0);
@@ -180,6 +181,9 @@ describe('the state hash', () => {
     expect(mutated((s) => { s.boss!.burst = 3; })).toBe(true);
     expect(mutated((s) => { s.boss!.mirror = [0, 300, 0]; })).toBe(true);
     expect(mutated((s) => { s.boss!.discharged = 180; })).toBe(true);
+    // Fix round 1, controller ruling R18: a state with one pending destroyed-obstacle entry hashes
+    // differently from one without, even though the field is usually empty.
+    expect(mutated((s) => { s.destroyedObstacles = [{ x: 2000, y: 3600 }]; })).toBe(true);
   });
 });
 

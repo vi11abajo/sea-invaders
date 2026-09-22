@@ -188,7 +188,7 @@ export interface BossState {
   gapSlot: number;
   /** Huntsman: the x his sight line was fixed on; the needle flies at it however Octopi moves after. */
   aimX: number;
-  /** Huntsman: ticks the sight line is still shown for. */
+  /** Huntsman: ticks the sight line is still shown for. Castellan: cold snap's own countdown, redrawn every time it reaches 0. */
   aimTicks: number;
   /** Shots still to come in a staggered burst. */
   burst: number;
@@ -334,6 +334,17 @@ export interface GameState {
   squads: Squad[];
   /** The arena objects standing right now (spec §5.1). Empty for every boss of the first campaign. */
   obstacles: Obstacle[];
+  /**
+   * The position of every obstacle `hitObstacle` removed this very tick (spec §5.1, controller
+   * ruling R18, fix round 1): a boss whose own mechanic reacts to a destroyed obstacle (the Frost
+   * Castellan's shard burst) drains this in its own `tick` hook, then empties it — `step.ts` also
+   * clears it unconditionally at the end of every tick, so it never survives into the next one even
+   * for a fight with no such boss. `s.events` is a write-only outbox for the renderer (nothing in
+   * the sim may read it back — the app itself truncates it once a frame, which is exactly why this
+   * exists instead), so this is the sim-internal channel for exactly that purpose. Empty for every
+   * tick that destroys nothing, which is every tick of the first campaign.
+   */
+  destroyedObstacles: { x: number; y: number }[];
   /**
    * The Storm Tyrant's lanes, flat `[lane, ticksLeft]` pairs (spec §5.2): a lane warns for
    * `ticksLeft` ticks and then strikes. Empty until that boss's own task fills it.

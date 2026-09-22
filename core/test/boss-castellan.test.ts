@@ -8,8 +8,10 @@ import type { BossState, GameState } from '../src';
 
 /**
  * The Frost Castellan, boss kind 7 (spec §5.2 row 7). Every number below is the spec's or the task
- * brief's, in ticks at 60 Hz. `sim/bosses/castellan.ts`'s own doc comment explains the four reused
- * `BossState` fields (`windup`, `burst`, `aimTicks`, `aimX`) and the RNG draw order pinned here.
+ * brief's, in ticks at 60 Hz. `sim/bosses/castellan.ts`'s own doc comment explains the two reused
+ * `BossState` fields (`windup`, `burst`; cold snap's `aimTicks` is described at its own declaration
+ * in `types.ts`), the `GameState.destroyedObstacles` channel (fix round 1, controller ruling R18)
+ * and the RNG draw order pinned here.
  */
 
 /** A practice arena with the Castellan on it, the practice wave swept away. */
@@ -239,6 +241,49 @@ describe('Frost Castellan — a player-destroyed crystal bursts', () => {
     expect(s.enemyShots).toHaveLength(0);
     updateBoss(s); // the transition ends, phase 2 begins, and this tick's hooks.tick finally looks
     expect(s.enemyShots.filter((e) => e.kind === 'shard')).toHaveLength(SHARD_COUNT);
+  });
+});
+
+describe('Frost Castellan — fix round 1: the burst does not depend on s.events (controller ruling R18)', () => {
+  it('bursts through a real step, same tick as the destruction, even when a harness clears s.events every tick as the app does', () => {
+    const s = arena();
+    const b = park(s);
+    b.abilityTimer = 1;
+    updateBoss(s); // raises a crystal
+    const { x, y } = s.obstacles[0]!;
+    // `updateShots` (inside `step`) moves a player shot before `hitObstacle` ever sees it, so the
+    // 12 shots are placed one tick's travel (vy -240) short of the crystal's own centre.
+    const startY = y + 240;
+    for (let i = 0; i < 12; i++) s.shots.push({ x, y: startY, vx: 0, vy: -240, kind: 'straight', data: 0 });
+    // Mimic `GameScreen.tsx`'s own per-frame drain (`state.events.length = 0`) around the very tick
+    // that destroys the crystal — this is exactly the scenario fix round 0's `s.events` watermark
+    // got wrong (controller ruling R18).
+    s.events = [];
+    step(s, INITIAL_INPUT); // hitObstacle runs before updateBoss now, so this one tick both destroys
+    // the crystal and drains it — no one-tick delay, and no dependence on s.events surviving.
+    s.events = [];
+    const shards = s.enemyShots.filter((e) => e.kind === 'shard');
+    expect(shards).toHaveLength(SHARD_COUNT);
+    for (const sh of shards) expect(sh).toMatchObject({ x, y });
+  });
+
+  it('leaves destroyedObstacles empty at the end of every tick, whether or not a boss drained it', () => {
+    const s = arena();
+    const b = park(s);
+    b.abilityTimer = 1;
+    updateBoss(s);
+    const { x, y } = s.obstacles[0]!;
+    const startY = y + 240;
+    for (let i = 0; i < 12; i++) s.shots.push({ x, y: startY, vx: 0, vy: -240, kind: 'straight', data: 0 });
+    step(s, INITIAL_INPUT); // destroys and drains the crystal in the same tick
+    expect(s.destroyedObstacles).toEqual([]);
+
+    // The safety net in step.ts: a fight with no boss to drain it on purpose still never lets a
+    // stray entry survive into the next tick.
+    const noBoss = createGame('castellan-safety-net', { ...PRACTICE_RUN, features: { boosts: false } });
+    noBoss.destroyedObstacles = [{ x: 1, y: 2 }];
+    step(noBoss, INITIAL_INPUT);
+    expect(noBoss.destroyedObstacles).toEqual([]);
   });
 });
 
