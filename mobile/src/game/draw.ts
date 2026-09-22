@@ -1,8 +1,11 @@
 import { BlendMode, BlurStyle, ClipOp, FilterMode, MipmapMode, PaintStyle, Skia, TileMode } from '@shopify/react-native-skia';
 import {
-  BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, CRAB_STRIDE, CRAB_TYPES, DROP, ENEMY_SHOT, KIND_INDEX, RARITY_ORDER, OCTOPI, TYPE_INDEX,
+  AIM_STRIDE, BOOSTS, BOOST_INDEX, BOSS, BOSS_SHOT, BUBBLE_RADIUS, CHARGE_RADIUS, CRAB_STRIDE, CRAB_TYPES,
+  DROP, ENEMY_SHOT, FIELD_W, FIREWALL_SLOTS, KIND_INDEX, LANE_COUNT, LANE_STRIDE, OBSTACLE_STRIDE,
+  RARITY_ORDER, OCTOPI, TYPE_INDEX,
   type BoostType, type CrabType, type Frame, type Layout,
 } from '@sea-invaders/core';
+import { BOSS_HEX, BOSS_RGB } from './bossPalette';
 import { COLORS, SIGNATURE_GRADIENT } from '../ui/tokens';
 import { PIXEL_RATIO, type PreparedSprite, type PreparedSprites } from './sprites';
 
@@ -32,9 +35,7 @@ const FIELD_BG_COLOR = Skia.Color(COLORS.app);
 /** Visible player shot in milli-units: 3 x 18 dp on a 400 dp wide field. The hitbox stays SHOT's. */
 const SHOT_LOOK = { w: 42, h: 253 };
 
-/** Boss palette by kind 1..5 (spec §4.2 / GameHud's BOSS_COLOR). */
-const BOSS_HEX = ['#33cc66', '#3366ff', '#ffdd33', '#ff3333', '#9966ff'] as const;
-const BOSS_RGB = ['51,204,102', '51,102,255', '255,221,51', '255,51,51', '153,102,255'] as const;
+/** Boss palette by kind 1..10 (spec §4.2 / §5.2), from the shared table (`bossPalette.ts`, ruling R44). */
 const BOSS_SK = BOSS_HEX.map((hex) => Skia.Color(hex));
 const DEFAULT_BOSS_SK = Skia.Color('#FFFFFF');
 
@@ -242,6 +243,194 @@ function scratch(x: number, y: number, width: number, height: number): Rect {
   return SCRATCH_RECT;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Reefs 6-10 (spec §7/§8, task 12): the veteran crab flags, the new arena/lane/aim arrays, the new
+// boss flags and the new enemy shot kinds 14-21. Every colour/shader/path below is built once here,
+// at module scope, never per frame or per crab (ruling R49) — the worklet only ever reads them.
+// ---------------------------------------------------------------------------------------------
+
+/** Warden's rune shield (frame flag bit 0): a stroked arc around the crab, gapped rather than a full ring. */
+const WARDEN_SHIELD_COLOR = Skia.Color('rgba(80,220,255,0.85)');
+const WARDEN_SHIELD_STROKE_W = 3;
+/** Herald's aura (frame flag bit 1): a thin pulsing ring, plus a faint link line to the nearest herald. */
+const HERALD_RING_COLOR = Skia.Color('rgba(255,221,120,0.8)');
+const HERALD_RING_STROKE_W = 2;
+const HERALD_LINK_STROKE_W = 2;
+const HERALD_LINK_ALPHA = 0.32;
+/** Patriarch's rally mark (frame flag bit 2): a small gold ring over a just-revived crab. */
+const RALLY_MARK_COLOR = Skia.Color('rgba(255,210,60,0.9)');
+const RALLY_MARK_STROKE_W = 2;
+/** Formation rage (frame flag bit 3): a red tint pulse over a raging crab. */
+const CRAB_RAGE_TINT_COLOR = Skia.Color('#FF3333');
+
+/**
+ * How many heralds `drawFrame` tracks for the aura's link line, a fixed scratch buffer (never
+ * reallocated) filled by one pre-pass over `f.crabs` before the main crab loop below. A formation
+ * fields far fewer heralds than this in real play; a fight with more simply skips the link for the
+ * ones past the cap and still draws the ring alone, which the spec explicitly allows ("if cheap").
+ */
+const MAX_HERALDS_TRACKED = 16;
+const HERALD_SCRATCH_X: number[] = new Array(MAX_HERALDS_TRACKED).fill(0);
+const HERALD_SCRATCH_Y: number[] = new Array(MAX_HERALDS_TRACKED).fill(0);
+
+/** Frost Castellan's crystals (`frame.obstacles`, `OBSTACLE_INDEX.crystal`): a faceted diamond in the reef's cold tint. */
+const CRYSTAL_COLOR = Skia.Color('rgba(160,220,255,0.85)');
+/** A unit diamond (top/right/bottom/left points), reused via `canvas.scale` for every crystal — never rebuilt per frame. */
+const CRYSTAL_UNIT_PATH = Skia.Path.Polygon(
+  [
+    { x: 0, y: -0.5 },
+    { x: 0.5, y: 0 },
+    { x: 0, y: 0.5 },
+    { x: -0.5, y: 0 },
+  ],
+  true,
+);
+/**
+ * Crack lines drawn across a crystal as it takes hits, scaling with `12 - hp` (ruling R45's own
+ * literal — a crystal's full 12 hp comes from `castellan.ts`'s own `CRYSTAL_HP`, not exported, so the
+ * ruling's number is used verbatim rather than re-derived). Centred unit coordinates, transformed the
+ * same way the crab damage cracks are (absolute `ox + x*ow`), not inside the diamond's own
+ * `canvas.scale`, so the stroke width stays a constant dp regardless of the crystal's own box size.
+ */
+const CRYSTAL_CRACK_LINES: readonly (readonly [number, number, number, number])[] = [
+  [0, -0.4, 0, 0.42],
+  [-0.38, 0, 0.38, 0],
+  [0, 0, 0.32, -0.3],
+  [0, 0, -0.3, 0.32],
+  [0, 0, 0.3, 0.3],
+  [0, 0, -0.32, -0.3],
+];
+/** A crystal at full 12 hp shows no cracks; every 2 hp lost reveals one more of the six lines above. */
+const CRYSTAL_FULL_HP = 12;
+
+/** Storm Tyrant's lanes (`frame.lanes`): the field split into `LANE_COUNT` equal vertical strips. */
+const LANE_WIDTH = FIELD_W / LANE_COUNT;
+const LANE_WARNING_COLOR = Skia.Color('#FF6666');
+/** The strike itself (`lane_strike`, one-shot): a brighter flash over the same width. */
+const LANE_STRIKE_COLOR = Skia.Color('#FFEE99');
+const LANE_STRIKE_LIFETIME = 12;
+
+/** Abyssal Huntsman's sight line (`frame.aim`): a thin line past the far point to the field edge. */
+const AIM_LINE_COLOR = Skia.Color('#FF5C5C');
+const AIM_LINE_STROKE_W = 2;
+/** How far past the far point the line is drawn — the field's own clip cuts it off cleanly. */
+const AIM_EXTEND = 4;
+/** The line fades in over its last `AIM_FADE_TICKS` ticks rather than snapping off at 0. */
+const AIM_FADE_TICKS = 12;
+
+/** Verdant Templar's firewall gap marker (`boss_windup`, one-shot, kind 6 only): two bright bars. */
+const FIREWALL_GAP_COLOR = Skia.Color('#8CFFC2');
+const FIREWALL_GAP_LIFETIME = 45;
+const FIREWALL_GAP_BAR_W = 24;
+
+/** Verdant Templar's shell (`shieldUp`): a filled dome over the boss, distinct from the `shieldHp` oval. */
+const BOSS_DOME_COLOR = Skia.Color('rgba(120,255,180,0.5)');
+const BOSS_DOME_STROKE = 4;
+/** Gold Corsair's Spikes (`reflecting`): a jagged saw-tooth outline around the boss box. */
+const SPIKE_FLASH_COLOR = Skia.Color('rgba(255,214,102,0.9)');
+const SPIKE_FLASH_STROKE = 3;
+const SPIKE_POINTS = 14;
+const SAWTOOTH_PATH = Skia.Path.Polygon(
+  Array.from({ length: SPIKE_POINTS * 2 }, (_, i) => {
+    const deg = (i * 180) / SPIKE_POINTS;
+    const r = i % 2 === 0 ? 0.5 : 0.36;
+    const rad = (deg * Math.PI) / 180;
+    return { x: r * Math.cos(rad), y: r * Math.sin(rad) };
+  }),
+  true,
+);
+/** Storm Tyrant's discharge window (`discharged`): a golden crackle tint over the boss sprite. */
+const DISCHARGE_FILTER = Skia.ColorFilter.MakeBlend(Skia.Color('#FFD24D'), BlendMode.Modulate);
+
+/** Frost Castellan's cold snap (`frame.chill`): a pale blue tint drawn over Octopi's own silhouette. */
+const CHILL_FILTER = Skia.ColorFilter.MakeBlend(Skia.Color('#AEE8FF'), BlendMode.SrcIn);
+
+/** Bubbler's `bubble` shot (kind 14): a translucent circle with a highlight. */
+const BUBBLE_COLOR = Skia.Color('#8FE3FF');
+/** Bombardier's `charge` shot (kind 15): a steady orange glow plus a small core (no per-bullet age in the frame). */
+const CHARGE_GLOW_COLOR = Skia.Color('#FF9142');
+/** Verdant Templar's `firewall` shot (kind 16): a short vertical bar. */
+const FIREWALL_BAR_COLOR = Skia.Color('rgba(143,255,194,0.85)');
+const FIREWALL_BAR_W = 60;
+const FIREWALL_BAR_H = 260;
+/** Frost Castellan's crystal-burst `shard` (kind 17): a small pale diamond. */
+const SHARD_COLOR = Skia.Color('#CFEFFF');
+/** Gold Corsair's `axe` (kind 18): a spinning blade, rotated by `f.tick * 12` degrees. */
+const AXE_COLOR = Skia.Color('#FFC24D');
+const AXE_BLADE_UNIT = { x: -0.18, y: -0.55, width: 0.36, height: 1.1 };
+/** Storm Tyrant's `bolt` (kind 19): a jagged forked line. */
+const BOLT_COLOR = Skia.Color('#FF5C5C');
+const BOLT_STROKE_W = 4;
+/** Storm Tyrant's homing `orb` (kind 20): a pulsing sphere, radius driven by `f.tick`. */
+const ORB_COLOR = Skia.Color('rgba(255,120,120,0.85)');
+/** Abyssal Huntsman's `needle` (kind 21): a thin long line, leaning towards the field centre. */
+const NEEDLE_COLOR = Skia.Color('#D9B3FF');
+const NEEDLE_STROKE_W = 3;
+const NEEDLE_LENGTH = 460;
+const NEEDLE_LEAN_MAX = 18;
+
+/** `firewallX` (`core/src/sim/boss.ts`) re-derived here: a worklet cannot call an imported, non-worklet core function, only its own local ones and plain constants. */
+function firewallSlotX(slot: number): number {
+  'worklet';
+  return Math.floor((FIELD_W * (2 * slot + 1)) / (FIREWALL_SLOTS * 2));
+}
+
+/** A lane's left edge in world units (mirrors `laneOf`'s own `laneStart`, `core/src/sim/bosses/tyrant.ts`), re-derived for the same reason as `firewallSlotX`. */
+function laneLeftX(lane: number): number {
+  'worklet';
+  return Math.floor((FIELD_W * lane) / LANE_COUNT);
+}
+
+/**
+ * One-shot visuals (spec §8 / ruling R45), the `WaveBlast` pattern generalised to a capped list: each
+ * entry is captured once, in `GameScreen.tsx`'s event loop, from the `GameEvent` that raised it (and,
+ * for the handful with no position of their own, from `state` at that same instant — never read back
+ * by this file, which only ever sees the entry's own `x`/`y`/`x2`). `drawFrame` draws every entry as a
+ * function of `f.tick - entry.tick` and never mutates the list itself.
+ */
+export type EffectKind =
+  | 'crab_shield_break' | 'bubble_pop' | 'charge_burst' | 'crab_rallied' | 'formation_rage'
+  | 'crystal_shatter' | 'obstacle_destroyed' | 'boss_block' | 'boss_windup' | 'boss_reflect'
+  | 'lane_strike' | 'boss_clone' | 'cold_snap';
+
+export interface EffectEntry {
+  kind: EffectKind;
+  tick: number;
+  x: number;
+  y: number;
+  /** `boss_clone` only: the ghost pair's right x (`x` holds the left); `boss_windup` only: the gap slot; `lane_strike` only: the lane index. Unused (0) by every other kind. */
+  x2: number;
+}
+
+/** One shared value, capped at 32 entries (ruling R49) — never one shared value per effect. */
+export interface Effects {
+  entries: EffectEntry[];
+}
+
+/** How many rendered ticks an entry of each kind stays on screen before `drawFrame` drops it. */
+const EFFECT_LIFETIME: Record<EffectKind, number> = {
+  crab_shield_break: 20,
+  bubble_pop: 15,
+  charge_burst: 20,
+  crab_rallied: 30,
+  formation_rage: 40,
+  crystal_shatter: 30,
+  obstacle_destroyed: 25,
+  boss_block: 15,
+  boss_windup: FIREWALL_GAP_LIFETIME,
+  boss_reflect: 20,
+  lane_strike: LANE_STRIKE_LIFETIME,
+  boss_clone: 90,
+  cold_snap: 25,
+};
+
+/** The cap `GameScreen.tsx`'s own `pushEffect` enforces (ruling R49); exported so it is declared once. */
+export const EFFECT_CAP = 32;
+
+const IMPACT_BURST_COLOR = Skia.Color('#FFFFFF');
+const RAGE_WAVE_COLOR = Skia.Color('rgba(255,51,51,0.35)');
+const COLD_SNAP_COLOR = Skia.Color('rgba(174,232,255,0.7)');
+
 /** Rarity colour by `RARITY_ORDER` index (0..3): common, rare, epic, legendary. */
 const RARITY_COLOR_HEX = ['#ffffff', '#00ddff', '#9f00ff', '#ffd700'] as const;
 /** Fraction of `DROP.size * k` used as the soft glow disc's radius, behind the drop's icon. */
@@ -300,6 +489,7 @@ export function drawFrame(
   sprites: PreparedSprites,
   fieldRect: Rect,
   blast: WaveBlast | null,
+  effects: Effects,
   solidField: boolean,
 ) {
   'worklet';
@@ -348,6 +538,48 @@ export function drawFrame(
     }
   }
 
+  // Frost Castellan's crystals (`frame.obstacles`, spec §7/§8): a faceted diamond in a cold tint,
+  // terrain drawn early so crabs, shots and the boss all render over it. Cracks scale with the
+  // literal `12 - hp` (ruling R45), never a decoded core constant (see `CRYSTAL_FULL_HP`'s own doc).
+  for (let i = 0; i < f.obstacles.length; i += OBSTACLE_STRIDE) {
+    const ox = px(f.obstacles[i]!);
+    const oy = py(f.obstacles[i + 1]!);
+    const ow = f.obstacles[i + 2]! * k;
+    const oh = f.obstacles[i + 3]! * k;
+    const ohp = f.obstacles[i + 4]!;
+    // f.obstacles[i + 5] is `kindIndex`; `OBSTACLE_INDEX` has only `crystal` (0) today.
+    paint.setColor(CRYSTAL_COLOR);
+    canvas.save();
+    canvas.translate(ox, oy);
+    canvas.scale(ow, oh);
+    canvas.drawPath(CRYSTAL_UNIT_PATH, paint);
+    canvas.restore();
+    const crackCount = Math.min(CRYSTAL_CRACK_LINES.length, Math.max(0, Math.floor((CRYSTAL_FULL_HP - ohp) / 2)));
+    if (crackCount > 0) {
+      paint.setStyle(STROKE);
+      paint.setStrokeWidth(CRACK_STROKE_W * k);
+      paint.setColor(CRACK_COLOR);
+      for (let c = 0; c < crackCount; c++) {
+        const [x0, y0, x1, y1] = CRYSTAL_CRACK_LINES[c]!;
+        canvas.drawLine(ox + x0 * ow, oy + y0 * oh, ox + x1 * ow, oy + y1 * oh, paint);
+      }
+      paint.setStyle(FILL);
+    }
+  }
+
+  // Heralds tracked for the aura's link line below (ruling R45: "a faint link line to the nearest
+  // herald ... if cheap"): one bounded pre-pass over `f.crabs`, no allocation (`HERALD_SCRATCH_*`
+  // are module-scope arrays reused every frame), so the main crab loop can find the nearest one by a
+  // cheap linear scan instead of re-walking `f.crabs` itself.
+  let heraldCount = 0;
+  for (let i = 0; i < f.crabs.length && heraldCount < MAX_HERALDS_TRACKED; i += CRAB_STRIDE) {
+    if (f.crabs[i + 3] === TYPE_INDEX.herald) {
+      HERALD_SCRATCH_X[heraldCount] = f.crabs[i]!;
+      HERALD_SCRATCH_Y[heraldCount] = f.crabs[i + 1]!;
+      heraldCount += 1;
+    }
+  }
+
   // Crabs: the sprite for the crab's kind already encodes its colour/type (TYPE_COLOUR); no tint,
   // except a damaged crab (hp below its kind's max), drawn darker with a crack across its shell.
   // A crack borrows the shared paint for a stroke; these are the values it has to hand back.
@@ -359,8 +591,7 @@ export function drawFrame(
     const kind = f.crabs[i + 2]!;
     const typeIndex = f.crabs[i + 3]!;
     const hp = f.crabs[i + 4]!;
-    // f.crabs[i + 5] is `flags` (1 shield up, 2 heralded, 4 revived, 8 raging); not drawn yet, a
-    // later task's effects.
+    const flags = f.crabs[i + 5]!;
     const sprite = sprites.crabs[kind];
     if (sprite === undefined) continue;
     const lost = (MAX_HP_BY_TYPE_INDEX[typeIndex] ?? hp) - hp;
@@ -393,10 +624,101 @@ export function drawFrame(
         paint.setAlphaf(1);
       }
     }
+    // Reefs 6-10 crab flags (spec §7, ruling R45): bit 0 the warden's shield, bit 1 the herald's
+    // aura, bit 2 a patriarch's rally mark, bit 3 the formation's rage — every one of them cheap
+    // (an int test and a shape or two), so every crab pays for the check even outside a veteran wave.
+    if ((flags & 1) !== 0) {
+      const r = sprite.w * 0.6;
+      paint.setStyle(STROKE);
+      paint.setStrokeWidth(WARDEN_SHIELD_STROKE_W * k);
+      paint.setColor(WARDEN_SHIELD_COLOR);
+      canvas.drawArc(scratch(cx - r, cy - r, r * 2, r * 2), -110, 220, false, paint);
+      paint.setStyle(FILL);
+    }
+    if ((flags & 2) !== 0) {
+      const ringR = sprite.w * 0.56 + 3 * Math.sin(f.tick / 6);
+      paint.setStyle(STROKE);
+      paint.setStrokeWidth(HERALD_RING_STROKE_W * k);
+      paint.setColor(HERALD_RING_COLOR);
+      canvas.drawCircle(cx, cy, ringR, paint);
+      if (heraldCount > 0) {
+        let nearest = -1;
+        let nearestD = Infinity;
+        for (let hIdx = 0; hIdx < heraldCount; hIdx++) {
+          const dx = HERALD_SCRATCH_X[hIdx]! - f.crabs[i]!;
+          const dy = HERALD_SCRATCH_Y[hIdx]! - f.crabs[i + 1]!;
+          const d = dx * dx + dy * dy;
+          if (d < nearestD) {
+            nearestD = d;
+            nearest = hIdx;
+          }
+        }
+        if (nearest >= 0) {
+          paint.setStrokeWidth(HERALD_LINK_STROKE_W);
+          paint.setAlphaf(HERALD_LINK_ALPHA);
+          canvas.drawLine(cx, cy, px(HERALD_SCRATCH_X[nearest]!), py(HERALD_SCRATCH_Y[nearest]!), paint);
+          paint.setAlphaf(1);
+        }
+      }
+      paint.setStyle(FILL);
+    }
+    if ((flags & 4) !== 0) {
+      const rallyR = sprite.w * 0.5;
+      paint.setStyle(STROKE);
+      paint.setStrokeWidth(RALLY_MARK_STROKE_W * k);
+      paint.setColor(RALLY_MARK_COLOR);
+      canvas.drawCircle(cx, cy, rallyR, paint);
+      paint.setStyle(FILL);
+    }
+    if ((flags & 8) !== 0) {
+      const pulse = 0.5 + 0.5 * Math.sin(f.tick / 5);
+      paint.setColor(CRAB_RAGE_TINT_COLOR);
+      paint.setAlphaf(0.15 + 0.15 * pulse);
+      canvas.drawCircle(cx, cy, sprite.w * 0.55, paint);
+      paint.setAlphaf(1);
+    }
   }
   if (iceFreeze) {
     paint.setColor(ICE_FOG_COLOR);
     canvas.drawRect(fieldRect, paint);
+  }
+
+  // Storm Tyrant's lanes (`frame.lanes`, spec §7/§8): a translucent warning band over each, pulsing
+  // faster as `ticksLeft` falls.
+  for (let i = 0; i < f.lanes.length; i += LANE_STRIDE) {
+    const lane = f.lanes[i]!;
+    const ticksLeft = f.lanes[i + 1]!;
+    const laneX = px(laneLeftX(lane));
+    const laneW = LANE_WIDTH * k;
+    const pulse = 0.5 + 0.5 * Math.sin(f.tick * (0.15 + 3 / (ticksLeft + 4)));
+    paint.setColor(LANE_WARNING_COLOR);
+    paint.setAlphaf(0.1 + 0.2 * pulse);
+    canvas.drawRect(scratch(laneX, fieldRect.y, laneW, fieldRect.height), paint);
+    paint.setAlphaf(1);
+  }
+
+  // Abyssal Huntsman's sight line (`frame.aim`, spec §7/§8): a thin line from the near point past the
+  // far one to the field edge, bright for the real line, half alpha for a decoy, fading with ticksLeft.
+  if (f.aim.length > 0) {
+    canvas.save();
+    canvas.clipRect(fieldRect, ClipOp.Intersect, true);
+    paint.setColor(AIM_LINE_COLOR);
+    paint.setStrokeWidth(AIM_LINE_STROKE_W);
+    for (let i = 0; i < f.aim.length; i += AIM_STRIDE) {
+      const ax0 = px(f.aim[i]!);
+      const ay0 = py(f.aim[i + 1]!);
+      const ax1 = px(f.aim[i + 2]!);
+      const ay1 = py(f.aim[i + 3]!);
+      const decoy = f.aim[i + 4]!;
+      const ticksLeft = f.aim[i + 5]!;
+      const fade = Math.min(1, ticksLeft / AIM_FADE_TICKS);
+      const farX = ax1 + (ax1 - ax0) * AIM_EXTEND;
+      const farY = ay1 + (ay1 - ay0) * AIM_EXTEND;
+      paint.setAlphaf((decoy === 1 ? 0.5 : 1) * 0.55 * fade);
+      canvas.drawLine(ax0, ay0, farX, farY, paint);
+    }
+    paint.setAlphaf(1);
+    canvas.restore();
   }
 
   // Player shots: a bright core over a soft glow.
@@ -516,6 +838,86 @@ export function drawFrame(
         canvas.drawCircle(x, y, baseR, paint);
         break;
       }
+      // The reefs 6-10 shot kinds (spec §5.1/§5.2, ruling R45): `Frame.enemyShots` carries only
+      // x/y/kindIndex (no velocity or per-bullet age), so a look that would need either — the
+      // bubbler's own drift, the charge's brightening over time — is kept to what the frame gives.
+      case KIND_INDEX.bubble: {
+        const br = BUBBLE_RADIUS * k;
+        paint.setColor(BUBBLE_COLOR);
+        paint.setAlphaf(0.35);
+        canvas.drawCircle(x, y, br, paint);
+        paint.setAlphaf(0.75);
+        canvas.drawCircle(x - br * 0.3, y - br * 0.3, br * 0.22, paint);
+        paint.setAlphaf(1);
+        break;
+      }
+      case KIND_INDEX.charge: {
+        const cr = CHARGE_RADIUS * k;
+        paint.setColor(CHARGE_GLOW_COLOR);
+        paint.setAlphaf(0.3);
+        canvas.drawCircle(x, y, cr * 1.7, paint);
+        paint.setAlphaf(1);
+        canvas.drawCircle(x, y, cr * 0.5, paint);
+        break;
+      }
+      case KIND_INDEX.firewall: {
+        const fw = FIREWALL_BAR_W * k;
+        const fh = FIREWALL_BAR_H * k;
+        paint.setColor(FIREWALL_BAR_COLOR);
+        canvas.drawRect(scratch(x - fw / 2, y - fh / 2, fw, fh), paint);
+        break;
+      }
+      case KIND_INDEX.shard: {
+        paint.setColor(SHARD_COLOR);
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(45, 0, 0);
+        canvas.scale(baseR * 0.8, baseR * 0.8);
+        canvas.drawRect(UNIT_SQUARE, paint);
+        canvas.restore();
+        break;
+      }
+      case KIND_INDEX.axe: {
+        paint.setColor(AXE_COLOR);
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate((f.tick * 12) % 360, 0, 0);
+        canvas.scale(baseR * 1.3, baseR * 1.3);
+        canvas.drawRect(AXE_BLADE_UNIT, paint);
+        canvas.restore();
+        break;
+      }
+      case KIND_INDEX.bolt: {
+        paint.setColor(BOLT_COLOR);
+        paint.setStrokeWidth(BOLT_STROKE_W);
+        const s = baseR * 1.4;
+        canvas.drawLine(x - s * 0.3, y - s, x + s * 0.1, y - s * 0.2, paint);
+        canvas.drawLine(x + s * 0.1, y - s * 0.2, x - s * 0.15, y + s * 0.2, paint);
+        canvas.drawLine(x - s * 0.15, y + s * 0.2, x + s * 0.3, y + s, paint);
+        break;
+      }
+      case KIND_INDEX.orb: {
+        const pulse = 0.5 + 0.5 * Math.sin(f.tick / 6);
+        const orbR = baseR * (1 + 0.4 * pulse);
+        paint.setColor(ORB_COLOR);
+        paint.setAlphaf(0.45);
+        canvas.drawCircle(x, y, orbR * 1.3, paint);
+        paint.setAlphaf(1);
+        canvas.drawCircle(x, y, orbR * 0.7, paint);
+        break;
+      }
+      case KIND_INDEX.needle: {
+        // No velocity in the frame: drawn vertical, leaning towards the field centre (ruling R45).
+        const lean = ((FIELD_W / 2 - f.enemyShots[i]!) / (FIELD_W / 2)) * NEEDLE_LEAN_MAX;
+        paint.setColor(NEEDLE_COLOR);
+        paint.setStrokeWidth(NEEDLE_STROKE_W);
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(lean, 0, 0);
+        canvas.drawLine(0, (-NEEDLE_LENGTH * k) / 2, 0, (NEEDLE_LENGTH * k) / 2, paint);
+        canvas.restore();
+        break;
+      }
       default:
         break;
     }
@@ -541,12 +943,34 @@ export function drawFrame(
     const bossFrames = sprites.bosses[b.kind - 1];
     const sprite = bossFrames !== undefined ? bossFrames[Math.floor(f.tick / 60) % 2] : undefined;
     if (sprite !== undefined) {
+      // Void/Huntsman decoy ghosts (`boss_clone`, ruling R47): the current boss frame at 45% alpha at
+      // the last captured pair's x's, `boss.y`. Only the most recent pair draws — a fresh `boss_clone`
+      // supersedes an older one even if it is still within its own 90-tick lifetime.
+      let cloneEntry: EffectEntry | null = null;
+      for (const entry of effects.entries) {
+        if (entry.kind !== 'boss_clone') continue;
+        if (cloneEntry === null || entry.tick > cloneEntry.tick) cloneEntry = entry;
+      }
+      if (cloneEntry !== null && f.tick - cloneEntry.tick < EFFECT_LIFETIME.boss_clone) {
+        paint.setAlphaf(0.45);
+        drawSpriteAt(canvas, paint, sprite, px(cloneEntry.x) - sprite.w / 2, by - sprite.h / 2);
+        drawSpriteAt(canvas, paint, sprite, px(cloneEntry.x2) - sprite.w / 2, by - sprite.h / 2);
+        paint.setAlphaf(1);
+      }
       paint.setColorFilter(b.rage === 1 ? RAGE_FILTER : null);
       drawSpriteAt(canvas, paint, sprite, bx - sprite.w / 2, by - sprite.h / 2);
       paint.setColorFilter(null);
       if (b.transition === 1 && Math.floor(f.tick / 6) % 2 === 0) {
         paint.setColorFilter(WHITE_FLASH_FILTER);
         paint.setAlphaf(0.5);
+        drawSpriteAt(canvas, paint, sprite, bx - sprite.w / 2, by - sprite.h / 2);
+        paint.setColorFilter(null);
+        paint.setAlphaf(1);
+      }
+      if (b.discharged === 1) {
+        // Storm Tyrant's discharge window: a golden crackle tint pulsing over the sprite.
+        paint.setColorFilter(DISCHARGE_FILTER);
+        paint.setAlphaf(0.5 + 0.3 * Math.sin(f.tick / 4));
         drawSpriteAt(canvas, paint, sprite, bx - sprite.w / 2, by - sprite.h / 2);
         paint.setColorFilter(null);
         paint.setAlphaf(1);
@@ -559,6 +983,32 @@ export function drawFrame(
       paint.setStrokeWidth(BOSS_SHIELD_STROKE);
       paint.setColor(SHIELD_COLOR);
       canvas.drawOval(scratch(bx - ow / 2, by - oh / 2, ow, oh), paint);
+      paint.setStyle(FILL);
+    }
+    if (b.shieldUp === 1) {
+      // Verdant Templar's shell (`shieldUp`): a filled dome plus a rim, distinct from `shieldHp`'s
+      // own full oval (Azure's water shield, the Huntsman's defence mirror).
+      const dw = b.w * k * 1.15;
+      const dh = b.h * k * 0.95;
+      paint.setColor(BOSS_DOME_COLOR);
+      canvas.drawArc(scratch(bx - dw / 2, by - dh / 2, dw, dh), 180, 180, true, paint);
+      paint.setStyle(STROKE);
+      paint.setStrokeWidth(BOSS_DOME_STROKE);
+      canvas.drawArc(scratch(bx - dw / 2, by - dh / 2, dw, dh), 180, 180, false, paint);
+      paint.setStyle(FILL);
+    }
+    if (b.reflecting === 1) {
+      // Gold Corsair's Spikes: a jagged saw-tooth outline around the boss box.
+      const sw2 = b.w * k * 1.05;
+      const sh2 = b.h * k * 1.05;
+      paint.setStyle(STROKE);
+      paint.setStrokeWidth(SPIKE_FLASH_STROKE);
+      paint.setColor(SPIKE_FLASH_COLOR);
+      canvas.save();
+      canvas.translate(bx, by);
+      canvas.scale(sw2, sh2);
+      canvas.drawPath(SAWTOOTH_PATH, paint);
+      canvas.restore();
       paint.setStyle(FILL);
     }
   }
@@ -593,6 +1043,15 @@ export function drawFrame(
   if (octopiSprite.filter !== null) paint.setColorFilter(octopiSprite.filter);
   drawSpriteAt(canvas, paint, octopiSprite, sx - octopiSprite.w / 2, sy - octopiSprite.h / 2);
   if (octopiSprite.filter !== null) paint.setColorFilter(null);
+
+  // Frost Castellan's cold snap (`frame.chill`): a pale blue tint over Octopi's own silhouette.
+  if (f.chill > 0) {
+    paint.setColorFilter(CHILL_FILTER);
+    paint.setAlphaf(0.4);
+    drawSpriteAt(canvas, paint, octopiSprite, sx - octopiSprite.w / 2, sy - octopiSprite.h / 2);
+    paint.setColorFilter(null);
+    paint.setAlphaf(1);
+  }
 
   // INVINCIBILITY: Octopi's silhouette again, in the current colour of the Solana gradient loop.
   let invincible = false;
@@ -679,6 +1138,67 @@ export function drawFrame(
     paint.setStyle(FILL);
     paint.setAlphaf(1);
     canvas.restore();
+  }
+
+  // One-shot effects (spec §8, ruling R45): captured tick/position from `GameScreen.tsx`'s event
+  // loop, drawn purely as a function of `f.tick - entry.tick`, dropped past their own lifetime.
+  // `boss_clone`'s ghosts are drawn inline with the boss above (they need its current sprite/y).
+  for (const entry of effects.entries) {
+    if (entry.kind === 'boss_clone') continue;
+    const age = f.tick - entry.tick;
+    const lifetime = EFFECT_LIFETIME[entry.kind];
+    if (age < 0 || age >= lifetime) continue;
+    const progress = age / lifetime;
+    if (entry.kind === 'formation_rage') {
+      // A red wave crossing the field top to bottom — not tied to any one crab's position.
+      const waveY = fieldRect.y + progress * fieldRect.height;
+      paint.setColor(RAGE_WAVE_COLOR);
+      paint.setAlphaf((1 - progress) * 0.8);
+      canvas.drawRect(scratch(fieldRect.x, waveY - 10 * k, fieldRect.width, 20 * k), paint);
+      paint.setAlphaf(1);
+      continue;
+    }
+    if (entry.kind === 'boss_windup') {
+      // Verdant Templar only (`GameScreen.tsx` only captures this for kind 6): the firewall's own
+      // two-slot doorway, telegraphed for the wind-up. `entry.x` holds the gap slot, not a position.
+      const gapSlot = entry.x;
+      const barW = Math.max(2, FIREWALL_GAP_BAR_W * k * 0.25);
+      const leftX = px(firewallSlotX(gapSlot));
+      const rightX = px(firewallSlotX(gapSlot + 1));
+      paint.setColor(FIREWALL_GAP_COLOR);
+      paint.setAlphaf(Math.max(0.15, (1 - progress) * (0.5 + 0.4 * Math.sin(age * 0.6))));
+      canvas.drawRect(scratch(leftX - barW / 2, fieldRect.y, barW, fieldRect.height), paint);
+      canvas.drawRect(scratch(rightX - barW / 2, fieldRect.y, barW, fieldRect.height), paint);
+      paint.setAlphaf(1);
+      continue;
+    }
+    if (entry.kind === 'lane_strike') {
+      // `entry.x` holds the lane index (`GameScreen.tsx` diffs `state.lanes` to find it), not a position.
+      const laneX = px(laneLeftX(entry.x));
+      const laneW = LANE_WIDTH * k;
+      paint.setColor(LANE_STRIKE_COLOR);
+      paint.setAlphaf((1 - progress) * 0.85);
+      canvas.drawRect(scratch(laneX, fieldRect.y, laneW, fieldRect.height), paint);
+      paint.setAlphaf(1);
+      continue;
+    }
+    // Every other kind: a small ring burst at its captured (x, y), colour by kind, expanding/fading.
+    const ex = px(entry.x);
+    const ey = py(entry.y);
+    let color = IMPACT_BURST_COLOR;
+    if (entry.kind === 'charge_burst') color = CHARGE_GLOW_COLOR;
+    else if (entry.kind === 'crystal_shatter' || entry.kind === 'obstacle_destroyed') color = CRYSTAL_COLOR;
+    else if (entry.kind === 'bubble_pop') color = BUBBLE_COLOR;
+    else if (entry.kind === 'crab_rallied') color = RALLY_MARK_COLOR;
+    else if (entry.kind === 'crab_shield_break') color = WARDEN_SHIELD_COLOR;
+    else if (entry.kind === 'cold_snap') color = COLD_SNAP_COLOR;
+    paint.setStyle(STROKE);
+    paint.setStrokeWidth(Math.max(1, 3 * (1 - progress) * k));
+    paint.setColor(color);
+    paint.setAlphaf(1 - progress);
+    canvas.drawCircle(ex, ey, (18 + progress * 30) * k, paint);
+    paint.setStyle(FILL);
+    paint.setAlphaf(1);
   }
 
   // Void's temporal freeze: a violet tint over the whole field, on top of everything else.

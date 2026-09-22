@@ -43,10 +43,17 @@ const SFX_ASSETS = {
   boss_shot: require('../../assets/sfx/boss_shot.m4a'),
   boss_spawn: require('../../assets/sfx/boss_spawn.wav'),
   boss_teleport: require('../../assets/sfx/boss_teleport.wav'),
+  // The reefs 6-10 one-shots (task 12, ruling R46 amendment): synthesized placeholders, the same as
+  // every other id below without an owner recording — see `assets/sfx/README.md`.
+  bubble_pop: require('../../assets/sfx/bubble_pop.wav'),
+  charge_burst: require('../../assets/sfx/charge_burst.wav'),
   crab_armored_tok: require('../../assets/sfx/crab_armored_tok.wav'),
   crab_hit: require('../../assets/sfx/crab_hit.m4a'),
   crab_shot: require('../../assets/sfx/crab_shot.wav'),
+  crystal_break: require('../../assets/sfx/crystal_break.wav'),
   game_over: require('../../assets/sfx/game_over.wav'),
+  lightning: require('../../assets/sfx/lightning.wav'),
+  needle: require('../../assets/sfx/needle.wav'),
   // The level-cleared fanfare ships silent: its placeholder rang like a gong on the level's end
   // screen (the owner, 2026-09-16). To enable it, drop the recording under
   // `assets/sfx/level_cleared.wav` and replace `null` with `require('../../assets/sfx/level_cleared.wav')`.
@@ -65,9 +72,12 @@ const SFX_ASSETS = {
   player_hit_3: require('../../assets/sfx/player_hit_3.m4a'),
   player_hit_4: require('../../assets/sfx/player_hit_4.m4a'),
   purchase_done: require('../../assets/sfx/purchase_done.wav'),
+  rally: require('../../assets/sfx/rally.wav'),
   record_saved: require('../../assets/sfx/record_saved.wav'),
   reef_unlocked: require('../../assets/sfx/reef_unlocked.wav'),
   revived: require('../../assets/sfx/revived.wav'),
+  rune_break: require('../../assets/sfx/rune_break.wav'),
+  rune_up: require('../../assets/sfx/rune_up.wav'),
   shield_break: require('../../assets/sfx/shield_break.wav'),
   splash: require('../../assets/sfx/splash.wav'),
   ticket_bought: require('../../assets/sfx/ticket_bought.wav'),

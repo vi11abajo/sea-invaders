@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View, type ImageSourcePropType } fr
 import { Hearts } from '../ui/Hearts';
 import { GradientFill } from '../ui/GradientFill';
 import { COLORS, FONTS, RADIUS } from '../ui/tokens';
+import { BOSS_HEX } from './bossPalette';
 import { BOSS_NAMES } from './bossNames';
 
 /** One icon per `BoostType`, the same art the world drop uses (spec M1). */
@@ -40,8 +41,12 @@ export interface HudBadge {
   color: string;
 }
 
-/** Boss HP-bar tint per kind (1..5): spec §4.2 palette. The reef key art borrows it (`campaign/reefBackground.ts`). */
-export const BOSS_COLOR = ['#33cc66', '#3366ff', '#ffdd33', '#ff3333', '#9966ff'];
+/**
+ * Boss HP-bar tint per kind (1..10): spec §4.2 / §5.2 palette. An alias of `bossPalette.ts`'s
+ * `BOSS_HEX` (task 12, ruling R44), the single table `draw.ts` also reads — never declared twice.
+ * The reef key art borrows it (`campaign/reefBackground.ts`).
+ */
+export const BOSS_COLOR: readonly string[] = BOSS_HEX;
 
 interface GameHudProps {
   /** Mode label, e.g. "PRACTICE" or "DAILY · SEED #214". */

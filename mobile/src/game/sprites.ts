@@ -18,13 +18,21 @@ const OCTOPI_FRONT = require('../../assets/sprites/octopiFront.png');
 
 export interface Sprites {
   octopi: { front: SkImage; hit: SkImage };
-  /** Colour by `kind` (0..4): green, blue, violet, red, yellow. */
+  /**
+   * Colour by `kind` (0..9): 0-4 the legacy green/blue/violet/red/yellow, 5-9 the reefs 6-10
+   * veterans in the same order (`TYPE_COLOUR`, `core/src/config.ts`) — warden (green), herald
+   * (blue), bubbler (yellow), bombardier (red), patriarch (violet).
+   */
   crabs: SkImage[];
   /** ICE_FREEZE indication (owner ruling): three ice sprites, drawn one per crab (`draw.ts` picks a
    * deterministic variant per crab so it doesn't flicker). Index order is arbitrary — the three are
    * visually interchangeable. */
   ice: SkImage[];
-  /** Two extracted GIF frames per boss, colour by `kind` (1..5): green, blue, yellow, red, violet; `bosses[kind - 1]` (0-based). */
+  /**
+   * Two extracted GIF frames per boss, colour by `kind` (1..10): 1-5 the legacy green/blue/yellow/
+   * red/violet, 6-10 the reefs 6-10 five (Templar, Castellan, Corsair, Tyrant, Huntsman) in the same
+   * colour order; `bosses[kind - 1]` (0-based).
+   */
   bosses: [SkImage, SkImage][];
   /** One icon per `BoostType`, in `BOOST_INDEX` order. */
   boosts: SkImage[];
@@ -45,6 +53,14 @@ export function useSprites(): Sprites | null {
   const crabRed = useImage(require('../../assets/sprites/crabRed.png'));
   const crabYellow = useImage(require('../../assets/sprites/crabYellow.png'));
 
+  // The reefs 6-10 veteran crabs, colour by kind 5..9 (warden, herald, bubbler, bombardier,
+  // patriarch — `TYPE_COLOUR`, `core/src/config.ts`): green, blue, yellow, red, violet.
+  const crabVetGreen = useImage(require('../../assets/sprites/crabVetGreen.png'));
+  const crabVetBlue = useImage(require('../../assets/sprites/crabVetBlue.png'));
+  const crabVetYellow = useImage(require('../../assets/sprites/crabVetYellow.png'));
+  const crabVetRed = useImage(require('../../assets/sprites/crabVetRed.png'));
+  const crabVetViolet = useImage(require('../../assets/sprites/crabVetViolet.png'));
+
   // ICE_FREEZE indication (owner ruling): three interchangeable ice sprites.
   const ice1 = useImage(require('../../assets/sprites/ice1.png'));
   const ice2 = useImage(require('../../assets/sprites/ice2.png'));
@@ -61,6 +77,20 @@ export function useSprites(): Sprites | null {
   const bossRed1 = useImage(require('../../assets/sprites/crabBossRed-1.png'));
   const bossViolet0 = useImage(require('../../assets/sprites/crabBossViolet-0.png'));
   const bossViolet1 = useImage(require('../../assets/sprites/crabBossViolet-1.png'));
+
+  // The reefs 6-10 bosses, kind 6..10 (Templar, Castellan, Corsair, Tyrant, Huntsman), same
+  // green/blue/yellow/red/violet colour order as the legacy five. Two frames each, flipped every 60
+  // ticks in draw.ts, same as the legacy bosses.
+  const bossVetGreen0 = useImage(require('../../assets/sprites/crabBossVetGreen-0.png'));
+  const bossVetGreen1 = useImage(require('../../assets/sprites/crabBossVetGreen-1.png'));
+  const bossVetBlue0 = useImage(require('../../assets/sprites/crabBossVetBlue-0.png'));
+  const bossVetBlue1 = useImage(require('../../assets/sprites/crabBossVetBlue-1.png'));
+  const bossVetYellow0 = useImage(require('../../assets/sprites/crabBossVetYellow-0.png'));
+  const bossVetYellow1 = useImage(require('../../assets/sprites/crabBossVetYellow-1.png'));
+  const bossVetRed0 = useImage(require('../../assets/sprites/crabBossVetRed-0.png'));
+  const bossVetRed1 = useImage(require('../../assets/sprites/crabBossVetRed-1.png'));
+  const bossVetViolet0 = useImage(require('../../assets/sprites/crabBossVetViolet-0.png'));
+  const bossVetViolet1 = useImage(require('../../assets/sprites/crabBossVetViolet-1.png'));
 
   // Boost icons, in BOOST_INDEX order (RAPID_FIRE .. SPEED_TAMER).
   const rapidFire = useImage(require('../../assets/sprites/boosts/rapidFire.png'));
@@ -83,10 +113,14 @@ export function useSprites(): Sprites | null {
     if (
       front === null || hit === null ||
       crabGreen === null || crabBlue === null || crabViolet === null || crabRed === null || crabYellow === null ||
+      crabVetGreen === null || crabVetBlue === null || crabVetYellow === null || crabVetRed === null || crabVetViolet === null ||
       ice1 === null || ice2 === null || ice3 === null ||
       bossGreen0 === null || bossGreen1 === null || bossBlue0 === null || bossBlue1 === null ||
       bossYellow0 === null || bossYellow1 === null || bossRed0 === null || bossRed1 === null ||
       bossViolet0 === null || bossViolet1 === null ||
+      bossVetGreen0 === null || bossVetGreen1 === null || bossVetBlue0 === null || bossVetBlue1 === null ||
+      bossVetYellow0 === null || bossVetYellow1 === null || bossVetRed0 === null || bossVetRed1 === null ||
+      bossVetViolet0 === null || bossVetViolet1 === null ||
       rapidFire === null || iceFreeze === null || healthBoost === null || pointsFreeze === null ||
       shieldBarrier === null || autoTarget === null || invincibility === null || multiShot === null ||
       scoreMultiplier === null || waveBlast === null || coinShower === null ||
@@ -96,7 +130,10 @@ export function useSprites(): Sprites | null {
     }
     return {
       octopi: { front, hit },
-      crabs: [crabGreen, crabBlue, crabViolet, crabRed, crabYellow],
+      crabs: [
+        crabGreen, crabBlue, crabViolet, crabRed, crabYellow,
+        crabVetGreen, crabVetBlue, crabVetYellow, crabVetRed, crabVetViolet,
+      ],
       ice: [ice1, ice2, ice3],
       bosses: [
         [bossGreen0, bossGreen1],
@@ -104,6 +141,11 @@ export function useSprites(): Sprites | null {
         [bossYellow0, bossYellow1],
         [bossRed0, bossRed1],
         [bossViolet0, bossViolet1],
+        [bossVetGreen0, bossVetGreen1],
+        [bossVetBlue0, bossVetBlue1],
+        [bossVetYellow0, bossVetYellow1],
+        [bossVetRed0, bossVetRed1],
+        [bossVetViolet0, bossVetViolet1],
       ],
       boosts: [
         rapidFire, iceFreeze, healthBoost, pointsFreeze,
@@ -115,8 +157,11 @@ export function useSprites(): Sprites | null {
   }, [
     front, hit,
     crabGreen, crabBlue, crabViolet, crabRed, crabYellow,
+    crabVetGreen, crabVetBlue, crabVetYellow, crabVetRed, crabVetViolet,
     ice1, ice2, ice3,
     bossGreen0, bossGreen1, bossBlue0, bossBlue1, bossYellow0, bossYellow1, bossRed0, bossRed1, bossViolet0, bossViolet1,
+    bossVetGreen0, bossVetGreen1, bossVetBlue0, bossVetBlue1, bossVetYellow0, bossVetYellow1,
+    bossVetRed0, bossVetRed1, bossVetViolet0, bossVetViolet1,
     rapidFire, iceFreeze, healthBoost, pointsFreeze, shieldBarrier, autoTarget, invincibility, multiShot,
     scoreMultiplier, waveBlast, coinShower, gravityWell, piercingBullets, randomChaos, speedTamer,
   ]);

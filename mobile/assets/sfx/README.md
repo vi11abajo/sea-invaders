@@ -26,3 +26,18 @@ real recording under the same file name in this folder — no code changes neede
 (`ui_sheet`), the level-cleared fanfare (`level_cleared`), the drop bloop (`boost_drop`) and the wave
 swell and chime (`wave_start`, `wave_cleared`) have no placeholder either: it ships silent until a real recording is dropped in here and
 enabled in `mobile/src/audio/sfx.ts`.
+
+The eight reefs-6-10 one-shots (task 12, ruling R46's own amendment — the README named no procedure
+for how the first set of placeholders was made, so this set was synthesised fresh with a throwaway
+Python script using the standard `wave` module: 22050 Hz mono 16-bit, each under 400 ms, a simple
+tone/sweep/filtered-noise burst per sound with an attack-decay envelope, no loops) are also generated
+placeholders, not final:
+
+- `rune_break.wav` (the warden's rune shield breaking — a glassy crack)
+- `rune_up.wav` (the shield regrowing — a rising two-note chime)
+- `bubble_pop.wav` (the bubbler's bubble popping — a soft plop)
+- `charge_burst.wav` (the bombardier's charge bursting — a low thump with a bright tail)
+- `rally.wav` (a patriarch's revive — a short drum roll)
+- `lightning.wav` (the Storm Tyrant's lane strike — a sharp crack with a hiss tail)
+- `needle.wav` (the Abyssal Huntsman's sight line fixing — a quick high whistle)
+- `crystal_break.wav` (a crystal shattering — a shattering tinkle)

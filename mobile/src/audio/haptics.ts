@@ -141,6 +141,9 @@ export const hapticBossTeleport = hapticLight;
 /** Octopi is frozen. */
 export const hapticPlayerFreeze = hapticRigid;
 
+/** A bombardier's charge bursts into its fragments (reefs 6-10, task 12 ruling R46: one of the two new haptic ids the ruling allows). */
+export const hapticChargeBurst = hapticMedium;
+
 /** The Tide revives Octopi: the tide coming back - soft, medium, heavy 150 ms apart, then a success notification. */
 export function hapticRevived(): void {
   impact(Haptics.ImpactFeedbackStyle.Soft);

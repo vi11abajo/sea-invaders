@@ -1,6 +1,7 @@
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
   BOOST_INDEX, CRAB_SHOTS, CRAB_TYPES, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
+  REVIVED_TICKS, SHIELD_REGROW_TICKS,
   OCTOPI, TIDE_REVIVE_LIVES, createGame, fitField, formatInt, revive, snapshot, step, touchToInput,
   type BoostType, type BossFrame, type Bullet, type BulletKind, type Crab, type Frame, type GameEvent, type Input, type OctopiVariant, type Replay,
   type ReplayMode, type RunConfig,
@@ -9,7 +10,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import {
-  hapticBossDead, hapticBossPhase, hapticBossSpawn, hapticBossTeleport, hapticBoostPickup, hapticLevelCleared,
+  hapticBossDead, hapticBossPhase, hapticBossSpawn, hapticBossTeleport, hapticBoostPickup, hapticChargeBurst, hapticLevelCleared,
   hapticLifeLost, hapticMeteorImpact, hapticMeteorWarning, hapticPlayerFreeze, hapticRage, hapticRevived,
   hapticRunOver, hapticShieldBreak, hapticWaveCleared, hapticWaveStart,
 } from '../audio/haptics';
@@ -22,7 +23,7 @@ import { COLORS, FONTS } from '../ui/tokens';
 import { GameHud, type HudBadge, type HudBoost } from './GameHud';
 import { PauseSheet, RevivedSheet } from './PauseSheet';
 import { RESULT_POSE_SIZE, ResultView } from './ResultView';
-import { drawFrame, type WaveBlast } from './draw';
+import { EFFECT_CAP, drawFrame, type EffectEntry, type Effects, type WaveBlast } from './draw';
 import { RunOctopiContext, octopiTint, useActiveSkin } from './skins';
 import { primeOctopiArt, usePreparedSprites, useSprites } from './sprites';
 
@@ -64,6 +65,90 @@ function titleCase(type: string): string {
 }
 
 /**
+ * Every reefs-6-10 event name (`GameEvent`'s own union, spec §5/§7). Declared with `Extract` rather
+ * than as a bare literal union so a typo here — a literal that does not name a real `GameEvent`
+ * member — shrinks the extracted type instead of silently widening it: the `Record`s below would then
+ * carry an excess property and fail `tsc`, exactly the "a missing key fails tsc" ruling (R46) asks for.
+ */
+type ReefsEventType = Extract<
+  GameEvent['type'],
+  | 'crab_shield_break' | 'crab_shield_up' | 'bubble_pop' | 'charge_burst' | 'crab_rallied' | 'formation_rage'
+  | 'formation_reform' | 'squad_popped' | 'boss_block' | 'boss_windup' | 'crew_looted' | 'boss_discharged'
+  | 'lane_warning' | 'lane_strike' | 'boss_aim' | 'boss_reflect' | 'crystal_raised' | 'crystal_shatter'
+  | 'obstacle_destroyed' | 'cold_snap'
+>;
+
+/**
+ * Every reefs-6-10 event's own sound (ruling R46): a `Record`, not a `Partial`, so leaving one out
+ * fails `tsc` rather than silently playing nothing. `undefined` marks a deliberate silence
+ * (`formation_reform`, `squad_popped`: no sound of their own — nothing else in the run's own table A
+ * gives a wave-reform or a squad-wipe a sound either).
+ */
+const REEFS_SFX: Record<ReefsEventType, SfxId | undefined> = {
+  crab_shield_break: 'rune_break',
+  crab_shield_up: 'rune_up',
+  bubble_pop: 'bubble_pop',
+  charge_burst: 'charge_burst',
+  crab_rallied: 'rally',
+  formation_rage: 'boss_rage',
+  formation_reform: undefined,
+  squad_popped: undefined,
+  boss_block: 'boss_shield',
+  boss_windup: 'boss_shot',
+  crew_looted: 'boost_drop',
+  boss_discharged: 'boss_hit',
+  lane_warning: 'meteor_warning',
+  lane_strike: 'lightning',
+  boss_aim: 'needle',
+  boss_reflect: 'boss_rage',
+  crystal_raised: 'boss_shield',
+  crystal_shatter: 'crystal_break',
+  obstacle_destroyed: 'crystal_break',
+  cold_snap: 'player_freeze',
+};
+
+/**
+ * Every reefs-6-10 event's own haptic (ruling R46: "lane_strike, charge_burst, crystal_shatter,
+ * formation_rage, boss_reflect get a haptic row"): the same exhaustive-`Record` shape as `REEFS_SFX`
+ * above, `undefined` for the fifteen that get none — nothing frequent buzzes (the run's own rule for
+ * table D), and these fifteen are either frequent (a shield up/down, a bubble, a rally) or minor
+ * telegraphs already carried by their own sound. `charge_burst` is the one new `HapticId` this table
+ * needs; the other four reuse an existing row exactly.
+ */
+const REEFS_HAPTIC: Record<ReefsEventType, HapticId | undefined> = {
+  crab_shield_break: undefined,
+  crab_shield_up: undefined,
+  bubble_pop: undefined,
+  charge_burst: 'charge_burst',
+  crab_rallied: undefined,
+  formation_rage: 'rage',
+  formation_reform: undefined,
+  squad_popped: undefined,
+  boss_block: undefined,
+  boss_windup: undefined,
+  crew_looted: undefined,
+  boss_discharged: undefined,
+  lane_warning: undefined,
+  lane_strike: 'meteor_impact',
+  boss_aim: undefined,
+  boss_reflect: 'shield_break',
+  crystal_raised: undefined,
+  crystal_shatter: 'shield_break',
+  obstacle_destroyed: undefined,
+  cold_snap: undefined,
+};
+
+/** `record` with every `undefined` value dropped, so the result is a valid `Partial<Record<K, V>>`. */
+function definedEntries<K extends string, V>(record: Record<K, V | undefined>): Partial<Record<K, V>> {
+  const out: Partial<Record<K, V>> = {};
+  for (const key of Object.keys(record) as K[]) {
+    const value = record[key];
+    if (value !== undefined) out[key] = value;
+  }
+  return out;
+}
+
+/**
  * `GameEvent.type` -> sound id, for every event that plays the same sound every time (sound design
  * doc, table A). `boss_ability` and `boost_pickup` carry a payload that picks between several
  * sounds, so they are handled separately in the frame loop below rather than through this map.
@@ -84,6 +169,7 @@ const SFX_FOR_EVENT: Partial<Record<GameEvent['type'], SfxId>> = {
   boost_expire: 'boost_expire',
   player_freeze: 'player_freeze',
   revived: 'revived',
+  ...definedEntries(REEFS_SFX),
 };
 
 /** `boss_ability`'s `name` -> sound id (table A). */
@@ -104,7 +190,10 @@ const BOSS_ABILITY_SFX: Record<'regen' | 'shield' | 'meteor' | 'rage' | 'freeze'
 type HapticId =
   | 'life_lost' | 'shield_break' | 'boost_pickup' | 'wave_start' | 'wave_cleared' | 'level_cleared' | 'run_over'
   | 'boss_spawn' | 'boss_phase' | 'boss_dead' | 'meteor_warning' | 'meteor_impact' | 'rage' | 'boss_teleport'
-  | 'player_freeze' | 'revived';
+  | 'player_freeze' | 'revived'
+  // Reefs 6-10 (ruling R46): the one new id the ruling's "at most two" allows; every other reefs
+  // event either gets none or reuses one of the ids already above.
+  | 'charge_burst';
 
 const HAPTIC_ACTIONS: Record<HapticId, () => void> = {
   life_lost: hapticLifeLost,
@@ -123,6 +212,7 @@ const HAPTIC_ACTIONS: Record<HapticId, () => void> = {
   boss_teleport: hapticBossTeleport,
   player_freeze: hapticPlayerFreeze,
   revived: hapticRevived,
+  charge_burst: hapticChargeBurst,
 };
 
 /**
@@ -143,6 +233,7 @@ const HAPTIC_FOR_EVENT: Partial<Record<GameEvent['type'], HapticId>> = {
   meteor_warning: 'meteor_warning',
   player_freeze: 'player_freeze',
   revived: 'revived',
+  ...definedEntries(REEFS_HAPTIC),
 };
 
 /** `boss_ability`'s `name` -> haptic id (table D: Solar's meteor and Crimson's rage only — Emerald's regen, Azure's shield and Void's freeze have no haptic row). */
@@ -175,6 +266,22 @@ function damagedCrabCount(crabs: readonly Crab[]): number {
   let count = 0;
   for (const c of crabs) if (c.hp < CRAB_TYPES[c.type].hp) count += 1;
   return count;
+}
+
+/**
+ * `crab_shield_break`/`crab_rallied` (`GameEvent`) carry no position of their own — unlike
+ * `boost_pickup`'s WAVE_BLAST, which reads `state.octopi` at the same instant (`GameScreen`'s own
+ * frame loop), there is no single state field for "the crab this just happened to". `shieldTimer`/
+ * `revived` are set to their own full value the very tick the break/rally happens and only ever count
+ * down from there, so a crab caught at exactly that value is the one the event just fired for, found
+ * with one `Array.find` over `state.crabs` rather than guessed at.
+ */
+function crabJustBrokeShield(c: Crab): boolean {
+  return c.shield === 0 && c.shieldTimer === SHIELD_REGROW_TICKS;
+}
+
+function crabJustRallied(c: Crab): boolean {
+  return c.revived === REVIVED_TICKS;
 }
 
 /**
@@ -321,6 +428,8 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const frame = useSharedValue<Frame>(EMPTY_FRAME);
   /** The last WAVE_BLAST of this run, for its shock rings (view only, never fed back to the sim). */
   const blast = useSharedValue<WaveBlast | null>(null);
+  /** The reefs 6-10 one-shot visuals of this run (ruling R45): one struct, capped at `EFFECT_CAP`. */
+  const effects = useSharedValue<Effects>({ entries: [] });
   const input = useRef<Input>(INITIAL_INPUT);
   const paused = useRef(false);
   const quit = useRef(false);
@@ -361,6 +470,18 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     held.current = false;
     awaitingResume.current = false;
     blast.value = null;
+    // The reefs 6-10 one-shot visuals (ruling R45): a plain JS array mirrored into `effects.value`
+    // on every change, capped at `EFFECT_CAP` (drop the oldest), and the lanes still warned at the
+    // end of the previous rendered frame — `lane_strike` carries no position of its own, so a lane
+    // that vanishes from `state.lanes` between two frames is how a strike is found (see below).
+    let effectEntries: EffectEntry[] = [];
+    effects.value = { entries: effectEntries };
+    const pushEffect = (kind: EffectEntry['kind'], tick: number, x: number, y: number, x2 = 0): void => {
+      const entry: EffectEntry = { kind, tick, x, y, x2 };
+      effectEntries = effectEntries.length >= EFFECT_CAP ? [...effectEntries.slice(1), entry] : [...effectEntries, entry];
+      effects.value = { entries: effectEntries };
+    };
+    let prevLanes: number[] = [...state.lanes];
     let shown = START_HUD;
     let reported = false;
     // A held loss the host ended: reported on the next frame, never offered again.
@@ -453,6 +574,19 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       // sections F (sound) and D (haptics).
       const sounds: SfxId[] = [];
       const haptics: HapticId[] = [];
+      // Storm Tyrant's strikes (spec §5.2): `lane_strike` is a bare `{tick, type}` — no lane of its
+      // own — so the struck lane is found the only other way available, by diffing `state.lanes`
+      // against what it held at the end of the previous rendered frame: a lane leaves that array only
+      // by striking (`tickThroughTransition`, `core/src/sim/bosses/tyrant.ts`), never any other way.
+      if (prevLanes.length > 0) {
+        const stillWarned = new Set<number>();
+        for (let i = 0; i < state.lanes.length; i += 2) stillWarned.add(state.lanes[i]!);
+        for (let i = 0; i < prevLanes.length; i += 2) {
+          const lane = prevLanes[i]!;
+          if (!stillWarned.has(lane)) pushEffect('lane_strike', state.tick, lane, 0);
+        }
+      }
+      prevLanes = state.lanes.slice();
       for (const ev of state.events) {
         if (ev.type === 'boss_phase') {
           bannerText = `PHASE ${state.boss?.phase ?? 0}`;
@@ -462,6 +596,41 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           toastFrames = TOAST_FRAMES;
           // Only emitted when the blast actually fired (with no crabs the drop is not consumed).
           if (ev.boost === 'WAVE_BLAST') blast.value = { tick: ev.tick, x: state.octopi.x, y: state.octopi.y };
+        }
+        // The reefs 6-10 one-shot visuals (ruling R45): captured from the event itself where it
+        // carries a position (`obstacle_destroyed`, `boss_clone`), from `state` at this same instant
+        // where it does not (the WAVE_BLAST precedent above) — `crab_shield_break`/`crab_rallied` find
+        // the crab it just happened to (see `crabJustBrokeShield`/`crabJustRallied`), `bubble_pop`/
+        // `charge_burst`/`formation_rage`/`cold_snap` fall back to Octopi's own position (none of the
+        // four carry one of their own to read), and `boss_windup` only ever draws a marker for the
+        // Verdant Templar's own firewall gap (kind 6) — Gold Corsair's Spikes reuses the same event
+        // name for its own wind-up but has no gap of its own to show.
+        if (ev.type === 'crab_shield_break') {
+          const c = state.crabs.find(crabJustBrokeShield);
+          pushEffect('crab_shield_break', ev.tick, c?.x ?? state.octopi.x, c?.y ?? state.octopi.y);
+        } else if (ev.type === 'crab_rallied') {
+          const c = state.crabs.find(crabJustRallied);
+          pushEffect('crab_rallied', ev.tick, c?.x ?? state.octopi.x, c?.y ?? state.octopi.y);
+        } else if (ev.type === 'bubble_pop') {
+          pushEffect('bubble_pop', ev.tick, state.octopi.x, state.octopi.y);
+        } else if (ev.type === 'charge_burst') {
+          pushEffect('charge_burst', ev.tick, state.octopi.x, state.octopi.y);
+        } else if (ev.type === 'formation_rage') {
+          pushEffect('formation_rage', ev.tick, state.octopi.x, state.octopi.y);
+        } else if (ev.type === 'crystal_shatter') {
+          for (const o of state.obstacles) pushEffect('crystal_shatter', ev.tick, o.x, o.y);
+        } else if (ev.type === 'obstacle_destroyed') {
+          pushEffect('obstacle_destroyed', ev.tick, ev.x, ev.y);
+        } else if (ev.type === 'boss_block') {
+          if (state.boss) pushEffect('boss_block', ev.tick, state.boss.x, state.boss.y);
+        } else if (ev.type === 'boss_windup') {
+          if (state.boss?.kind === 6) pushEffect('boss_windup', ev.tick, state.boss.gapSlot, 0);
+        } else if (ev.type === 'boss_reflect') {
+          if (state.boss) pushEffect('boss_reflect', ev.tick, state.boss.x, state.boss.y);
+        } else if (ev.type === 'boss_clone') {
+          pushEffect('boss_clone', ev.tick, ev.leftX, 0, ev.rightX);
+        } else if (ev.type === 'cold_snap') {
+          pushEffect('cold_snap', ev.tick, state.octopi.x, state.octopi.y);
         }
         if (ev.type === 'boss_ability') {
           sounds.push(BOSS_ABILITY_SFX[ev.name]);
@@ -583,7 +752,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       held.current = false;
       cancelAnimationFrame(handle);
     };
-  }, [runIndex, frame, blast, seed, mode, run]);
+  }, [runIndex, frame, blast, effects, seed, mode, run]);
 
   const solidField = backdrop === undefined;
   const recorder = useMemo(() => Skia.PictureRecorder(), []);
@@ -594,7 +763,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       recorder.beginRecording(Skia.XYWHRect(0, 0, width, height));
       return recorder.finishRecordingAsPicture();
     }
-    return drawFrame(recorder, paint, frame.value, layout, width, height, prepared, fieldRect, blast.value, solidField);
+    return drawFrame(recorder, paint, frame.value, layout, width, height, prepared, fieldRect, blast.value, effects.value, solidField);
   });
 
   const onTouch = (e: GestureResponderEvent) => {
