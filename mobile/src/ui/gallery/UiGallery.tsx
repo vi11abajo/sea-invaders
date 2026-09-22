@@ -5,6 +5,7 @@ import { HomeScreen } from '../../home/HomeScreen';
 import { demoHomeModel, type HomeModel } from '../../home/model';
 import { ArtSlot } from '../ArtSlot';
 import { Backdrop } from '../Backdrop';
+import { BlurText } from '../BlurText';
 import { Glass } from '../Glass';
 import { GradientFill } from '../GradientFill';
 import { GradientText } from '../GradientText';
@@ -26,6 +27,7 @@ export function UiGallery() {
   const [home, setHome] = useState<HomeModel | null>(null);
   const [squish, setSquish] = useState(true);
   const [segment, setSegment] = useState<'today' | 'week'>('today');
+  const [blurKey, setBlurKey] = useState(0);
 
   // System back closes the Home demo; otherwise it does what it normally does.
   useEffect(() => {
@@ -116,6 +118,11 @@ export function UiGallery() {
             value={segment}
             onChange={setSegment}
           />
+        </Section>
+
+        <Section title="Blur Text">
+          <BlurText key={blurKey} variant="headline" text="Storm Tyrant" />
+          <PillButton label="Replay" kind="secondary" height={36} onPress={() => setBlurKey((k) => k + 1)} />
         </Section>
 
         <Section title="Surfaces">

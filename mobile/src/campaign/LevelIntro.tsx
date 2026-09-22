@@ -7,6 +7,7 @@ import { onBackPress } from '../audio/onBackPress';
 import { ActiveOctopi } from '../game/OctopiArt';
 import { VARIANT_OCTOPI, type VariantIndex } from '../loadout/items';
 import type { LoadoutApi } from '../loadout/useLoadout';
+import { BlurText } from '../ui/BlurText';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
 import { Toast } from '../ui/Toast';
@@ -175,7 +176,7 @@ export function LevelIntro({
         <Txt variant="button">←</Txt>
       </Pressable>
       <View style={styles.head} onLayout={(e) => setHeadBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
-        <Txt variant="label" tone="secondary">{`Level ${level.id} · ${reefName}`}</Txt>
+        <BlurText variant="label" tone="secondary" text={`Level ${level.id} · ${reefName}`} />
         {practice && (
           <View style={styles.practiceTag}>
             <Txt variant="label" tone="onPrimary">Practice</Txt>
@@ -191,7 +192,7 @@ export function LevelIntro({
       <Sheet onLayout={(e) => setSheetTop(e.nativeEvent.layout.y)}>
         {level.boss !== undefined ? (
           <>
-            <Txt variant="headline">{BOSS_NAMES[level.boss - 1]}</Txt>
+            <BlurText variant="headline" text={BOSS_NAMES[level.boss - 1]!} />
             <Txt variant="body" tone="secondary">{`${bossPhases} phase${bossPhases === 1 ? '' : 's'}`}</Txt>
           </>
         ) : (

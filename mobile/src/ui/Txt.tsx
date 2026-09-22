@@ -4,7 +4,8 @@ import { COLORS, TYPE } from './tokens';
 export type TxtVariant = keyof typeof TYPE;
 export type TxtTone = 'primary' | 'secondary' | 'tertiary' | 'success' | 'warning' | 'info' | 'onPrimary';
 
-const TONE: Record<TxtTone, string> = {
+/** Exported so components that build their own `Text` nodes (e.g. `BlurText`) still draw from the same palette. */
+export const TONE: Record<TxtTone, string> = {
   primary: COLORS.text,
   secondary: COLORS.textSecondary,
   tertiary: COLORS.textTertiary,

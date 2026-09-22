@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import { useSprites } from '../game/sprites';
 import { ArtSlot } from '../ui/ArtSlot';
-import { Txt } from '../ui/Txt';
+import { BlurText } from '../ui/BlurText';
 import { BOSS_NAMES } from '../game/bossNames';
 
 /** Spec §7: 90 ticks at 60/s. */
@@ -43,7 +43,7 @@ export function BossIntro({ kind, onDone }: BossIntroProps) {
       ) : (
         <ArtSlot size={SPRITE_SIZE} label="Boss" />
       )}
-      <Txt variant="headline">{BOSS_NAMES[kind - 1]}</Txt>
+      <BlurText variant="headline" text={BOSS_NAMES[kind - 1]!} />
     </Pressable>
   );
 }
