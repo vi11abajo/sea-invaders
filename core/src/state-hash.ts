@@ -63,7 +63,10 @@ export function hashState(s: GameState): string {
   // cell. The crab count is already hashed with the crabs themselves, so the trailing per-crab run
   // is unambiguous.
   h.int(s.squads.length);
-  for (const q of s.squads) h.int(q.id).int(q.dir);
+  // `bossKind`/`alive` (fix round 1, controller ruling R22) are appended after `id`/`dir` so every
+  // older field keeps its place; a state with no squad on it hashes the same `0` length as before and
+  // never reaches this line at all.
+  for (const q of s.squads) h.int(q.id).int(q.dir).int(q.bossKind).int(q.alive);
   h.int(s.obstacles.length);
   for (const o of s.obstacles) h.int(o.x).int(o.y).int(o.w).int(o.h).int(o.hp).int(OBSTACLE_INDEX[o.kind]);
   h.int(s.lanes.length);

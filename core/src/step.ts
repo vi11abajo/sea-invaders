@@ -5,6 +5,7 @@ import { hitCrabs, hitOctopi } from './sim/collide';
 import { marchCrabs, pullShotsTowardGravity, updateEnemyShots } from './sim/crabs';
 import { hitObstacle } from './sim/obstacles';
 import { moveOctopi, updateShots } from './sim/octopi';
+import { popSquads } from './sim/squads';
 import { popBubbles, updateVeterans } from './sim/veterans';
 import type { GameState, Input } from './types';
 
@@ -42,6 +43,18 @@ export function step(s: GameState, input: Input): void {
   popBubbles(s);
   hitOrbs(s);
   hitCrabs(s);
+  // The escort goes with its boss the moment it dies (spec §5.1), but not synchronously inside
+  // `damageBoss` any more (fix round 1, controller ruling R22): popping mid-`hitCrabs`'s own loop
+  // over `s.shots` could remove a squad crab before a *later* shot in the same tick's array ever
+  // reached it, silently losing that crab's own loot check to nothing but shot order. Popping here
+  // instead — once, right after every shot of this tick has already had its chance to hit a crab or
+  // the boss box — means whichever shot actually lands a crew's true last kill always runs through
+  // `killCrab` (and its own loot check, `sim/collide.ts`) before this pop ever gets a chance to beat
+  // it to `s.crabs`. A no-op while the boss is still alive or `s.squads` is already empty — every
+  // fight of the first campaign, and every tick a boss with a squad is still fighting — so this reads
+  // and changes nothing for kinds 1-5 (see `popSquads`'s own doc, `sim/squads.ts`, for why it is safe
+  // to call unconditionally here).
+  if (s.boss === null && s.squads.length > 0) popSquads(s);
   hitOctopi(s);
   updateBoosts(s);
   // `destroyedObstacles` is no longer swept here (fix round 2, controller ruling R19 — an

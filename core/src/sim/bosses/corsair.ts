@@ -18,6 +18,13 @@ import type { BossHooks } from './index';
  * — a flash, then a window in which his own armour throws a player's shot straight back down the
  * field rather than taking the hit.
  *
+ * The loot mechanism itself lives outside this file, in `sim/collide.ts`'s `countDownSquad`/
+ * `lootCrewIfWiped` (fix round 1, controller ruling R22) and `types.ts`'s `Squad.alive`: every squad,
+ * of any boss, carries its own live crab count, decremented once per squad-crab kill through whatever
+ * path reaches `killCrab`; the Corsair's own gate (`s.boss?.kind === 8`) is the only place this file's
+ * own kind is checked, so a future boss with a squad of its own counts down exactly the same way and
+ * simply has nothing that reacts to reaching 0.
+ *
  * Attacks and Boarding both ride the plain shared `attackTimer`/`abilityTimer` cadence (`updateBoss`,
  * `sim/boss.ts`) — no custom hold the way the Verdant Templar's swing needs one, because nothing this
  * boss does ever has to freeze that cadence mid-resolution the way a swing's wind-up does.
@@ -132,9 +139,14 @@ export const CORSAIR_ROSTER: readonly CrabType[] = ['armored', 'heavy', 'warden'
  * Computed inside a function, never at this module's own top level: `SQUAD_GAP_X`/`SQUAD_TEMPLATES`
  * live in `squads.ts`, and `squads.ts` reaches this module indirectly — `sim/crabs.ts` imports
  * `sim/boss.ts` (for the axe's own motion), which imports the hook registry `bosses/index.ts`, which
- * imports this file — closing a cycle back through `squads.ts`'s own import of `crabs.ts`. A
- * top-level read of either export here would risk the exact temporal-dead-zone trap the Verdant
- * Templar's own file doc already hit reading `sim/boss.ts`'s consts (see `templar.ts`, `TEMPLAR_GAP_SLOTS`).
+ * imports this file — closing a cycle back through `squads.ts`'s own import of `crabs.ts`. There is
+ * also a shorter, more direct cycle through this file's own top-level `import { castAxe, castStraight,
+ * muzzle } from '../boss'` (fix round 1, review minor #4): `sim/boss.ts` -> `bosses/index.ts` ->
+ * this file -> `sim/boss.ts`. Both cycles are harmless *here* only because every read of
+ * `SQUAD_GAP_X`/`SQUAD_TEMPLATES` and every call of `castAxe`/`castStraight`/`muzzle` in this file
+ * happens inside a function body (this one, or a hook method), never at module top level — a
+ * top-level read of either export would risk the exact temporal-dead-zone trap the Verdant Templar's
+ * own file doc already hit reading `sim/boss.ts`'s consts (see `templar.ts`, `TEMPLAR_GAP_SLOTS`).
  */
 function crewOriginX(side: number): number {
   const span = (SQUAD_TEMPLATES.crew[0]!.length - 1) * SQUAD_GAP_X;

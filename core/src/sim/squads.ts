@@ -109,6 +109,7 @@ export function spawnSquad(
   const x0 = clamp(originX - idiv(span, 2), HALF, FIELD_W - HALF - span);
   const y0 = clamp(originY, SQUAD_BAND.minY, SQUAD_BAND.maxY);
   const id = nextSquadId(s);
+  let alive = 0;
   for (let row = 0; row < rows.length; row++) {
     const cells = rows[row]!;
     for (let col = 0; col < cells.length; col++) {
@@ -117,9 +118,17 @@ export function spawnSquad(
       crab.squad = id;
       crab.cell = squadCell(row, col);
       s.crabs.push(crab);
+      alive += 1;
     }
   }
-  s.squads.push({ id, dir: dir >= 0 ? 1 : -1 });
+  // `alive` (fix round 1, controller ruling R22): the template's own crab count, counted as spawned
+  // rather than read off the template strings a second time, so it can never drift from what was
+  // actually placed on the field. `bossKind` records `s.boss`'s kind right now, at spawn — the one
+  // moment a squad's own boss is guaranteed to still be alive and correctly identified (see the
+  // `Squad.bossKind` doc, `types.ts`, for why a later read of `s.boss?.kind` is not safe to use
+  // instead). `?? 0` is a safe fallback, not a real case: `spawnSquad` is only ever called from
+  // inside a boss's own `ability` hook in real play.
+  s.squads.push({ id, dir: dir >= 0 ? 1 : -1, bossKind: s.boss?.kind ?? 0, alive });
   return id;
 }
 
@@ -180,13 +189,21 @@ export function halvedWhileBoss(s: GameState, v: number): number {
 }
 
 /**
- * Pops every surviving squad crab the moment their boss dies (spec §5.1): they are removed without
+ * Pops every surviving squad crab once their boss has died (spec §5.1): they are removed without
  * score, without a kill and without a drop — the fight is over, and what is left of the escort goes
  * with it. One `squad_popped` event per squad that still had a crab standing; a squad already wiped
- * out by the player raised its scores as it died and raises nothing here.
+ * out by the player raised its scores as it died and raises nothing here. Decrements nothing and
+ * loots nothing (fix round 1, controller ruling R22): removal here is a bulk `filter`, never through
+ * `killCrab`, so a squad's own `alive` count and the Gold Corsair's loot check never see this removal
+ * at all — by design, this is not a kill.
  *
- * Called from `damageBoss` right after the boss is cleared. A no-op on an arena with no squad on
- * it, which is every fight of the first campaign.
+ * Called once per tick from `step.ts`, at the end of that tick's own crab-hit processing, rather than
+ * synchronously from inside `damageBoss` the instant the boss's hp reaches 0 (fix round 1, ruling
+ * R22): calling it mid-`hitCrabs`'s own loop over `s.shots` could remove a squad crab before a
+ * *later* shot in that same tick's array ever reached it — silently losing that crab's own loot check
+ * to nothing but shot order. `step.ts`'s own call site is guarded on `s.boss === null &&
+ * s.squads.length > 0`, so this function itself stays safe to call unconditionally: a no-op on an
+ * arena with no squad on it (every fight of the first campaign) or a boss still standing.
  */
 export function popSquads(s: GameState): void {
   if (s.squads.length === 0) return;

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   AXE_FALL_TICKS, AXE_TARGETS, AXE_TARGET_COUNT, BOSS, BOSS_HOOKS, CORSAIR_CREW_CAP, CORSAIR_ROSTER,
   CORSAIR_SPIKES_TICKS, CORSAIR_SPIKES_WINDUP, DROP, FIELD_W, INITIAL_INPUT, MARCH_MARGIN, PRACTICE_RUN,
-  SQUAD_BAND, SQUAD_ROW_GAP, bossStats, createGame, damageBoss, hashState, idiv, muzzle, spawnBoss,
-  spawnSquad, squadStep, step, updateBoss,
+  SQUAD_BAND, SQUAD_ROW_GAP, activateBoost, bossStats, createGame, damageBoss, hashState, idiv,
+  muzzle, spawnBoss, spawnSquad, squadStep, step, updateBoss,
 } from '../src';
 import type { BossState, GameState } from '../src';
 
@@ -57,11 +57,11 @@ function scriptedRng(answers: Record<number, number[]>, log: number[] = []): { r
 /** Drives the boss down through both transitions into phase 3. Zero fighting ticks elapse in phase 1 or 2, so their timers never get a chance to fire in between. */
 function toPhaseThree(s: GameState): BossState {
   const b = s.boss!;
-  damageBoss(s, b.hp - Math.floor((b.maxHp * (b.maxPhases - 1)) / b.maxPhases));
+  damageBoss(s, b.hp - idiv(b.maxHp * (b.maxPhases - 1), b.maxPhases));
   expect(b.state).toBe('transition');
   ticks(s, BOSS.transitionTicks);
   expect(b.phase).toBe(2);
-  damageBoss(s, b.hp - Math.floor((b.maxHp * (b.maxPhases - 2)) / b.maxPhases));
+  damageBoss(s, b.hp - idiv(b.maxHp * (b.maxPhases - 2), b.maxPhases));
   expect(b.state).toBe('transition');
   ticks(s, BOSS.transitionTicks);
   expect(b.phase).toBe(3);
@@ -104,7 +104,7 @@ describe('Gold Corsair — Boarding (the ability)', () => {
     b.abilityTimer = 1;
     updateBoss(s);
     expect(s.crabs).toHaveLength(8);
-    expect(s.squads).toEqual([{ id: 1, dir: 1 }]); // left entry marches right, towards the centre
+    expect(s.squads).toEqual([{ id: 1, dir: 1, bossKind: 8, alive: 8 }]); // left entry marches right, towards the centre
     const top = s.crabs.slice(0, 4);
     const bottom = s.crabs.slice(4);
     expect(top.map((c) => c.type)).toEqual(['herald', 'herald', 'herald', 'herald']);
@@ -121,7 +121,7 @@ describe('Gold Corsair — Boarding (the ability)', () => {
     s.rngBoss = scriptedRng({ 2: [1] }).rng; // side 1: right
     b.abilityTimer = 1;
     updateBoss(s);
-    expect(s.squads).toEqual([{ id: 1, dir: -1 }]);
+    expect(s.squads).toEqual([{ id: 1, dir: -1, bossKind: 8, alive: 8 }]);
     expect(Math.max(...s.crabs.map((c) => c.x))).toBe(FIELD_W - MARCH_MARGIN);
   });
 
@@ -164,11 +164,13 @@ describe('Gold Corsair — loot', () => {
     spawnBoss(s, 8);
     spawnSquad(s, 'crew', ['armored'], idiv(FIELD_W, 2), SQUAD_BAND.maxY, 1);
     expect(s.crabs).toHaveLength(8);
-    // Only the last crab of the crew is left standing: killing it through a real player shot is the
-    // whole-crew wipe (`killCrab` is called exactly once, with no other squad crab left in `s.crabs`).
+    // Only the last crab of the crew is left standing (backstory: the other 7 already died earlier —
+    // `alive` is set to match, fix round 1, ruling R22, since it is now the wipe detector, not a scan
+    // of `s.crabs`). Killing this one through a real player shot is the whole-crew wipe.
     const last = s.crabs[7]!;
     last.hp = 1;
     s.crabs = [last];
+    s.squads[0]!.alive = 1;
     // The shot is placed one tick's march ahead of the crab's own current spot: `step()` marches the
     // squad (`marchCrabs`/`marchSquads`) before it collides shots (`hitCrabs`), so the crab is not
     // where it started by the time it actually dies this same tick.
@@ -194,10 +196,19 @@ describe('Gold Corsair — loot', () => {
     spawnBoss(s, 8);
     spawnSquad(s, 'crew', CORSAIR_ROSTER, idiv(FIELD_W, 2), SQUAD_BAND.maxY, 1);
     expect(s.crabs).toHaveLength(8);
-    damageBoss(s, s.boss!.hp); // kills the boss outright; popSquads removes the crew
+    s.boss!.hp = 1; // one shot kills the boss outright
+    s.shots.push({ x: s.boss!.x, y: s.boss!.y, vx: 0, vy: -240, kind: 'straight', data: 0 });
+    const before = s.drops.length;
+    step(s, INITIAL_INPUT); // damageBoss marks the boss dead; popSquads (step.ts, end of this tick) removes the crew
     expect(s.boss).toBeNull();
-    expect(s.crabs).toEqual([]);
+    expect(s.squads).toEqual([]);
+    // Not `s.crabs` itself: this is a practice round, and `nextWave` (also called from this same
+    // `step()`, once `s.crabs.length === 0 && s.boss === null`) immediately spawns a fresh, ordinary
+    // wave — pre-existing practice-mode behaviour, unrelated to this fix. No *squad* crab survives.
+    expect(s.crabs.some((c) => c.squad > 0)).toBe(false);
+    expect(s.drops.length).toBe(before); // no loot: the whole crew went with its boss, not a wipe
     expect(s.events.filter((e) => e.type === 'crew_looted')).toHaveLength(0);
+    expect(s.events.filter((e) => e.type === 'squad_popped')).toHaveLength(1);
   });
 
   it('does not loot a wave crab, or a squad crab of a different boss', () => {
@@ -206,12 +217,67 @@ describe('Gold Corsair — loot', () => {
     spawnBoss(s, 1); // Emerald, not the Corsair
     spawnSquad(s, 'crew', ['armored'], idiv(FIELD_W, 2), SQUAD_BAND.maxY, 1);
     s.crabs = [s.crabs[7]!];
+    s.squads[0]!.alive = 1; // matches the truncation above (fix round 1, ruling R22)
     const c = s.crabs[0]!;
     c.hp = 1;
     s.shots.push({ x: c.x, y: c.y, vx: 0, vy: -240, kind: 'straight', data: 0 });
     step(s, INITIAL_INPUT);
     expect(s.crabs).toEqual([]);
     expect(s.events.filter((e) => e.type === 'crew_looted')).toHaveLength(0);
+  });
+
+  describe('fix round 1 — the alive count, not a live scan of s.crabs (controller ruling R22)', () => {
+    it('a crew finished off by WAVE_BLAST in one batch still loots exactly once', () => {
+      const s = createGame('corsair-waveblast', { ...PRACTICE_RUN, features: { boosts: true } });
+      s.crabs = [];
+      spawnBoss(s, 8);
+      // A one-row squad, both crabs sharing one y, so WAVE_BLAST's own bottom-row band takes both in
+      // the very same call — the exact scenario fix round 0 got wrong: `applyWaveBlast`
+      // (`sim/boostEffects.ts`) computes its whole kill list against the *original* `s.crabs` and
+      // only removes the dead in one batch afterwards, so a live scan for "any survivor left" would
+      // always find the crew's own still-present, doomed-but-not-yet-removed crab-mate and never
+      // detect the wipe at all. Counting `alive` down needs no `s.crabs` snapshot to agree with.
+      spawnSquad(s, 'pair', ['armored'], idiv(FIELD_W, 2), SQUAD_BAND.minY, 1);
+      expect(s.crabs).toHaveLength(2);
+      expect(s.squads[0]!.alive).toBe(2);
+      const before = s.drops.length;
+      activateBoost(s, 'WAVE_BLAST');
+      expect(s.crabs).toEqual([]);
+      expect(s.squads[0]!.alive).toBe(0);
+      expect(s.drops.length).toBe(before + 1);
+      expect(s.events.filter((e) => e.type === 'crew_looted')).toHaveLength(1);
+    });
+
+    it('a crew whose last crab and the boss both die in the same tick still loots, boss-killing shot first', () => {
+      const s = createGame('corsair-same-tick', { ...PRACTICE_RUN, features: { boosts: true } });
+      s.crabs = [];
+      spawnBoss(s, 8);
+      spawnSquad(s, 'crew', ['armored'], idiv(FIELD_W, 2), SQUAD_BAND.maxY, 1);
+      const last = s.crabs[7]!;
+      last.hp = 1;
+      s.crabs = [last]; // backstory: the other 7 already died; alive matches, as above
+      s.squads[0]!.alive = 1;
+      s.boss!.hp = 1; // the one shot below kills the boss outright
+      // The boss-killing shot sits FIRST in `s.shots`: `hitCrabs` (`sim/collide.ts`) iterates that
+      // array in order, so with the *old* synchronous `popSquads` inside `damageBoss` this order
+      // would have removed `last` from `s.crabs` before the loop ever reached the crab-killing shot
+      // below — losing the loot to nothing but shot order (fix round 1's own Important finding).
+      // `popSquads` no longer runs until the end of the tick (`step.ts`, ruling R22), so `last` is
+      // still there when its own shot's turn comes.
+      s.shots.push({ x: s.boss!.x, y: s.boss!.y, vx: 0, vy: -240, kind: 'straight', data: 0 });
+      const marched = last.x + squadStep(s, s.squads[0]!.dir);
+      s.shots.push({ x: marched, y: last.y, vx: 0, vy: -240, kind: 'straight', data: 0 });
+      const before = s.drops.length;
+      step(s, INITIAL_INPUT);
+      expect(s.boss).toBeNull();
+      expect(s.squads).toEqual([]); // popped at the end of this same tick, after the loot already fired
+      // Not `s.crabs` itself: this is a practice round, and `nextWave` spawns a fresh, ordinary wave
+      // the instant both crabs and boss are gone — pre-existing practice-mode behaviour, unrelated to
+      // this fix. No *squad* crab survives.
+      expect(s.crabs.some((c) => c.squad > 0)).toBe(false);
+      expect(s.drops.length).toBe(before + 1);
+      expect(s.events).toContainEqual({ tick: s.tick, type: 'crew_looted' });
+    });
   });
 });
 

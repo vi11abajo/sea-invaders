@@ -1,6 +1,6 @@
 import { BOSS, CRAB, CRAB_TYPES, ENEMY_SHOT, OCTOPI, SHOT } from '../config';
 import { clamp, idiv } from '../fixed';
-import type { Bullet, Crab, GameState } from '../types';
+import type { Bullet, Crab, GameState, Squad } from '../types';
 import { isActive, rollDrop, scoreDecayPct, spawnDrop } from './boosts';
 import { ORB_RADIUS, damageBoss, scoreMultiplier } from './boss';
 import { BUBBLE_RADIUS, CHARGE_RADIUS, enrage, shieldAbsorbs } from './veterans';
@@ -23,27 +23,58 @@ export function killCrab(s: GameState, c: Crab): void {
   s.score += scoreMultiplier(s, idiv(base * scoreDecayPct(s), 100));
   s.kills += 1;
   enrage(s, c); // spec §2: a dying patriarch enrages what is left of its formation
-  lootCrewIfWiped(s, c); // spec §5.2 kind 8: a boarding crew wiped by the player drops a guaranteed prize
+  countDownSquad(s, c); // spec §5.2 kind 8 (fix round 1, ruling R22): a wiped boarding crew loots
+}
+
+/**
+ * Decrements `c`'s own squad's `alive` count (fix round 1, controller ruling R22) — every squad crab
+ * kill counts down, through every path that reaches `killCrab` (a direct bullet hit via `hitCrabs`
+ * below, WAVE_BLAST's own kill loop in `boostEffects.ts`, and later the Storm Tyrant's lane strike),
+ * regardless of which boss the squad belongs to. This replaced a live scan of `s.crabs` for a
+ * same-squad survivor (fix round 0): that scan is unreliable whenever more than one squad crab dies
+ * in the same pass before any of them is actually removed from `s.crabs` — WAVE_BLAST computes its
+ * whole kill list against the *original* `s.crabs` and only removes them in one batch afterwards
+ * (`applyWaveBlast`, `sim/boostEffects.ts`), so every kill in that batch, including the crew's true
+ * last one, would still find its doomed-but-not-yet-removed crew-mates sitting in `s.crabs` and never
+ * detect the wipe at all. Counting `alive` down needs no `s.crabs` snapshot to agree with, so it is
+ * correct regardless of how (or how late) the caller batches its own removals.
+ *
+ * A no-op for `c.squad <= 0` (every wave crab, and every crab of the first campaign) or a squad id
+ * `s.squads` no longer lists (already popped this tick — see `popSquads`'s own new call site in
+ * `step.ts`, and its doc for why a squad crab removed *there* never reaches `killCrab`, and so never
+ * reaches this function, at all).
+ *
+ * Only the Gold Corsair's own crews loot on a wipe (spec §5.2, kind 8): `lootCrewIfWiped` below reads
+ * the freshly updated count and the squad's own recorded `bossKind` (not the *live* `s.boss?.kind` —
+ * see `Squad.bossKind`'s own doc, `types.ts`, for why: a squad can outlive its own boss by up to one
+ * tick, so `s.boss` may already be `null` by the time a later shot in the same tick lands the crew's
+ * true last kill), so the Verdant Templar's own `line4` escort (or any other boss's future squad)
+ * counts down to 0 exactly the same way and simply has nothing that reacts to it.
+ */
+function countDownSquad(s: GameState, c: Crab): void {
+  if (c.squad <= 0) return;
+  const q = s.squads.find((sq) => sq.id === c.squad);
+  if (!q) return;
+  if (q.alive > 0) q.alive -= 1;
+  lootCrewIfWiped(s, c, q);
 }
 
 /**
  * Gold Corsair only (spec §5.2, kind 8): a boarding crew the player wipes out — every one of its
  * crabs dead — drops one guaranteed boost at the last crab's own position, `crew_looted`. Sim-state
- * only (ruling R18, no reading of `s.events`): detected synchronously, right here, the instant the
- * crew's last crab is removed — the caller (`hitCrabs`, above) has already spliced `c` out of
- * `s.crabs` by the time `killCrab` runs, so "no crab of this squad is left" is a plain scan of the
- * crabs that remain, with nothing that has to survive to a later tick.
+ * only (ruling R18, no reading of `s.events`): `q` is `countDownSquad`'s own squad object, already
+ * carrying its freshly decremented `alive` — nothing has to survive to a later tick.
  *
- * A no-op the instant `c.squad` is 0 (every wave crab, and every crab of the first campaign) or the
- * boss standing right now is not the Corsair (kinds 1-7, 9, 10, and no boss at all) — so this reads
- * nothing and changes nothing for the Verdant Templar's own `line4` escort, or for any other fight.
- * A crew popped whole at the Corsair's own death does not loot (task brief): `popSquads`
- * (`sim/squads.ts`) removes every squad crab from `s.crabs` with one filter, never through
- * `killCrab`, so this function is never reached for that removal at all.
+ * A no-op while `q.alive > 0` (the crew still has a survivor) or `q.bossKind !== 8` (raised by a boss
+ * other than the Corsair — kinds 1-7, 9, 10 — or, defensively, no boss at all) — so this changes
+ * nothing for the Verdant Templar's own escort, or for any other fight. A crew popped whole at the
+ * Corsair's own death does not loot (task brief): `popSquads` (`sim/squads.ts`, now called once at
+ * the end of the tick from `step.ts` — fix round 1, ruling R22) removes every squad crab from
+ * `s.crabs` with one filter, never through `killCrab`, so neither this function nor `countDownSquad`
+ * above is ever reached for that removal at all.
  */
-function lootCrewIfWiped(s: GameState, c: Crab): void {
-  if (c.squad <= 0 || s.boss?.kind !== 8) return;
-  for (const other of s.crabs) if (other.squad === c.squad) return; // the crew still has a survivor
+function lootCrewIfWiped(s: GameState, c: Crab, q: Squad): void {
+  if (q.alive > 0 || q.bossKind !== 8) return;
   spawnDrop(s, c.x, c.y);
   s.events.push({ tick: s.tick, type: 'crew_looted' });
 }

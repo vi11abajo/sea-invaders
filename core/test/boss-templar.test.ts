@@ -3,7 +3,8 @@ import {
   BOSS, BOSS_HOOKS, BOSS_SHOT, FIELD_W, FIREWALL_SLOTS, INITIAL_INPUT, PRACTICE_RUN, SQUAD_BAND,
   SQUAD_GAP_X, TEMPLAR_GAP_MIN_DISTANCE, TEMPLAR_GAP_SLOTS, TEMPLAR_GUARD,
   TEMPLAR_SECOND_WALL_DELAY, TEMPLAR_SHIELD_DOWN, TEMPLAR_WINDUP, bossStats, createGame, damageBoss,
-  firewallX, hashState, hitCrabs, idiv, kindForTier, muzzle, snapshot, spawnBoss, step, updateBoss,
+  firewallX, hashState, hitCrabs, idiv, kindForTier, muzzle, popSquads, snapshot, spawnBoss, step,
+  updateBoss,
 } from '../src';
 import type { BossState, Bullet, GameState } from '../src';
 
@@ -427,7 +428,7 @@ describe('Verdant Templar — phase 2', () => {
 describe('Verdant Templar — the warden line', () => {
   it('raises a line of four wardens at the fight start, centred below the boss box', () => {
     const s = arena();
-    expect(s.squads).toEqual([{ id: 1, dir: 1 }]);
+    expect(s.squads).toEqual([{ id: 1, dir: 1, bossKind: 6, alive: 4 }]); // fix round 1, ruling R22
     expect(s.crabs).toHaveLength(4);
     for (const c of s.crabs) {
       expect(c.type).toBe('warden');
@@ -556,6 +557,11 @@ describe('Verdant Templar — Bulwark and the RNG', () => {
     damageBoss(s, b.hp);
     expect(s.boss).toBeNull();
     expect(s.score).toBe(bossStats(6).score); // no decay: the fight lasted no ticks at all
+    // The pop is no longer synchronous inside `damageBoss` (fix round 1, ruling R22) — it runs once
+    // at the end of the tick, from `step.ts`; a direct `damageBoss` call with no `step()` around it
+    // needs its own explicit `popSquads` to see the escort actually cleared.
+    expect(s.crabs).not.toEqual([]);
+    popSquads(s);
     expect(s.crabs).toEqual([]);
     expect(s.squads).toEqual([]);
     expect(s.events.filter((e) => e.type === 'squad_popped')).toHaveLength(1);

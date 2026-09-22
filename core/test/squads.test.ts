@@ -36,7 +36,7 @@ describe('squad templates and spawning', () => {
     const s = arena();
     const id = spawnSquad(s, 'line4', REEF_KINDS, idiv(FIELD_W, 2), SQUAD_BAND.minY, 1);
     expect(id).toBe(1);
-    expect(s.squads).toEqual([{ id: 1, dir: 1 }]);
+    expect(s.squads).toEqual([{ id: 1, dir: 1, bossKind: 1, alive: 4 }]); // fix round 1, ruling R22
     expect(s.crabs).toHaveLength(4);
     for (const c of s.crabs) {
       expect(c.squad).toBe(1);
@@ -277,11 +277,31 @@ describe('squad crabs dying', () => {
     spawnSquad(withSquads, 'pair', REEF_KINDS, 4000, SQUAD_BAND.minY, -1);
     damageBoss(withSquads, withSquads.boss!.maxHp);
     expect(withSquads.boss).toBeNull();
+    // The pop itself is no longer synchronous inside `damageBoss` (fix round 1, ruling R22) — it now
+    // runs once at the end of the tick, from `step.ts`, so a direct `damageBoss` call (as here, with
+    // no `step()` around it) leaves the escort standing until something calls `popSquads` itself.
+    expect(withSquads.crabs).not.toEqual([]);
+    expect(withSquads.squads).not.toEqual([]);
+    popSquads(withSquads);
     expect(withSquads.crabs).toEqual([]);
     expect(withSquads.squads).toEqual([]);
     expect(withSquads.kills).toBe(0);
     expect(withSquads.score).toBe(plain.score); // the boss's own score only
     expect(withSquads.events.filter((e) => e.type === 'squad_popped')).toHaveLength(2);
+  });
+
+  it('pops through a real step(), once the boss actually dies mid-tick', () => {
+    const s = arena();
+    spawnSquad(s, 'line4', REEF_KINDS, 1500, SQUAD_BAND.minY, 1);
+    s.shots.push({ x: s.boss!.x, y: s.boss!.y, vx: 0, vy: -240, kind: 'straight', data: 0 });
+    s.boss!.hp = 1; // the one shot above kills it outright
+    step(s, INITIAL_INPUT);
+    expect(s.boss).toBeNull();
+    expect(s.squads).toEqual([]);
+    // Not `s.crabs` itself: this is a practice round, and `nextWave` (also called from this same
+    // `step()`, once `s.crabs.length === 0 && s.boss === null`) immediately spawns a fresh, ordinary
+    // wave — pre-existing practice-mode behaviour, unrelated to this fix. No *squad* crab survives.
+    expect(s.crabs.some((c) => c.squad > 0)).toBe(false);
   });
 
   it('pops nothing and raises nothing when a boss of the first campaign dies alone', () => {

@@ -4,7 +4,6 @@ import { icos, isin } from '../trig';
 import type { Bullet, BossKind, BossState, GameState, TableBossKind } from '../types';
 import { isActive } from './boosts';
 import { BOSS_HOOKS, type BossHooks } from './bosses';
-import { popSquads } from './squads';
 
 /** The point boss shots are fired from: the bottom-centre of the boss box. */
 export function muzzle(b: BossState): { x: number; y: number } {
@@ -386,9 +385,12 @@ export function damageBoss(s: GameState, amount: number, shot?: Bullet): void {
     // whatever a destruction this very tick left pending is cleared here instead.
     s.destroyedObstacles = [];
     s.events.push({ tick: s.tick, type: 'boss_dead' });
-    // Spec §5.1: whatever the escort has left goes with its boss, without score. A no-op on every
-    // fight of the first campaign, which never raises a squad.
-    popSquads(s);
+    // Spec §5.1: whatever the escort has left goes with its boss, without score — but not
+    // synchronously, not any more (fix round 1, controller ruling R22). `popSquads` itself runs once,
+    // at the end of the tick, from `step.ts`: calling it here, mid-`hitCrabs`'s own loop over
+    // `s.shots`, could remove a squad crab before a *later* shot in the same tick's array had its own
+    // chance to land the wipe on it — silently losing a Corsair crew's loot purely because of shot
+    // order. See `step.ts`'s own call site for how the deferred pop is detected.
     if (s.run.level) { s.cleared = true; s.events.push({ tick: s.tick, type: 'level_cleared' }); }
     return;
   }

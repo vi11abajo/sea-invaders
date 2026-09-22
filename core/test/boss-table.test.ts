@@ -186,6 +186,18 @@ describe('the state hash', () => {
     // differently from one without, even though the field is usually empty.
     expect(mutated((s) => { s.destroyedObstacles = [{ x: 2000, y: 3600 }]; })).toBe(true);
   });
+
+  it("covers a squad's own alive count, not just its id and dir (fix round 1, controller ruling R22)", () => {
+    const withSquad = (): GameState => {
+      const s = arena();
+      spawnSquad(s, 'pair', REEF_KINDS, 2000, SQUAD_BAND.minY, 1);
+      return s;
+    };
+    const before = hashState(withSquad());
+    const s = withSquad();
+    s.squads[0]!.alive -= 1; // everything else about the two states is identical
+    expect(hashState(s)).not.toBe(before);
+  });
 });
 
 /** Counts every draw each of the four generators makes from here on. */

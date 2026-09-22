@@ -238,6 +238,32 @@ export interface Squad {
   id: number;
   /** March direction: 1 = right, -1 = left. */
   dir: number;
+  /**
+   * The kind of the boss that raised this squad (fix round 1, controller ruling R22), `0` only if
+   * `spawnSquad` was ever called with no boss standing (never happens in real play — a squad is
+   * always raised from inside a boss's own `ability` hook — kept only as a safe fallback rather than
+   * a crash). Recorded once, at spawn, from `GameState.boss.kind` at that moment, and read instead of
+   * `GameState.boss?.kind` by anything that has to know *whose* squad this is once a kill is actually
+   * being processed: a squad can outlive its own boss by up to one tick (`popSquads` no longer runs
+   * synchronously inside `damageBoss`, ruling R22's other half), so `GameState.boss` may already be
+   * `null` — pointing at no boss at all, not "the wrong one" — by the time a later shot in the very
+   * same tick lands a crew's true last kill. `s.boss?.kind` at *that* moment would wrongly read as
+   * "no boss, so nothing loots"; the squad's own recorded kind never changes underneath it.
+   */
+  bossKind: BossKind | 0;
+  /**
+   * Crabs of this squad still alive, set at spawn to the template's own crab count and decremented
+   * by one every time one of them dies — through whichever kill path reaches `killCrab`
+   * (`sim/collide.ts`): a direct bullet hit, WAVE_BLAST, and later the Storm Tyrant's own lane
+   * strike (fix round 1, controller ruling R22). This is the single source of truth a boss with a
+   * squad-loot mechanic (today, only the Gold Corsair's) reads to tell a genuine whole-squad wipe
+   * from an ordinary kill mid-loop — never a live scan of `GameState.crabs`, which a batched removal
+   * (WAVE_BLAST) or a same-tick boss death (`popSquads`) can make an unreliable proxy for "is anyone
+   * else in this squad still alive". Reaches 0 the instant the squad is actually wiped, whether or
+   * not anything reads it — the Verdant Templar's own escort counts down like any other squad's, it
+   * simply has nothing that checks it.
+   */
+  alive: number;
 }
 
 /** The arena objects a boss can raise (spec §5.1). `crystal` is the Frost Castellan's. */
