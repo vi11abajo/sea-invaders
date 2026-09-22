@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Animated, {
+  cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming,
+} from 'react-native-reanimated';
+import { COLORS } from './tokens';
 
 interface StarBorderProps {
   children: ReactNode;
@@ -45,12 +48,13 @@ function capsulePoint(t: number, w: number, h: number): { x: number; y: number }
  * `border-radius` shape; this walks the same capsule perimeter with a worklet (`capsulePoint`), so
  * both dots stay glued to the edge at whatever size `children` measures out to.
  */
-export function StarBorder({ children, color = '#FFFFFF', periodMs = 4000, dotSize = 3, style }: StarBorderProps) {
+export function StarBorder({ children, color = COLORS.text, periodMs = 4000, dotSize = 3, style }: StarBorderProps) {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const progress = useSharedValue(0);
 
   useEffect(() => {
     progress.value = withRepeat(withTiming(1, { duration: periodMs, easing: Easing.linear }), -1, false);
+    return () => cancelAnimation(progress);
   }, [progress, periodMs]);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
@@ -85,6 +89,6 @@ export function StarBorder({ children, color = '#FFFFFF', periodMs = 4000, dotSi
 const styles = StyleSheet.create({
   dot: {
     position: 'absolute', left: 0, top: 0, opacity: 0.85,
-    shadowColor: '#FFFFFF', shadowOpacity: 0.9, shadowRadius: 3, shadowOffset: { width: 0, height: 0 },
+    shadowColor: COLORS.text, shadowOpacity: 0.9, shadowRadius: 3, shadowOffset: { width: 0, height: 0 },
   },
 });

@@ -1,15 +1,13 @@
 import { InstrumentSans_500Medium } from '@expo-google-fonts/instrument-sans/500Medium';
-import { formatInt } from '@sea-invaders/core';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { onBackPress } from '../audio/onBackPress';
-import { CountUp } from '../ui/CountUp';
-import { GradientText } from '../ui/GradientText';
+import { CountUp, formatIntWorklet } from '../ui/CountUp';
 import { PillButton } from '../ui/PillButton';
 import { Sheet } from '../ui/Sheet';
 import { ShinyText } from '../ui/ShinyText';
 import { Txt } from '../ui/Txt';
-import { COLORS, RADIUS } from '../ui/tokens';
+import { COLORS, RADIUS, TYPE } from '../ui/tokens';
 import { ActiveOctopi } from './OctopiArt';
 
 /** Octopi's pose on the result screen, in dp. `GameScreen` primes this size while the run plays. */
@@ -70,9 +68,7 @@ export function ResultView({ title, titleShiny = false, score, stats, note, prim
             {title}
           </Txt>
         )}
-        <CountUp value={score} from={0} duration={1200} format={formatInt}>
-          {(text) => <GradientText text={text} size={72} />}
-        </CountUp>
+        <CountUp value={score} from={0} duration={1200} format={formatIntWorklet} style={styles.score} />
       </View>
       <View style={styles.pose} pointerEvents="none">
         <ActiveOctopi size={RESULT_POSE_SIZE} />
@@ -111,6 +107,10 @@ const styles = StyleSheet.create({
   },
   head: { position: 'absolute', top: 120, left: 0, right: 0, alignItems: 'center', gap: 8 },
   title: { fontSize: 12, letterSpacing: 0.72 },
+  // The Count Up review round moved the score off `GradientText` (Skia) onto `CountUp`'s "ReText"
+  // `TextInput`, which cannot carry a Skia gradient fill — a single accent colour stands in for the
+  // signature gradient the score used to render in.
+  score: { ...TYPE.resultScore, color: COLORS.success, textAlign: 'center' },
   pose: { position: 'absolute', top: 300, left: 0, right: 0, alignItems: 'center' },
   tiles: { flexDirection: 'row', gap: 6 },
   tile: { flex: 1, padding: 10, borderRadius: RADIUS.tile, backgroundColor: 'rgba(236,228,253,0.08)' },

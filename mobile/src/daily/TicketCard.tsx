@@ -56,6 +56,8 @@ export function TicketCard({ priceSkr, skrBalance, cluster, onBuy, onFaucet, bus
     let ok = false;
     try {
       ok = await onBuy();
+    } catch {
+      ok = false;
     } finally {
       pending.current = false;
     }

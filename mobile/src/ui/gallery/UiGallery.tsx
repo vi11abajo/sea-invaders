@@ -8,7 +8,7 @@ import { ArtSlot } from '../ArtSlot';
 import { Backdrop } from '../Backdrop';
 import { BlurText } from '../BlurText';
 import { BounceCard } from '../BounceCard';
-import { CountUp } from '../CountUp';
+import { CountUp, formatIntWorklet } from '../CountUp';
 import { EntranceRow } from '../EntranceRow';
 import { Glass } from '../Glass';
 import { GradientFill } from '../GradientFill';
@@ -21,7 +21,7 @@ import { StarBorder } from '../StarBorder';
 import { SquishSwitch } from '../SquishSwitch';
 import { Txt } from '../Txt';
 import { useAppFonts } from '../fonts';
-import { COLORS, RADIUS, REEF_LIFE, SIGNATURE_GRADIENT, type WorldTheme } from '../tokens';
+import { COLORS, RADIUS, REEF_LIFE, SIGNATURE_GRADIENT, TYPE, type WorldTheme } from '../tokens';
 
 const SAMPLE_ADDRESS = '7xKpQm9vLrT2hW8sNc4yBd6fGj1eZa5uXo3fQ';
 
@@ -162,9 +162,7 @@ export function UiGallery() {
         </Section>
 
         <Section title="Count Up">
-          <CountUp value={countValue} format={formatInt}>
-            {(text) => <Txt variant="heroNumber">{text}</Txt>}
-          </CountUp>
+          <CountUp value={countValue} format={formatIntWorklet} style={TYPE.heroNumber} />
           <PillButton label="Add 4,231" kind="secondary" height={36} onPress={() => setCountValue((v) => v + 4231)} />
         </Section>
 

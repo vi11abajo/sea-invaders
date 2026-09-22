@@ -1,9 +1,9 @@
-import { formatInt, shortAddress } from '@sea-invaders/core';
+import { shortAddress } from '@sea-invaders/core';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { CountUp } from '../ui/CountUp';
+import { CountUp, formatIntWorklet } from '../ui/CountUp';
 import { GradientFill } from '../ui/GradientFill';
-import { SkrAmount } from '../ui/SkrIcon';
+import { SkrIcon } from '../ui/SkrIcon';
 import { COLORS, FONTS, RADIUS, REEF_LIFE, SIZE } from '../ui/tokens';
 import type { WalletInfo } from './model';
 import { KEY_ART_TEXT_SHADOW } from './homeBackground';
@@ -50,9 +50,10 @@ export function HomeTopBar({ wallet, onWallet, onShop }: HomeTopBarProps) {
       </Pressable>
       {wallet && (
         <Pressable accessibilityRole="button" accessibilityLabel="Top up SKR" onPress={onShop} hitSlop={PILL_SLOP} style={[styles.glass, styles.pill, styles.skrPill]}>
-          <CountUp value={wallet.skr} duration={800} format={formatInt}>
-            {(text) => <SkrAmount value={text} textStyle={styles.skr} size={12} />}
-          </CountUp>
+          <View style={styles.skrRow}>
+            <SkrIcon size={12} color={COLORS.text} />
+            <CountUp value={wallet.skr} duration={800} format={formatIntWorklet} style={styles.skr} />
+          </View>
           <View style={styles.plus}>
             <Text style={styles.plusText}>+</Text>
           </View>
@@ -116,6 +117,7 @@ const styles = StyleSheet.create({
   seekerText: { fontFamily: FONTS.semibold, fontSize: 8, letterSpacing: 0.48, color: '#000000' },
   connect: { fontFamily: FONTS.medium, fontSize: 13, color: COLORS.text },
   skrPill: { paddingLeft: 14, paddingRight: 6, gap: 10 },
+  skrRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   skr: { fontFamily: FONTS.mono, fontSize: 13, color: COLORS.text },
   plus: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   plusText: { fontFamily: FONTS.medium, fontSize: 16, lineHeight: 18, color: '#000000' },

@@ -81,7 +81,14 @@ export function SquishSwitch({ value, onValueChange, disabled = false }: SquishS
   const pan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => !disabled,
-      onMoveShouldSetPanResponder: () => !disabled,
+      // Gated on a horizontal-dominant, past-slop move so a vertical scroll attempt that starts on
+      // the switch (it sits inside `ProfileScreen`'s `ScrollView`) is left for the list, not captured
+      // here. A plain tap still toggles: `onStartShouldSetPanResponder` above already grants the
+      // responder on touch-down regardless of direction, so `onPanResponderRelease`'s own `!moved`
+      // branch still runs for a tap that never triggers this at all.
+      onMoveShouldSetPanResponder: (_event, gesture) => (
+        !disabled && Math.abs(gesture.dx) > Math.abs(gesture.dy) && Math.abs(gesture.dx) > 2
+      ),
       onPanResponderGrant: () => {
         dragging.current = true;
         startX.current = MIN_X + progress.value * (MAX_X - MIN_X);
