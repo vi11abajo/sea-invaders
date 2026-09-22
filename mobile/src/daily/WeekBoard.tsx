@@ -2,6 +2,7 @@ import { formatInt, shortAddress } from '@sea-invaders/core';
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 import type { WeekBoard as WeekBoardData } from '../api/daily';
 import { OctopiAvatar } from '../game/OctopiArt';
+import { EntranceRow } from '../ui/EntranceRow';
 import { Glass } from '../ui/Glass';
 import { SeekerBadge } from '../ui/SeekerBadge';
 import { Txt } from '../ui/Txt';
@@ -47,22 +48,24 @@ export function WeekBoard({ data, error, mine }: WeekBoardProps) {
           data={data.entries}
           keyExtractor={(e) => String(e.rank)}
           contentContainerStyle={boardStyles.list}
-          renderItem={({ item }) => (
-            <Glass radius={RADIUS.row} style={[boardStyles.row, item.walletAddress === mine && boardStyles.mine]}>
-              <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
-              <OctopiAvatar skin={item.skin} size={OCTOPI_SIZE} />
-              <View style={boardStyles.who}>
-                <View style={boardStyles.nameRow}>
-                  <Txt variant="body" numberOfLines={1} style={boardStyles.name}>{item.username ?? shortAddress(item.walletAddress)}</Txt>
-                  {item.seeker && <SeekerBadge />}
+          renderItem={({ item, index }) => (
+            <EntranceRow index={index}>
+              <Glass radius={RADIUS.row} style={[boardStyles.row, item.walletAddress === mine && boardStyles.mine]}>
+                <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
+                <OctopiAvatar skin={item.skin} size={OCTOPI_SIZE} />
+                <View style={boardStyles.who}>
+                  <View style={boardStyles.nameRow}>
+                    <Txt variant="body" numberOfLines={1} style={boardStyles.name}>{item.username ?? shortAddress(item.walletAddress)}</Txt>
+                    {item.seeker && <SeekerBadge />}
+                  </View>
+                  <Txt variant="monoSmall" tone="tertiary">{dayLine(item.days)}</Txt>
                 </View>
-                <Txt variant="monoSmall" tone="tertiary">{dayLine(item.days)}</Txt>
-              </View>
-              <View style={styles.totals}>
-                <Txt variant="mono">{formatInt(item.total)}</Txt>
-                <Txt variant="monoSmall" tone="tertiary">{`≈ ${item.forecastSkr.toFixed(1)} SKR`}</Txt>
-              </View>
-            </Glass>
+                <View style={styles.totals}>
+                  <Txt variant="mono">{formatInt(item.total)}</Txt>
+                  <Txt variant="monoSmall" tone="tertiary">{`≈ ${item.forecastSkr.toFixed(1)} SKR`}</Txt>
+                </View>
+              </Glass>
+            </EntranceRow>
           )}
         />
       )}

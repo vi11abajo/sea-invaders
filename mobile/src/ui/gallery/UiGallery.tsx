@@ -7,6 +7,8 @@ import { demoHomeModel, type HomeModel } from '../../home/model';
 import { ArtSlot } from '../ArtSlot';
 import { Backdrop } from '../Backdrop';
 import { BlurText } from '../BlurText';
+import { BounceCard } from '../BounceCard';
+import { EntranceRow } from '../EntranceRow';
 import { Glass } from '../Glass';
 import { GradientFill } from '../GradientFill';
 import { GradientText } from '../GradientText';
@@ -31,6 +33,7 @@ export function UiGallery() {
   const [squish, setSquish] = useState(true);
   const [segment, setSegment] = useState<'today' | 'week'>('today');
   const [blurKey, setBlurKey] = useState(0);
+  const [entranceKey, setEntranceKey] = useState(0);
 
   // System back closes the Home demo; otherwise it does what it normally does.
   useEffect(() => {
@@ -138,6 +141,24 @@ export function UiGallery() {
           </StarBorder>
         </Section>
 
+        <Section title="Animated List / Bounce Cards">
+          <View key={entranceKey} style={styles.entranceDemo}>
+            {['Reef 1', 'Reef 2', 'Reef 3'].map((label, i) => (
+              <EntranceRow key={label} index={i} style={styles.entranceRow}>
+                <Txt variant="body">{label}</Txt>
+              </EntranceRow>
+            ))}
+            <View style={styles.row}>
+              {['A', 'B', 'C'].map((label, i) => (
+                <BounceCard key={label} index={i} style={styles.bounceCard}>
+                  <Txt variant="body">{label}</Txt>
+                </BounceCard>
+              ))}
+            </View>
+          </View>
+          <PillButton label="Replay" kind="secondary" height={36} onPress={() => setEntranceKey((k) => k + 1)} />
+        </Section>
+
         <Section title="Surfaces">
           <Glass style={styles.card}>
             <Txt variant="label" tone="tertiary">Daily run · seed #214</Txt>
@@ -202,6 +223,14 @@ const styles = StyleSheet.create({
   swatch: { width: 40, height: 40, borderRadius: 8 },
   starBorderDemo: {
     alignSelf: 'flex-start', borderRadius: RADIUS.pill, paddingHorizontal: 14, paddingVertical: 8,
+    backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder,
+  },
+  entranceDemo: { gap: 8 },
+  entranceRow: {
+    padding: 12, borderRadius: RADIUS.row, backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder,
+  },
+  bounceCard: {
+    flex: 1, alignItems: 'center', padding: 12, borderRadius: RADIUS.tile,
     backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder,
   },
 });

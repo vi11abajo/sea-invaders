@@ -8,6 +8,7 @@ import { requestFaucet } from '../api/daily';
 import { buyItem, confirmPurchase, getShop, type ShopInfo, type ShopItem } from '../api/shop';
 import { onBackPress } from '../audio/onBackPress';
 import { Backdrop } from '../ui/Backdrop';
+import { BounceCard } from '../ui/BounceCard';
 import { PillButton } from '../ui/PillButton';
 import { SkrAmount, SkrIcon } from '../ui/SkrIcon';
 import { Toast } from '../ui/Toast';
@@ -290,17 +291,19 @@ function Catalogue({ shop, disabled, onBuy }: CatalogueProps) {
       {variants.length > 0 && (
         <>
           <Txt variant="secondary" tone="secondary" style={[styles.section, styles.sectionFirst]}>CAMPAIGN OCTOPI</Txt>
-          {variants.map((item) => (
-            <View key={item.id} style={styles.row}>
-              <ItemArt itemId={item.id} size={VARIANT_THUMB} />
-              <View style={styles.rowText}>
-                <Txt style={styles.rowName} numberOfLines={1}>{item.name}</Txt>
-                {PERKS[item.id] !== undefined && (
-                  <Txt variant="secondary" tone="secondary" numberOfLines={1}>{PERKS[item.id]}</Txt>
-                )}
+          {variants.map((item, i) => (
+            <BounceCard key={item.id} index={i}>
+              <View style={styles.row}>
+                <ItemArt itemId={item.id} size={VARIANT_THUMB} />
+                <View style={styles.rowText}>
+                  <Txt style={styles.rowName} numberOfLines={1}>{item.name}</Txt>
+                  {PERKS[item.id] !== undefined && (
+                    <Txt variant="secondary" tone="secondary" numberOfLines={1}>{PERKS[item.id]}</Txt>
+                  )}
+                </View>
+                <PricePill item={item} {...priceLabel(item)} height={ROW_PILL} disabled={disabled} onBuy={onBuy} />
               </View>
-              <PricePill item={item} {...priceLabel(item)} height={ROW_PILL} disabled={disabled} onBuy={onBuy} />
-            </View>
+            </BounceCard>
           ))}
         </>
       )}
@@ -310,11 +313,13 @@ function Catalogue({ shop, disabled, onBuy }: CatalogueProps) {
           {skinRows.map((pair) => (
             <View key={pair[0].id} style={styles.gridRow}>
               {pair.map((item) => (
-                <View key={item.id} style={styles.card}>
-                  <ItemArt itemId={item.id} size={SKIN_SWATCH} />
-                  <Txt style={styles.cardName} numberOfLines={1}>{item.name}</Txt>
-                  <PricePill item={item} {...priceLabel(item)} height={CARD_PILL} stretch disabled={disabled} onBuy={onBuy} />
-                </View>
+                <BounceCard key={item.id} index={variants.length + skins.indexOf(item)} style={styles.cardWrap}>
+                  <View style={styles.card}>
+                    <ItemArt itemId={item.id} size={SKIN_SWATCH} />
+                    <Txt style={styles.cardName} numberOfLines={1}>{item.name}</Txt>
+                    <PricePill item={item} {...priceLabel(item)} height={CARD_PILL} stretch disabled={disabled} onBuy={onBuy} />
+                  </View>
+                </BounceCard>
               ))}
               {pair.length === 1 && <View style={styles.cardSpacer} />}
             </View>
@@ -397,6 +402,7 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 0 },
   rowName: { fontFamily: FONTS.medium, fontSize: 15, color: COLORS.text },
   gridRow: { flexDirection: 'row', gap: 10 },
+  cardWrap: { flex: 1 },
   card: {
     flex: 1, alignItems: 'center', gap: 10, padding: 14, borderRadius: RADIUS.row,
     backgroundColor: SHOP_GLASS, borderWidth: 1, borderColor: COLORS.glassBorder,

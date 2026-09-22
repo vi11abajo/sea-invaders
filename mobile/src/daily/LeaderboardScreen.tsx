@@ -5,6 +5,7 @@ import { getLeaderboard, getWeek, type LeaderboardEntry, type WeekBoard as WeekB
 import { loadSession } from '../api/session';
 import { OctopiAvatar } from '../game/OctopiArt';
 import { Backdrop } from '../ui/Backdrop';
+import { EntranceRow } from '../ui/EntranceRow';
 import { Glass } from '../ui/Glass';
 import { PillButton } from '../ui/PillButton';
 import { RubberSegment } from '../ui/RubberSegment';
@@ -86,19 +87,21 @@ export function LeaderboardScreen({ onBack }: { onBack: () => void }) {
             data={entries}
             keyExtractor={(e) => String(e.rank)}
             contentContainerStyle={boardStyles.list}
-            renderItem={({ item }) => (
-              <Glass radius={RADIUS.row} style={[boardStyles.row, item.walletAddress === mine && boardStyles.mine]}>
-                <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
-                <OctopiAvatar skin={item.skin} size={OCTOPI_SIZE} />
-                <View style={boardStyles.who}>
-                  <View style={boardStyles.nameRow}>
-                    <Txt variant="body" numberOfLines={1} style={boardStyles.name}>{item.username}</Txt>
-                    {item.seeker && <SeekerBadge />}
+            renderItem={({ item, index }) => (
+              <EntranceRow index={index}>
+                <Glass radius={RADIUS.row} style={[boardStyles.row, item.walletAddress === mine && boardStyles.mine]}>
+                  <Txt variant="mono" tone="secondary" style={boardStyles.rank}>{String(item.rank)}</Txt>
+                  <OctopiAvatar skin={item.skin} size={OCTOPI_SIZE} />
+                  <View style={boardStyles.who}>
+                    <View style={boardStyles.nameRow}>
+                      <Txt variant="body" numberOfLines={1} style={boardStyles.name}>{item.username}</Txt>
+                      {item.seeker && <SeekerBadge />}
+                    </View>
+                    <Txt variant="monoSmall" tone="tertiary">{shortAddress(item.walletAddress)}</Txt>
                   </View>
-                  <Txt variant="monoSmall" tone="tertiary">{shortAddress(item.walletAddress)}</Txt>
-                </View>
-                <Txt variant="mono">{formatInt(item.score)}</Txt>
-              </Glass>
+                  <Txt variant="mono">{formatInt(item.score)}</Txt>
+                </Glass>
+              </EntranceRow>
             )}
           />
         )
