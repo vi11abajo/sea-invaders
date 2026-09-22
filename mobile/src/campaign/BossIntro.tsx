@@ -13,10 +13,9 @@ const SPRITE_SIZE = 160;
 
 interface BossIntroProps {
   // Widened from `1 | 2 | 3 | 4 | 5` to `BossKind` so `level.boss` (now 1..10) still type-checks
-  // here (`LevelSpec.boss` widened for reefs 6-10, core task 11). `sprites.bosses`/`BOSS_NAMES`
-  // below still only cover kinds 1-5 — reef 6-10 art and names are Task 13's, not reached in the
-  // app today since `VISIBLE_REEFS` stays 5 (ruling R2) — so a kind 6-10 here falls back to
-  // `ArtSlot`/`undefined` exactly as an out-of-range kind always has.
+  // here (`LevelSpec.boss` widened for reefs 6-10, core task 11). `sprites.bosses` (task 12) and
+  // `BOSS_NAMES` (task 13) both now cover all ten kinds, so a boss of reefs 6-10 shows its own
+  // sprite and name exactly as reefs 1-5 always have.
   kind: BossKind;
   onDone: () => void;
 }

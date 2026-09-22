@@ -36,7 +36,7 @@ export const REEF_KEY_ART_TEXT_SHADOW: TextStyle | undefined = REEF_KEY_ART_BACK
   ? { textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }
   : undefined;
 
-/** The boss colour of reef 1..5 - boss kind = reef number (the map's `sprites.bosses[reef - 1]`, the HUD's `BOSS_COLOR[kind - 1]`). */
+/** The boss colour of reef 1..10 - boss kind = reef number (the map's `sprites.bosses[reef - 1]`, the HUD's `BOSS_COLOR[kind - 1]`). */
 export function reefKeyArtTint(reef: number): string {
   return BOSS_COLOR[reef - 1] ?? BOSS_COLOR[0]!;
 }

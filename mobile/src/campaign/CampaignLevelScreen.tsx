@@ -1,6 +1,6 @@
 import {
-  applyLevelResult, bonusLivesFor, currentLevelId, formatInt, levelById, levelSeed, LEVELS_PER_REEF, REPLAY_MODE,
-  type CampaignProgress, type OctopiVariant, type RunConfig,
+  applyLevelResult, bonusLivesFor, currentLevelId, formatInt, levelById, levelSeed, LEVELS_PER_REEF,
+  REPLAY_MODE, type CampaignProgress, type OctopiVariant, type RunConfig,
 } from '@sea-invaders/core';
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -9,7 +9,7 @@ import { playSfx } from '../audio/sfx';
 import { GameScreen, type DownedRun, type RunOutcome } from '../game/GameScreen';
 import { VARIANT_OCTOPI } from '../loadout/items';
 import type { LoadoutApi } from '../loadout/useLoadout';
-import { levelState, VISIBLE_LEVELS } from './reefs';
+import { levelState } from './reefs';
 import { ReefBackdrop } from './ReefBackdrop';
 import { ResultView } from '../game/ResultView';
 import { TideSheet } from '../tide/TideSheet';
@@ -43,15 +43,6 @@ const REVIVE_ENABLED = false;
 
 /** Tide revives one level attempt allows (design §3.6, a client rule); the next loss ends the level. */
 const REVIVES_PER_ATTEMPT = 3;
-
-/**
- * The outcome the result screen shows. The core's campaign runs past the reefs this app draws, so
- * clearing the last visible level moves the pointer on to a reef with no map and no level to open:
- * to the player that is the end of the campaign until a later task opens the rest.
- */
-function visibleOutcome(kind: Outcome, next: CampaignProgress): Outcome {
-  return kind === 'cleared' && currentLevelId(next) > VISIBLE_LEVELS ? 'campaign_complete' : kind;
-}
 
 /** A loss the Tide sheet is offering a revive for. */
 interface Down {
@@ -149,15 +140,14 @@ export function CampaignLevelScreen({
     const livesLeft = reefLivesAfter(outcome.livesLeft, phase.kind === 'intro' ? null : phase.run, revivesUsed.current > 0);
     finishLevel({ levelId, practice, cleared: outcome.cleared, livesLeft, score: outcome.score })
       .then(({ outcome: kind, next }) => {
-        const shown = visibleOutcome(kind, next);
         // `cleared` is the only outcome that opens something new on the map: the next level, or (on
         // a reef's last level) the next reef itself. `campaign_complete` finishes the run with
         // nothing left to unlock, so it does not get this chime.
-        if (shown === 'cleared') {
+        if (kind === 'cleared') {
           playSfx('reef_unlocked');
           hapticUnlocked();
         }
-        setResult({ outcome, kind: shown, next });
+        setResult({ outcome, kind, next });
       })
       .catch(() => setResult({ outcome, kind: 'error' }));
   };

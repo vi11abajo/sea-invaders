@@ -1,14 +1,14 @@
-import type { CampaignProgress } from '@sea-invaders/core';
+import { LEVEL_COUNT, type CampaignProgress } from '@sea-invaders/core';
 import { useCallback, useEffect, useState } from 'react';
 import { getToday, type TodayInfo } from '../api/daily';
 import type { Session } from '../api/session';
 import type { CampaignInfo, HomeModel, RankedInfo } from './model';
 
-const CAMPAIGN_TOTAL = 30;
-
+/** The campaign card's `N/total` (ruling R54): total is the core's own `LEVEL_COUNT`, never a
+ * hard-coded number, so it grows with the campaign. */
 function campaignFrom(progress: CampaignProgress | null): CampaignInfo | null {
   if (progress === null) return null;
-  return { level: progress.cleared.filter(Boolean).length, total: CAMPAIGN_TOTAL };
+  return { level: progress.cleared.filter(Boolean).length, total: LEVEL_COUNT };
 }
 
 /** The on-chain ticket price (spec §4); shown on the card even before tickets exist. */

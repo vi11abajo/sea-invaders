@@ -13,7 +13,7 @@ import {
   REEF_KEY_ART, REEF_KEY_ART_BACKGROUND, REEF_KEY_ART_BLEND, REEF_KEY_ART_BOSS_LOOM, REEF_KEY_ART_DIM, REEF_KEY_ART_SCRIM,
   reefKeyArtTint,
 } from './reefBackground';
-import { REEF_ACCENT, REEF_WORLD } from './reefs';
+import { REEF_ACCENT, reefWorldFor } from './reefs';
 
 /** Flora bar sizes and sway periods, `CampaignMap.dc.html`'s `FLORA` table. Bars 0, 3, 6 use the reef's `floraAccent`. */
 const FLORA = [
@@ -46,7 +46,7 @@ const LOOM_SATURATE_MATRIX = [
 export type ReefBackdropVariant = 'map' | 'play';
 
 interface ReefBackdropProps {
-  /** Reef 1..5. */
+  /** Reef 1..10. */
   reef: number;
   /**
    * 'map' is the campaign map's world as designed; 'play' sits under a run: dimmer glow, rays at
@@ -97,7 +97,7 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
   reef: number; variant: ReefBackdropVariant; bossSprite: SkImage | null; floorBottom: number;
 }) {
   const { width, height } = useWindowDimensions();
-  const world = REEF_WORLD[reef - 1]!;
+  const world = reefWorldFor(reef);
 
   const rayA = useSharedValue<number>(MOTION.raysMin);
   const rayB = useSharedValue<number>(MOTION.raysMax);
@@ -181,7 +181,7 @@ function Ray({ x, width, h, skew, color, opacity }: {
 }
 
 function Flora({ reef, floorBottom }: { reef: number; floorBottom: number }) {
-  const world = REEF_WORLD[reef - 1]!;
+  const world = reefWorldFor(reef);
   const accent = REEF_ACCENT[reef - 1]!;
   return (
     <View style={[styles.flora, { bottom: floorBottom }]} pointerEvents="none">

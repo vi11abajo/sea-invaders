@@ -15,7 +15,7 @@ import { COLORS, RADIUS } from '../ui/tokens';
 import { BOSS_NAMES } from '../game/bossNames';
 import { ConnectSheet } from '../wallet/WalletSheets';
 import { ReefBackdrop } from './ReefBackdrop';
-import { REEF_NAMES } from './reefs';
+import { FIRST_VETERAN_REEF, REEF_NAMES, reefNewEnemyCopy } from './reefs';
 import { VariantPicker } from './VariantPicker';
 
 const FORMATION_NAMES: Record<Formation, string> = {
@@ -24,6 +24,23 @@ const FORMATION_NAMES: Record<Formation, string> = {
   trident: 'Trident', anchor: 'Anchor', turtle: 'Turtle', crown: 'Crown', starfish: 'Starfish',
   whirlpool: 'Whirlpool', claws: 'Claws', manta: 'Manta', spearhead: 'Spearhead',
 };
+
+/**
+ * The mark a living formation's name carries on the Level start screen (ruling R55): `whirlpool`
+ * rotates, `claws` splits, `manta` reforms into the `spearhead` template it falls back to (all three,
+ * `sim/living.ts`). Every other formation marches as a plain block and gets none.
+ */
+const LIVING_MARK: Partial<Record<Formation, string>> = {
+  whirlpool: '⟳',
+  claws: '⇄',
+  manta: '▸ Spearhead',
+};
+
+/** A formation's display name with its living mark after it, exactly as ruling R55 spells them. */
+function formationLabel(f: Formation): string {
+  const mark = LIVING_MARK[f];
+  return mark === undefined ? FORMATION_NAMES[f] : `${FORMATION_NAMES[f]} ${mark}`;
+}
 
 const CRAB_NAMES: Record<CrabType, string> = {
   normal: 'Normal', armored: 'Armored', swift: 'Swift', heavy: 'Heavy', elder: 'Elder',
@@ -176,7 +193,7 @@ export function LevelIntro({
           </>
         ) : (
           <>
-            <Txt variant="headline">{level.formations.map((f) => FORMATION_NAMES[f]).join(' → ')}</Txt>
+            <Txt variant="headline">{level.formations.map(formationLabel).join(' → ')}</Txt>
             <Txt variant="body" tone="secondary">{`${level.waves} wave${level.waves === 1 ? '' : 's'}`}</Txt>
             <View style={styles.chips}>
               {[...new Set(level.kinds)].map((kind) => (
@@ -186,6 +203,11 @@ export function LevelIntro({
               ))}
             </View>
           </>
+        )}
+        {/* Reefs 6-10 only (ruling R55): names the reef's veteran the same way the map's level sheet
+            already names it for reefs 1-5 (`reefNewEnemyCopy`, `REEF_NEW_KIND`) — no new copy style. */}
+        {level.reef >= FIRST_VETERAN_REEF && (
+          <Txt variant="body" tone="secondary">{`New enemy this reef: ${reefNewEnemyCopy(level.reef)}`}</Txt>
         )}
         <Txt variant="body" tone="secondary">{`Lives to play with: ${lives}`}</Txt>
         <VariantPicker selected={loadout.loadout.activeVariant} owned={loadout.loadout.owned} onPick={pick} onLocked={locked} />

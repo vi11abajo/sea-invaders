@@ -16,7 +16,7 @@ interface PillButtonProps {
   disabled?: boolean;
   /**
    * Sizes the label to fill the pill's inner width on one line: a short label grows and a long one
-   * shrinks, so it always takes the same room (e.g. `Campaign · 9/30` and `Campaign · 100/100`).
+   * shrinks, so it always takes the same room (e.g. `Campaign · 9/60` and `Campaign · 60/60`).
    */
   fitLabel?: boolean;
   /** An SKR amount shown after the label with the token mark (`Buy ticket — [S] 10`; a bare `[S] 25` when the label is empty). */

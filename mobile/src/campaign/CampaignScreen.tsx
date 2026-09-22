@@ -2,13 +2,13 @@ import {
   Blur, Canvas, Circle, ColorMatrix, DashPathEffect, Group, Image, Paint, Path, Skia,
   type SkImage,
 } from '@shopify/react-native-skia';
-import { useEffect, useMemo, useState } from 'react';
-import { BackHandler, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { BackHandler, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   Easing, interpolate, useAnimatedStyle, useSharedValue, withRepeat, withTiming,
 } from 'react-native-reanimated';
 import {
-  currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEF_LIVES, TYPE_COLOUR,
+  currentLevelId, formatInt, levelById, LEVELS_PER_REEF, livesForEntry, REEF_LIVES, REEFS, TYPE_COLOUR,
   type CampaignProgress,
 } from '@sea-invaders/core';
 import { hapticLight, hapticTap } from '../audio/haptics';
@@ -22,15 +22,11 @@ import { Sheet } from '../ui/Sheet';
 import { Txt } from '../ui/Txt';
 import { COLORS, MOTION, RADIUS } from '../ui/tokens';
 import {
-  BOSS_ABILITY, REEF_ACCENT, REEF_LEGENDS, REEF_NAMES, REEF_NEW_KIND, VISIBLE_REEFS, levelState,
+  BOSS_ABILITY, REEF_ACCENT, REEF_LEGENDS, REEF_NAMES, REEF_NEW_KIND, levelState,
   reefNewEnemyCopy, reefProgress, type LevelState,
 } from './reefs';
 import { ReefBackdrop } from './ReefBackdrop';
 import { REEF_KEY_ART_BACKGROUND, REEF_KEY_ART_PATH, REEF_KEY_ART_TEXT_SHADOW } from './reefBackground';
-
-// The header reads "REEF n OF 6": a literal 6, not `VISIBLE_REEFS` (5) — it counts the mock's
-// six-reef table (reef 6 is the unbuilt "coming" placeholder in the rail), spec §"Campaign map".
-const REEFS_SHOWN = 6;
 
 /** The design reference box the node centres below are laid out in; both axes scale to the real map box. */
 const DESIGN_BOX = { width: 368, height: 604 };
@@ -74,9 +70,9 @@ interface CampaignScreenProps {
 /** The campaign map: one world per reef, a dotted level path up to the boss, and a reef rail. */
 export function CampaignScreen({ progress, initialReef, onPlay, onBack }: CampaignScreenProps) {
   const sprites = useSprites();
-  // Clamped: a campaign finished through reef 5 leaves the pointer on reef 6, which the core has
-  // but this map does not draw yet, and every reef-indexed table here would read past its end.
-  const [reef, setReef] = useState(initialReef ?? Math.min(progress.reef, VISIBLE_REEFS));
+  // Clamped defensively: `progress.reef` is always 1..REEFS (core-enforced), but a stray value
+  // would otherwise read every reef-indexed table below past its end.
+  const [reef, setReef] = useState(initialReef ?? Math.min(progress.reef, REEFS));
 
   const shown = useSharedValue(0);
   useEffect(() => {
@@ -173,7 +169,7 @@ function Header({ reef, progress, onBack }: { reef: number; progress: CampaignPr
       </Pressable>
       <View style={styles.headerText}>
         <Txt variant="monoSmall" tone="secondary" style={[styles.kicker, REEF_KEY_ART_TEXT_SHADOW]} numberOfLines={1}>
-          {`REEF ${reef} OF ${REEFS_SHOWN} · ${rp.cleared} of ${LEVELS_PER_REEF} cleared`}
+          {`REEF ${reef} OF ${REEFS} · ${rp.cleared} of ${LEVELS_PER_REEF} cleared`}
         </Txt>
         <Txt variant="headline" numberOfLines={1} style={REEF_KEY_ART_TEXT_SHADOW}>
           {REEF_NAMES[reef - 1]}
@@ -402,7 +398,7 @@ function BottomPanel({ reef, progress, sprites, onPlay, onOpenLevelSheet, onSele
     ctaLabel = 'Play';
     ctaOnPress = () => onPlay(id, false);
   } else if (rp.reefCleared) {
-    kicker = reef === VISIBLE_REEFS ? 'Campaign complete' : 'Reef cleared';
+    kicker = reef === REEFS ? 'Campaign complete' : 'Reef cleared';
     title = 'Replay any level, unranked';
     ctaLabel = 'Replay';
     ctaOnPress = () => onOpenLevelSheet(first);
@@ -431,13 +427,41 @@ function BottomPanel({ reef, progress, sprites, onPlay, onOpenLevelSheet, onSele
   );
 }
 
+/** Fixed chip width/gap the rail scrolls over (ruling R53): ten chips no longer fit one screen width. */
+const RAIL_CHIP_WIDTH = 64;
+const RAIL_GAP = 8;
+
+/**
+ * The reef rail: a horizontal scroll over all `REEFS` chips (ruling R53 — the "?" placeholder chip
+ * and "more reefs coming" copy are gone now that reefs 6-10 are real). The current reef's chip
+ * scrolls into view, centred where there's room, on mount and every time the pointer moves to a
+ * different reef.
+ */
 function ReefRail({ reef, progress, sprites, onSelect }: {
   reef: number; progress: CampaignProgress; sprites: Sprites | null; onSelect: (reef: number) => void;
 }) {
+  const scrollRef = useRef<ScrollView>(null);
+  const [viewportWidth, setViewportWidth] = useState(0);
+
+  useEffect(() => {
+    if (viewportWidth === 0) return;
+    const stride = RAIL_CHIP_WIDTH + RAIL_GAP;
+    const centre = (reef - 1) * stride + RAIL_CHIP_WIDTH / 2;
+    const contentWidth = REEFS * stride - RAIL_GAP;
+    const maxScroll = Math.max(0, contentWidth - viewportWidth);
+    const x = Math.max(0, Math.min(maxScroll, centre - viewportWidth / 2));
+    scrollRef.current?.scrollTo({ x, animated: true });
+  }, [reef, viewportWidth]);
+
   return (
-    <View style={styles.rail}>
-      {Array.from({ length: REEFS_SHOWN }, (_, i) => {
-        if (i === VISIBLE_REEFS) return <UnknownReefChip key="unknown" />;
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      onLayout={(e) => setViewportWidth(e.nativeEvent.layout.width)}
+      contentContainerStyle={styles.railContent}
+    >
+      {Array.from({ length: REEFS }, (_, i) => {
         const n = i + 1;
         const active = n === reef;
         const reachable = !reefProgress(progress, n).locked;
@@ -474,29 +498,7 @@ function ReefRail({ reef, progress, sprites, onSelect }: {
           </Pressable>
         );
       })}
-    </View>
-  );
-}
-
-/** Rail chip 6: no sixth reef exists in the game yet — a stylised "?" that does nothing when tapped. */
-function UnknownReefChip() {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Reef 6, coming soon"
-      accessibilityState={{ disabled: true }}
-      disabled
-      style={[styles.railChip, styles.railChipInactive]}
-    >
-      <View style={styles.unknownGlyphBox}>
-        <Txt variant="button" style={styles.unknownGlyph}>
-          ?
-        </Txt>
-      </View>
-      <Txt variant="monoSmall" tone="secondary">
-        6
-      </Txt>
-    </Pressable>
+    </ScrollView>
   );
 }
 
@@ -754,20 +756,15 @@ const styles = StyleSheet.create({
   },
   ctaRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   ctaText: { flex: 1, minWidth: 0 },
-  rail: { flexDirection: 'row', gap: 8 },
+  railContent: { flexDirection: 'row', gap: RAIL_GAP },
   railChip: {
-    flex: 1, height: 64, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+    width: RAIL_CHIP_WIDTH, height: 64, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
     gap: 2, overflow: 'hidden',
   },
   railChipInactive: { borderColor: 'rgba(236,228,253,0.12)', backgroundColor: 'rgba(236,228,253,0.05)' },
   railChipDim: { opacity: 0.55 },
   railIcon: { width: 32, height: 32 },
   railUnderline: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3 },
-  unknownGlyphBox: {
-    width: 30, height: 30, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(40,224,185,0.4)',
-    backgroundColor: 'rgba(40,224,185,0.1)', alignItems: 'center', justifyContent: 'center',
-  },
-  unknownGlyph: { color: '#28E0B9', fontSize: 18 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   sheetTile: {
     width: 72, height: 72, borderRadius: 18, backgroundColor: 'rgba(236,228,253,0.08)', borderWidth: 1,
