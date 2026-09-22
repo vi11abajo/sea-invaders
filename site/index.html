@@ -23,7 +23,7 @@
   --text: #fff; --text-2: rgba(255,255,255,.64); --text-3: rgba(255,255,255,.48);
   --success: #19FB9B; --info: #28E0B9; --warn: #F48252;
   --grad: linear-gradient(90deg,#9945FF 8%,#8752F3 30%,#5497D5 50%,#43B4CA 60%,#28E0B9 72%,#19FB9B 97%);
-  --r1: #5497D5; --r2: #43B4CA; --r3: #28E0B9; --r4: #8752F3; --r5: #9945FF;
+  --r1: #5497D5; --r2: #43B4CA; --r3: #28E0B9; --r4: #8752F3; --r5: #9945FF; --r6: #55E9AB; --r7: #7FD4FF; --r8: #FFC526; --r9: #F4604F; --r10: #B57BFF;
   --sans: "Instrument Sans", "Manrope", "Segoe UI", sans-serif;
   --mono: "Geist Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   --max: 1120px; --gutter: clamp(16px, 4vw, 40px);
@@ -164,6 +164,7 @@ section { padding-block: clamp(64px, 9vw, 120px); }
 .reef::before { content: ""; position: absolute; inset: auto -30% -50% -30%; height: 70%; filter: blur(40px); opacity: .45; background: var(--c); }
 .reef img { position: relative; width: 78%; margin: 0 auto 12px; animation: sway 2.8s ease-in-out infinite alternate; filter: drop-shadow(0 12px 22px rgba(0,0,0,.6)); }
 .reef:nth-child(2) img { animation-delay: -.7s; } .reef:nth-child(3) img { animation-delay: -1.3s; } .reef:nth-child(4) img { animation-delay: -1.9s; } .reef:nth-child(5) img { animation-delay: -2.5s; }
+.reef:nth-child(7) img { animation-delay: -.5s; } .reef:nth-child(8) img { animation-delay: -1.1s; } .reef:nth-child(9) img { animation-delay: -1.7s; } .reef:nth-child(10) img { animation-delay: -2.3s; }
 .reef .k { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--c); }
 .reef h3 { position: relative; font-size: 18px; margin-top: 4px; }
 .reef p { position: relative; font-size: 13px; color: var(--text-2); margin-top: 4px; }
@@ -188,6 +189,7 @@ section { padding-block: clamp(64px, 9vw, 120px); }
 .kind-stats b { color: var(--text); font-weight: 500; }
 .pips { display: inline-flex; align-items: center; gap: 4px; }
 .pips i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.14); }
+.pips { max-width: 64px; flex-wrap: wrap; }
 .pips i.on { background: var(--c); box-shadow: 0 0 8px var(--c); }
 
 /* solana */
@@ -347,7 +349,7 @@ html.tc-on, html.tc-on * { cursor: none !important; }
     <h1 class="rv"><span>Sea</span><span class="grad">Invaders</span></h1>
     <p class="lead rv">An arcade shooter under the sea, built for the Solana Seeker.</p>
     <div class="cta rv">
-      <a class="pill primary" href="/sea-invaders.apk" download>Download APK <small>ANDROID · 72 MB</small></a>
+      <a class="pill primary" href="/sea-invaders.apk" download>Download APK <small>ANDROID · 75 MB</small></a>
       <a class="pill secondary" href="#loop">How it plays</a>
     </div>
     <p class="meta rv"><b>Octopi</b> holds the reef. The crabs come in waves. <b>One seed a day</b>, everyone plays the same board.</p>
@@ -398,8 +400,8 @@ html.tc-on, html.tc-on * { cursor: none !important; }
 <section id="reefs" class="wrap">
   <div class="head rv">
     <span class="label">03 <b>—</b> The campaign</span>
-    <h2>Five reefs, five sea lords</h2>
-    <p>Thirty levels. Every wave is a different silhouette of crabs, every reef brings a new kind of crab, and every reef ends with a boss.</p>
+    <h2>Ten reefs, ten sea lords</h2>
+    <p>Sixty levels. Every wave is a different silhouette of crabs, every reef brings a new kind of crab, and every reef ends with a boss. From the sixth reef the veterans arrive with skills of their own, and some waves are alive: they rotate, split and reform as you thin them.</p>
   </div>
   <div class="reefs">
     <article class="reef rv" style="--c: var(--r1)"><img src="assets/boss-1.png" alt="Emerald Warlord"><div class="k">Reef 1 · Kelp Shallows</div><h3>Emerald Warlord</h3><p>The invasion began in the kelp.</p><span class="a">Regen</span></article>
@@ -407,15 +409,25 @@ html.tc-on, html.tc-on * { cursor: none !important; }
     <article class="reef rv" style="--c: var(--r3)"><img src="assets/boss-3.png" alt="Solar Kraken"><div class="k">Reef 3 · Sunlit Trench</div><h3>Solar Kraken</h3><p>Sunlight turned into a rain of fire.</p><span class="a">Sunfire</span></article>
     <article class="reef rv" style="--c: var(--r4)"><img src="assets/boss-4.png" alt="Crimson Behemoth"><div class="k">Reef 4 · Crimson Deep</div><h3>Crimson Behemoth</h3><p>Red water, no sun. Shots hit twice as hard.</p><span class="a">Rage</span></article>
     <article class="reef rv" style="--c: var(--r5)"><img src="assets/boss-5.png" alt="Void Sovereign"><div class="k">Reef 5 · The Void</div><h3>Void Sovereign</h3><p>Beyond the last light. Win here, and the ocean is free.</p><span class="a">Freeze</span></article>
+    <article class="reef rv" style="--c: var(--r6)"><img src="assets/boss-6.png" alt="Verdant Templar"><div class="k">Reef 6 · Sunken Bastion</div><h3>Verdant Templar</h3><p>The ocean was free for one tide. Then the old guard rose from the drowned fort, shields first.</p><span class="a">Bulwark</span></article>
+    <article class="reef rv" style="--c: var(--r7)"><img src="assets/boss-7.png" alt="Frost Castellan"><div class="k">Reef 7 · Glacier Reach</div><h3>Frost Castellan</h3><p>Cold water, colder orders. The Castellan grows his walls out of the sea itself.</p><span class="a">Crystals</span></article>
+    <article class="reef rv" style="--c: var(--r8)"><img src="assets/boss-8.png" alt="Gold Corsair"><div class="k">Reef 8 · Corsair Cove</div><h3>Gold Corsair</h3><p>Gold buys crews, and the Corsair has plenty of both. Sink the crew, keep the loot.</p><span class="a">Boarding</span></article>
+    <article class="reef rv" style="--c: var(--r9)"><img src="assets/boss-9.png" alt="Storm Tyrant"><div class="k">Reef 9 · Stormbreak Shelf</div><h3>Storm Tyrant</h3><p>The Tyrant does not aim. He chooses where you may stand.</p><span class="a">Stormlanes</span></article>
+    <article class="reef rv" style="--c: var(--r10)"><img src="assets/boss-10.png" alt="Abyssal Huntsman"><div class="k">Reef 10 · The Hollow Throne</div><h3>Abyssal Huntsman</h3><p>The last of them studied you the whole way down. Every trick you own, he owns too.</p><span class="a">Mirror</span></article>
   </div>
   <div class="bestiary rv">
-    <div class="bestiary-head"><span class="label">The crabs</span><p>Colour is kind. Every reef brings a new one into the waves.</p></div>
+    <div class="bestiary-head"><span class="label">The crabs</span><p>Colour is kind. Every reef brings a new one into the waves; from reef 6 the veterans wear coral on their shells.</p></div>
     <div class="kinds">
       <article class="kind" style="--c:#55E9AB"><img src="assets/crab-green.png" alt="Normal crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 1</span><h3>Normal</h3><p>The rank and file of every wave.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="1 hit to beat"><i class="on"></i><i></i><i></i></span><span><b>10</b> pts</span></div></article>
       <article class="kind" style="--c:#5497D5"><img src="assets/crab-blue.png" alt="Armored crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 2</span><h3>Armored</h3><p>A shell that takes two hits.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="2 hits to beat"><i class="on"></i><i class="on"></i><i></i></span><span><b>25</b> pts</span></div></article>
       <article class="kind" style="--c:#FFC526"><img src="assets/crab-yellow.png" alt="Swift crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 3</span><h3>Swift</h3><p>Fires twice as often as the rest.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="1 hit to beat"><i class="on"></i><i></i><i></i></span><span><b>15</b> pts</span></div></article>
       <article class="kind" style="--c:#F4604F"><img src="assets/crab-red.png" alt="Heavy crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 4</span><h3>Heavy</h3><p>One shot of its costs two lives.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="1 hit to beat"><i class="on"></i><i></i><i></i></span><span><b>20</b> pts</span></div></article>
       <article class="kind" style="--c:#B57BFF"><img src="assets/crab-violet.png" alt="Elder crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 5</span><h3>Elder</h3><p>Three hits, and a quick trigger.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="3 hits to beat"><i class="on"></i><i class="on"></i><i class="on"></i></span><span><b>40</b> pts</span></div></article>
+      <article class="kind" style="--c:#55E9AB"><img src="assets/crab-vet-green.png" alt="Warden crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 6</span><h3>Warden</h3><p>A rune shield eats the first hit and grows back.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="2 hits to beat"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span><b>35</b> pts</span></div></article>
+      <article class="kind" style="--c:#7FD4FF"><img src="assets/crab-vet-blue.png" alt="Herald crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 7</span><h3>Herald</h3><p>Its aura makes the crabs around it fire twice as often.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="3 hits to beat"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><span><b>50</b> pts</span></div></article>
+      <article class="kind" style="--c:#FFC526"><img src="assets/crab-vet-yellow.png" alt="Bubbler crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 8</span><h3>Bubbler</h3><p>Slow bubbles that swallow your shots.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="2 hits to beat"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span><b>45</b> pts</span></div></article>
+      <article class="kind" style="--c:#F4604F"><img src="assets/crab-vet-red.png" alt="Bombardier crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 9</span><h3>Bombardier</h3><p>A charge that bursts into four at your depth.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="2 hits to beat"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span><b>60</b> pts</span></div></article>
+      <article class="kind" style="--c:#B57BFF"><img src="assets/crab-vet-violet.png" alt="Patriarch crab" loading="lazy" width="160" height="140"><div class="kind-body"><span class="kind-reef">From reef 10</span><h3>Patriarch</h3><p>Brings the fallen back. The wave rages when it dies.</p></div><div class="kind-stats"><span class="pips" role="img" aria-label="5 hits to beat"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span><b>100</b> pts</span></div></article>
     </div>
   </div>
 </section>
@@ -460,7 +472,7 @@ html.tc-on, html.tc-on * { cursor: none !important; }
     <h2>Sideload the release build</h2>
     <p>Android 7 or newer, made for the Solana Seeker. Signed with the project's release key. Runs on Solana devnet with a test SKR mint for now; mainnet comes next.</p>
     <div class="cta">
-      <a class="pill primary" href="/sea-invaders.apk" download>Download APK <small>72 MB</small></a>
+      <a class="pill primary" href="/sea-invaders.apk" download>Download APK <small>75 MB</small></a>
     </div>
     <p class="fine">Package xyz.seainvaders.app · versionCode 2 · install from your file manager, then connect a Seeker or Phantom wallet.</p>
   </div>
