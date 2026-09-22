@@ -34,7 +34,9 @@ uniform float4 uColor2;
 uniform float4 uColor3;
 
 const float SPIN_ROTATION = -2.0;
-const float CONTRAST = 3.5;
+// 3.5 in the original; lowered after the first on-device look (2026-09-23): the full-contrast
+// swirl fought the shop's glass cards for the eye.
+const float CONTRAST = 2.2;
 const float LIGHTING = 0.4;
 const float SPIN_AMOUNT = 0.25;
 const float PIXEL_FILTER = 745.0;
@@ -109,13 +111,18 @@ export interface BalatroBackdropProps {
   colors?: readonly [string, string, string];
   /** The shader's own spin speed; defaults slow, for a menu backdrop. */
   speed?: number;
+  /**
+   * A black veil over the swirl, 0..1 (default 0.55): the first on-device look (2026-09-23) showed
+   * the raw swirl overpowering the cards laid over it; the veil keeps the motion and calms the colour.
+   */
+  dim?: number;
 }
 
 /**
  * A full-bleed Balatro swirl (owner's pick 2026-09-22 evening): no required props, no mouse
  * interaction. Lane B wires this into the Shop screen; it renders on its own wherever it is mounted.
  */
-export function BalatroBackdrop({ style, colors = DEFAULT_COLORS, speed = DEFAULT_SPEED }: BalatroBackdropProps) {
+export function BalatroBackdrop({ style, colors = DEFAULT_COLORS, speed = DEFAULT_SPEED, dim = 0.55 }: BalatroBackdropProps) {
   const { width, height } = useWindowDimensions();
   const time = useSharedValue(0);
 
@@ -148,6 +155,7 @@ export function BalatroBackdrop({ style, colors = DEFAULT_COLORS, speed = DEFAUL
         <Rect x={0} y={0} width={width} height={height}>
           <Shader source={BALATRO} uniforms={uniforms} />
         </Rect>
+        <Rect x={0} y={0} width={width} height={height} color="black" opacity={dim} />
       </Canvas>
     </View>
   );
