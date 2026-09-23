@@ -89,15 +89,16 @@ export type Award = { kind: 'variant'; variant: OctopiVariant } | { kind: 'skin'
 /**
  * The campaign awards by level id (spec §2/§3): a look for each of bosses 2, 4, 6 and 8 (levels 12,
  * 24, 36, 48) and a champion for bosses 5 and 10 (levels 30 and 60). Awards are derived from the
- * cleared levels, never stored.
+ * cleared levels, never stored. Every entry is frozen too, not only the table, so the plain-JS
+ * backend cannot rewrite an award in place either.
  */
 export const AWARDS: Readonly<Record<number, Award>> = Object.freeze({
-  12: { kind: 'skin', skin: 13 },
-  24: { kind: 'skin', skin: 14 },
-  30: { kind: 'variant', variant: 'hex' },
-  36: { kind: 'skin', skin: 15 },
-  48: { kind: 'skin', skin: 16 },
-  60: { kind: 'variant', variant: 'kakashi' },
+  12: Object.freeze<Award>({ kind: 'skin', skin: 13 }),
+  24: Object.freeze<Award>({ kind: 'skin', skin: 14 }),
+  30: Object.freeze<Award>({ kind: 'variant', variant: 'hex' }),
+  36: Object.freeze<Award>({ kind: 'skin', skin: 15 }),
+  48: Object.freeze<Award>({ kind: 'skin', skin: 16 }),
+  60: Object.freeze<Award>({ kind: 'variant', variant: 'kakashi' }),
 });
 
 /** The award level ids in ascending order, so every list derived from them comes out in campaign order. */

@@ -31,11 +31,16 @@ function applyWaveBlast(s: GameState): boolean {
 /**
  * Coraluna's Surge (champions and skins spec §1): once `surgeEveryFor` kills (30) have been counted
  * in `s.surgeKills` (`killCrab`), spends them on the same bottom-row sweep a WAVE_BLAST pickup makes
- * — no drop consumed, none created — and raises a `surge` event at Octopi for the app's flash and
- * toast. The event is raised even when the field is empty and the sweep finds nothing: that surge is
- * wasted, not carried over to the next wave. At most one surge a tick. `step` calls this right after
- * this tick's hits have been scored and the dead boss's squads popped, before `hitOctopi`; a no-op
- * for every variant without a `surgeEvery`.
+ * and raises a `surge` event at Octopi for the app's flash and toast. No WAVE_BLAST pickup is
+ * consumed or created, but each swept crab goes through `killCrab` like any kill: it rolls its own
+ * loot, scores, and counts towards the next Surge. The event is raised even when the field is empty
+ * and the sweep finds nothing: that surge is wasted, not carried over to the next wave.
+ *
+ * `step` calls this once a tick, after `updateBoosts` and before `nextWave` (ruling R-K), so every
+ * kill of the tick — a shot's in `hitCrabs`, a WAVE_BLAST pickup's in `updateBoosts` — is counted
+ * first and a surge due on a field that tick emptied is spent there, never on the next wave. At most
+ * one surge a tick: a count its own sweep carries back over 30 waits for the next tick's call. A
+ * no-op for every variant without a `surgeEvery`.
  */
 export function surgeIfDue(s: GameState): void {
   const every = surgeEveryFor(s.run.octopi);

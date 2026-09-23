@@ -56,11 +56,14 @@ export function step(s: GameState, input: Input): void {
   // and changes nothing for kinds 1-5 (see `popSquads`'s own doc, `sim/squads.ts`, for why it is safe
   // to call unconditionally here).
   if (s.boss === null && s.squads.length > 0) popSquads(s);
-  // Coraluna's Surge (champions and skins spec §1) lands on the tick of its 30th kill, once every hit
-  // of this tick has been counted and before anything can hurt Octopi; a no-op for every other variant.
-  surgeIfDue(s);
   hitOctopi(s);
   updateBoosts(s);
+  // Coraluna's Surge (champions and skins spec §1, ruling R-K) lands on the tick of its 30th kill,
+  // after every kill this tick can make — the shots (`hitCrabs`) and a WAVE_BLAST picked up in
+  // `updateBoosts`, direct or rolled by RANDOM_CHAOS — and before `nextWave` below can raise the next
+  // wave, so a surge due on an emptied field is spent (wasted) there and never sweeps the wave after.
+  // A no-op for every other variant.
+  surgeIfDue(s);
   // `destroyedObstacles` is no longer swept here (fix round 2, controller ruling R19 — an
   // unconditional per-tick clear at this point wiped an entry pushed during a boss phase transition
   // before the boss's own `tick` hook, which does not run during one, ever got a chance to drain

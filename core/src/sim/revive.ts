@@ -4,7 +4,8 @@ import type { GameState } from '../types';
 /**
  * Revives Octopi mid-level after the last life was lost (spec §4, the Tide flow): only while the
  * run is over with zero lives left. Restores `TIDE_REVIVE_LIVES` lives, grants `OCTOPI.invulnTicks` of
- * invulnerability (the same 2-second grace a normal hit gives), clears every enemy shot in flight
+ * invulnerability (2 seconds, whatever the variant: noob's longer Thick skin grace belongs to a hit,
+ * `loseLife`, not to the revive — champions and skins spec §1), clears every enemy shot in flight
  * and flips `over` back to false, then records the `revived` event. The campaign level screen calls
  * this only after the on-chain purchase confirms; on any other precondition it does nothing at
  * all — deliberately a silent no-op rather than a throw, matching `step()`'s own "does nothing once

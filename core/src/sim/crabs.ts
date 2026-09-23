@@ -254,6 +254,14 @@ function steerOrb(s: GameState, b: Bullet): void {
 }
 
 /**
+ * Hex's per-tick step (champions and skins spec §1): `v` scaled to `pct` percent, truncating towards
+ * zero like every other integer scale in the core; 100 hands `v` back untouched.
+ */
+function hexStep(v: number, pct: number): number {
+  return pct === 100 ? v : idiv(v * pct, 100);
+}
+
+/**
  * Moves enemy shots (a `zigzag` boss shot flips `vx` every 20 ticks via `data`; an `explosive`
  * shot's `data` counts down its fuse; a `bubble` flips its drift on its own 40-tick clock and a
  * `charge` bursts into fragments near Octopi, spec §2; an `axe` loses `AXE_GRAVITY` of its fall
@@ -280,7 +288,10 @@ function steerOrb(s: GameState, b: Bullet): void {
  */
 export function updateEnemyShots(s: GameState): void {
   const kept: Bullet[] = [];
-  const pct = enemyShotPctFor(s.run.octopi);
+  // Hex (champions and skins spec §1), read once per call: nothing in the loop below changes the
+  // variant or the boss's rage. 100 for every other variant, and then the immunity is never asked.
+  const hexPct = enemyShotPctFor(s.run.octopi);
+  const bossHexImmune = hexPct !== 100 && bossImmuneToSlowdown(s);
   for (const b of s.enemyShots) {
     if (b.kind === 'zigzag') {
       b.data -= 1;
@@ -295,10 +306,10 @@ export function updateEnemyShots(s: GameState): void {
       steerOrb(s, b); // spec §5.1: the homing orb turns towards Octopi and spends a tick of life
     }
     const bossShot = !CRAB_SHOT_KINDS.has(b.kind);
-    // Hex scales the step only, never the stored `vx`/`vy`; 100 % (every other variant) is the identity.
-    const hexed = (v: number): number => (pct === 100 || (bossShot && bossImmuneToSlowdown(s)) ? v : idiv(v * pct, 100));
-    b.x += chilled(s, hexed(b.vx), bossShot);
-    b.y += chilled(s, hexed(b.vy), bossShot);
+    // Hex scales the step only, never the stored `vx`/`vy`; a raging Crimson's own shots are exempt.
+    const shotPct = bossShot && bossHexImmune ? 100 : hexPct;
+    b.x += chilled(s, hexStep(b.vx, shotPct), bossShot);
+    b.y += chilled(s, hexStep(b.vy, shotPct), bossShot);
     if (b.kind === 'explosive' && (b.data <= 0 || b.y > EXPLOSIVE_SPLIT_Y)) {
       for (const [vx, vy] of FRAGMENT_VECTORS) kept.push({ x: b.x, y: b.y, vx, vy, kind: 'fragment', data: 0 });
       continue;
