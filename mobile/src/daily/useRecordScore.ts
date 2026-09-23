@@ -91,7 +91,10 @@ export function useRecordScore(onRecorded: (signature: string) => void): { phase
         }
         if (alive.current) setPhase({ kind: 'confirming' });
         try {
-          await pollUntilConfirmed(() => confirmRecord(signature, day), { isCancelled: () => !alive.current });
+          await pollUntilConfirmed(() => confirmRecord(signature, day), {
+            isCancelled: () => !alive.current,
+            timeoutMessage: 'Score not recorded yet — check again in a moment',
+          });
           if (alive.current) setPhase({ kind: 'done' });
           playSfx('tx_confirmed');
           playSfx('record_saved');

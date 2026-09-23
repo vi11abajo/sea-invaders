@@ -10,7 +10,7 @@ import { onBackPress } from '../audio/onBackPress';
 import { ABILITY } from '../loadout/abilities';
 import { WEAR_RULE } from '../loadout/allowed';
 import { VARIANT_OCTOPI, variantOfItem } from '../loadout/items';
-import { BalatroBackdrop } from '../ui/BalatroBackdrop';
+import { SwirlBackdrop } from '../ui/SwirlBackdrop';
 import { BounceCard } from '../ui/BounceCard';
 import { PillButton } from '../ui/PillButton';
 import { SkrAmount, SkrIcon } from '../ui/SkrIcon';
@@ -207,7 +207,7 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
 
   return (
     <View style={styles.root}>
-      <BalatroBackdrop />
+      <SwirlBackdrop />
       <Animated.View style={[styles.fill, rise]}>
         <ScrollView
           contentContainerStyle={styles.content}

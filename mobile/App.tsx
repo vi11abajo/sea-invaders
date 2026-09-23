@@ -40,7 +40,7 @@ type Screen =
   // `qaTide`: the QA deep link's `?tide=1` - the Tide is offered on this practice run's last life.
   | { kind: 'level'; id: number; practice: boolean; lives?: number; qaTide?: boolean };
 
-/** The reef (1..5) that level `id` (1..30) belongs to. */
+/** The reef (1..10) that level `id` (1..60) belongs to, six levels to a reef. */
 function reefOf(id: number): number {
   return Math.floor((id - 1) / 6) + 1;
 }
@@ -50,7 +50,8 @@ function reefOf(id: number): number {
  * seainvaders://level/<id> opens that campaign level directly (QA entry point for boss levels), and
  * seainvaders://level/<id>?tide=1 also offers the Tide on its last life, so the revive flow can be
  * tried on a campaign that is already cleared (a practice replay never offers it otherwise);
- * anything else opens the app.
+ * anything else opens the app. `?tide=1` is honoured in development builds only: a release build
+ * never offers a paid revive in a practice run.
  */
 function routeFor(url: string | null): Route {
   if (url === null) return 'app';
@@ -59,7 +60,7 @@ function routeFor(url: string | null): Route {
   const level = /^seainvaders:\/\/level\/(\d+)/.exec(url);
   if (level) {
     const id = Number(level[1]);
-    if (Number.isInteger(id) && id >= 1 && id <= LEVEL_COUNT) return { kind: 'level', id, tide: /[?&]tide=1(&|$)/.test(url) };
+    if (Number.isInteger(id) && id >= 1 && id <= LEVEL_COUNT) return { kind: 'level', id, tide: __DEV__ && /[?&]tide=1(&|$)/.test(url) };
   }
   return 'app';
 }
@@ -92,7 +93,7 @@ function Shell({ initialLevel = null }: { initialLevel?: { id: number; tide: boo
     <SkinContext.Provider value={wornSkin(allowed, activeSkin)}>
       <EquippedOctopiContext.Provider value={VARIANT_OCTOPI[wornVariant(allowed, activeVariant)]}>
         <View style={styles.app}>
-          <Screens initialLevel={initialLevel} auth={auth} loadout={loadout} campaign={campaign} seeker={seeker} allowed={allowed} />
+          <Screens initialLevel={initialLevel} auth={auth} loadout={loadout} campaign={campaign} seeker={seeker} allowed={allowed} splashOver={splashOver} />
           <Splash visible={!splashOver} />
         </View>
       </EquippedOctopiContext.Provider>
@@ -125,10 +126,12 @@ interface ScreensProps {
   seeker: SeekerState;
   /** The selectors this player may wear (`allowedSelectors`): the Profile's tiles and the Level start picker. */
   allowed: Selectors;
+  /** False while the splash still covers the screens: a toast raised then would never be seen. */
+  splashOver: boolean;
 }
 
 /** Everything that needs the wallet provider and the session. */
-function Screens({ initialLevel, auth, loadout, campaign, seeker, allowed }: ScreensProps) {
+function Screens({ initialLevel, auth, loadout, campaign, seeker, allowed, splashOver }: ScreensProps) {
   // The deep link is a QA tool: it always opens in practice mode so it can never mutate real
   // progress (a non-current level would also make finishLevel reject — see CampaignLevelScreen).
   const [screen, setScreen] = useState<Screen>(
@@ -137,7 +140,7 @@ function Screens({ initialLevel, auth, loadout, campaign, seeker, allowed }: Scr
   // Bumped on every level (re-)entry so the level screen's key changes even when `id`/`practice`
   // do not (e.g. "Retry level"), forcing a fresh mount instead of reusing the finished run's state.
   const [levelAttempt, setLevelAttempt] = useState(0);
-  const { session, restoring, loading: signingIn, signIn, signOut, error } = auth;
+  const { session, restoring, loading: signingIn, signIn, signOut, error, notice, dismissNotice } = auth;
   // The campaign map's new design has no sync indicator; the sync itself still needs to run.
   useCampaignSync(session, campaign.progress, campaign.replaceProgress);
   const { model, refresh, error: homeError } = useHomeModel(session, campaign.progress, seeker.status === 'linked');
@@ -203,6 +206,16 @@ function Screens({ initialLevel, auth, loadout, campaign, seeker, allowed }: Scr
     setTicketMessage(null);
   }, [ticketMessage]);
 
+  // The server refused the stored session (it expired): `useSession` has already signed out, and the
+  // reason goes out through the same one-shot toast, once. It waits for a screen that shows that toast
+  // (Home or the Daily run) with the splash gone - a cold start finds the expiry under the splash.
+  const showsToast = screen === 'home' || screen === 'daily';
+  useEffect(() => {
+    if (notice === null || !splashOver || !showsToast) return;
+    setTicketMessage(notice);
+    dismissNotice();
+  }, [notice, dismissNotice, splashOver, showsToast]);
+
   // Buys a ranked ticket: prepare, sign and send (a stale blockhash gets one fresh
   // prepare-and-retry), then poll the backend until the tx is confirmed on-chain before
   // refreshing — the backend only clears its 5s player cache once it sees the confirmation, so
@@ -213,7 +226,7 @@ function Screens({ initialLevel, auth, loadout, campaign, seeker, allowed }: Scr
     try {
       const { signature } = await sendWithBlockhashRetry(requestTicket, signAndSend);
       playSfx('tx_sent');
-      await pollUntilConfirmed(() => confirmTicket(signature));
+      await pollUntilConfirmed(() => confirmTicket(signature), { timeoutMessage: 'Ticket not confirmed yet — check again in a moment' });
       setTicketMessage('Ticket bought');
       playSfx('tx_confirmed');
       playSfx('ticket_bought');
@@ -358,7 +371,10 @@ export default function App() {
   const fontsReady = useAppFonts();
 
   useEffect(() => {
-    Linking.getInitialURL().then((url) => setRoute(routeFor(url)));
+    Linking.getInitialURL()
+      .then((url) => setRoute(routeFor(url)))
+      // No launch link could be read: the app simply opens as it would without one.
+      .catch(() => {});
     const sub = Linking.addEventListener('url', ({ url }) => setRoute(routeFor(url)));
     return () => sub.remove();
   }, []);

@@ -105,7 +105,7 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
   const rayB = useSharedValue<number>(MOTION.raysMax);
   const drift = useSharedValue(0);
   // Owner's pick 2026-09-22 evening: the shader's own slow-breathing clock, the same long-lap ramp
-  // `BalatroBackdrop.tsx`/`Backdrop.tsx` use — `rayA`/`rayB` above still drive each ray's own opacity.
+  // `SwirlBackdrop.tsx`/`Backdrop.tsx` use — `rayA`/`rayB` above still drive each ray's own opacity.
   const rayTime = useSharedValue(0);
 
   useEffect(() => {

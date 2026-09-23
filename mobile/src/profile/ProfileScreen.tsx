@@ -420,7 +420,7 @@ function SettingRow({ label, value, onChange }: { label: string; value: boolean;
   return (
     <View style={styles.settingRow}>
       <Txt variant="body">{label}</Txt>
-      <SquishSwitch value={value} onValueChange={onChange} />
+      <SquishSwitch value={value} onValueChange={onChange} accessibilityLabel={label} />
     </View>
   );
 }

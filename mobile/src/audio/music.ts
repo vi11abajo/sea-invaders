@@ -117,7 +117,18 @@ export function playMusic(id: MusicId): void {
   if (musicPlayerId === id && musicPlayer !== null) return;
   const asset = MUSIC[id];
   const previous = musicPlayer;
-  if (previous !== null) fadeTo(previous, 0, () => previous.pause());
+  // `createAudioPlayer` players are never released on their own: once faded out, the old track's
+  // player is paused and removed, so its native player does not wait for garbage collection.
+  if (previous !== null) {
+    fadeTo(previous, 0, () => {
+      try {
+        previous.pause();
+        previous.remove();
+      } catch {
+        // Already released.
+      }
+    });
+  }
   if (asset === undefined) {
     musicPlayer = null;
     musicPlayerId = id;

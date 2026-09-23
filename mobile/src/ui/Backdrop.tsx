@@ -34,7 +34,7 @@ export function Backdrop({ theme = 'night', variant = 'menu', floorGlow = false 
   const rayA = useSharedValue<number>(MOTION.raysMin);
   const rayB = useSharedValue<number>(MOTION.raysMax);
   // Owner's pick 2026-09-22 evening: the shader's own slow-breathing clock, the same long-lap ramp
-  // `BalatroBackdrop.tsx` uses for its `iTime` — `rayA`/`rayB` above still drive each ray's own
+  // `SwirlBackdrop.tsx` uses for its `iTime` — `rayA`/`rayB` above still drive each ray's own
   // opacity exactly as they always did.
   const rayTime = useSharedValue(0);
 

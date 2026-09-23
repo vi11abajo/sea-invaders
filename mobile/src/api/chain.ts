@@ -116,8 +116,8 @@ export async function sendWithBlockhashRetry<T extends PreparedTx>(
 
 /** A `pollUntilConfirmed` call gave up after `timeoutMs` without `fn` reporting `confirmed: true`. */
 export class PollTimeout extends Error {
-  constructor() {
-    super('Purchase not confirmed yet — pull to refresh in a moment');
+  constructor(message = 'Purchase not confirmed yet — pull to refresh in a moment') {
+    super(message);
     this.name = 'PollTimeout';
   }
 }
@@ -135,6 +135,8 @@ interface PollOptions {
   timeoutMs?: number;
   /** Checked before calling `fn` and again before scheduling the next tick; throws `PollCancelled` when true, so the timer chain does not outlive a caller that has gone away (e.g. an unmounted component). */
   isCancelled?: () => boolean;
+  /** The `PollTimeout` copy, for a flow whose screen has no pull to refresh (the Shop's default otherwise). */
+  timeoutMessage?: string;
 }
 
 /**
@@ -145,7 +147,7 @@ interface PollOptions {
  */
 export async function pollUntilConfirmed<T extends { confirmed: boolean }>(
   fn: () => Promise<T>,
-  { intervalMs = 2000, timeoutMs = 60000, isCancelled }: PollOptions = {},
+  { intervalMs = 2000, timeoutMs = 60000, isCancelled, timeoutMessage }: PollOptions = {},
 ): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
@@ -153,7 +155,7 @@ export async function pollUntilConfirmed<T extends { confirmed: boolean }>(
     const result = await fn();
     if (result.confirmed) return result;
     if (isCancelled?.()) throw new PollCancelled();
-    if (Date.now() >= deadline) throw new PollTimeout();
+    if (Date.now() >= deadline) throw new PollTimeout(timeoutMessage);
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 }

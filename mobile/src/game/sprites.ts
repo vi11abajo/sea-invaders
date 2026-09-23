@@ -476,7 +476,7 @@ export function useArtPair(look: Look): ArtPairState {
  * Octopi on UI screens (Home's hero, the result pose, Shop and Profile thumbs, leaderboard rows):
  * small snapshots of a look's front pose — the base sprite, recoloured for a tint look, or a drawn
  * pair's Front (design doc §5) — pre-scaled through the same `renderScaled` path as the game. A
- * source decodes to ~20 MB (the ~2300 px base sprite) or ~8 MB (a 1400 px drawn Front), so sources
+ * source decodes to ~4 MB (the 1024 px base sprite) or ~8 MB (a 1400 px drawn Front), so sources
  * are decoded one at a time, only while a snapshot waits on them, and released as soon as none
  * does: a Shop or Profile full of drawn thumbs decodes each Front once, in turn, never all of them
  * at once, and a leaderboard decodes one Front per distinct look however many rows wear it. Screens

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { PanResponder, StyleSheet, View, type GestureResponderEvent } from 'react-native';
+import { PanResponder, StyleSheet, View, type AccessibilityActionEvent, type GestureResponderEvent } from 'react-native';
 import Animated, {
   interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withSpring, type WithSpringConfig,
 } from 'react-native-reanimated';
@@ -32,7 +32,11 @@ interface SquishSwitchProps {
   value: boolean;
   onValueChange: (value: boolean) => void;
   disabled?: boolean;
+  /** What the switch controls, read out by TalkBack (the visible label is a separate sibling). */
+  accessibilityLabel?: string;
 }
+
+const ACCESSIBILITY_ACTIONS = [{ name: 'activate' }] as const;
 
 /**
  * Squish Switch (React Bits `SquishSwitch`): a scrubbable toggle whose thumb stretches with drag
@@ -45,7 +49,7 @@ interface SquishSwitchProps {
  * written directly (still the shared value, never React state) while a finger is scrubbing it, so
  * nothing here re-renders per frame.
  */
-export function SquishSwitch({ value, onValueChange, disabled = false }: SquishSwitchProps) {
+export function SquishSwitch({ value, onValueChange, disabled = false, accessibilityLabel }: SquishSwitchProps) {
   const progress = useSharedValue(value ? 1 : 0);
   const scaleX = useSharedValue(1);
   const scaleY = useSharedValue(1);
@@ -94,6 +98,11 @@ export function SquishSwitch({ value, onValueChange, disabled = false }: SquishS
     const dx = event.nativeEvent.pageX - touchStart.current.x;
     const dy = event.nativeEvent.pageY - touchStart.current.y;
     if (Math.hypot(dx, dy) <= TAP_SLOP) commit(!valueRef.current);
+  }, [commit, disabled]);
+
+  // TalkBack's double-tap arrives as the `activate` action, not as touches: it flips the value too.
+  const onAccessibilityAction = useCallback((event: AccessibilityActionEvent) => {
+    if (event.nativeEvent.actionName === 'activate' && !disabled) commit(!valueRef.current);
   }, [commit, disabled]);
 
   const pan = useRef(
@@ -149,8 +158,12 @@ export function SquishSwitch({ value, onValueChange, disabled = false }: SquishS
       {...pan.panHandlers}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
+      accessible
       accessibilityRole="switch"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ checked: value, disabled }}
+      accessibilityActions={ACCESSIBILITY_ACTIONS}
+      onAccessibilityAction={onAccessibilityAction}
       hitSlop={HIT_SLOP}
       style={disabled && styles.disabled}
     >

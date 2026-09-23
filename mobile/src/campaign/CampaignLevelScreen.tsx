@@ -14,7 +14,6 @@ import { levelState } from './reefs';
 import { ReefBackdrop } from './ReefBackdrop';
 import { ResultView } from '../game/ResultView';
 import { TideSheet } from '../tide/TideSheet';
-import { PillButton } from '../ui/PillButton';
 import { COLORS } from '../ui/tokens';
 import { BossIntro } from './BossIntro';
 import { LevelIntro } from './LevelIntro';
@@ -51,9 +50,6 @@ function awardNote(levelId: number): string | undefined {
     ? `New champion: ${VARIANT_NAMES[award.variant]} — equip it in Profile`
     : `New look: ${SKIN_NAMES[award.skin]} — equip it in Profile`;
 }
-
-/** Task 3B hook: flips true once a paid/ad-gated revive launches. */
-const REVIVE_ENABLED = false;
 
 /** Tide revives one level attempt allows (design §3.6, a client rule); the next loss ends the level. */
 const REVIVES_PER_ATTEMPT = 3;
@@ -313,7 +309,6 @@ export function CampaignLevelScreen({
                 primaryLabel="Retry reef"
                 onPlayAgain={() => onNext((next.reef - 1) * LEVELS_PER_REEF + 1)}
                 secondary={toMap}
-                extra={REVIVE_ENABLED ? <PillButton label="Revive · 3 lives" kind="glass" disabled /> : undefined}
                 onBack={onExit}
               />
             );

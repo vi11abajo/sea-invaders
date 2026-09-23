@@ -1,7 +1,7 @@
 import { Skia, type SkRuntimeEffect } from '@shopify/react-native-skia';
 
 /** One lap of a shader's shared `iTime` ramp (both callers below use the same trick as
- * `BalatroBackdrop.tsx`'s own `time`): long enough that `withRepeat`'s reset is never seen in a
+ * `SwirlBackdrop.tsx`'s own `time`): long enough that `withRepeat`'s reset is never seen in a
  * session, driven by `withRepeat(withTiming(RAY_TIME_SPAN_S, { duration: RAY_TIME_SPAN_S * 1000 }))`. */
 export const RAY_TIME_SPAN_S = 100000;
 

@@ -25,6 +25,21 @@ export async function saveSession(session: Session): Promise<void> {
   await SecureStore.setItemAsync(KEY, JSON.stringify(session));
 }
 
-export async function clearSession(): Promise<void> {
+/** Why the stored session went away: the player disconnected, or the server rejected its token. */
+export type SessionClearReason = 'signed-out' | 'expired';
+
+type SessionClearedListener = (reason: SessionClearReason) => void;
+const listeners = new Set<SessionClearedListener>();
+
+/** Calls `listener` after every `clearSession`; returns the unsubscribe. */
+export function onSessionCleared(listener: SessionClearedListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export async function clearSession(reason: SessionClearReason = 'signed-out'): Promise<void> {
   await SecureStore.deleteItemAsync(KEY);
+  for (const listener of [...listeners]) listener(reason);
 }

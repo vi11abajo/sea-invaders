@@ -6,7 +6,7 @@ import {
   type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
+import { AppState, BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import {
   hapticBossDead, hapticBossPhase, hapticBossSpawn, hapticBossTeleport, hapticBoostPickup, hapticChargeBurst, hapticLevelCleared,
@@ -320,6 +320,7 @@ interface Hud {
   wave: number;
   kills: number;
   over: boolean;
+  /** Shown (and diffed, so it re-renders the HUD) in development builds only. */
   fps: number;
   boss: BossFrame | null;
   boosts: HudBoost[];
@@ -740,7 +741,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       };
       if (
         next.score !== shown.score || next.lives !== shown.lives || next.wave !== shown.wave ||
-        next.kills !== shown.kills || next.over !== shown.over || next.fps !== shown.fps ||
+        next.kills !== shown.kills || next.over !== shown.over || (__DEV__ && next.fps !== shown.fps) ||
         next.shield !== shown.shield || next.banner !== shown.banner || next.toast !== shown.toast ||
         !sameBoss(next.boss, shown.boss) || !sameBoosts(next.boosts, shown.boosts)
       ) {
@@ -835,6 +836,19 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     return () => sub.remove();
   });
 
+  // Leaving the app (Home, a call, the notification shade) pauses a live run the same way the pause
+  // button does; `pause()` itself refuses while the run is held for the Tide or waiting for Resume.
+  const pauseRef = useRef(pause);
+  pauseRef.current = pause;
+  const overRef = useRef(hud.over);
+  overRef.current = hud.over;
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' && !overRef.current) pauseRef.current();
+    });
+    return () => sub.remove();
+  }, []);
+
   return (
     <View style={styles.root}>
       {backdrop !== undefined ? backdrop(hud.over) : <Backdrop variant={hud.over ? 'menu' : 'play'} />}
@@ -893,9 +907,11 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
               {hud.banner}
             </Text>
           )}
-          <Text style={styles.fps} pointerEvents="none">
-            {hud.fps} FPS
-          </Text>
+          {__DEV__ && (
+            <Text style={styles.fps} pointerEvents="none">
+              {hud.fps} FPS
+            </Text>
+          )}
           {showPause && <PauseSheet onResume={resume} onQuit={quitRun} />}
           {showRevived && <RevivedSheet lives={TIDE_REVIVE_LIVES} onResume={resumeRevived} />}
           {overlay}

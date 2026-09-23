@@ -100,7 +100,6 @@ export function useCampaignSync(
           lastSyncedRef.current = merged;
         }
         success = true;
-        console.log('[sync] PUT ok', merged.updatedAt);
       } catch (e) {
         console.warn('[sync] PUT failed', e instanceof Error ? e.message : String(e));
       } finally {

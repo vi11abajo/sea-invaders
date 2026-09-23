@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet } from 'react-native';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { getAudioSettings } from '../audio/settings';
-import { playSfx } from '../audio/sfx';
+import { playSfx, preloadSfx } from '../audio/sfx';
 import { COLORS } from './tokens';
 
 /** How long the splash fades out once the app is ready, in ms. */
@@ -27,16 +27,23 @@ interface SplashProps {
 export function Splash({ visible }: SplashProps) {
   const opacity = useSharedValue(1);
   const [mounted, setMounted] = useState(true);
+  const onScreen = useRef(true);
+  useEffect(() => {
+    onScreen.current = mounted;
+  }, [mounted]);
 
   // Once at mount, respecting the Sounds switch — including on the very first launch, when nothing
   // is stored yet: `getAudioSettings()` resolves to the on-by-default settings then, same as any
   // later launch where the player left it on. Awaiting the read (rather than reading a synchronous
   // default) matters here: without it, a player who turned Sounds off would still hear this once,
-  // for the brief window before AsyncStorage answers.
+  // for the brief window before AsyncStorage answers. The sound pool decodes in the background
+  // (`preloadSfx`, the same promise App starts at mount), and a sound asked for before it is decoded
+  // is silently skipped, so the splash waits for the decode too - and stays quiet if the splash has
+  // already faded out by then.
   useEffect(() => {
     let alive = true;
-    void getAudioSettings().then((settings) => {
-      if (alive && settings.sounds) playSfx('splash');
+    void Promise.all([getAudioSettings(), preloadSfx()]).then(([settings]) => {
+      if (alive && onScreen.current && settings.sounds) playSfx('splash');
     });
     return () => {
       alive = false;

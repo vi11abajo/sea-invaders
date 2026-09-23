@@ -25,7 +25,7 @@ import { COLORS, SIGNATURE_GRADIENT } from './tokens';
  * `uColor1`/`uColor2`/`uColor3` (each an RGBA 0..1 vector). Built once at module load; `null` if the
  * device's Skia cannot compile it, in which case the caller shows a flat fill in the darkest colour.
  */
-export const BALATRO: SkRuntimeEffect | null = Skia.RuntimeEffect.Make(`
+export const SWIRL: SkRuntimeEffect | null = Skia.RuntimeEffect.Make(`
 uniform float2 iResolution;
 uniform float iTime;
 uniform float uSpinSpeed;
@@ -105,7 +105,7 @@ function hexToRgba(hex: string): [number, number, number, number] {
   return [((v >> 16) & 0xff) / 255, ((v >> 8) & 0xff) / 255, (v & 0xff) / 255, 1];
 }
 
-export interface BalatroBackdropProps {
+export interface SwirlBackdropProps {
   style?: StyleProp<ViewStyle>;
   /** Violet, teal, near-black (the app's own signature tokens) unless overridden. */
   colors?: readonly [string, string, string];
@@ -119,10 +119,10 @@ export interface BalatroBackdropProps {
 }
 
 /**
- * A full-bleed Balatro swirl (owner's pick 2026-09-22 evening): no required props, no mouse
+ * A full-bleed swirl (owner's pick 2026-09-22 evening): no required props, no mouse
  * interaction. Lane B wires this into the Shop screen; it renders on its own wherever it is mounted.
  */
-export function BalatroBackdrop({ style, colors = DEFAULT_COLORS, speed = DEFAULT_SPEED, dim = 0.55 }: BalatroBackdropProps) {
+export function SwirlBackdrop({ style, colors = DEFAULT_COLORS, speed = DEFAULT_SPEED, dim = 0.55 }: SwirlBackdropProps) {
   const { width, height } = useWindowDimensions();
   const time = useSharedValue(0);
 
@@ -145,7 +145,7 @@ export function BalatroBackdrop({ style, colors = DEFAULT_COLORS, speed = DEFAUL
     uColor3: c3,
   }), [width, height, speed, c1, c2, c3]);
 
-  if (BALATRO === null) {
+  if (SWIRL === null) {
     return <View style={[StyleSheet.absoluteFill, style, { backgroundColor: color3 }]} />;
   }
 
@@ -153,7 +153,7 @@ export function BalatroBackdrop({ style, colors = DEFAULT_COLORS, speed = DEFAUL
     <View style={[StyleSheet.absoluteFill, style]} pointerEvents="none">
       <Canvas style={StyleSheet.absoluteFill}>
         <Rect x={0} y={0} width={width} height={height}>
-          <Shader source={BALATRO} uniforms={uniforms} />
+          <Shader source={SWIRL} uniforms={uniforms} />
         </Rect>
         <Rect x={0} y={0} width={width} height={height} color="black" opacity={dim} />
       </Canvas>
