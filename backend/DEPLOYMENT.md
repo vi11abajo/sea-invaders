@@ -34,10 +34,14 @@ the API only.
   inside `backend/`). `backend/migrations/run.js` applies, in order, only:
   `001_initial_schema.sql`, `002_performance_optimization.sql`,
   `004_farcaster_migration.sql`, `005_solana_ranked_runs.sql`, `006_chain_records.sql`,
-  `007_campaign_progress.sql`
+  `007_campaign_progress.sql`, `008_loadout.sql`, `009_run_skin.sql`, `010_seeker.sql`,
+  `011_run_update_required.sql`, `012_run_skin_range.sql`
   (each tracked in a `migrations` table so re-running is a no-op). Note
   `002_add_admin_and_attempts.sql` also exists in the directory but is **not** run by
   `run.js` — it predates `002_performance_optimization.sql` and was superseded.
+  `012_run_skin_range.sql` widens a ranked run's `skin` to the eighteen codes 0..17 of the
+  champions and skins catalogue: run it before serving the API that lets a player equip the new
+  looks, or `startRun` fails on a skin above 4.
 - **Node:** requires Node 20+ (the workflow's `setup-node@v4` pins `'20'`; the VPS itself
   runs Node 24, which is compatible).
 

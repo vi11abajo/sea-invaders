@@ -87,4 +87,18 @@ describe('migration list', () => {
     // Additive on a live table: both columns stay nullable, so the migration needs no backfill.
     expect(sql).not.toMatch(/ADD COLUMN[^;]*NOT NULL/);
   });
+
+  it('runs 012 after 011', () => {
+    const order = [...runner.matchAll(/'(\d{3}_[a-z_]+\.sql)'/g)].map((m) => m[1]);
+    expect(order.indexOf('012_run_skin_range.sql')).toBe(order.indexOf('011_run_update_required.sql') + 1);
+  });
+
+  it('012 widens ranked_runs.skin to the 18-code scale', () => {
+    const sql = readFileSync(new URL('../migrations/012_run_skin_range.sql', import.meta.url), 'utf8');
+    expect(sql).toMatch(/ADD CONSTRAINT ranked_runs_skin_check CHECK \(skin BETWEEN 0 AND 17\)/);
+    // 009 declared the 0..4 CHECK inline, so Postgres named it: like 011, the migration drops the old
+    // ranked_runs_skin_check by lookup, matching only the CHECK that names the skin column.
+    expect(sql).toMatch(/FROM pg_constraint/);
+    expect(sql).toMatch(/ILIKE '%skin%'/);
+  });
 });

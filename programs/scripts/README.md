@@ -49,15 +49,24 @@ All four scripts share their bootstrap (`loadKeypair`, `configPda`,
   that the vault balance increased by exactly `9_500_000` (a delta, not
   an absolute value, since the vault is a shared pool - running this
   script more than once in the same week keeps adding to it).
-- **`init-catalog.ts`** - creates the `Catalog` PDA with the seven shop
-  items (ids 0-2 the campaign octopi Harpoon, Anchor, Trident at $1/$2/$3
-  in SKR rounded up - 56, 111, 166 SKR at $0.01808/SKR; ids 3-6 the skins
-  Lime 25, Lilac 25, Ember 35, Abyss 50 SKR) and
-  reads it back. Idempotent: an up-to-date catalog is printed and left
-  alone; a different one is reported (exit 1) unless the script runs with
-  `--update`, which calls `setCatalog` - the way to change prices later.
-  `setCatalog` replaces the whole list, so the script always sends all
-  seven items.
+- **`init-catalog.ts`** - creates the `Catalog` PDA with the eighteen shop
+  items, all on sale (ids 0-2 the champions Azul, Krang, Poseidon at 56,
+  111, 166 SKR and ids 15-17 Noob, Coraluna, Shoupe at the same three
+  prices; ids 3-6 the tint skins Lime 25, Lilac 25, Ember 35, Abyss 50
+  SKR; ids 7-14 the drawn skins, 35 SKR each and 50 for Matrix and
+  Sharingan) and reads it back. Idempotent: an up-to-date catalog is printed and left alone; a
+  different one is reported (exit 1) unless the script runs with
+  `--update`, which calls `setCatalog`. `setCatalog` replaces the whole
+  list, so the script always sends every item.
+
+  **Changing a shop price:** the `PRICES_SKR` table at the top of
+  `init-catalog.ts` (item id -> whole SKR) is the only place a shop price
+  is set - no price lives in `core/`, `backend/` or `mobile/`, which all
+  read the chain. Edit the row, then run
+  `npx ts-node scripts/init-catalog.ts --update` with the admin key; the
+  backend serves the new price within its 60 s catalogue cache. Adding an
+  item means a row in both `PRICES_SKR` and `KIND` (and its name in
+  `core/src/catalogue.ts`); the catalogue holds at most 64 rows.
 - **`set-prices.ts`** - changes the ticket price and the Tide's revive
   ladder in `Config` (`updateConfig`, every other field re-sent unchanged
   from the chain). Edit `TICKET_SKR`/`LADDER_SKR` at the top and run it;

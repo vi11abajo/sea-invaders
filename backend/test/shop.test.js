@@ -57,7 +57,15 @@ describe('readCatalog / readPlayerShop', () => {
   it('maps the chain catalog to id/kind/name/priceSkr/active (plus the internal priceBaseUnits)', async () => {
     const items = await readCatalog();
     expect(items).toContainEqual(expect.objectContaining({ id: LIME, kind: 'skin', name: 'Lime', priceSkr: 25, priceBaseUnits: 25_000_000n, active: true }));
-    expect(items).toContainEqual(expect.objectContaining({ id: 0, kind: 'variant', name: 'Harpoon', priceSkr: 40, active: true }));
+    expect(items).toContainEqual(expect.objectContaining({ id: 0, kind: 'variant', name: 'Azul', priceSkr: 40, active: true }));
+    expect(items).toContainEqual(expect.objectContaining({ id: 1, kind: 'variant', name: 'Krang' }));
+    expect(items).toContainEqual(expect.objectContaining({ id: 2, kind: 'variant', name: 'Poseidon' }));
+  });
+
+  it('names every one of the eighteen items by the shared catalogue in core', async () => {
+    fakeChain.setCatalog([7, 13, 14, 15, 16, 17].map((id) => ({ id, kind: id >= 15 ? 0 : 1, price: 35_000_000n, active: true })));
+    const names = (await readCatalog()).map((it) => [it.id, it.name]);
+    expect(names).toEqual([[7, 'Bear'], [13, 'Matrix'], [14, 'Sharingan'], [15, 'Noob'], [16, 'Coraluna'], [17, 'Shoupe']]);
   });
 
   it('caches the catalog for 60s: a second call does not re-derive from a changed fake catalog', async () => {

@@ -32,7 +32,8 @@ async function runMigrations() {
       '008_loadout.sql',
       '009_run_skin.sql',
       '010_seeker.sql',
-      '011_run_update_required.sql'
+      '011_run_update_required.sql',
+      '012_run_skin_range.sql'
     ];
 
     // Execute each migration

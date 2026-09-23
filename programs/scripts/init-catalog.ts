@@ -1,12 +1,26 @@
 /**
- * Creates the devnet `Catalog` with the seven shop items: ids 0-2 are the campaign octopi
- * (Harpoon, Anchor, Trident - priced at $1, $2 and $3 in SKR, rounded UP to a whole SKR at the
- * rate of the day the list was set: $0.01808/SKR on 2026-09-15 -> 56, 111, 166 SKR), ids 3-6 the
- * Octopi skins (Lime 25, Lilac 25, Ember 35, Abyss 50 SKR). Prices are stored on chain in SKR base
- * units (6 decimals); the backend and the app read them from there, never from this file. To
- * follow the rate, edit the three variant prices and run with `--update`. The catalogue now
- * lives at the PDA seeded `[b"catalog", b"v2"]` (64-row layout); the old single-seed account
- * is abandoned on devnet since 2026-09-23.
+ * Creates the devnet `Catalog` with the eighteen shop items of the champions and skins design
+ * (spec section 4), every one on sale. `PRICES_SKR` below is the one place a shop price is set,
+ * in whole SKR: the chain stores it in SKR base units (6 decimals) and the backend and the app
+ * read it from there, never from this file - no price exists in `core/`, `backend/` or `mobile/`.
+ * To change a price, edit its row and run with `--update`. The first three champions were priced
+ * at $1, $2 and $3 in SKR, rounded UP to a whole SKR at the rate of the day the list was set
+ * ($0.01808/SKR on 2026-09-15 -> 56, 111, 166 SKR); the three sold since 2026-09-23 follow the
+ * same ladder.
+ *
+ * The catalogue lives at the PDA seeded `[b"catalog", b"v2"]` since 2026-09-23 (64 rows - the
+ * whole of `Player.inventory`'s u64 bitmask); the 16-row account at `[b"catalog"]` is abandoned on
+ * devnet, so the first run after the program upgrade takes the `initCatalog` branch.
+ *
+ * Item ids are the inventory bits. Their names live in `core/src/catalogue.ts` (`ITEM_NAMES`),
+ * which this script does not import - it runs under `programs/`' own ts-node. For reference:
+ *   0 Azul, 1 Krang, 2 Poseidon                  champions (Harpoon, Anchor, Trident)
+ *   3 Lime, 4 Lilac, 5 Ember, 6 Abyss            tint skins
+ *   7 Bear, 8 Bunny, 9 Sponge, 10 Tiger,         drawn skins
+ *   11 Grim, 12 King, 13 Matrix, 14 Sharingan
+ *   15 Noob, 16 Coraluna, 17 Shoupe              champions (Thick skin, Surge, Last stand)
+ * Hex, Kakashi and the Pengu, Reaper, Wizard, Outlaw and Seeker skins are awarded, not sold, so
+ * they have no row here.
  *
  * Idempotent: when the catalog already exists and matches `ITEMS`, it prints the stored items
  * and exits 0. When it exists but differs, it prints both lists and exits 1, unless run with
@@ -37,16 +51,28 @@ interface Item {
   active: boolean;
 }
 
-/** The catalogue of the shop design: one-time purchases, ids are the inventory bits. */
-const ITEMS: Item[] = [
-  { id: 0, kind: VARIANT, price: new BN(56 * SKR), active: true }, // Harpoon ($1)
-  { id: 1, kind: VARIANT, price: new BN(111 * SKR), active: true }, // Anchor ($2)
-  { id: 2, kind: VARIANT, price: new BN(166 * SKR), active: true }, // Trident ($3)
-  { id: 3, kind: SKIN, price: new BN(25 * SKR), active: true }, // Lime
-  { id: 4, kind: SKIN, price: new BN(25 * SKR), active: true }, // Lilac
-  { id: 5, kind: SKIN, price: new BN(35 * SKR), active: true }, // Ember
-  { id: 6, kind: SKIN, price: new BN(50 * SKR), active: true }, // Abyss
-];
+/** The one place a shop price is set (whole SKR; the chain stores base units). Edit, then run with --update. */
+const PRICES_SKR: Readonly<Record<number, number>> = {
+  0: 56, 1: 111, 2: 166,           // champions Azul (Harpoon), Krang (Anchor), Poseidon (Trident) - unchanged
+  3: 25, 4: 25, 5: 35, 6: 50,      // tint skins Lime, Lilac, Ember, Abyss - unchanged
+  7: 35, 8: 35, 9: 35, 10: 35, 11: 35, 12: 35, // drawn skins Bear, Bunny, Sponge, Tiger, Grim, King
+  13: 50, 14: 50,                  // drawn skins Matrix, Sharingan
+  15: 56, 16: 111, 17: 166,        // champions Noob (Thick skin), Coraluna (Surge), Shoupe (Last stand)
+};
+
+/** Whether each item is a champion (`VARIANT`) or a look (`SKIN`); every id in `PRICES_SKR` needs one. */
+const KIND: Readonly<Record<number, number>> = {
+  0: VARIANT, 1: VARIANT, 2: VARIANT,
+  3: SKIN, 4: SKIN, 5: SKIN, 6: SKIN, 7: SKIN, 8: SKIN, 9: SKIN, 10: SKIN, 11: SKIN, 12: SKIN, 13: SKIN, 14: SKIN,
+  15: VARIANT, 16: VARIANT, 17: VARIANT,
+};
+
+/** The catalogue sent to the chain: one-time purchases in id order, all on sale. */
+const ITEMS: Item[] = Object.keys(PRICES_SKR)
+  .map(Number)
+  .sort((a, b) => a - b)
+  .map((id) => ({ id, kind: KIND[id]!, price: new BN(PRICES_SKR[id]! * SKR), active: true }));
+if (ITEMS.length > 64) throw new Error("the on-chain catalogue holds at most 64 rows");
 
 function catalogPda(programId: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync(

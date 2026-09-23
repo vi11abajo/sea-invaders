@@ -2,6 +2,7 @@
 // always come from the chain (the `Catalog` PDA and `Player.inventory` bitmask) - this module only
 // mirrors them for the API and builds/confirms the `purchase` transaction, the same way
 // `services/records.js`/`services/tickets.js` do for tickets.
+import { ITEM_NAMES } from '@sea-invaders/core';
 import { getCatalog, getConfig, getConfirmedInstructions, getPlayer, getTokenBalance } from '../chain/readers.js';
 import { buildPurchaseTx } from '../chain/txs.js';
 import { hasPurchase } from '../chain/verify.js';
@@ -24,9 +25,6 @@ export class ShopError extends Error {
   }
 }
 
-/** Item id -> display name (design doc §1). Everything else about an item - kind, price, whether it is active - comes from the chain. */
-const ITEM_NAMES = { 0: 'Harpoon', 1: 'Anchor', 2: 'Trident', 3: 'Lime', 4: 'Lilac', 5: 'Ember', 6: 'Abyss' };
-
 const CATALOG_TTL_MS = 60_000;
 let catalogCache = null; // { value, expiresAt }
 
@@ -34,6 +32,8 @@ let catalogCache = null; // { value, expiresAt }
  * The catalogue (the `Catalog` PDA), cached for 60s: `[{ id, kind, name, priceSkr, priceBaseUnits, active }]`.
  * `priceBaseUnits` (the exact on-chain `u64`) is for internal use only (`issuePurchase`'s `max_price`) -
  * routes must strip it before responding, since spec §3's `GET /api/shop` shape has no such field.
+ * Only the name is not the chain's: it comes from the catalogue shared with the app (`ITEM_NAMES`,
+ * core/src/catalogue.ts - champions and skins spec §3); no price lives in code (that spec's §4).
  */
 export async function readCatalog() {
   if (catalogCache && catalogCache.expiresAt > Date.now()) return catalogCache.value;
