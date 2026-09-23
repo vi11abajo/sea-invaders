@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CORE_VERSION, INITIAL_INPUT, LEVEL_COUNT, MAX_REPLAY_INPUTS, MAX_REPLAY_TICKS, PRACTICE_RUN, REPLAY_MODE,
-  ReplayRecorder, createGame, decodeReplay, encodeReplay, hashState, runReplay, step, type Input, type Replay,
+  CORE_VERSION, INITIAL_INPUT, LEVEL_COUNT, MAX_REPLAY_INPUTS, MAX_REPLAY_SEED_LENGTH, MAX_REPLAY_TICKS, PRACTICE_RUN,
+  REPLAY_MODE, ReplayRecorder, createGame, decodeReplay, encodeReplay, hashState, runReplay, step, type Input,
+  type Replay,
 } from '../src';
 
 describe('hashState', () => {
@@ -183,6 +184,17 @@ describe('replay codec', () => {
     expect(() => encodeReplay({
       version: 1, mode: REPLAY_MODE.practice, levelId: 0, lives: 3, octopi: 'base', seed: 'é', ticks: 1, inputs: [],
     })).toThrow();
+  });
+
+  it('caps the seed where the decoder does: 64 characters round-trip, 65 refuse to encode', () => {
+    expect(MAX_REPLAY_SEED_LENGTH).toBe(64);
+    const atCap: Replay = {
+      version: 1, mode: REPLAY_MODE.daily, levelId: 0, lives: 3, octopi: 'base', seed: 'd'.repeat(64), ticks: 1,
+      inputs: [],
+    };
+    expect(decodeReplay(encodeReplay(atCap))).toEqual(atCap);
+    // Encoding it anyway would only produce bytes that `decodeReplay` then refuses.
+    expect(() => encodeReplay({ ...atCap, seed: 'd'.repeat(65) })).toThrow('replay seed too long');
   });
 
   function varintBytes(v: number): number[] {

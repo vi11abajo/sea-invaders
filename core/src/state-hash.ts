@@ -38,9 +38,14 @@ export function hashState(s: GameState): string {
   h.int(s.drops.length);
   for (const d of s.drops) h.int(d.x).int(d.y).int(BOOST_INDEX[d.boost]).int(d.ttl);
   // The campaign wave's living state (spec §3), appended last so every older field keeps its place.
-  // The slot list itself is not hashed: a wave's slots follow from its silhouette and its `reformed`
-  // flag alone, and which crab holds which one is already in each crab's `slot` above. A wave with
-  // no formation at all - daily, practice, a boss round - hashes the -1 marker instead.
+  // The slot list itself is not hashed. Its positions follow from the wave's silhouette and its
+  // `reformed` flag, and which crab holds which slot is already in each crab's `slot` above. Its kinds
+  // do NOT all follow that way: a whirlpool's `rotate` (`sim/living.ts`) moves `slots[].type` round
+  // the ring on every ring step, and that field is not hashed today, so two states that differ only in
+  // the kind a free slot would rally back (`sim/veterans.ts`) hash equal. Replays stay deterministic
+  // (the run's history fixes the field); hashing it is a `CORE_VERSION` bump with regenerated goldens,
+  // so it waits for the next one. A wave with no formation at all - daily, practice, a boss round -
+  // hashes the -1 marker instead.
   const f = s.formation;
   if (f) {
     h.int(BEHAVIOUR_INDEX[f.behaviour]).int(f.ox).int(f.oy).int(f.dirL).int(f.dirR)

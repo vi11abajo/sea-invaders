@@ -288,8 +288,8 @@ export function scoreDecayPct(s: GameState): number {
 
 /**
  * Advances the wave-mode score-decay clock (spec C7): only while the run has boosts enabled (so a
- * boosts-off practice/daily run — e.g. `golden-v2-regression.test.ts` — scores exactly as before
- * this clock existed), only outside a boss fight (which keeps its own `fightTicks` decay), and only
+ * practice/daily run with `features.boosts` off scores exactly as it did before this clock
+ * existed), only outside a boss fight (which keeps its own `fightTicks` decay), and only
  * while POINTS_FREEZE is not active — mirroring `updateBoss`'s own `fightTicks` gate exactly.
  */
 export function advanceScoreDecay(s: GameState): void {

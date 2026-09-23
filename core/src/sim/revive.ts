@@ -10,6 +10,11 @@ import type { GameState } from '../types';
  * this only after the on-chain purchase confirms; on any other precondition it does nothing at
  * all — deliberately a silent no-op rather than a throw, matching `step()`'s own "does nothing once
  * the run is over" idiom, so a stray or duplicate call from a UI race never corrupts the run.
+ *
+ * A revive is not part of the replay format (`Replay` in `replay.ts`): it changes the state outside
+ * `step()`, so a run with one cannot be re-simulated from its replay. Only daily runs are verified
+ * today, and a daily run has no Tide, so nothing relies on it; verifying campaign runs would need the
+ * revives recorded first.
  */
 export function revive(s: GameState): void {
   if (!s.over || s.octopi.lives !== 0) return;

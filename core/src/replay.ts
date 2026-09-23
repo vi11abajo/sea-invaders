@@ -12,11 +12,23 @@ export const CORE_VERSION = 13;
 /** 15 minutes at 60 Hz: an upper bound on how long a single replay may run or claim to run. */
 export const MAX_REPLAY_TICKS = 54_000;
 export const MAX_REPLAY_INPUTS = MAX_REPLAY_TICKS;
+/**
+ * The longest seed a replay may carry, in ASCII characters. The decoder enforces it on untrusted
+ * bytes; the encoder enforces it too, so no replay can be encoded that would then fail to decode.
+ */
+export const MAX_REPLAY_SEED_LENGTH = 64;
 
 /** Which leaderboard/queue a replay belongs to. */
 export type ReplayMode = 0 | 1 | 2;
 export const REPLAY_MODE = { practice: 0, daily: 1, campaign: 2 } as const;
 
+/**
+ * A recorded run: its header plus every input change, which `step()` turns back into the same run.
+ * Only what goes through `step()` is recorded. A Tide revive (`revive()` in `sim/revive.ts`) changes
+ * the state outside `step()` and has no place in this format, so a run with a revive cannot be
+ * re-simulated from its replay. That is safe today because only daily runs are verified, and a daily
+ * run has no Tide; verifying campaign runs would need the revives recorded first (a format change).
+ */
 export interface Replay {
   version: number;
   mode: ReplayMode;
@@ -155,6 +167,7 @@ export function encodeReplay(r: Replay): Uint8Array {
   pushVarint(out, r.lives);
   pushVarint(out, VARIANT_INDEX[r.octopi]);
   pushVarint(out, r.ticks);
+  if (r.seed.length > MAX_REPLAY_SEED_LENGTH) throw new Error('replay seed too long');
   pushVarint(out, r.seed.length);
   for (let i = 0; i < r.seed.length; i++) {
     const code = r.seed.charCodeAt(i);
@@ -209,7 +222,7 @@ export function decodeReplay(bytes: Uint8Array): Replay {
   const ticks = read();
   if (ticks > MAX_REPLAY_TICKS) throw new Error('replay ticks exceed maximum');
   const seedLength = read();
-  if (seedLength > 64) throw new Error('replay seed too long');
+  if (seedLength > MAX_REPLAY_SEED_LENGTH) throw new Error('replay seed too long');
   if (pos + seedLength > bytes.length) throw new Error('truncated replay');
   let seed = '';
   for (let i = 0; i < seedLength; i++) {

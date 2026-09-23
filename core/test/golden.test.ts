@@ -7,8 +7,9 @@ import { GOLDEN_SCRIPTS, playScript, type PlayResult } from './golden-scripts';
 // Tests run from core/ (npm test in core/, and CI sets working-directory: core).
 const FILE = join(process.cwd(), 'golden', `golden-v${CORE_VERSION}.json`);
 
-// The survivor golden need not reach its full 18,000 ticks, but must clear this floor
-// (see final-fix-brief.md item 3): tune the dodge rule, never the simulation, to hold it.
+// The survivor golden need not reach its full 18,000 ticks, but must clear this floor. When it
+// falls short, tune the scripted dodge rule, never the simulation, to hold it: the goldens pin the
+// simulation, so changing it to pass a test script would defeat them.
 //
 // Core v11 (spec §6, controller ruling R39) widens the wave-scaled daily/practice pool: a veteran
 // joins from wave 6 on, which the plain `survivor` practice script now reaches inside its run
