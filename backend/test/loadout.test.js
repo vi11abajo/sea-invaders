@@ -1,3 +1,4 @@
+import { AWARDS, SEEKER_SKIN_CODE, SKIN_COUNT, SKIN_ITEM_IDS, VARIANT_INDEX, VARIANT_ITEM_IDS } from '@sea-invaders/core';
 import { Keypair } from '@solana/web3.js';
 import bs58 from 'bs58';
 import request from 'supertest';
@@ -38,6 +39,36 @@ function progressClearing(levels, length = 60) {
   for (const level of levels) cleared[level - 1] = true;
   return { v: 1, reef: 1, level: 1, lives: 5, cleared, best: new Array(length).fill(0), updatedAt: 1000 };
 }
+
+// The award level behind each skin code / variant index, inverted from core's own `AWARDS` table
+// (level -> award) so the sweep below never repeats the spec's numbers by hand.
+const AWARD_LEVEL_OF_SKIN = {};
+const AWARD_LEVEL_OF_VARIANT = {};
+for (const [level, award] of Object.entries(AWARDS)) {
+  if (award.kind === 'skin') AWARD_LEVEL_OF_SKIN[award.skin] = Number(level);
+  else AWARD_LEVEL_OF_VARIANT[VARIANT_INDEX[award.variant]] = Number(level);
+}
+
+/**
+ * One row per skin code (spec §3): what alone must be true before the wallet may equip it - nothing
+ * for the free base, an inventory bit for a sold look, a cleared level for a boss award, or a
+ * verified Seeker link for the Seeker look.
+ */
+const SKIN_ROWS = Array.from({ length: SKIN_COUNT }, (_, code) => {
+  if (code === 0) return { code, kind: 'free' };
+  const itemId = SKIN_ITEM_IDS[code];
+  if (itemId !== null) return { code, kind: 'item', itemId };
+  if (code === SEEKER_SKIN_CODE) return { code, kind: 'seeker' };
+  return { code, kind: 'award', level: AWARD_LEVEL_OF_SKIN[code] };
+});
+
+/** One row per variant selector (spec §3, `VARIANT_INDEX` order), built the same way as `SKIN_ROWS`. */
+const VARIANT_ROWS = Array.from({ length: VARIANT_ITEM_IDS.length }, (_, index) => {
+  if (index === 0) return { index, kind: 'free' };
+  const itemId = VARIANT_ITEM_IDS[index];
+  if (itemId !== null) return { index, kind: 'item', itemId };
+  return { index, kind: 'award', level: AWARD_LEVEL_OF_VARIANT[index] };
+});
 
 describe('/api/profile/loadout', () => {
   let app;
@@ -183,7 +214,7 @@ describe('/api/profile/loadout', () => {
     expect(res.body.earned).toEqual({ variants: [7, 8], skins: [13, 14, 15, 16] });
   });
 
-  it('GET grows a thirty-level record first, so it earns only what its thirty levels hold', async () => {
+  it('GET earns only what a thirty-level record holds', async () => {
     await memoryCampaign.upsertProgress(user.id, progressClearing([12, 24, 30], 30));
     const res = await request(app).get('/api/profile/loadout').set(auth);
     expect(res.body.earned).toEqual({ variants: [7], skins: [13, 14] });
@@ -224,6 +255,45 @@ describe('/api/profile/loadout', () => {
     await memoryLoadout.upsertLoadout(WALLET, { activeSkin: 17, activeVariant: 8 });
     const get = await request(app).get('/api/profile/loadout').set(auth);
     expect(get.body).toMatchObject({ activeSkin: 0, activeVariant: 0 });
+  });
+
+  // Review finding #4 (task-2-review.md): the full allow/deny matrix, one row per skin code and
+  // variant index, each with only its own entitlement ever set.
+  describe('every code needs only its own entitlement, and nothing else (spec §3 sweep)', () => {
+    it.each(SKIN_ROWS)('skin $code ($kind)', async (row) => {
+      const denied = await request(app).put('/api/profile/loadout').set(auth).send({ activeSkin: row.code });
+      expect(denied.status).toBe(row.kind === 'free' ? 200 : 409);
+      if (row.kind !== 'free') expect(denied.body).toMatchObject({ error: 'Loadout', code: 'not_owned' });
+
+      if (row.kind === 'item') fakeChain.setPlayer(WALLET, { inventory: 1n << BigInt(row.itemId) });
+      if (row.kind === 'award') await memoryCampaign.upsertProgress(user.id, progressClearing([row.level]));
+      if (row.kind === 'seeker') {
+        fakeChain.setPlayer(WALLET, { seeker: true });
+        clearPlayerCache(); // what confirmSeekerLink does after a link lands
+      }
+
+      const allowed = await request(app).put('/api/profile/loadout').set(auth).send({ activeSkin: row.code });
+      expect(allowed.status).toBe(200);
+      expect(allowed.body.activeSkin).toBe(row.code);
+    });
+
+    it.each(VARIANT_ROWS)('variant $index ($kind)', async (row) => {
+      const denied = await request(app).put('/api/profile/loadout').set(auth).send({ activeVariant: row.index });
+      expect(denied.status).toBe(row.kind === 'free' ? 200 : 409);
+      if (row.kind !== 'free') expect(denied.body).toMatchObject({ error: 'Loadout', code: 'not_owned' });
+
+      if (row.kind === 'item') fakeChain.setPlayer(WALLET, { inventory: 1n << BigInt(row.itemId) });
+      if (row.kind === 'award') await memoryCampaign.upsertProgress(user.id, progressClearing([row.level]));
+
+      const allowed = await request(app).put('/api/profile/loadout').set(auth).send({ activeVariant: row.index });
+      expect(allowed.status).toBe(200);
+      expect(allowed.body.activeVariant).toBe(row.index);
+    });
+
+    it.each([1.5, '1'])('PUT answers 400 for a non-integer activeVariant (%j), not silently coerced', async (value) => {
+      const res = await request(app).put('/api/profile/loadout').set(auth).send({ activeVariant: value });
+      expect(res.status).toBe(400);
+    });
   });
 
   // Important #3 of the final review: every new chain/money route carries a per-route limiter,

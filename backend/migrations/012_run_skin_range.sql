@@ -4,8 +4,9 @@
 --              skins spec, sections 2-3: the sold looks, the boss awards and the Seeker look), and
 --              startRun snapshots the equipped code into ranked_runs.skin. 009 declared the 0..4
 --              CHECK inline on the column, so its name is whatever Postgres assigned: like 011,
---              it is dropped by lookup (only the CHECK that names the skin column) rather than by
---              name, and the new range is added under the name ranked_runs_skin_check.
+--              it is dropped by lookup (the CHECK constraint attached to the skin column, found by
+--              its conkey rather than by matching its definition's text) rather than by name, and
+--              the new range is added under the name ranked_runs_skin_check.
 -- ============================================
 
 BEGIN;
@@ -18,7 +19,7 @@ BEGIN
       FROM pg_constraint con
      WHERE con.conrelid = 'ranked_runs'::regclass
        AND con.contype = 'c'
-       AND pg_get_constraintdef(con.oid) ILIKE '%skin%'
+       AND con.conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'ranked_runs'::regclass AND attname = 'skin')]
   LOOP
     EXECUTE format('ALTER TABLE ranked_runs DROP CONSTRAINT %I', constraint_name);
   END LOOP;

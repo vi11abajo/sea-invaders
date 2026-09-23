@@ -63,9 +63,13 @@ describe('readCatalog / readPlayerShop', () => {
   });
 
   it('names every one of the eighteen items by the shared catalogue in core', async () => {
-    fakeChain.setCatalog([7, 13, 14, 15, 16, 17].map((id) => ({ id, kind: id >= 15 ? 0 : 1, price: 35_000_000n, active: true })));
+    fakeChain.setCatalog(Array.from({ length: 18 }, (_, id) => ({ id, kind: id <= 2 || id >= 15 ? 0 : 1, price: 35_000_000n, active: true })));
     const names = (await readCatalog()).map((it) => [it.id, it.name]);
-    expect(names).toEqual([[7, 'Bear'], [13, 'Matrix'], [14, 'Sharingan'], [15, 'Noob'], [16, 'Coraluna'], [17, 'Shoupe']]);
+    expect(names).toEqual([
+      [0, 'Azul'], [1, 'Krang'], [2, 'Poseidon'], [3, 'Lime'], [4, 'Lilac'], [5, 'Ember'], [6, 'Abyss'],
+      [7, 'Bear'], [8, 'Bunny'], [9, 'Sponge'], [10, 'Tiger'], [11, 'Grim'], [12, 'King'], [13, 'Matrix'], [14, 'Sharingan'],
+      [15, 'Noob'], [16, 'Coraluna'], [17, 'Shoupe'],
+    ]);
   });
 
   it('caches the catalog for 60s: a second call does not re-derive from a changed fake catalog', async () => {

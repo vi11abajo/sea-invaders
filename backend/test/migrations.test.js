@@ -97,8 +97,10 @@ describe('migration list', () => {
     const sql = readFileSync(new URL('../migrations/012_run_skin_range.sql', import.meta.url), 'utf8');
     expect(sql).toMatch(/ADD CONSTRAINT ranked_runs_skin_check CHECK \(skin BETWEEN 0 AND 17\)/);
     // 009 declared the 0..4 CHECK inline, so Postgres named it: like 011, the migration drops the old
-    // ranked_runs_skin_check by lookup, matching only the CHECK that names the skin column.
+    // ranked_runs_skin_check by lookup, matching only the CHECK on the skin column itself.
     expect(sql).toMatch(/FROM pg_constraint/);
-    expect(sql).toMatch(/ILIKE '%skin%'/);
+    expect(sql).toMatch(/contype = 'c'/);
+    expect(sql).toMatch(/DROP CONSTRAINT %I/);
+    expect(sql).not.toMatch(/DROP CONSTRAINT (IF EXISTS )?ranked_runs_skin_check/);
   });
 });
