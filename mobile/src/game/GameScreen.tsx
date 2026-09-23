@@ -1,11 +1,11 @@
-import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
+import { Canvas, Picture, Skia, useImage } from '@shopify/react-native-skia';
 import {
   BOOST_INDEX, CRAB_SHOTS, CRAB_TYPES, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, LANE_STRIDE, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
   OCTOPI, TIDE_REVIVE_LIVES, createGame, fitField, formatInt, revive, snapshot, step, touchToInput,
   type BoostType, type BossFrame, type Bullet, type BulletKind, type Crab, type Frame, type GameEvent, type Input, type OctopiVariant, type Replay,
   type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import {
@@ -14,8 +14,8 @@ import {
   hapticRunOver, hapticShieldBreak, hapticWaveCleared, hapticWaveStart,
 } from '../audio/haptics';
 import { playSfx, type SfxId } from '../audio/sfx';
-import { ITEM_NAMES, itemOfOctopi } from '../loadout/items';
-import { ITEM_TINT, tintWithAlpha } from '../shop/tints';
+import { VARIANT_NAMES } from '../loadout/items';
+import { ACCENT_BY_VARIANT, tintWithAlpha } from '../shop/tints';
 import { Backdrop } from '../ui/Backdrop';
 import { Txt } from '../ui/Txt';
 import { COLORS, FONTS } from '../ui/tokens';
@@ -23,15 +23,16 @@ import { GameHud, type HudBadge, type HudBoost } from './GameHud';
 import { PauseSheet, RevivedSheet } from './PauseSheet';
 import { RESULT_POSE_SIZE, ResultView } from './ResultView';
 import { EFFECT_CAP, drawFrame, effectExpired, type EffectEntry, type Effects, type WaveBlast } from './draw';
-import { RunOctopiContext, octopiTint, useActiveSkin } from './skins';
-import { primeOctopiArt, usePreparedSprites, useSprites } from './sprites';
+import { BASE_LOOK, lookKey } from './looks';
+import { RunOctopiContext, useOctopiLook } from './skins';
+import { primeOctopiArt, usePreparedSprites, useSprites, type ArtPair } from './sprites';
 
 /** Milli-units between the finger and Octopi's centre, so the finger never covers Octopi. */
 const FINGER_LIFT = 600;
 
 const HINT = 'Drag anywhere — Octopi follows above your finger. Auto-fire.';
 
-/** The octopi badge's fill: the item's Shop colour at the alpha of the HUD's other tags (RAGE, FROZEN). */
+/** The champion badge's fill: the champion's accent at the alpha of the HUD's other tags (RAGE, FROZEN). */
 const BADGE_ALPHA = 0.35;
 
 /** How long the wave/phase banner and the pickup toast stay up, in rendered frames. */
@@ -286,14 +287,14 @@ function boostsFromFrame(flat: number[], tamerStacks: number): HudBoost[] {
   return list;
 }
 
-/** The HUD badge of a run played with a campaign octopi (`HARPOON` in Harpoon's colour); none for the base Octopi. */
+/**
+ * The HUD badge of a run played with a champion (`AZUL` in Azul's accent); none for the base Octopi.
+ * It names the champion, so the ability in play stays visible when a skin hides the champion's art
+ * (design doc §5).
+ */
 function octopiBadge(octopi: OctopiVariant): HudBadge | undefined {
-  const itemId = itemOfOctopi(octopi);
-  if (itemId === null) return undefined;
-  const name = ITEM_NAMES[itemId];
-  const tint = ITEM_TINT[itemId];
-  if (name === undefined || tint === undefined) return undefined;
-  return { text: name.toUpperCase(), color: tintWithAlpha(tint, BADGE_ALPHA) };
+  if (octopi === 'base') return undefined;
+  return { text: VARIANT_NAMES[octopi].toUpperCase(), color: tintWithAlpha(ACCENT_BY_VARIANT[octopi], BADGE_ALPHA) };
 }
 
 function sameBoss(a: BossFrame | null, b: BossFrame | null): boolean {
@@ -403,10 +404,23 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const fieldRect = useMemo(() => ({ x: layout.offsetX, y: layout.offsetY, width: layout.width, height: layout.height }), [layout]);
   const sprites = useSprites();
   // Daily and practice runs play the base Octopi (their configs are base), so they show the skin or
-  // Octopi's own colours; a campaign octopi shows in its colour unless a skin is equipped.
+  // Octopi's own colours; a champion shows its own art unless a skin is equipped (design doc §2).
   const octopi = run?.octopi ?? 'base';
-  const tint = octopiTint(useActiveSkin(), octopi);
-  const prepared = usePreparedSprites(sprites, layout, tint);
+  const look = useOctopiLook(octopi);
+  // Only the equipped look's pair is decoded, and only for a drawn look (design doc §5): `useImage`
+  // loads nothing for null, so a run never decodes any other of the 21 pairs.
+  const [failedArt, setFailedArt] = useState<string | null>(null);
+  const onArtError = useCallback(() => setFailedArt(lookKey(look)), [look]);
+  const artFront = useImage(look.kind === 'art' ? look.front : null, onArtError);
+  const artOoff = useImage(look.kind === 'art' ? look.ooff : null, onArtError);
+  const art = useMemo<ArtPair | null>(
+    () => (artFront !== null && artOoff !== null ? { front: artFront, ooff: artOoff } : null),
+    [artFront, artOoff],
+  );
+  // `usePreparedSprites` holds the run until a drawn look's pair is decoded; a pair that cannot be
+  // decoded plays the base Octopi instead of holding the run on "Loading…" for good.
+  const runLook = failedArt !== null && failedArt === lookKey(look) ? BASE_LOOK : look;
+  const prepared = usePreparedSprites(sprites, layout, runLook, art);
   const badge = useMemo(() => octopiBadge(octopi), [octopi]);
   const frame = useSharedValue<Frame>(EMPTY_FRAME);
   /** The last WAVE_BLAST of this run, for its shock rings (view only, never fed back to the sim). */
@@ -434,11 +448,13 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   const preparedRef = useRef(prepared);
   preparedRef.current = prepared;
 
-  // The result screen's Octopi, made now from the sprite this run already decoded, so the pose is
-  // there the moment the run ends instead of decoding the asset again at that point.
+  // The result screen's Octopi, made now from the front pose this run already decoded (the drawn
+  // look's Front, else the base sprite), so the pose is there the moment the run ends instead of
+  // decoding the asset again at that point.
   useEffect(() => {
-    if (sprites !== null) primeOctopiArt(sprites.octopi.front, tint, RESULT_POSE_SIZE);
-  }, [sprites, tint]);
+    const source = runLook.kind === 'art' ? (art?.front ?? null) : (sprites?.octopi.front ?? null);
+    if (source !== null) primeOctopiArt(source, runLook, RESULT_POSE_SIZE);
+  }, [sprites, art, runLook]);
 
   useEffect(() => {
     // Practice seed: the app may use the clock; only the core must not.
@@ -591,6 +607,12 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           toastFrames = TOAST_FRAMES;
           // Only emitted when the blast actually fired (with no crabs the drop is not consumed).
           if (ev.boost === 'WAVE_BLAST') blast.value = { tick: ev.tick, x: state.octopi.x, y: state.octopi.y };
+        } else if (ev.type === 'surge') {
+          // Coraluna's Surge is a free WAVE_BLAST (design doc §1): the same shock rings and toast as
+          // a picked-up one, at the position of Octopi the core recorded with the event.
+          toastText = 'Surge';
+          toastFrames = TOAST_FRAMES;
+          blast.value = { tick: ev.tick, x: ev.x, y: ev.y };
         }
         // The reefs 6-10 one-shot visuals (ruling R45, R60-R62): every entry is stamped with the
         // event's own `ev.tick`, never `state.tick` — a catch-up batch's later ticks must not age an

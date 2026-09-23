@@ -1,38 +1,22 @@
 import { Skia, type SkColorFilter } from '@shopify/react-native-skia';
 import type { OctopiVariant } from '@sea-invaders/core';
 import { createContext, useContext } from 'react';
-import { ITEM_NAMES, SKIN_ITEM_IDS, itemOfOctopi, type SkinIndex } from '../loadout/items';
-import { ITEM_TINT, tintMatrix } from '../shop/tints';
+import { SKIN_NAMES, VARIANT_NAMES, type SkinIndex } from '../loadout/items';
+import { tintMatrix } from '../shop/tints';
+import { octopiLook, type Look } from './looks';
 
 /**
- * Octopi's skins (design doc §1, §5): cosmetic recolours of the Octopi sprites through a Skia
- * `ColorMatrix`, never new art. Each skin's colour is read from the Shop's tint table
- * (`shop/tints.ts`, the single source of recolours) by the skin's catalogue item id, so the Shop
- * swatch, the Profile tile and the Octopi on Home, in a run and on the result screen all match.
+ * Octopi's looks on screen (champions and skins design doc §2, §5): which look the player wears
+ * (`useOctopiLook`, the one rule of `looks.ts`'s `octopiLook`) and the recolour a tint look is drawn
+ * through (`tintFilter`). A drawn look needs no filter: its own pair is drawn as is.
  */
-
-/** Each skin's colour by selector (0..4); null = Octopi's own colours. */
-export const SKIN_TINTS: readonly (string | null)[] = SKIN_ITEM_IDS.map((id) => (id === null ? null : (ITEM_TINT[id] ?? null)));
-
-/**
- * The colour Octopi is drawn in, null for its own colours: the one rule every Octopi on screen
- * follows (owner ruling 2026-09-14). The equipped skin wins, being the cosmetic choice; without one,
- * a campaign octopi shows in its Shop colour (`ITEM_TINT`, the tint of its Shop and Profile thumbs);
- * otherwise Octopi keeps its own colours. Daily runs and practice from Home play the base Octopi, so
- * they show the skin or Octopi's own colours.
- */
-export function octopiTint(skin: SkinIndex, octopi: OctopiVariant): string | null {
-  const skinTint = SKIN_TINTS[skin] ?? null;
-  if (skinTint !== null) return skinTint;
-  const itemId = itemOfOctopi(octopi);
-  return itemId === null ? null : (ITEM_TINT[itemId] ?? null);
-}
 
 const TINT_FILTERS = new Map<string, SkColorFilter>();
 
 /**
- * The Skia colour filter that recolours Octopi to `tint` (`tintMatrix`), built once per colour and
- * reused: the in-game poses and the UI snapshots are pre-tinted through it. Null for Octopi's own colours.
+ * The Skia colour filter that recolours the base Octopi to `tint` (`tintMatrix`), built once per
+ * colour and reused: the in-game poses and the UI snapshots are pre-tinted through it. Null for
+ * Octopi's own colours.
  */
 export function tintFilter(tint: string | null): SkColorFilter | null {
   if (tint === null) return null;
@@ -44,10 +28,9 @@ export function tintFilter(tint: string | null): SkColorFilter | null {
   return filter;
 }
 
-/** "Lime" for skin 1; null for the base colours. */
+/** "Lime" for skin 1, "Pengu" for skin 13; null for Octopi's own colours (0) and an unknown code. */
 export function skinName(skin: SkinIndex): string | null {
-  const id = SKIN_ITEM_IDS[skin];
-  return id === null ? null : (ITEM_NAMES[id] ?? null);
+  return skin === 0 ? null : (SKIN_NAMES[skin] ?? null);
 }
 
 /**
@@ -63,8 +46,8 @@ export function useActiveSkin(): SkinIndex {
 
 /**
  * The octopi variant the player has equipped (the loadout's `activeVariant`), which the app shell
- * provides; the base Octopi outside a provider. Home's hero shows it (in its colour unless a skin is
- * equipped); a run uses its own variant through `RunOctopiContext` instead.
+ * provides; the base Octopi outside a provider. Home's hero shows it (in its own art unless a skin
+ * is equipped); a run uses its own variant through `RunOctopiContext` instead.
  */
 export const EquippedOctopiContext = createContext<OctopiVariant>('base');
 
@@ -73,10 +56,9 @@ export function useEquippedOctopi(): OctopiVariant {
   return useContext(EquippedOctopiContext);
 }
 
-/** "Trident" for the trident variant; null for the base Octopi. */
+/** "Poseidon" for the trident variant (the champion's shown name, design doc §1); null for the base Octopi. */
 export function variantName(octopi: OctopiVariant): string | null {
-  const id = itemOfOctopi(octopi);
-  return id === null ? null : (ITEM_NAMES[id] ?? null);
+  return octopi === 'base' ? null : VARIANT_NAMES[octopi];
 }
 
 /**
@@ -85,9 +67,9 @@ export function variantName(octopi: OctopiVariant): string | null {
  */
 export const RunOctopiContext = createContext<OctopiVariant>('base');
 
-/** The colour this Octopi is drawn in (`octopiTint`): the active skin, else `octopi` (by default the run's variant). */
-export function useOctopiTint(octopi?: OctopiVariant): string | null {
+/** The look this Octopi wears (`octopiLook`): the active skin over `octopi`, by default the run's variant. */
+export function useOctopiLook(octopi?: OctopiVariant): Look {
   const skin = useActiveSkin();
   const fromRun = useContext(RunOctopiContext);
-  return octopiTint(skin, octopi ?? fromRun);
+  return octopiLook(skin, octopi ?? fromRun);
 }

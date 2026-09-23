@@ -1239,9 +1239,9 @@ export function drawFrame(
   }
 
   // Octopi: always the front sprite, swapped for the damage pose while invulnerable (no blink).
-  // Both poses come from `prepareOctopi` already in the run's look (the skin or the campaign octopi's
-  // tint, baked into their snapshots); only a pose whose snapshot failed carries the tint's prebuilt
-  // colour filter, which its full-size fallback draw applies here.
+  // Both poses come from `prepareOctopi` already in the run's look (a drawn pair, or the base pair
+  // with a tint skin baked into their snapshots); only a pose whose snapshot failed carries the
+  // tint's prebuilt colour filter, which its full-size fallback draw applies here.
   const sx = px(f.octopi.x);
   const sy = py(f.octopi.y);
   const octopiSprite = f.octopi.invuln > 0 ? sprites.octopi.hit : sprites.octopi.front;

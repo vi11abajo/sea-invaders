@@ -1,7 +1,8 @@
 import { FilterMode, MipmapMode, Skia, loadData, useImage, type SkColorFilter, type SkImage, type SkSurface } from '@shopify/react-native-skia';
 import { BOSS, CRAB, DROP, OCTOPI, type Layout } from '@sea-invaders/core';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PixelRatio } from 'react-native';
+import { lookKey, type Look } from './looks';
 import { tintFilter } from './skins';
 
 /**
@@ -13,7 +14,7 @@ import { tintFilter } from './skins';
  */
 export const PIXEL_RATIO = PixelRatio.get();
 
-/** Octopi's front pose: the in-game sprite and the source of every UI snapshot (`useOctopiArt`). */
+/** The base Octopi's front pose: the in-game sprite and the source of every base or tint UI snapshot (`useOctopiArt`). */
 const OCTOPI_FRONT = require('../../assets/sprites/octopiFront.png');
 
 export interface Sprites {
@@ -208,7 +209,7 @@ export interface PreparedSprite {
 }
 
 export interface PreparedSprites {
-  /** Octopi's two poses in the run's look (`octopiTint`), tinted into their snapshots (`prepareOctopi`). */
+  /** Octopi's two poses in the run's look (`octopiLook`): a drawn pair, or the base pair with a tint baked into their snapshots (`prepareOctopi`). */
   octopi: { front: PreparedSprite; hit: PreparedSprite };
   crabs: PreparedSprite[];
   /**
@@ -295,17 +296,28 @@ function preparedFrom(image: SkImage, w: number, h: number, src?: Rect, filter: 
 type PreparedOctopi = Pick<PreparedSprites, 'octopi'>;
 type PreparedWorld = Omit<PreparedSprites, 'octopi'>;
 
+/** A drawn look's two decoded poses (design doc §5): the Front pose and the Ooff (hit) pose. */
+export interface ArtPair {
+  front: SkImage;
+  ooff: SkImage;
+}
+
 /**
- * Octopi's front and hit poses recoloured to `tint` (`octopiTint`: the skin, else the campaign
- * octopi's colour), pre-scaled like every other sprite with the tint's `ColorMatrix` applied in the
- * same offscreen draw (both poses share the body colour `#1C6DC6` the matrix is calibrated on).
- * Null draws Octopi's own colours untouched.
+ * Octopi's front and hit poses in `look` (`octopiLook`), pre-scaled like every other sprite. A drawn
+ * look with its pair decoded (`art`) is drawn as is: Front for the front pose, Ooff for the hit pose
+ * (design doc §5). Otherwise the base pair is used, recoloured for a tint look by the tint's
+ * `ColorMatrix` in the same offscreen draw (both base poses share the body colour `#1C6DC6` the
+ * matrix is calibrated on); the base look keeps Octopi's own colours. Every pose is fitted to
+ * Octopi's width, as the base pair always was.
  */
-export function prepareOctopi(sprites: Sprites, layout: Layout, tint: string | null): PreparedOctopi {
-  const filter = tintFilter(tint);
+export function prepareOctopi(sprites: Sprites, layout: Layout, look: Look, art: ArtPair | null): PreparedOctopi {
+  const drawn = look.kind === 'art' ? art : null;
+  const frontImage = drawn?.front ?? sprites.octopi.front;
+  const hitImage = drawn?.ooff ?? sprites.octopi.hit;
+  const filter = drawn !== null ? null : tintFilter(look.kind === 'tint' ? look.tint : null);
   const octopiW = OCTOPI.size * layout.scale;
-  const front = preparedFrom(sprites.octopi.front, octopiW, octopiW * (sprites.octopi.front.height() / sprites.octopi.front.width()), undefined, filter);
-  const hit = preparedFrom(sprites.octopi.hit, octopiW, octopiW * (sprites.octopi.hit.height() / sprites.octopi.hit.width()), undefined, filter);
+  const front = preparedFrom(frontImage, octopiW, octopiW * (frontImage.height() / frontImage.width()), undefined, filter);
+  const hit = preparedFrom(hitImage, octopiW, octopiW * (hitImage.height() / hitImage.width()), undefined, filter);
   return { octopi: { front, hit } };
 }
 
@@ -342,32 +354,56 @@ function prepareWorld(sprites: Sprites, layout: Layout): PreparedWorld {
  * filtering (Task 4's FPS ruling, plus the crushed-sprite fix): the UI-thread worklet then draws
  * each with a single `canvas.drawImageOptions` call, no per-frame resampling. Memoized in two parts
  * for `GameScreen`: the world sprites (`prepareWorld`) rebuild only when `sprites`/`layout` change,
- * Octopi's two poses in `tint` (`prepareOctopi`) also when Octopi's colour changes.
+ * Octopi's two poses in `look` (`prepareOctopi`) also when Octopi's look or its drawn pair `art`
+ * changes. A drawn look waits for its pair the way the world waits for its sprites (null until
+ * both are decoded), so a run never starts on the base Octopi and swaps to the champion a moment
+ * later; `GameScreen` passes the base look instead when the pair fails to decode.
  */
-export function usePreparedSprites(sprites: Sprites | null, layout: Layout, tint: string | null): PreparedSprites | null {
+export function usePreparedSprites(sprites: Sprites | null, layout: Layout, look: Look, art: ArtPair | null): PreparedSprites | null {
   const world = useMemo(() => (sprites === null ? null : prepareWorld(sprites, layout)), [sprites, layout]);
-  const octopi = useMemo(() => (sprites === null ? null : prepareOctopi(sprites, layout, tint)), [sprites, layout, tint]);
+  const octopi = useMemo(
+    () => (sprites === null || (look.kind === 'art' && art === null) ? null : prepareOctopi(sprites, layout, look, art)),
+    [sprites, layout, look, art],
+  );
   return useMemo(() => (world === null || octopi === null ? null : { ...world, ...octopi }), [world, octopi]);
 }
 
 /*
- * Octopi on UI screens (Home's hero, the result pose, Shop and Profile thumbs): small snapshots of
- * the front pose, recoloured and pre-scaled through the same `renderScaled` path as the game. The
- * ~2300 px asset decodes to ~20 MB, so it is decoded only while a snapshot is being made and
- * released as soon as none is waiting; screens hold only their own snapshots (a 160 dp hero is
- * about 1 MB at 3x, a 56 dp thumb about 0.1 MB).
+ * Octopi on UI screens (Home's hero, the result pose, Shop and Profile thumbs, leaderboard rows):
+ * small snapshots of a look's front pose — the base sprite, recoloured for a tint look, or a drawn
+ * pair's Front (design doc §5) — pre-scaled through the same `renderScaled` path as the game. A
+ * source decodes to ~20 MB (the ~2300 px base sprite) or ~8 MB (a 1400 px drawn Front), so sources
+ * are decoded one at a time, only while a snapshot waits on them, and released as soon as none
+ * does: a Shop or Profile full of drawn thumbs decodes each Front once, in turn, never all of them
+ * at once, and a leaderboard decodes one Front per distinct look however many rows wear it. Screens
+ * hold only their own snapshots (a 160 dp hero is about 1 MB at 3x, a 56 dp thumb about 0.1 MB).
  */
 
-/** Snapshots kept for reuse across screens; the oldest is dropped past this count (a screen keeps its own reference). */
-const ART_LIMIT = 24;
+/**
+ * Snapshots kept for reuse across screens; the oldest is dropped past this count (a screen keeps
+ * its own reference). Room for the Profile's champions and skins together (27 tiles) with the hero.
+ */
+const ART_LIMIT = 48;
 const artCache = new Map<string, SkImage>();
 const artJobs = new Map<string, Promise<SkImage | null>>();
-/** The decoded asset while any snapshot waits on it; null otherwise. */
-let artSource: Promise<SkImage | null> | null = null;
-let artWaiting = 0;
 
-function artKey(tint: string | null, px: number): string {
-  return `${tint ?? 'base'}@${px}`;
+/** A snapshot waiting for its source to be decoded. */
+interface ArtJob {
+  key: string;
+  look: Look;
+  px: number;
+  done: (image: SkImage | null) => void;
+}
+const artQueue: ArtJob[] = [];
+let artDraining = false;
+
+function artKey(look: Look, px: number): string {
+  return `${lookKey(look)}@${px}`;
+}
+
+/** The asset a look's snapshot is made from, and its identity: a drawn look's own Front, else the base front pose. */
+function artSourceOf(look: Look): { id: string; asset: number } {
+  return look.kind === 'art' ? { id: look.key, asset: look.front } : { id: 'base', asset: OCTOPI_FRONT };
 }
 
 function rememberArt(key: string, image: SkImage): void {
@@ -380,21 +416,65 @@ function rememberArt(key: string, image: SkImage): void {
 }
 
 /**
- * Renders `source` recoloured to `tint` into a snapshot that fits a `px x px` physical-pixel square,
- * keeping its aspect ratio. Falls back to a CPU surface where the GPU offscreen one is unavailable,
- * so a UI Octopi never goes missing.
+ * Renders `source` in `look` into a snapshot that fits a `px x px` physical-pixel square, keeping
+ * its aspect ratio: recoloured for a tint look, as is otherwise (`source` is a drawn look's own
+ * Front). Falls back to a CPU surface where the GPU offscreen one is unavailable, so a UI Octopi
+ * never goes missing.
  */
-function renderArt(source: SkImage, tint: string | null, px: number): SkImage | null {
+function renderArt(source: SkImage, look: Look, px: number): SkImage | null {
   const { w, h } = containSize(source, px / PIXEL_RATIO);
-  const filter = tintFilter(tint);
+  const filter = tintFilter(look.kind === 'tint' ? look.tint : null);
   return (
     renderScaled(source, w, h, undefined, filter) ??
     renderScaled(source, w, h, undefined, filter, (width, height) => Skia.Surface.Make(width, height))
   );
 }
 
-function requestArt(tint: string | null, px: number): Promise<SkImage | null> {
-  const key = artKey(tint, px);
+/** Decodes `asset`; null when it cannot be read or decoded (started inside the chain so a throw lands in the catch). */
+function decodeArt(asset: number): Promise<SkImage | null> {
+  return Promise.resolve()
+    .then(() => loadData(asset, (data) => Skia.Image.MakeImageFromEncoded(data)))
+    .catch(() => null);
+}
+
+/**
+ * Works through `artQueue` one source at a time: every waiting snapshot of the source already
+ * decoded is made before the next source is decoded, and a source is released (`dispose`, not left
+ * to GC) the moment no queued snapshot needs it.
+ */
+async function drainArt(): Promise<void> {
+  if (artDraining) return;
+  artDraining = true;
+  let held: { id: string; image: SkImage | null } | null = null;
+  try {
+    while (artQueue.length > 0) {
+      const heldId = held?.id;
+      const same = heldId === undefined ? -1 : artQueue.findIndex((j) => artSourceOf(j.look).id === heldId);
+      const job = artQueue.splice(Math.max(0, same), 1)[0]!;
+      const { id, asset } = artSourceOf(job.look);
+      if (held === null || held.id !== id) {
+        held?.image?.dispose();
+        held = null; // never disposed twice, whatever the decode below does
+        held = { id, image: await decodeArt(asset) };
+      }
+      let art: SkImage | null = null;
+      try {
+        art = held.image === null ? null : renderArt(held.image, job.look, job.px);
+      } catch {
+        art = null;
+      }
+      if (art !== null) rememberArt(job.key, art);
+      artJobs.delete(job.key);
+      job.done(art);
+    }
+  } finally {
+    held?.image?.dispose();
+    artDraining = false;
+  }
+}
+
+function requestArt(look: Look, px: number): Promise<SkImage | null> {
+  const key = artKey(look, px);
   const cached = artCache.get(key);
   if (cached !== undefined) {
     rememberArt(key, cached);
@@ -402,68 +482,53 @@ function requestArt(tint: string | null, px: number): Promise<SkImage | null> {
   }
   const running = artJobs.get(key);
   if (running !== undefined) return running;
-  artWaiting += 1;
-  if (artSource === null) {
-    // Started inside the chain so a failure to resolve the asset lands in the catch, not the caller.
-    artSource = Promise.resolve()
-      .then(() => loadData(OCTOPI_FRONT, (data) => Skia.Image.MakeImageFromEncoded(data)))
-      .catch(() => null);
-  }
-  const source = artSource;
-  const job = source
-    .then((image) => {
-      if (image === null) return null;
-      const art = renderArt(image, tint, px);
-      if (art !== null) rememberArt(key, art);
-      return art;
-    })
-    .catch(() => null)
-    .finally(() => {
-      artJobs.delete(key);
-      artWaiting -= 1;
-      if (artWaiting === 0 && artSource === source) {
-        // Nothing else waits on the decoded asset: release its ~20 MB now rather than at GC.
-        artSource = null;
-        void source.then((image) => image?.dispose());
-      }
-    });
+  const job = new Promise<SkImage | null>((resolve) => {
+    artQueue.push({ key, look, px, done: resolve });
+  });
   artJobs.set(key, job);
+  void drainArt();
   return job;
 }
 
 /**
- * Makes the snapshot `useOctopiArt(tint, box)` will ask for from an already decoded front pose (the
- * game's own sprite), so a later screen finds it ready without decoding the asset again.
+ * Makes the snapshot `useOctopiArt(look, box)` will ask for from an already decoded `source` — the
+ * run's own front pose: a drawn look's Front, else the base sprite — so a later screen finds it
+ * ready without decoding the asset again.
  */
-export function primeOctopiArt(source: SkImage, tint: string | null, box: number): void {
+export function primeOctopiArt(source: SkImage, look: Look, box: number): void {
   const px = Math.round(box * PIXEL_RATIO);
   if (px <= 0) return;
-  const key = artKey(tint, px);
+  const key = artKey(look, px);
   if (artCache.has(key) || artJobs.has(key)) return;
-  const art = renderArt(source, tint, px);
+  const art = renderArt(source, look, px);
   if (art !== null) rememberArt(key, art);
 }
 
 /**
- * Octopi's front pose recoloured to `tint` (null = its own colours, otherwise a `shop/tints.ts`
- * colour), pre-scaled to fit a `box x box` dp square at physical pixels: draw it into that square
- * (`fit="contain"`) and it lands 1:1 on the screen's pixels. Null until the snapshot is ready, or
- * while `box` is 0 (not laid out yet).
+ * Octopi's front pose in `look` (`looks.ts`: its own colours, a tint of `shop/tints.ts`, or a drawn
+ * pair's Front), pre-scaled to fit a `box x box` dp square at physical pixels: draw it into that
+ * square (`fit="contain"`) and it lands 1:1 on the screen's pixels. Null until the snapshot is
+ * ready, or while `box` is 0 (not laid out yet). Keyed by `lookKey(look)` and the physical size, so
+ * every screen and row wearing the same look at the same size shares one snapshot.
  */
-export function useOctopiArt(tint: string | null, box: number): SkImage | null {
+export function useOctopiArt(look: Look, box: number): SkImage | null {
   const px = Math.round(box * PIXEL_RATIO);
-  const key = artKey(tint, px);
+  const key = artKey(look, px);
+  // `key` names the look completely, so the effect below follows `key`; the ref only hands it the
+  // look object that key was made from.
+  const lookRef = useRef(look);
+  lookRef.current = look;
   const [held, setHeld] = useState<{ key: string; image: SkImage } | null>(null);
   useEffect(() => {
     if (px <= 0) return undefined;
     let alive = true;
-    void requestArt(tint, px).then((image) => {
+    void requestArt(lookRef.current, px).then((image) => {
       if (alive && image !== null) setHeld({ key, image });
     });
     return () => {
       alive = false;
     };
-  }, [key, tint, px]);
+  }, [key, px]);
   if (px <= 0) return null;
   if (held !== null && held.key === key) return held.image;
   // A snapshot another screen already made draws on the first frame, before the effect above holds it.

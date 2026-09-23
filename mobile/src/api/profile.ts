@@ -4,10 +4,17 @@ import { apiFetch } from './client';
 export interface LoadoutInfo {
   /** Catalogue item ids the wallet owns, read from the chain. */
   owned: number[];
-  /** 0 = Octopi's own colours; 1..4 = the skins Lime, Lilac, Ember, Abyss (item ids 3..6). */
+  /** The skin code (champions and skins design doc §2): 0 = Octopi's own colours, 1..17 as `SKIN_NAMES`; 0 when the stored one is no longer allowed. */
   activeSkin: number;
-  /** 0 = the base Octopi; 1..3 = Harpoon, Anchor, Trident (item ids 0..2). */
+  /** The `VARIANT_INDEX` (design doc §3): 0 = the base Octopi, 1..8 the champions; 0 when the stored one is no longer allowed. */
   activeVariant: number;
+  /**
+   * What the wallet's campaign progress has earned (design doc §3): variant indexes (7 Hex,
+   * 8 Kakashi) and skin codes (13..16). Missing from an older API's answer.
+   */
+  earned?: { variants: number[]; skins: number[] };
+  /** True when the wallet has a verified Seeker link, so it may wear the Seeker skin (17). Missing from an older API's answer. */
+  seekerSkin?: boolean;
 }
 
 /** A loadout update: either selector alone, or both. */
@@ -22,9 +29,9 @@ export function getLoadout(): Promise<LoadoutInfo> {
 }
 
 /**
- * Equips an owned skin and/or variant (0, the base, is always allowed) and answers with the whole
- * loadout. Rejects with `ApiError` 400 for a selector out of range, 409 `not_owned` for an item the
- * wallet does not own.
+ * Equips a skin and/or variant the wallet owns, has earned or is linked for (0, the base, is always
+ * allowed) and answers with the whole loadout. Rejects with `ApiError` 400 for a selector out of
+ * range, 409 `not_owned` for one the wallet may not wear.
  */
 export function putLoadout(change: LoadoutChange): Promise<LoadoutInfo> {
   return apiFetch<LoadoutInfo>('/api/profile/loadout', { method: 'PUT', auth: true, body: change });
