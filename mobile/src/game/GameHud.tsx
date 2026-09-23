@@ -99,12 +99,12 @@ export function GameHud({ mode, badge, score, lives, wave = 0, waves, combo, boo
           // `WAVE 3` in Daily Run and Practice, `WAVE 3 / 5` on a campaign level. Hidden while a boss
           // stands, when the boss bar below says what matters.
           <View style={[styles.glass, styles.pill, styles.wavePill]}>
-            <Text style={styles.waveText}>{waves !== undefined ? `WAVE ${wave} / ${waves}` : `WAVE ${wave}`}</Text>
+            <Text style={styles.waveText} numberOfLines={1}>{waves !== undefined ? `WAVE ${wave} / ${waves}` : `WAVE ${wave}`}</Text>
           </View>
         )}
         <View style={styles.right}>
           <View style={[styles.glass, styles.pill, styles.lives]}>
-            <Hearts lives={lives} size={14} />
+            <Hearts lives={lives} size={11} gap={2} />
           </View>
           {combo !== undefined && <ComboPill combo={combo} />}
         </View>
@@ -219,7 +219,12 @@ const styles = StyleSheet.create({
   root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   // Owner's note 2026-09-23: the three top-row pieces sit on one centre line and the two pills
   // share one height, so the row reads as a single bar rather than three loose boxes.
-  top: { position: 'absolute', top: 28, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  // Owner's note 2026-09-23 (second): with a campaign octopi's badge widening the score card and
+  // five hearts in the pill, the row ran past the right edge on a 400 dp screen — the hearts pill
+  // was pushed off it. The budget now: score card 150 + wave pill ≤ 92 + hearts ≤ 98 + two 10 dp
+  // gaps = 360 dp of the 368 available; the wave pill is the one piece allowed to shrink (and
+  // ellipsise) if some longer badge ever widens the card further, so the hearts always stay on screen.
+  top: { position: 'absolute', top: 28, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   glass: { backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder },
   // `minWidth`/`paddingRight`: a seven-digit mono score measured narrower than it rendered and ran
   // past the card's edge (owner's note 2026-09-23).
@@ -227,11 +232,11 @@ const styles = StyleSheet.create({
   mode: { fontFamily: FONTS.medium, fontSize: 10, letterSpacing: 0.4, color: COLORS.textSecondary },
   modeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   score: { fontFamily: FONTS.mono, fontSize: 26, lineHeight: 30, letterSpacing: -0.52, color: COLORS.text, paddingRight: 2 },
-  wavePill: { height: HUD_PILL_HEIGHT, justifyContent: 'center', paddingHorizontal: 14 },
-  waveText: { fontFamily: FONTS.mono, fontSize: 12, letterSpacing: 0.6, color: COLORS.textSecondary },
+  wavePill: { height: HUD_PILL_HEIGHT, justifyContent: 'center', paddingHorizontal: 10, flexShrink: 1, minWidth: 0 },
+  waveText: { fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 0.6, color: COLORS.textSecondary },
   right: { alignItems: 'flex-end', justifyContent: 'center', gap: 6 },
   pill: { borderRadius: RADIUS.pill, overflow: 'hidden' },
-  lives: { height: HUD_PILL_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
+  lives: { height: HUD_PILL_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, flexShrink: 0 },
   combo: { paddingHorizontal: 10, paddingVertical: 6 },
   comboText: { fontFamily: FONTS.mono, fontSize: 13, color: COLORS.text },
   comboHot: { color: COLORS.onPrimary },
