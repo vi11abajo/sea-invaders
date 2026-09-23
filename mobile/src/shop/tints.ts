@@ -1,8 +1,11 @@
 /**
- * Recolours of Octopi for the catalogue items (design doc §1). Until the owner draws their own
- * sprites, every skin and every campaign octopi is the Octopi sprite drawn through a Skia
- * `ColorMatrix` built from its colour here. Keyed by catalogue item id, so the Shop, the Profile
- * inventory and the in-game skins all read the same table.
+ * Colours for the catalogue items (design doc §1, §6). Items 0-6 (campaign octopi and the legacy
+ * tints) are recoloured through a Skia `ColorMatrix` built from their entry here — the only look
+ * they have, drawn by every skin and every campaign octopi through the Octopi sprite. Items 7-18
+ * are the Shop's art skins: their own drawn Front/Ooff pairs (`game/skinCatalog.ts`'s `SKIN_LOOK`),
+ * never recoloured — their entry here is only the Shop card's glow accent (`ItemArt`'s
+ * `RadialGradient`), picked as each sprite's own dominant colour. Keyed by catalogue item id, so
+ * the Shop and the Profile inventory read the same table.
  */
 export const ITEM_TINT: Readonly<Record<number, string>> = {
   // Campaign octopi: the thumb colours of the Shop design (handoff 07).
@@ -14,6 +17,21 @@ export const ITEM_TINT: Readonly<Record<number, string>> = {
   4: '#CA9FF5', // Lilac
   5: '#F48252', // Ember
   6: '#5B3FA8', // Abyss
+  // Shop art skins (design doc §1, §4, §6): the Shop card's glow accent only — never a recolour.
+  // Each is the dominant colour of the skin's own `-front.png` opaque pixels (outline black/white
+  // excluded), measured from `mobile/assets/sprites/octopi/`.
+  7: '#845642', // Bear — brown, 45% of opaque pixels
+  8: '#97A7AF', // Bunny — grey, 29%
+  9: '#283690', // Pengu — blue-black, 18%
+  10: '#F0CC55', // Sponge — yellow, 66%
+  11: '#FD9217', // Tiger — orange, 11%
+  12: '#FAC821', // Wizard — gold, 37%
+  13: '#001630', // Grim — navy, 28%
+  14: '#225691', // King — blue, 29%
+  15: '#0097AF', // Matrix — green-cyan, its brightest chromatic accent (the sprite is 73% near-black)
+  16: '#0E1C0F', // Reaper — dark green, 76%
+  17: '#2B3144', // Sharingan — navy, 13%
+  18: '#17B1DE', // Outlaw — cyan, 21%
 };
 
 /**
