@@ -102,7 +102,7 @@ async function main() {
 
   const existing = await program.account.catalog.fetchNullable(pda);
   if (!existing) {
-    console.log("Calling initCatalog with the seven shop items...");
+    console.log(`Calling initCatalog with the ${ITEMS.length} catalogue rows...`);
     const sig = await program.methods
       .initCatalog({ items: ITEMS })
       .accounts({ admin: admin.publicKey })
