@@ -38,9 +38,11 @@ export async function getLoadout(wallet) {
 
 /**
  * Upserts `wallet`'s loadout row. Only the columns present in `patch` are changed - an omitted
- * column keeps its stored value (or, for a wallet's first row, the all-zero default) via
- * `COALESCE` against `EXCLUDED`/the existing row, entirely inside the one statement so a
- * concurrent `PUT /loadout` and `confirm*` refresh cannot clobber each other's columns.
+ * column keeps its stored value (or, for a wallet's first row, the all-zero default): each
+ * `COALESCE($n, player_loadout.<column>)` falls back to the existing row whenever the matching
+ * param is `null`, entirely inside the one statement. This only protects a column callers actually
+ * omit from `patch` - `routes/profile.js`'s PUT omits `inventory` for exactly this reason, so a
+ * concurrent `confirm*` refresh's fresher inventory is never rolled back by a stale read.
  */
 export async function upsertLoadout(wallet, patch) {
   const params = [

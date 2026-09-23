@@ -53,15 +53,15 @@ function defaultPlayer(wallet) {
 }
 
 /**
- * The seven catalog items of design doc §1, all active, in the raw shape `chain/readers.js#getCatalog`
- * returns (`kind` 0 = variant, 1 = skin; `price` in base units) - a reasonable default so most tests
- * need not build their own catalog.
+ * The first seven of the eighteen catalogue items (ids 0-6), all active, in the raw shape
+ * `chain/readers.js#getCatalog` returns (`kind` 0 = variant, 1 = skin; `price` in base units) - a
+ * reasonable default so most tests need not build their own catalog.
  */
 function defaultCatalog() {
   return [
-    { id: 0, kind: 0, price: 40_000_000n, active: true }, // Harpoon
-    { id: 1, kind: 0, price: 60_000_000n, active: true }, // Anchor
-    { id: 2, kind: 0, price: 90_000_000n, active: true }, // Trident
+    { id: 0, kind: 0, price: 40_000_000n, active: true }, // Azul
+    { id: 1, kind: 0, price: 60_000_000n, active: true }, // Krang
+    { id: 2, kind: 0, price: 90_000_000n, active: true }, // Poseidon
     { id: 3, kind: 1, price: 25_000_000n, active: true }, // Lime
     { id: 4, kind: 1, price: 25_000_000n, active: true }, // Lilac
     { id: 5, kind: 1, price: 35_000_000n, active: true }, // Ember

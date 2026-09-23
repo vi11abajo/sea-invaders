@@ -102,6 +102,11 @@ describe('PDA helpers', () => {
     expect(seekerLinkPda(sgtMint).toBase58()).toBe(expected.toBase58());
   });
 
+  it('catalogPda matches PublicKey.findProgramAddressSync with the v2 seed', () => {
+    const [expected] = PublicKey.findProgramAddressSync([Buffer.from('catalog'), Buffer.from('v2')], programId);
+    expect(catalogPda().toBase58()).toBe(expected.toBase58());
+  });
+
   it('ata matches the standard associated-token-address derivation, off-curve owners included', () => {
     const owner = weekPda(1); // a PDA - off-curve
     const mint = chainConfig().skrMint;

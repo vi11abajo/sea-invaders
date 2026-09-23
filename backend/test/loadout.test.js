@@ -220,6 +220,14 @@ describe('/api/profile/loadout', () => {
     expect(res.body.earned).toEqual({ variants: [7], skins: [13, 14] });
   });
 
+  it('GET treats a malformed stored progress row as no awards rather than a 500 (review finding 7)', async () => {
+    // Only reachable via a manual DB edit - every API write validates first (routes/campaign.js).
+    await memoryCampaign.upsertProgress(user.id, { v: 1 });
+    const res = await request(app).get('/api/profile/loadout').set(auth);
+    expect(res.status).toBe(200);
+    expect(res.body.earned).toEqual(NOTHING_EARNED);
+  });
+
   it('PUT refuses the Seeker look (skin 17) until the wallet has a verified Seeker link', async () => {
     const refused = await request(app).put('/api/profile/loadout').set(auth).send({ activeSkin: 17 });
     expect(refused.status).toBe(409);
@@ -275,6 +283,18 @@ describe('/api/profile/loadout', () => {
       const allowed = await request(app).put('/api/profile/loadout').set(auth).send({ activeSkin: row.code });
       expect(allowed.status).toBe(200);
       expect(allowed.body.activeSkin).toBe(row.code);
+
+      // Only this code's own entitlement was granted above - every other paid or earned skin must
+      // still be refused (a route that unlocked everything with one bit would fail this). Reset the
+      // shared sessionLimiter before each call: its 10/min budget is exercised by its own dedicated
+      // test below and would otherwise starve this sweep, which checks ownership, not rate limits.
+      for (const other of SKIN_ROWS) {
+        if (other.code === row.code || other.kind === 'free') continue;
+        sessionLimiter.resetKey(`user:${user.id}`);
+        const stillRefused = await request(app).put('/api/profile/loadout').set(auth).send({ activeSkin: other.code });
+        expect(stillRefused.status).toBe(409);
+        expect(stillRefused.body).toMatchObject({ error: 'Loadout', code: 'not_owned' });
+      }
     });
 
     it.each(VARIANT_ROWS)('variant $index ($kind)', async (row) => {
@@ -288,6 +308,17 @@ describe('/api/profile/loadout', () => {
       const allowed = await request(app).put('/api/profile/loadout').set(auth).send({ activeVariant: row.index });
       expect(allowed.status).toBe(200);
       expect(allowed.body.activeVariant).toBe(row.index);
+
+      // Only this index's own entitlement was granted above - every other paid or earned variant
+      // must still be refused (a route that unlocked everything with one bit would fail this). Reset
+      // the shared sessionLimiter before each call for the same reason as the skin sweep above.
+      for (const other of VARIANT_ROWS) {
+        if (other.index === row.index || other.kind === 'free') continue;
+        sessionLimiter.resetKey(`user:${user.id}`);
+        const stillRefused = await request(app).put('/api/profile/loadout').set(auth).send({ activeVariant: other.index });
+        expect(stillRefused.status).toBe(409);
+        expect(stillRefused.body).toMatchObject({ error: 'Loadout', code: 'not_owned' });
+      }
     });
 
     it.each([1.5, '1'])('PUT answers 400 for a non-integer activeVariant (%j), not silently coerced', async (value) => {

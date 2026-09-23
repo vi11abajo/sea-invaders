@@ -4,7 +4,7 @@
 // link (champions and skins spec §3) - but the active selection only ever lives here, mirrored
 // into the mobile app's AsyncStorage.
 import express from 'express';
-import { SEEKER_SKIN_CODE, SKIN_COUNT, SKIN_ITEM_IDS, VARIANT_INDEX, VARIANT_ITEM_IDS, earnedAwards } from '@sea-invaders/core';
+import { SEEKER_SKIN_CODE, SKIN_COUNT, SKIN_ITEM_IDS, VARIANT_INDEX, VARIANT_ITEM_IDS, earnedAwards, isValidProgress } from '@sea-invaders/core';
 import { authenticateToken } from '../middleware/auth.js';
 import { sessionLimiter } from '../middleware/rateLimit.js';
 import * as campaignDb from '../db/campaign.js';
@@ -54,11 +54,15 @@ async function currentState(userId, wallet) {
     readPlayerShop(wallet), loadoutDb.getLoadout(wallet), campaignDb.getProgress(userId), getCachedPlayer(wallet),
   ]);
   // `earnedAwards` grows a thirty-level record to sixty itself, so it earns only what its levels hold.
-  const awards = progress ? earnedAwards(progress) : { variants: [], skins: [] };
+  // A stored row that fails `isValidProgress` (only reachable via a manual DB edit - every API write
+  // validates first, `routes/campaign.js`) counts as no awards instead of throwing.
+  const awards = progress && isValidProgress(progress) ? earnedAwards(progress) : { variants: [], skins: [] };
   const allowance = {
     owned: ownedItemIds(shop.inventory),
     earned: { variants: awards.variants.map((variant) => VARIANT_INDEX[variant]), skins: awards.skins },
-    // The same chain-only, 5 s cached read the boards take their SEEKER badge from.
+    // Not the boards' read: the daily board reads the DB mirror (`findSeekerWallets`, `routes/daily.js`
+    // -> `db/users.js`), the weekly board an uncached `getPlayer` (`services/records.js`). Only Home's
+    // `todayInfo` (`services/rankedRuns.js`) shares this same chain-only, 5 s cached read.
     seekerSkin: Boolean(player?.seeker),
   };
   const storedSkin = row?.activeSkin ?? 0;
@@ -107,7 +111,10 @@ router.put('/loadout', authenticateToken, sessionLimiter, async (req, res, next)
       return res.status(409).json({ error: 'Loadout', code: 'not_owned', message: refusal });
     }
 
-    await loadoutDb.upsertLoadout(wallet, { inventory: current.inventory, activeSkin, activeVariant });
+    // `inventory` is deliberately omitted: it is only the shop's cache column, and writing back the
+    // value read at the top of this request could roll back a fresher one a concurrent shop confirm
+    // just wrote (`db/loadout.js`'s COALESCE keeps the stored value for any column a patch omits).
+    await loadoutDb.upsertLoadout(wallet, { activeSkin, activeVariant });
     res.json(loadoutBody({ ...current, activeSkin, activeVariant }));
   } catch (error) {
     next(error);

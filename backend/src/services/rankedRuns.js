@@ -113,7 +113,8 @@ export async function startRun({ userId, wallet, now }) {
   const attemptsAllowed = freeAttempts() + attemptsBoughtToday(player, day);
   if (used >= attemptsAllowed) throw new RankedRunError('no_attempts', 'No ranked attempts left today', { attemptsLeft: 0 });
   // The skin snapshotted here is the run's own record forever after - ownership was validated
-  // when it was equipped and items are never revoked (design doc §8).
+  // when it was equipped; a boss award can be un-earned later (a campaign reset), but the
+  // snapshot is the run's record regardless (controller ruling R-M).
   const loadout = wallet ? await loadoutDb.getLoadout(wallet) : null;
   const skin = loadout?.activeSkin ?? 0;
   const run = { id: uuidv4(), userId, day, seed: dailySeed(seedSecret(), day), coreVersion: CORE_VERSION, startedAt: now, skin };
