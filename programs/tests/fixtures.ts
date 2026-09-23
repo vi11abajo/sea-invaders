@@ -55,8 +55,15 @@ export const playerPda = (pid: PublicKey, wallet: PublicKey) =>
     pid
   )[0];
 
+// The second seed is a version tag, not a migration - the 64-row `Catalog`
+// this now derives cannot be read back through the old 16-row account's
+// layout, so growing `MAX_CATALOG_ITEMS` moved the PDA to a new address
+// (see state.rs's `CATALOG_SEED_VERSION`) instead of resizing it in place.
 export const catalogPda = (pid: PublicKey) =>
-  PublicKey.findProgramAddressSync([Buffer.from("catalog")], pid)[0];
+  PublicKey.findProgramAddressSync(
+    [Buffer.from("catalog"), Buffer.from("v2")],
+    pid
+  )[0];
 
 // The seven items of design §1 - kind 0 = variant (ids 0..2), kind 1 = skin
 // (ids 3..6). Prices are the design's SKR figures, in base units (6
@@ -285,7 +292,7 @@ export async function settleWeek(
   return ctx.send(ixs, [caller]);
 }
 
-// `catalog` is a singleton PDA (seeds = [b"catalog"], like `config`), so
+// `catalog` is a singleton PDA (seeds = [b"catalog", b"v2"], like `config`), so
 // this mirrors `initConfig`'s idempotency: whichever test is first to call
 // it performs the real `init_catalog`; every later call confirms the
 // existing catalog matches `items` (same as `initConfig` confirms the
@@ -337,7 +344,7 @@ export async function fetchCatalog(ctx: Ctx) {
   return ctx.program.account.catalog.fetch(catalogPda(ctx.programId));
 }
 
-// `catalog`'s seeds are constant (`[b"catalog"]`), so - like `config` in
+// `catalog`'s seeds are constant (`[b"catalog", b"v2"]`), so - like `config` in
 // `buyTicket` above - Anchor's client resolves it on its own; only the
 // same non-derivable accounts `buyTicket` must pass explicitly are needed
 // here too.

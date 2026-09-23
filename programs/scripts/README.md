@@ -73,7 +73,12 @@ All four scripts share their bootstrap (`loadKeypair`, `configPda`,
 | `TREASURY_ATA` | `5uFynZKJc7KbZo7JeKuQTREJnszYvFJicmN81sow5ZQK` |
 | `SERVER_AUTHORITY` | `nNQn5MZY799P8PcjwrGMxXEjaSquuifYmhcSYJYK7wH` |
 | `ADMIN` (upgrade authority) | `AVHHLGsaChQLKMJSthVhhrQ3rn2hSgeQUBRkmobUQBNm` |
-| `CATALOG` (PDA `["catalog"]`) | `HeJYiaXojsC4beTYqnoPH6Fkyu9afHuVbC5MMTh27kUx` |
+| `CATALOG` (PDA `["catalog", "v2"]`) | `5LnJUyvurh5Sj9MMtaKCrsmUyhSHyzJoec4ecZz8Eefj` |
+
+The 16-row `Catalog` at the old single-seed PDA `["catalog"]`
+(`HeJYiaXojsC4beTYqnoPH6Fkyu9afHuVbC5MMTh27kUx`) is abandoned on devnet
+since 2026-09-23 - its layout cannot hold the grown, 64-row `Catalog`, so
+the versioned seed moved the account rather than migrating it in place.
 
 Secret keys for `ADMIN` and `SERVER_AUTHORITY` live only under
 `/mnt/d/dev/keys/` (`admin.json`, `server-authority.json`,

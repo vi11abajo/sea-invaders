@@ -363,7 +363,7 @@ describe('readers', () => {
     const emptyItem = { id: 0, kind: 0, price: new BN(0), active: false };
     const items = [
       { id: 5, kind: 1, price: new BN(25_000_000), active: true },
-      ...Array.from({ length: 15 }, () => emptyItem),
+      ...Array.from({ length: 63 }, () => emptyItem),
     ];
     const data = await prog.coder.accounts.encode('catalog', {
       admin: Keypair.generate().publicKey,

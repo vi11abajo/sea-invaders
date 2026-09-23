@@ -276,4 +276,38 @@ describe("catalog and purchase", () => {
     }
     expect(err).to.contain("Paused");
   });
+
+  it("set_catalog accepts a full 64-item list and rejects a 65th", async () => {
+    // Fills every id 0..63 - `MAX_CATALOG_ITEMS` is exactly the width of
+    // `Player.inventory`'s bitmask (state.rs), so this is the largest
+    // list `build_items` (shop.rs) can ever accept.
+    const full = Array.from({ length: 64 }, (_, id) => ({
+      id,
+      kind: 0,
+      price: new BN(1),
+      active: true,
+    }));
+    await setCatalog(ctx, full);
+    const catalog = await fetchCatalog(ctx);
+    expect(catalog.count).to.equal(64);
+    for (let i = 0; i < full.length; i++) {
+      expect(catalog.items[i].id).to.equal(full[i].id);
+    }
+
+    // One more than the max - `build_items` rejects this with
+    // `InvalidConfig` (its `args.items.len() <= MAX_CATALOG_ITEMS` check)
+    // before it ever looks at the extra item's own id.
+    let err = "";
+    try {
+      await setCatalog(ctx, [...full, full[0]]);
+    } catch (e: any) {
+      err = e.message;
+    }
+    expect(err).to.contain("InvalidConfig");
+
+    // Every test file shares this one catalog (see fixtures.ts's
+    // `initCatalog` comment) - restore the original seven items so any
+    // later-run file's own matching check still sees what it expects.
+    await setCatalog(ctx, CATALOG_ITEMS);
+  });
 });

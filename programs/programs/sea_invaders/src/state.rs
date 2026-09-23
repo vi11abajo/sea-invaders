@@ -76,10 +76,19 @@ pub struct TopEntry {
     pub updated_at: i64,
 }
 
-/// Maximum number of items the `Catalog` PDA can hold - the seven items of
-/// spec §1 (ids 0..6) fit comfortably, with room for the admin to add more
-/// later without a migration.
-pub const MAX_CATALOG_ITEMS: usize = 16;
+/// Maximum number of items the `Catalog` PDA can hold - the whole width of
+/// `Player.inventory`'s `u64` ownership bitmask (one bit per item id), so
+/// every id `build_items` allows (0..63) has a slot. Grown from 16 to 64 on
+/// 2026-09-23 for the champions/skins catalogue (spec: octopi-skins-plan).
+pub const MAX_CATALOG_ITEMS: usize = 64;
+
+/// The `catalog` PDA's second seed. A version byte string rather than a
+/// migration: the old 16-row account's layout cannot be read back as a
+/// 64-row `Catalog` (the fixed-size `items` array's serialized length
+/// differs), so growing `MAX_CATALOG_ITEMS` moves the PDA to a new address
+/// instead of resizing the existing one in place. The 16-row account at
+/// `["catalog"]` is abandoned on devnet as of 2026-09-23.
+pub const CATALOG_SEED_VERSION: &[u8] = b"v2";
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Default, InitSpace, PartialEq, Eq, Debug)]
 pub struct CatalogItem {

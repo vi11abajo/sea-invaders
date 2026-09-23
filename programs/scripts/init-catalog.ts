@@ -4,7 +4,9 @@
  * rate of the day the list was set: $0.01808/SKR on 2026-09-15 -> 56, 111, 166 SKR), ids 3-6 the
  * Octopi skins (Lime 25, Lilac 25, Ember 35, Abyss 50 SKR). Prices are stored on chain in SKR base
  * units (6 decimals); the backend and the app read them from there, never from this file. To
- * follow the rate, edit the three variant prices and run with `--update`.
+ * follow the rate, edit the three variant prices and run with `--update`. The catalogue now
+ * lives at the PDA seeded `[b"catalog", b"v2"]` (64-row layout); the old single-seed account
+ * is abandoned on devnet since 2026-09-23.
  *
  * Idempotent: when the catalog already exists and matches `ITEMS`, it prints the stored items
  * and exits 0. When it exists but differs, it prints both lists and exits 1, unless run with
@@ -47,7 +49,10 @@ const ITEMS: Item[] = [
 ];
 
 function catalogPda(programId: PublicKey): PublicKey {
-  return PublicKey.findProgramAddressSync([Buffer.from("catalog")], programId)[0];
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("catalog"), Buffer.from("v2")],
+    programId
+  )[0];
 }
 
 function describe(items: Item[]): string {

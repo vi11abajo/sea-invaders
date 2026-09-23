@@ -62,7 +62,7 @@ pub struct InitCatalog<'info> {
         init,
         payer = admin,
         space = 8 + Catalog::INIT_SPACE,
-        seeds = [b"catalog"],
+        seeds = [b"catalog", CATALOG_SEED_VERSION],
         bump
     )]
     pub catalog: Account<'info, Catalog>,
@@ -82,7 +82,7 @@ pub fn init_catalog(ctx: Context<InitCatalog>, args: CatalogArgs) -> Result<()> 
 #[derive(Accounts)]
 pub struct SetCatalog<'info> {
     pub admin: Signer<'info>,
-    #[account(mut, seeds = [b"catalog"], bump = catalog.bump, has_one = admin)]
+    #[account(mut, seeds = [b"catalog", CATALOG_SEED_VERSION], bump = catalog.bump, has_one = admin)]
     pub catalog: Account<'info, Catalog>,
 }
 
@@ -102,7 +102,7 @@ pub struct Purchase<'info> {
     pub config: Account<'info, Config>,
     #[account(mut, seeds = [b"player", wallet.key().as_ref()], bump = player.bump, has_one = wallet)]
     pub player: Account<'info, Player>,
-    #[account(seeds = [b"catalog"], bump = catalog.bump)]
+    #[account(seeds = [b"catalog", CATALOG_SEED_VERSION], bump = catalog.bump)]
     pub catalog: Account<'info, Catalog>,
     #[account(mut, seeds = [b"week", week_pool.week.to_le_bytes().as_ref()], bump = week_pool.bump, has_one = vault)]
     pub week_pool: Account<'info, WeekPool>,
