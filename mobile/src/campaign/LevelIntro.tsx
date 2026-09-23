@@ -5,7 +5,8 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTim
 import { ApiError } from '../api/client';
 import { onBackPress } from '../audio/onBackPress';
 import { ActiveOctopi } from '../game/OctopiArt';
-import { VARIANT_OCTOPI, type VariantIndex } from '../loadout/items';
+import { variantBoss, wornVariant, type Selectors } from '../loadout/allowed';
+import { VARIANT_ITEM_IDS, VARIANT_NAMES, VARIANT_OCTOPI, type VariantIndex } from '../loadout/items';
 import type { LoadoutApi } from '../loadout/useLoadout';
 import { BlurText } from '../ui/BlurText';
 import { PillButton } from '../ui/PillButton';
@@ -73,7 +74,9 @@ interface LevelIntroProps {
   lives: number;
   /** The loadout: the picker shows its variant, and equips the one tapped. */
   loadout: LoadoutApi;
-  /** False when signed out: only the base Octopi can be picked, and a locked tile asks to connect. */
+  /** What this player may wear (`allowedSelectors`): the picker's open tiles. */
+  allowed: Selectors;
+  /** False when signed out: only the base Octopi and earned champions can be picked, and a sold one asks to connect. */
   signedIn: boolean;
   /** True while a wallet sign-in is in flight. */
   connecting: boolean;
@@ -81,7 +84,7 @@ interface LevelIntroProps {
   signInError: string | null;
   /** Starts the wallet sign-in; the Connect sheet's "Continue in wallet" calls it. */
   onConnect: () => void;
-  /** Opens the Shop: a locked tile, signed in. */
+  /** Opens the Shop: a locked sold champion's tile, signed in. */
   onOpenShop: () => void;
   onPlay: () => void;
   onBack: () => void;
@@ -92,9 +95,10 @@ interface LevelIntroProps {
  * picked octopi is the loadout's variant, so the choice is kept for the next level too.
  */
 export function LevelIntro({
-  level, practice, lives, loadout, signedIn, connecting, signInError, onConnect, onOpenShop, onPlay, onBack,
+  level, practice, lives, loadout, allowed, signedIn, connecting, signInError, onConnect, onOpenShop, onPlay, onBack,
 }: LevelIntroProps) {
   const reefName = REEF_NAMES[level.reef - 1];
+  const selected = wornVariant(allowed, loadout.loadout.activeVariant);
   // Phases come from the boss's own stats (`bossStats`, area A), never from `kind`/`reef` directly —
   // reefs 6-10 read `BOSS_TABLE` and no longer match either number.
   const bossPhases = level.boss !== undefined ? bossStats(level.boss).phases : 0;
@@ -145,9 +149,17 @@ export function LevelIntro({
     [equip, show],
   );
 
-  const locked = () => {
-    if (signedIn) onOpenShop();
-    else if (!connecting) setConnectOpen(true);
+  // A sold champion is had in the Shop (after connecting, when signed out); an award is had by
+  // beating its boss, which the toast names (design doc §5).
+  const locked = (variant: VariantIndex) => {
+    if (VARIANT_ITEM_IDS[variant] != null) {
+      if (signedIn) onOpenShop();
+      else if (!connecting) setConnectOpen(true);
+      return;
+    }
+    const boss = variantBoss(variant);
+    const octopi = VARIANT_OCTOPI[variant];
+    if (boss !== null && octopi !== undefined) show(`Beat ${boss} to earn ${VARIANT_NAMES[octopi]}`);
   };
 
   // System Back closes the Connect sheet first, otherwise returns to the map. Registered once, so it
@@ -186,7 +198,7 @@ export function LevelIntro({
       {showPreview && (
         <Animated.View style={[styles.preview, { top: previewTop }, driftStyle]} pointerEvents="none">
           {/* The run's look: the equipped skin, else the picked octopi's colour. */}
-          <ActiveOctopi size={PREVIEW_SIZE} octopi={VARIANT_OCTOPI[loadout.loadout.activeVariant]} />
+          <ActiveOctopi size={PREVIEW_SIZE} octopi={VARIANT_OCTOPI[selected]} />
         </Animated.View>
       )}
       <Sheet onLayout={(e) => setSheetTop(e.nativeEvent.layout.y)}>
@@ -216,7 +228,7 @@ export function LevelIntro({
           </>
         )}
         <Txt variant="body" tone="secondary">{`Lives to play with: ${lives}`}</Txt>
-        <VariantPicker selected={loadout.loadout.activeVariant} owned={loadout.loadout.owned} onPick={pick} onLocked={locked} />
+        <VariantPicker selected={selected} allowed={allowed.variants} onPick={pick} onLocked={locked} />
         <PillButton label="Start level" onPress={onPlay} />
       </Sheet>
       <ConnectSheet

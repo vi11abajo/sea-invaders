@@ -7,6 +7,9 @@ import { CLUSTER } from '../api/config';
 import { requestFaucet } from '../api/daily';
 import { buyItem, confirmPurchase, getShop, type ShopInfo, type ShopItem } from '../api/shop';
 import { onBackPress } from '../audio/onBackPress';
+import { ABILITY } from '../loadout/abilities';
+import { WEAR_RULE } from '../loadout/allowed';
+import { VARIANT_OCTOPI, variantOfItem } from '../loadout/items';
 import { BalatroBackdrop } from '../ui/BalatroBackdrop';
 import { BounceCard } from '../ui/BounceCard';
 import { PillButton } from '../ui/PillButton';
@@ -19,12 +22,18 @@ import { DECLINED_TOAST, usePurchase } from '../wallet/usePurchase';
 import { PurchaseSheets } from '../wallet/WalletSheets';
 import { ItemArt } from './ItemArt';
 
-/** What each campaign octopi does (design doc §1), by catalogue item id. Names and prices come from the backend. */
-const PERKS: Readonly<Record<number, string>> = {
-  0: 'Fire rate +25 %',
-  1: '+1 life',
-  2: 'Piercing shots',
-};
+/**
+ * What a champion item does, `label · short` (champions and skins design doc §1), read from the
+ * champion's ability by the variant the item sells; null for an item that sells none. Names and
+ * prices come from the backend.
+ */
+function perkOf(itemId: number): string | null {
+  const variant = variantOfItem(itemId);
+  const octopi = variant === null ? undefined : VARIANT_OCTOPI[variant];
+  if (octopi === undefined) return null;
+  const { label, short } = ABILITY[octopi];
+  return label === null ? short : `${label} · ${short}`;
+}
 
 /** Handoff 07 sizes, in dp. */
 const VARIANT_THUMB = 56;
@@ -51,9 +60,9 @@ interface ShopScreenProps {
 }
 
 /**
- * The Shop (handoff 07): the SKR/SOL balance, the campaign octopi (Harpoon, Anchor, Trident) and the
- * Octopi skins, with prices and ownership read from the chain through the backend. A price tap
- * runs the on-chain purchase through `usePurchase` and its sheets; pull down to refresh.
+ * The Shop (handoff 07): the SKR/SOL balance, the champions on sale and the Octopi skins, with
+ * prices and ownership read from the chain through the backend. A price tap runs the on-chain
+ * purchase through `usePurchase` and its sheets; pull down to refresh.
  */
 export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
   const { connection } = useMobileWallet();
@@ -290,26 +299,30 @@ function Catalogue({ shop, disabled, onBuy }: CatalogueProps) {
       )}
       {variants.length > 0 && (
         <>
-          <Txt variant="secondary" tone="secondary" style={[styles.section, styles.sectionFirst]}>CAMPAIGN OCTOPI</Txt>
-          {variants.map((item, i) => (
-            <BounceCard key={item.id} index={i}>
-              <View style={styles.row}>
-                <ItemArt itemId={item.id} size={VARIANT_THUMB} />
-                <View style={styles.rowText}>
-                  <Txt style={styles.rowName} numberOfLines={1}>{item.name}</Txt>
-                  {PERKS[item.id] !== undefined && (
-                    <Txt variant="secondary" tone="secondary" numberOfLines={1}>{PERKS[item.id]}</Txt>
-                  )}
+          <Txt variant="secondary" tone="secondary" style={[styles.section, styles.sectionFirst]}>CHAMPIONS</Txt>
+          {variants.map((item, i) => {
+            const perk = perkOf(item.id);
+            return (
+              <BounceCard key={item.id} index={i}>
+                <View style={styles.row}>
+                  <ItemArt itemId={item.id} size={VARIANT_THUMB} />
+                  <View style={styles.rowText}>
+                    <Txt style={styles.rowName} numberOfLines={1}>{item.name}</Txt>
+                    {perk !== null && (
+                      <Txt variant="secondary" tone="secondary" numberOfLines={2}>{perk}</Txt>
+                    )}
+                  </View>
+                  <PricePill item={item} {...priceLabel(item)} height={ROW_PILL} disabled={disabled} onBuy={onBuy} />
                 </View>
-                <PricePill item={item} {...priceLabel(item)} height={ROW_PILL} disabled={disabled} onBuy={onBuy} />
-              </View>
-            </BounceCard>
-          ))}
+              </BounceCard>
+            );
+          })}
+          <Txt variant="secondary" tone="tertiary" style={styles.note}>{WEAR_RULE}</Txt>
         </>
       )}
       {skins.length > 0 && (
         <>
-          <Txt variant="secondary" tone="secondary" style={[styles.section, styles.sectionNext]}>OCTOPI SKINS · COSMETIC</Txt>
+          <Txt variant="secondary" tone="secondary" style={[styles.section, styles.sectionNext]}>OCTOPI SKINS</Txt>
           {skinRows.map((pair) => (
             <View key={pair[0].id} style={styles.gridRow}>
               {pair.map((item) => (

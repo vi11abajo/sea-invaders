@@ -1,5 +1,5 @@
 import {
-  applyLevelResult, bonusLivesFor, currentLevelId, formatInt, levelById, levelSeed, LEVELS_PER_REEF,
+  applyLevelResult, AWARDS, bonusLivesFor, currentLevelId, formatInt, levelById, levelSeed, LEVELS_PER_REEF,
   REPLAY_MODE, type CampaignProgress, type OctopiVariant, type RunConfig,
 } from '@sea-invaders/core';
 import { useMemo, useRef, useState } from 'react';
@@ -7,7 +7,8 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { hapticUnlocked } from '../audio/haptics';
 import { playSfx } from '../audio/sfx';
 import { GameScreen, type DownedRun, type RunOutcome } from '../game/GameScreen';
-import { VARIANT_OCTOPI } from '../loadout/items';
+import { wornVariant, type Selectors } from '../loadout/allowed';
+import { SKIN_NAMES, VARIANT_NAMES, VARIANT_OCTOPI } from '../loadout/items';
 import type { LoadoutApi } from '../loadout/useLoadout';
 import { levelState } from './reefs';
 import { ReefBackdrop } from './ReefBackdrop';
@@ -37,6 +38,19 @@ const TITLE: Record<Outcome, string> = {
   campaign_complete: 'Campaign complete',
   practice: 'Practice over',
 };
+
+/**
+ * The result's award line (champions and skins design doc §5): what clearing award level `levelId`
+ * has just earned, and where it is equipped; undefined for every other level. Only a real clear
+ * earns (awards are derived from the cleared levels), so a practice replay never shows it.
+ */
+function awardNote(levelId: number): string | undefined {
+  const award = AWARDS[levelId];
+  if (award === undefined) return undefined;
+  return award.kind === 'variant'
+    ? `New champion: ${VARIANT_NAMES[award.variant]} — equip it in Profile`
+    : `New look: ${SKIN_NAMES[award.skin]} — equip it in Profile`;
+}
 
 /** Task 3B hook: flips true once a paid/ad-gated revive launches. */
 const REVIVE_ENABLED = false;
@@ -72,7 +86,9 @@ interface CampaignLevelScreenProps {
   finishLevel: (result: FinishLevelInput) => Promise<{ outcome: Outcome; next: CampaignProgress }>;
   /** The loadout: the Level start picker equips its variant, and the run is played with it. */
   loadout: LoadoutApi;
-  /** False when signed out: only the base Octopi can be picked. */
+  /** What this player may wear (`allowedSelectors`): a variant no longer allowed is played as the base Octopi. */
+  allowed: Selectors;
+  /** False when signed out: only the base Octopi and earned champions can be picked. */
   signedIn: boolean;
   /** True while a wallet sign-in is in flight. */
   connecting: boolean;
@@ -109,15 +125,18 @@ function reefLivesAfter(livesLeft: number, run: RunConfig | null, revived: boole
 
 /** One campaign level: the Level start screen, the boss reveal on boss rows, then the run and its result. */
 export function CampaignLevelScreen({
-  levelId, practice, lives: carried, qaTide = false, startLevel, finishLevel, loadout, signedIn, connecting, signInError, onConnect, onOpenShop,
-  onNext, onDone, onExit,
+  levelId, practice, lives: carried, qaTide = false, startLevel, finishLevel, loadout, allowed, signedIn, connecting, signInError, onConnect,
+  onOpenShop, onNext, onDone, onExit,
 }: CampaignLevelScreenProps) {
   const level = useMemo(() => levelById(levelId), [levelId]);
   // A fresh seed each time the player re-enters this level, stable across this screen's re-renders.
   const [seed] = useState<string>(() => levelSeed(`campaign-${Date.now()}`, levelId));
   const [phase, setPhase] = useState<Phase>({ kind: 'intro' });
-  /** The octopi picked on the Level start screen: the loadout's variant, 'base' when signed out. */
-  const octopi = VARIANT_OCTOPI[loadout.loadout.activeVariant];
+  /**
+   * The octopi picked on the Level start screen: the loadout's variant while this player may still
+   * wear it (an award un-earned by a campaign reset is not), else the base Octopi.
+   */
+  const octopi = VARIANT_OCTOPI[wornVariant(allowed, loadout.loadout.activeVariant)];
   // 'error' covers a rejected finishLevel — e.g. the QA deep link opening a level that is not
   // the current level, which `applyLevelResult` refuses for a non-practice result. Non-error
   // results carry `next`, the post-result progress `applyLevelResult` computed, so the result
@@ -183,6 +202,7 @@ export function CampaignLevelScreen({
         practice={practice}
         lives={preview.lives + bonusLivesFor(preview.octopi)}
         loadout={loadout}
+        allowed={allowed}
         signedIn={signedIn}
         connecting={connecting}
         signInError={signInError}
@@ -254,6 +274,9 @@ export function CampaignLevelScreen({
           { label: 'Lives left', value: String(livesLeft) },
         ];
         const toMap = { label: 'Map', onPress: () => onDone(kind) };
+        // A real clear of an award level (`cleared`, or `campaign_complete` for the last level,
+        // whose boss awards a champion too) names what it earned.
+        const award = practice ? undefined : awardNote(levelId);
 
         switch (kind) {
           case 'cleared':
@@ -262,6 +285,7 @@ export function CampaignLevelScreen({
                 title={TITLE.cleared}
                 score={outcome.score}
                 stats={stats}
+                note={award}
                 primaryLabel="Next level"
                 onPlayAgain={() => onNext(currentLevelId(next))}
                 secondary={toMap}
@@ -300,6 +324,7 @@ export function CampaignLevelScreen({
                 titleShiny
                 score={outcome.score}
                 stats={stats}
+                note={award}
                 primaryLabel="Map"
                 onPlayAgain={() => onDone(kind)}
                 onBack={onExit}

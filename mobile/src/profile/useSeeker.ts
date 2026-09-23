@@ -49,7 +49,7 @@ function describeLinkError(error: unknown): string {
  * the transient signing sheet and the decline/error toast.
  *
  * Signed out (`session` null) always reads as `unknown`; the Profile hides its Seeker row on that,
- * exactly as it hides the wallet card. This hook is owned by the app shell (`Screens` in `App.tsx`),
+ * exactly as it hides the wallet card. This hook is owned by the app shell (`Shell` in `App.tsx`),
  * not by the Profile screen that renders its UI, so a link kept running fine if the player backs out
  * of Profile mid-flight - the status simply updates in place once the poll resolves, and the next
  * time Profile (or Home) opens it renders whatever the flow actually settled on.

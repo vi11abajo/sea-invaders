@@ -3,10 +3,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../api/client';
 import { getLoadout, putLoadout, type LoadoutChange } from '../api/profile';
 import type { Session } from '../api/session';
-import { SKIN_ITEM_IDS, VARIANT_ITEM_IDS, isSkinIndex, isVariantIndex, type SkinIndex, type VariantIndex } from './items';
+import { NO_SELECTORS, type Selectors } from './allowed';
+import { SEEKER_SKIN_CODE, SKIN_ITEM_IDS, VARIANT_ITEM_IDS, isSkinIndex, isVariantIndex, type SkinIndex, type VariantIndex } from './items';
 
-/** AsyncStorage key of the offline copy: `{ wallet, owned, activeSkin, activeVariant }`. */
+/** AsyncStorage key of the offline copy: `{ wallet, owned, activeSkin, activeVariant, earned, seekerSkin }`. */
 const KEY = 'loadout.v1';
+/**
+ * AsyncStorage key of the wallet-less player's own choice, `{ wallet: null, activeSkin, activeVariant }`
+ * (champions and skins design doc §3: an earned award can be worn without a wallet, kept on the phone
+ * only). Separate from `KEY`, so signing in or out never mixes it with a wallet's copy.
+ */
+const LOCAL_KEY = 'loadout.local.v1';
 /** The app shell waits this long at most for the offline copy before showing Home without it. */
 const MIRROR_WAIT_MS = 1000;
 /** Item ids fit the on-chain 64-bit inventory mask. */
@@ -18,10 +25,20 @@ export interface Loadout {
   activeSkin: SkinIndex;
   /** The campaign octopi: the Level start picker equips it, and campaign runs play with it. */
   activeVariant: VariantIndex;
+  /**
+   * What the backend derived from the wallet's stored campaign progress (design doc §3): champion
+   * indexes and skin codes. Empty signed out, and from an API that does not send it.
+   */
+  earned: Selectors;
+  /** The backend's word that the wallet has a verified Seeker link (the Seeker look, §2); false signed out. */
+  seekerSkin: boolean;
 }
 
 /** Nothing owned, nothing equipped: the base Octopi in its own colours. */
-export const BASE_LOADOUT: Loadout = { owned: [], activeSkin: 0, activeVariant: 0 };
+export const BASE_LOADOUT: Loadout = { owned: [], activeSkin: 0, activeVariant: 0, earned: NO_SELECTORS, seekerSkin: false };
+
+/** The wallet-less player's choice: only the two selectors, and only award ones (`sanitizeLocal`). */
+type Local = Pick<Loadout, 'activeSkin' | 'activeVariant'>;
 
 type Source = 'none' | 'mirror' | 'server';
 
@@ -34,8 +51,9 @@ export interface LoadoutState extends Loadout {
   /** The last failed server read for this wallet, until a read succeeds. */
   error: string | null;
   /**
-   * False until the offline copy has been read. The app shell waits for it, so a stored skin is on
-   * Octopi from the first frame of a cold start instead of flashing the base colours.
+   * False until the offline copy and the wallet-less choice have been read. The app shell waits for
+   * them, so a stored skin is on Octopi from the first frame of a cold start instead of flashing the
+   * base colours.
    */
   ready: boolean;
 }
@@ -48,6 +66,11 @@ export interface LoadoutApi {
    * is saved, or at once when a newer choice replaces it before it is. When the backend refuses the
    * latest choice or cannot be reached, the screen returns to what the backend last confirmed and
    * the promise rejects with the error for the caller to show.
+   *
+   * Without a wallet only an award selector (no shop item behind it, not the Seeker look) can be
+   * equipped: it is kept on this phone (`LOCAL_KEY`) and resolves at once; anything else rejects
+   * with "Connect a wallet to equip items". Whether the campaign has earned it is the caller's
+   * check (the app shell's allowed selectors), which also takes it off again after a campaign reset.
    */
   equip: (change: LoadoutChange) => Promise<void>;
   /** Reads the backend again (the Profile does on open, so a purchase made in the Shop shows up). */
@@ -90,31 +113,71 @@ function isItemId(value: unknown): value is number {
   return Number.isInteger(value) && (value as number) >= 0 && (value as number) < MAX_ITEMS;
 }
 
+/** `raw` as an ascending list of the values `valid` accepts, each once; empty when it is not a list. */
+function listOf(raw: unknown, valid: (value: unknown) => value is number): number[] {
+  return Array.isArray(raw) ? [...new Set(raw.filter(valid))].sort((a, b) => a - b) : [];
+}
+
+/** The backend's `earned` made safe: selectors out of range are dropped; missing (an older API) reads as nothing earned. */
+function sanitizeEarned(raw: unknown): Selectors {
+  if (typeof raw !== 'object' || raw === null) return NO_SELECTORS;
+  const { variants, skins } = raw as { variants?: unknown; skins?: unknown };
+  const earned = { variants: listOf(variants, isVariantIndex), skins: listOf(skins, isSkinIndex) };
+  return earned.variants.length === 0 && earned.skins.length === 0 ? NO_SELECTORS : earned;
+}
+
 /**
  * A loadout from the backend or the offline copy, made safe: unknown ids are dropped, and a
  * selector out of range or for an item the wallet does not own falls back to the base, so Octopi
- * never wears something the inventory does not hold.
+ * never wears something the inventory does not hold. A selector with no item behind it (an award,
+ * the Seeker look) is the backend's to judge: it answers 0 for one the wallet may no longer wear.
  */
-function sanitize(raw: { owned?: unknown; activeSkin?: unknown; activeVariant?: unknown }): Loadout {
-  const owned = Array.isArray(raw.owned) ? [...new Set(raw.owned.filter(isItemId))].sort((a, b) => a - b) : [];
+function sanitize(raw: { owned?: unknown; activeSkin?: unknown; activeVariant?: unknown; earned?: unknown; seekerSkin?: unknown }): Loadout {
+  const owned = listOf(raw.owned, isItemId);
   const owns = (id: number | null) => id === null || owned.includes(id);
   const activeSkin = isSkinIndex(raw.activeSkin) && owns(SKIN_ITEM_IDS[raw.activeSkin]) ? raw.activeSkin : 0;
   const activeVariant = isVariantIndex(raw.activeVariant) && owns(VARIANT_ITEM_IDS[raw.activeVariant]) ? raw.activeVariant : 0;
-  return { owned, activeSkin, activeVariant };
+  return { owned, activeSkin, activeVariant, earned: sanitizeEarned(raw.earned), seekerSkin: raw.seekerSkin === true };
+}
+
+/**
+ * The wallet-less choice made safe (design doc §3): only a selector with no shop item behind it
+ * and other than the Seeker look (which needs a wallet's link) survives; anything else is the base.
+ * An award still has to be earned to show — the app shell checks that against the campaign.
+ */
+function sanitizeLocal(raw: { activeSkin?: unknown; activeVariant?: unknown }): Local {
+  const activeSkin = isSkinIndex(raw.activeSkin) && SKIN_ITEM_IDS[raw.activeSkin] === null && raw.activeSkin !== SEEKER_SKIN_CODE ? raw.activeSkin : 0;
+  const activeVariant = isVariantIndex(raw.activeVariant) && VARIANT_ITEM_IDS[raw.activeVariant] === null ? raw.activeVariant : 0;
+  return { activeSkin, activeVariant };
+}
+
+/** `local` with the selectors `change` sets, or null when `change` asks for one a wallet-less player cannot wear. */
+function localWithChange(local: Local | null | undefined, change: LoadoutChange): Local | null {
+  const next: Local = {
+    activeSkin: change.activeSkin ?? local?.activeSkin ?? 0,
+    activeVariant: change.activeVariant ?? local?.activeVariant ?? 0,
+  };
+  const safe = sanitizeLocal(next);
+  return safe.activeSkin === next.activeSkin && safe.activeVariant === next.activeVariant ? safe : null;
 }
 
 /** `loadout` with the selectors `change` sets. */
 function withChange(loadout: Loadout, change: LoadoutChange): Loadout {
   return {
-    owned: loadout.owned,
+    ...loadout,
     activeSkin: isSkinIndex(change.activeSkin) ? change.activeSkin : loadout.activeSkin,
     activeVariant: isVariantIndex(change.activeVariant) ? change.activeVariant : loadout.activeVariant,
   };
 }
 
-/** What is on screen for `wallet`: what is held for it (an answer or a choice), else its offline copy, else the base. */
-function pick(wallet: string | null, held: Held | null, mirror: Mirror | null | undefined): { loadout: Loadout; source: Source } {
-  if (wallet === null) return { loadout: BASE_LOADOUT, source: 'none' };
+/**
+ * What is on screen for `wallet`: what is held for it (an answer or a choice), else its offline copy,
+ * else the base. Without a wallet: the phone's own award choice over the base, owning nothing.
+ */
+function pick(
+  wallet: string | null, held: Held | null, mirror: Mirror | null | undefined, local: Local | null | undefined,
+): { loadout: Loadout; source: Source } {
+  if (wallet === null) return { loadout: local == null ? BASE_LOADOUT : { ...BASE_LOADOUT, ...local }, source: 'none' };
   if (held !== null && held.wallet === wallet) return held;
   if (mirror != null && mirror.wallet === wallet) return { loadout: mirror, source: 'mirror' };
   return { loadout: BASE_LOADOUT, source: 'none' };
@@ -134,13 +197,25 @@ async function readMirror(): Promise<Mirror | null> {
   }
 }
 
-/** `readMirror`, or null when storage has not answered within `ms`. */
-function readMirrorWithin(ms: number): Promise<Mirror | null> {
+async function readLocal(): Promise<Local | null> {
+  try {
+    const text = await AsyncStorage.getItem(LOCAL_KEY);
+    if (!text) return null;
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    return sanitizeLocal(parsed);
+  } catch {
+    return null;
+  }
+}
+
+/** What `read` finds, or null when storage has not answered within `ms`. */
+function within<T>(read: Promise<T | null>, ms: number): Promise<T | null> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => resolve(null), ms);
-    void readMirror().then((mirror) => {
+    void read.then((value) => {
       clearTimeout(timer);
-      resolve(mirror);
+      resolve(value);
     });
   });
 }
@@ -149,6 +224,12 @@ function writeMirror(wallet: string, loadout: Loadout): void {
   const mirror: Mirror = { wallet, ...loadout };
   AsyncStorage.setItem(KEY, JSON.stringify(mirror)).catch(() => {
     // Only the offline copy is lost; the next backend answer writes it again.
+  });
+}
+
+function writeLocal(local: Local): void {
+  AsyncStorage.setItem(LOCAL_KEY, JSON.stringify({ wallet: null, ...local })).catch(() => {
+    // Only this phone's copy is lost: the choice stays on until the app is closed.
   });
 }
 
@@ -162,8 +243,9 @@ function clearMirror(): void {
  * The equipped skin and variant (design doc §5, Profile). Signed in, the backend is the truth
  * (`GET /api/profile/loadout`) and every answer shown is mirrored to AsyncStorage (`loadout.v1`),
  * so the skin still applies offline and at cold start before the network answers. Signed out, it
- * is the base. A cached skin is worn only until the backend answers; a session the backend refuses
- * drops it and the copy.
+ * is the base, or the award the player picked on this phone (`loadout.local.v1`, champions and skins
+ * design doc §3); signing in or out leaves that choice where it is. A cached skin is worn only until
+ * the backend answers; a session the backend refuses drops it and the copy.
  *
  * The latest choice wins. Every request takes the next number of one sequence when it is sent.
  * Saves go one at a time; a choice made while one is in flight is folded into the next save rather
@@ -176,15 +258,18 @@ function clearMirror(): void {
 export function useLoadout(session: Session | null, restoring: boolean): LoadoutApi {
   const wallet = restoring ? null : (session?.walletAddress ?? null);
   const [mirror, setMirrorState] = useState<Mirror | null | undefined>(undefined);
+  /** The wallet-less choice: undefined until read, null when none is stored. */
+  const [local, setLocalState] = useState<Local | null | undefined>(undefined);
   const [held, setHeldState] = useState<Held | null>(null);
   const [error, setError] = useState<{ wallet: string; message: string } | null>(null);
   const [version, setVersion] = useState(0);
   const walletRef = useRef(wallet);
   walletRef.current = wallet;
   const previousWallet = useRef<string | null>(null);
-  // Synchronous copies of `held` and `mirror`: a choice made before the next render builds on the latest.
+  // Synchronous copies of `held`, `mirror` and `local`: a choice made before the next render builds on the latest.
   const heldRef = useRef<Held | null>(null);
   const mirrorRef = useRef<Mirror | null | undefined>(undefined);
+  const localRef = useRef<Local | null | undefined>(undefined);
   /** The number the last request (read or save) was sent with. */
   const seq = useRef(0);
   /** The number of the newest save sent. */
@@ -208,6 +293,10 @@ export function useLoadout(session: Session | null, restoring: boolean): Loadout
   const putMirror = useCallback((next: Mirror | null) => {
     mirrorRef.current = next;
     setMirrorState(next);
+  }, []);
+  const putLocal = useCallback((next: Local | null) => {
+    localRef.current = next;
+    setLocalState(next);
   }, []);
 
   /** A backend answer goes on screen as the newest, and into the offline copy with it. */
@@ -247,16 +336,19 @@ export function useLoadout(session: Session | null, restoring: boolean): Loadout
 
   useEffect(() => {
     let alive = true;
-    void readMirrorWithin(MIRROR_WAIT_MS).then((m) => {
+    void within(readMirror(), MIRROR_WAIT_MS).then((m) => {
       if (alive) putMirror(m);
+    });
+    void within(readLocal(), MIRROR_WAIT_MS).then((l) => {
+      if (alive) putLocal(l);
     });
     return () => {
       alive = false;
     };
-  }, [putMirror]);
+  }, [putMirror, putLocal]);
 
   // A choice made for another wallet no longer applies. Signing out also drops the selection and
-  // its offline copy along with the session.
+  // its offline copy along with the session (the wallet-less choice stays: it was never the wallet's).
   useEffect(() => {
     const stale = pending.current;
     if (stale !== null && stale.wallet !== wallet) {
@@ -344,13 +436,20 @@ export function useLoadout(session: Session | null, restoring: boolean): Loadout
   const equip = useCallback(
     (change: LoadoutChange): Promise<void> => {
       const w = walletRef.current;
-      if (w === null) return Promise.reject(new Error('Connect a wallet to equip items'));
+      if (w === null) {
+        // Wallet-less: an award selector is kept on this phone; nothing goes to the backend.
+        const next = localWithChange(localRef.current, change);
+        if (next === null) return Promise.reject(new Error('Connect a wallet to equip items'));
+        putLocal(next);
+        writeLocal(next);
+        return Promise.resolve();
+      }
       return new Promise<void>((resolve, reject) => {
         const previous = pending.current;
         const folds = previous !== null && previous.wallet === w;
         if (!folds || fallback.current === null || fallback.current.wallet !== w) {
           // The first unsaved choice: what is on screen now is what a failure returns to.
-          const shown = pick(w, heldRef.current, mirrorRef.current);
+          const shown = pick(w, heldRef.current, mirrorRef.current, localRef.current);
           fallback.current = { wallet: w, loadout: shown.loadout, source: shown.source };
         }
         const merged: LoadoutChange = folds ? { ...previous.change, ...change } : { ...change };
@@ -362,19 +461,19 @@ export function useLoadout(session: Session | null, restoring: boolean): Loadout
         void drain();
       });
     },
-    [drain, putHeld],
+    [drain, putHeld, putLocal],
   );
 
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
 
-  const current = pick(wallet, held, mirror);
-  const { owned, activeSkin, activeVariant } = current.loadout;
+  const current = pick(wallet, held, mirror, local);
+  const { owned, activeSkin, activeVariant, earned, seekerSkin } = current.loadout;
   const source = current.source;
   const errorText = wallet !== null && error !== null && error.wallet === wallet ? error.message : null;
-  const ready = mirror !== undefined;
+  const ready = mirror !== undefined && local !== undefined;
   const loadout = useMemo<LoadoutState>(
-    () => ({ owned, activeSkin, activeVariant, source, error: errorText, ready }),
-    [owned, activeSkin, activeVariant, source, errorText, ready],
+    () => ({ owned, activeSkin, activeVariant, earned, seekerSkin, source, error: errorText, ready }),
+    [owned, activeSkin, activeVariant, earned, seekerSkin, source, errorText, ready],
   );
 
   return { loadout, equip, refresh };

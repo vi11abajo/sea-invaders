@@ -10,9 +10,13 @@ import type { LoadoutChange } from '../api/profile';
 import { getShop } from '../api/shop';
 import { onBackPress } from '../audio/onBackPress';
 import { useAudioSettings } from '../audio/settings';
-import { BASE_OCTOPI_NAME, ITEM_NAMES, skinOfItem, variantOfItem } from '../loadout/items';
+import { OctopiThumb } from '../game/OctopiArt';
+import { BASE_LOOK, CHAMPION_LOOK, lookOfSkin, type Look } from '../game/looks';
+import { ABILITY } from '../loadout/abilities';
+import { WEAR_RULE, skinHint, variantHint, wornSkin, wornVariant, type Selectors } from '../loadout/allowed';
+import { SKIN_NAMES, VARIANT_NAMES, VARIANT_OCTOPI, type SkinIndex, type VariantIndex } from '../loadout/items';
 import type { LoadoutState } from '../loadout/useLoadout';
-import { ItemArt } from '../shop/ItemArt';
+import { ACCENT_BY_VARIANT, accentOfLook } from '../shop/tints';
 import { Backdrop } from '../ui/Backdrop';
 import { PillButton } from '../ui/PillButton';
 import { SeekerBadge } from '../ui/SeekerBadge';
@@ -40,6 +44,12 @@ const TILE_BORDER = 'rgba(236,228,253,0.12)';
 /** An equipped tile takes the design's selected-tile look from the level sheet's octopi picker (06). */
 const TILE_SELECTED_BG = 'rgba(255,255,255,0.14)';
 const TILE_SELECTED_BORDER = '#FFFFFF';
+/** A locked tile's Octopi, name and ability are drawn at 40 %, like the Level start picker's; its hint stays readable. */
+const LOCKED_OPACITY = 0.4;
+/** A champion's ability line under its name: up to three lines at a tile's width, so no ability is cut short. */
+const DETAIL_LINES = 3;
+/** The Skins group's first tile, skin code 0 (design doc §2). */
+const OWN_COLOURS = "Octopi's own colours";
 /** Shown for a balance that has not been read (or could not be). */
 const UNKNOWN = '—';
 
@@ -50,46 +60,67 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** One inventory tile: an owned item (or the base Octopi) and what tapping it does. */
+/** One tile of a group: a champion or a look, its state, and what tapping it does. */
 interface Tile {
   key: string;
-  /** Catalogue item id; null for the base Octopi. */
-  itemId: number | null;
+  look: Look;
+  /** The thumb's glow, `#RRGGBB`. */
+  accent: string;
   name: string;
+  /** A champion's ability in a few words; null for a look. */
+  detail: string | null;
   equipped: boolean;
-  /** The loadout change a tap makes; null when there is nothing to do (the base Octopi already equipped). */
+  /** Not wearable yet: dimmed and not pressable. */
+  locked: boolean;
+  /** Where a locked one is had: "In the Shop", "Beat <boss>" or "Verify Seeker" (design doc §5). */
+  hint: string | null;
+  /** The loadout change a tap makes; null when there is nothing to do (locked, or the base already on). */
   change: LoadoutChange | null;
 }
 
 /**
- * The campaign octopi group: the base Octopi first (always owned: it is the no-variant choice), then
- * the owned variants in catalogue order. Exactly one is equipped; tapping the equipped variant takes
- * it off, back to the base Octopi.
+ * The Champions group (design doc §5): the base Octopi and every champion in `VARIANT_INDEX` order,
+ * each in its own art with its ability, whether it is had yet or not. Exactly one is worn; tapping
+ * the worn champion takes it off, back to the base Octopi.
  */
-function variantTiles(loadout: LoadoutState): Tile[] {
-  const baseEquipped = loadout.activeVariant === 0;
-  const tiles: Tile[] = [
-    { key: 'base', itemId: null, name: BASE_OCTOPI_NAME, equipped: baseEquipped, change: baseEquipped ? null : { activeVariant: 0 } },
-  ];
-  for (const id of loadout.owned) {
-    const variant = variantOfItem(id);
-    if (variant === null) continue;
-    const equipped = loadout.activeVariant === variant;
-    tiles.push({ key: `item-${id}`, itemId: id, name: ITEM_NAMES[id] ?? `Item ${id}`, equipped, change: { activeVariant: equipped ? 0 : variant } });
-  }
-  return tiles;
+function championTiles(worn: VariantIndex, allowed: Selectors): Tile[] {
+  return VARIANT_OCTOPI.map((octopi, variant) => {
+    const equipped = variant === worn;
+    const locked = !allowed.variants.includes(variant);
+    return {
+      key: `variant-${variant}`,
+      look: CHAMPION_LOOK[octopi] ?? BASE_LOOK,
+      accent: ACCENT_BY_VARIANT[octopi],
+      name: VARIANT_NAMES[octopi],
+      detail: ABILITY[octopi].short,
+      equipped,
+      locked,
+      hint: locked ? variantHint(variant) : null,
+      change: locked || (equipped && variant === 0) ? null : { activeVariant: equipped ? 0 : variant },
+    };
+  });
 }
 
-/** The skins group: the owned skins in catalogue order; at most one equipped, tapping it goes back to Octopi's own colours. */
-function skinTiles(loadout: LoadoutState): Tile[] {
-  const tiles: Tile[] = [];
-  for (const id of loadout.owned) {
-    const skin = skinOfItem(id);
-    if (skin === null) continue;
-    const equipped = loadout.activeSkin === skin;
-    tiles.push({ key: `item-${id}`, itemId: id, name: ITEM_NAMES[id] ?? `Item ${id}`, equipped, change: { activeSkin: equipped ? 0 : skin } });
-  }
-  return tiles;
+/**
+ * The Skins group (design doc §5): Octopi's own colours first, then every look by its code, had
+ * or not. At most one is worn; tapping the worn look goes back to Octopi's own colours.
+ */
+function skinTiles(worn: SkinIndex, allowed: Selectors): Tile[] {
+  return SKIN_NAMES.map((name, code) => {
+    const equipped = code === worn;
+    const locked = !allowed.skins.includes(code);
+    return {
+      key: `skin-${code}`,
+      look: lookOfSkin(code),
+      accent: accentOfLook(code, 'base'),
+      name: code === 0 ? OWN_COLOURS : name,
+      detail: null,
+      equipped,
+      locked,
+      hint: locked ? skinHint(code) : null,
+      change: locked || (equipped && code === 0) ? null : { activeSkin: equipped ? 0 : code },
+    };
+  });
 }
 
 /** `tiles` in rows of `TILE_COLUMNS`. */
@@ -103,6 +134,8 @@ interface ProfileScreenProps {
   /** The signed-in wallet, or null for the "No wallet connected" card. */
   walletAddress: string | null;
   loadout: LoadoutState;
+  /** What this player may wear (`allowedSelectors`): the open tiles; the rest are shown locked. */
+  allowed: Selectors;
   /** Saves a loadout change; rejects when the backend refuses it or cannot be reached. */
   onEquip: (change: LoadoutChange) => Promise<void>;
   /** Reads the loadout from the backend again: on open and on pull-to-refresh. */
@@ -122,11 +155,12 @@ interface ProfileScreenProps {
 
 /**
  * The Profile (handoff 09): the wallet card with the Seeker row, the SKR and SOL balances and
- * Disconnect, or the no-wallet card with Connect; then the inventory, where owned items are
- * equipped. Pull down to refresh the balances and the inventory.
+ * Disconnect, or the no-wallet card with Connect; then the inventory — every champion and every
+ * look, the ones this player may wear equipped from here (without a wallet, the earned awards
+ * only). Pull down to refresh the balances and the inventory.
  */
 export function ProfileScreen({
-  walletAddress, loadout, onEquip, onReloadLoadout, onConnect, connecting, signInError, onDisconnect, onBack, seeker,
+  walletAddress, loadout, allowed, onEquip, onReloadLoadout, onConnect, connecting, signInError, onDisconnect, onBack, seeker,
 }: ProfileScreenProps) {
   const { connection } = useMobileWallet();
   const audio = useAudioSettings();
@@ -260,9 +294,11 @@ export function ProfileScreen({
   }));
 
   const signedIn = walletAddress !== null;
-  const variants = variantTiles(loadout);
-  const skins = skinTiles(loadout);
-  const tileDisabled = !signedIn || equipping;
+  // What is really worn: a selector no longer allowed shows as the base, as everywhere else.
+  const champions = championTiles(wornVariant(allowed, loadout.activeVariant), allowed);
+  const skins = skinTiles(wornSkin(allowed, loadout.activeSkin), allowed);
+  // Signed out, the open tiles are the earned awards, which this phone keeps without a wallet.
+  const tileDisabled = equipping;
   const onTile = (change: LoadoutChange) => void equip(change);
 
   return (
@@ -331,14 +367,11 @@ export function ProfileScreen({
             <SettingRow label="Vibration" value={audio.vibration} onChange={audio.setVibration} />
           </View>
           <Txt variant="secondary" tone="secondary" style={styles.section}>INVENTORY</Txt>
-          <Txt variant="label" tone="tertiary">CAMPAIGN OCTOPI</Txt>
-          <TileGrid tiles={variants} disabled={tileDisabled} onPress={onTile} />
-          <Txt variant="label" tone="tertiary" style={styles.group}>SKINS · COSMETIC</Txt>
-          {skins.length > 0 ? (
-            <TileGrid tiles={skins} disabled={tileDisabled} onPress={onTile} />
-          ) : (
-            <Txt variant="secondary" tone="tertiary">No skins yet. Skins are in the Shop.</Txt>
-          )}
+          <Txt variant="label" tone="tertiary">CHAMPIONS</Txt>
+          <TileGrid tiles={champions} disabled={tileDisabled} onPress={onTile} />
+          <Txt variant="secondary" tone="tertiary">{WEAR_RULE}</Txt>
+          <Txt variant="label" tone="tertiary" style={styles.group}>SKINS</Txt>
+          <TileGrid tiles={skins} disabled={tileDisabled} onPress={onTile} />
           {signedIn && loadout.source !== 'server' && (
             loadout.error !== null ? (
               <Txt variant="secondary" tone="tertiary" style={styles.note}>{`${loadout.error.replace(/\.$/, '')}. Pull down to try again.`}</Txt>
@@ -449,9 +482,18 @@ function TileGrid({ tiles, disabled, onPress }: { tiles: Tile[]; disabled: boole
   );
 }
 
+/** A tile's spoken label: its name and state, and for a locked one where it is had. */
+function tileLabel(tile: Tile): string {
+  if (tile.equipped) return `${tile.name}, equipped`;
+  if (tile.locked) return [tile.name, 'locked', ...(tile.hint === null ? [] : [tile.hint])].join(', ');
+  return `Equip ${tile.name}`;
+}
+
 /**
- * An inventory tile (handoff 09: 34 dp art, 11 dp name) with its Equip / Equipped pill. The whole
- * tile is the button, so the touch target is the tile, well over 48 dp.
+ * An inventory tile (handoff 09: 34 dp art, 11 dp name) with its Equip / Equipped pill, or, locked,
+ * dimmed with where it is had in the pill's place (design doc §5). The pill or the hint sits at the
+ * tile's foot, so a row of tiles with names and abilities of different lengths still lines up. The
+ * whole tile is the button, so the touch target is the tile, well over 48 dp.
  */
 function InventoryTile({ tile, disabled, onPress }: { tile: Tile; disabled: boolean; onPress: (change: LoadoutChange) => void }) {
   const { change } = tile;
@@ -459,7 +501,7 @@ function InventoryTile({ tile, disabled, onPress }: { tile: Tile; disabled: bool
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={tile.equipped ? `${tile.name}, equipped` : `Equip ${tile.name}`}
+      accessibilityLabel={tileLabel(tile)}
       accessibilityState={{ selected: tile.equipped, disabled: inactive }}
       disabled={inactive}
       onPress={() => {
@@ -467,13 +509,22 @@ function InventoryTile({ tile, disabled, onPress }: { tile: Tile; disabled: bool
       }}
       style={({ pressed }) => [styles.tile, tile.equipped && styles.tileEquipped, pressed && styles.pressed]}
     >
-      <ItemArt itemId={tile.itemId} size={TILE_ART} />
-      <Txt style={styles.tileName} numberOfLines={1}>{tile.name}</Txt>
-      <View style={[styles.equip, tile.equipped ? styles.equipOn : styles.equipOff]}>
-        <Txt style={[styles.equipText, tile.equipped ? styles.equipTextOn : styles.equipTextOff]} numberOfLines={1}>
-          {tile.equipped ? 'Equipped' : 'Equip'}
-        </Txt>
+      <View style={[styles.tileBody, tile.locked && styles.dimmed]}>
+        <OctopiThumb look={tile.look} accent={tile.accent} size={TILE_ART} />
+        <Txt style={styles.tileName} numberOfLines={2}>{tile.name}</Txt>
+        {tile.detail !== null && <Txt style={styles.tileDetail} numberOfLines={DETAIL_LINES}>{tile.detail}</Txt>}
       </View>
+      {tile.locked ? (
+        <View style={styles.hint}>
+          <Txt style={styles.hintText} numberOfLines={2}>{tile.hint ?? ''}</Txt>
+        </View>
+      ) : (
+        <View style={[styles.equip, tile.equipped ? styles.equipOn : styles.equipOff]}>
+          <Txt style={[styles.equipText, tile.equipped ? styles.equipTextOn : styles.equipTextOff]} numberOfLines={1}>
+            {tile.equipped ? 'Equipped' : 'Equip'}
+          </Txt>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -528,12 +579,17 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.hudCard, backgroundColor: TILE_GLASS, borderWidth: 1, borderColor: TILE_BORDER,
   },
   tileEquipped: { backgroundColor: TILE_SELECTED_BG, borderColor: TILE_SELECTED_BORDER },
+  tileBody: { alignSelf: 'stretch', alignItems: 'center', gap: 6 },
+  dimmed: { opacity: LOCKED_OPACITY },
   tileSpacer: { flex: 1 },
   tileName: { fontFamily: FONTS.medium, fontSize: 11, color: COLORS.text, textAlign: 'center' },
+  tileDetail: { fontFamily: FONTS.regular, fontSize: 10, color: COLORS.textSecondary, textAlign: 'center' },
   equip: {
-    alignSelf: 'stretch', height: EQUIP_HEIGHT, borderRadius: RADIUS.pill, paddingHorizontal: 6,
+    alignSelf: 'stretch', height: EQUIP_HEIGHT, marginTop: 'auto', borderRadius: RADIUS.pill, paddingHorizontal: 6,
     alignItems: 'center', justifyContent: 'center',
   },
+  hint: { alignSelf: 'stretch', minHeight: EQUIP_HEIGHT, marginTop: 'auto', alignItems: 'center', justifyContent: 'center' },
+  hintText: { fontFamily: FONTS.medium, fontSize: 10, color: COLORS.textSecondary, textAlign: 'center' },
   equipOn: { backgroundColor: COLORS.primary },
   equipOff: { backgroundColor: COLORS.secondary },
   equipText: { fontFamily: FONTS.medium, fontSize: 11 },

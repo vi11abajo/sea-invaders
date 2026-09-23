@@ -2,8 +2,12 @@ import { InstrumentSans_600SemiBold } from '@expo-google-fonts/instrument-sans/6
 import { formatCountdown, formatInt, shortAddress } from '@sea-invaders/core';
 import { useEffect, useState, type ReactNode } from 'react';
 import { BackHandler, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { OctopiThumb } from '../../game/OctopiArt';
+import { CHAMPION_LOOK, SKIN_LOOK, type Look } from '../../game/looks';
 import { HomeScreen } from '../../home/HomeScreen';
 import { demoHomeModel, type HomeModel } from '../../home/model';
+import { SKIN_NAMES, VARIANT_NAMES, VARIANT_OCTOPI } from '../../loadout/items';
+import { ACCENT_BY_VARIANT, accentOfSkin } from '../../shop/tints';
 import { ArtSlot } from '../ArtSlot';
 import { Backdrop } from '../Backdrop';
 import { BlurText } from '../BlurText';
@@ -24,6 +28,29 @@ import { useAppFonts } from '../fonts';
 import { COLORS, RADIUS, REEF_LIFE, SIGNATURE_GRADIENT, TYPE, type WorldTheme } from '../tokens';
 
 const SAMPLE_ADDRESS = '7xKpQm9vLrT2hW8sNc4yBd6fGj1eZa5uXo3fQ';
+
+/** The art samples' thumb side, dp: a Shop champion row's. */
+const LOOK_THUMB = 56;
+
+/** One drawn look to eyeball: its thumb and its shown name. */
+interface LookSample {
+  key: string;
+  look: Look;
+  accent: string;
+  name: string;
+}
+
+/** Every champion's own art (design doc §1), in `VARIANT_INDEX` order; the base Octopi keeps its colours, so it is left out. */
+const CHAMPION_SAMPLES: readonly LookSample[] = VARIANT_OCTOPI.flatMap((octopi) => {
+  const look = CHAMPION_LOOK[octopi];
+  return look?.kind === 'art' ? [{ key: octopi, look, accent: ACCENT_BY_VARIANT[octopi], name: VARIANT_NAMES[octopi] }] : [];
+});
+
+/** Every drawn skin (design doc §2), by code; the tints recolour the base Octopi and are left out. */
+const SKIN_SAMPLES: readonly LookSample[] = SKIN_NAMES.flatMap((name, code) => {
+  const look = SKIN_LOOK[code];
+  return look?.kind === 'art' ? [{ key: `skin-${code}`, look, accent: accentOfSkin(code) ?? COLORS.text, name }] : [];
+});
 
 /** Developer screen showing every design-system part on the device. Opened by seainvaders://ui. */
 export function UiGallery() {
@@ -73,6 +100,14 @@ export function UiGallery() {
 
         <Section title="Screens">
           <PillButton label="Home · demo data" kind="secondary" onPress={() => setHome(demoHomeModel(Date.now()))} />
+        </Section>
+
+        <Section title="Champions">
+          <LookRow samples={CHAMPION_SAMPLES} />
+        </Section>
+
+        <Section title="Skins">
+          <LookRow samples={SKIN_SAMPLES} />
         </Section>
 
         <Section title="World theme">
@@ -216,6 +251,20 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/** Drawn looks side by side, each thumb with its name under it, so the art can be checked on the device. */
+function LookRow({ samples }: { samples: readonly LookSample[] }) {
+  return (
+    <View style={styles.row}>
+      {samples.map((s) => (
+        <View key={s.key} style={styles.lookSample}>
+          <OctopiThumb look={s.look} accent={s.accent} size={LOOK_THUMB} />
+          <Txt variant="secondary" tone="secondary" numberOfLines={1}>{s.name}</Txt>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.stat}>
@@ -234,6 +283,7 @@ const styles = StyleSheet.create({
   card: { padding: 16, gap: 8 },
   stat: { minWidth: 120, gap: 2 },
   swatch: { width: 40, height: 40, borderRadius: 8 },
+  lookSample: { width: 72, alignItems: 'center', gap: 4 },
   starBorderDemo: {
     alignSelf: 'flex-start', borderRadius: RADIUS.pill, paddingHorizontal: 14, paddingVertical: 8,
     backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder,

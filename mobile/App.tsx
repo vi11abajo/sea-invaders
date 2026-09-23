@@ -1,7 +1,7 @@
-import { LEVEL_COUNT, levelById } from '@sea-invaders/core';
+import { LEVEL_COUNT, earnedAwards, levelById, newProgress } from '@sea-invaders/core';
 import { MobileWalletProvider } from '@wallet-ui/react-native-web3js';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import { WalletDeclined, pollUntilConfirmed, sendWithBlockhashRetry, useSignAndSend } from './src/api/chain';
 import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
@@ -21,10 +21,11 @@ import { EquippedOctopiContext, SkinContext } from './src/game/skins';
 import { Splash } from './src/ui/Splash';
 import { HomeScreen } from './src/home/HomeScreen';
 import { useHomeModel } from './src/home/useHomeModel';
+import { allowedSelectors, withServedAwards, wornSkin, wornVariant, type Selectors } from './src/loadout/allowed';
 import { VARIANT_OCTOPI } from './src/loadout/items';
 import { useLoadout, type LoadoutApi } from './src/loadout/useLoadout';
 import { ProfileScreen } from './src/profile/ProfileScreen';
-import { useSeeker } from './src/profile/useSeeker';
+import { useSeeker, type SeekerState } from './src/profile/useSeeker';
 import { SelfTestScreen } from './src/selftest/SelfTestScreen';
 import { ShopScreen } from './src/shop/ShopScreen';
 import { Backdrop } from './src/ui/Backdrop';
@@ -64,19 +65,34 @@ function routeFor(url: string | null): Route {
 }
 
 /**
- * Owns the session and the loadout, and puts the loadout's active skin and equipped octopi variant
- * on every screen below it (Home's hero, the game, the result pose read them through `SkinContext` and
- * `EquippedOctopiContext`).
+ * Owns the session, the loadout, the campaign progress and the Seeker status, and puts the
+ * loadout's active skin and equipped octopi variant on every screen below it (Home's hero, the game,
+ * the result pose read them through `SkinContext` and `EquippedOctopiContext`).
+ *
+ * What may be worn is decided here, once (champions and skins design doc §3): the wallet's items,
+ * the awards the campaign has earned and the Seeker link. A selector that is no longer allowed (a
+ * demo campaign reset un-earns an award) is worn as the base, in every screen alike.
  */
 function Shell({ initialLevel = null }: { initialLevel?: { id: number; tide: boolean } | null }) {
   const auth = useSession();
   const loadout = useLoadout(auth.session, auth.restoring);
+  // Hoisted from `Screens`: the allowed selectors below need the campaign's awards and the link.
+  const campaign = useCampaign();
+  const seeker = useSeeker(auth.session);
+  const earned = useMemo(() => earnedAwards(campaign.progress ?? newProgress(0)), [campaign.progress]);
+  const { owned, earned: served, seekerSkin, activeSkin, activeVariant } = loadout.loadout;
+  // Signed in, what the backend has derived counts too: it is the one that validates a choice.
+  const seekerLinked = seeker.status === 'linked' || seekerSkin;
+  const allowed = useMemo(
+    () => allowedSelectors(owned, withServedAwards(earned, served), seekerLinked),
+    [owned, earned, served, seekerLinked],
+  );
   const splashOver = useSplashGate(!auth.restoring && loadout.loadout.ready);
   return (
-    <SkinContext.Provider value={loadout.loadout.activeSkin}>
-      <EquippedOctopiContext.Provider value={VARIANT_OCTOPI[loadout.loadout.activeVariant]}>
+    <SkinContext.Provider value={wornSkin(allowed, activeSkin)}>
+      <EquippedOctopiContext.Provider value={VARIANT_OCTOPI[wornVariant(allowed, activeVariant)]}>
         <View style={styles.app}>
-          <Screens initialLevel={initialLevel} auth={auth} loadout={loadout} />
+          <Screens initialLevel={initialLevel} auth={auth} loadout={loadout} campaign={campaign} seeker={seeker} allowed={allowed} />
           <Splash visible={!splashOver} />
         </View>
       </EquippedOctopiContext.Provider>
@@ -104,10 +120,15 @@ interface ScreensProps {
   initialLevel: { id: number; tide: boolean } | null;
   auth: ReturnType<typeof useSession>;
   loadout: LoadoutApi;
+  campaign: ReturnType<typeof useCampaign>;
+  /** One Seeker status for the whole shell (Phase 3C): Home's wallet pill and the Profile's Seeker row read the same hook, so they can never disagree. */
+  seeker: SeekerState;
+  /** The selectors this player may wear (`allowedSelectors`): the Profile's tiles and the Level start picker. */
+  allowed: Selectors;
 }
 
 /** Everything that needs the wallet provider and the session. */
-function Screens({ initialLevel, auth, loadout }: ScreensProps) {
+function Screens({ initialLevel, auth, loadout, campaign, seeker, allowed }: ScreensProps) {
   // The deep link is a QA tool: it always opens in practice mode so it can never mutate real
   // progress (a non-current level would also make finishLevel reject — see CampaignLevelScreen).
   const [screen, setScreen] = useState<Screen>(
@@ -117,12 +138,8 @@ function Screens({ initialLevel, auth, loadout }: ScreensProps) {
   // do not (e.g. "Retry level"), forcing a fresh mount instead of reusing the finished run's state.
   const [levelAttempt, setLevelAttempt] = useState(0);
   const { session, restoring, loading: signingIn, signIn, signOut, error } = auth;
-  const campaign = useCampaign();
   // The campaign map's new design has no sync indicator; the sync itself still needs to run.
   useCampaignSync(session, campaign.progress, campaign.replaceProgress);
-  // One Seeker status for the whole shell (Phase 3C): Home's wallet pill and the Profile's Seeker
-  // row read the same hook, so they can never disagree.
-  const seeker = useSeeker(session);
   const { model, refresh, error: homeError } = useHomeModel(session, campaign.progress, seeker.status === 'linked');
   const signAndSend = useSignAndSend();
   const [ticketBusy, setTicketBusy] = useState(false);
@@ -257,6 +274,7 @@ function Screens({ initialLevel, auth, loadout }: ScreensProps) {
         startLevel={campaign.startLevel}
         finishLevel={campaign.finishLevel}
         loadout={loadout}
+        allowed={allowed}
         signedIn={session !== null}
         connecting={signingIn}
         signInError={error}
@@ -302,6 +320,7 @@ function Screens({ initialLevel, auth, loadout }: ScreensProps) {
         <ProfileScreen
           walletAddress={session?.walletAddress ?? null}
           loadout={loadout.loadout}
+          allowed={allowed}
           onEquip={loadout.equip}
           onReloadLoadout={loadout.refresh}
           onConnect={() => void signIn()}
