@@ -104,7 +104,7 @@ pub struct SettleWeek<'info> {
 /// of the vault, creating the winner's ATA first when it does not already
 /// exist and the share is above zero, and rolls whatever is left over (the
 /// shares of any unfilled ranks, plus rounding dust) into next week's
-/// vault, which must not be settled yet. `remaining_accounts`
+/// vault. `remaining_accounts`
 /// carries `top_len` `(wallet, ata)` pairs in the pool's own `top` order -
 /// wrong order, a wrong wallet or a foreign ATA all fail `WinnerMismatch`.
 pub fn settle_week<'info>(
@@ -129,15 +129,13 @@ pub fn settle_week<'info>(
     let pool = &ctx.accounts.week_pool;
     require!(!pool.settled, SeaError::AlreadySettled);
     // Nothing orders settlements but the clock, and anyone may call this,
-    // so week + 1 can be settled while this week still waits (say, while
-    // this week's own settle keeps failing). Nothing ever moves tokens out
-    // of a settled week's vault again, so rolling this week's rest into it
-    // would lock that rest for good. Refuse instead: this week's balance
-    // stays in its own vault, and the failure is visible to whoever calls.
-    require!(
-        !ctx.accounts.next_week_pool.settled,
-        SeaError::NextWeekAlreadySettled
-    );
+    // so week + 1 could in principle be settled while this week still
+    // waits (only after a week-long outage of the crank, which settles the
+    // oldest open week first and stops at the first failure). In that case
+    // the winners below are still paid; only the rest rolled into the
+    // already-settled next vault stays there, since nothing moves tokens out
+    // of a settled vault again. Refusing here instead would lock this whole
+    // week's balance, winners included - the worse of the two outcomes.
     let n = pool.top_len as usize;
     require!(
         ctx.remaining_accounts.len() == n * 2,

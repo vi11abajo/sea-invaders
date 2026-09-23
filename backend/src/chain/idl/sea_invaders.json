@@ -1535,11 +1535,6 @@
       "code": 6017,
       "name": "SeekerAlreadyLinked",
       "msg": "Player has already linked a Seeker Genesis Token"
-    },
-    {
-      "code": 6018,
-      "name": "NextWeekAlreadySettled",
-      "msg": "Next week is already settled"
     }
   ],
   "types": [

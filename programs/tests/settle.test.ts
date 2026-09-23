@@ -457,37 +457,6 @@ describe("week pool guards", () => {
     );
   });
 
-  it("settle_week refuses to roll a week's remainder into a next week that is already settled", async () => {
-    // Nothing orders settlements but the clock, and anyone may call
-    // settle_week, so X + 1 can be settled while X still waits. X + 1 has
-    // no records, so it pays no one and rolls alice's ticket share on to
-    // X + 2.
-    await warpTo(ctx, weekEnd(X + 1) + 900);
-    await settleWeek(ctx, ctx.server, X + 1, []);
-    expect((await fetchWeekPool(ctx, X + 1)).settled).to.equal(true);
-    expect(await ctx.tokenBalance(weekPda(ctx.programId, X + 1))).to.equal(
-      0n
-    );
-
-    let err = "";
-    try {
-      await settleWeek(ctx, ctx.server, X, []);
-    } catch (e: any) {
-      err = e.message;
-    }
-    expect(err).to.contain("NextWeekAlreadySettled");
-
-    // X keeps its balance and stays open, instead of paying it into a
-    // settled vault that nothing ever empties again.
-    expect((await fetchWeekPool(ctx, X)).settled).to.equal(false);
-    expect(await ctx.tokenBalance(weekPda(ctx.programId, X))).to.equal(
-      1_000_000n
-    );
-    expect(await ctx.tokenBalance(weekPda(ctx.programId, X + 1))).to.equal(
-      0n
-    );
-  });
-
   // Runs after the test above: X + 1 is settled and the clock sits at its
   // settle time.
   it("submit_daily_best refuses a record for a week that is already settled", async () => {
