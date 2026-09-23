@@ -212,21 +212,26 @@ function BossBar({ boss }: { boss: BossFrame }) {
   );
 }
 
+/** One height for the wave pill and the hearts pill, centred on the score card's own middle. */
+const HUD_PILL_HEIGHT = 38;
+
 const styles = StyleSheet.create({
   root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  top: { position: 'absolute', top: 28, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  // Owner's note 2026-09-23: the three top-row pieces sit on one centre line and the two pills
+  // share one height, so the row reads as a single bar rather than three loose boxes.
+  top: { position: 'absolute', top: 28, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   glass: { backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder },
   // `minWidth`/`paddingRight`: a seven-digit mono score measured narrower than it rendered and ran
   // past the card's edge (owner's note 2026-09-23).
-  scoreCard: { borderRadius: RADIUS.hudCard, paddingHorizontal: 14, paddingRight: 18, paddingVertical: 10, minWidth: 150 },
+  scoreCard: { borderRadius: RADIUS.hudCard, paddingHorizontal: 16, paddingVertical: 10, minWidth: 150, justifyContent: 'center' },
   mode: { fontFamily: FONTS.medium, fontSize: 10, letterSpacing: 0.4, color: COLORS.textSecondary },
   modeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   score: { fontFamily: FONTS.mono, fontSize: 26, lineHeight: 30, letterSpacing: -0.52, color: COLORS.text, paddingRight: 2 },
-  wavePill: { alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 7, marginHorizontal: 8 },
+  wavePill: { height: HUD_PILL_HEIGHT, justifyContent: 'center', paddingHorizontal: 14 },
   waveText: { fontFamily: FONTS.mono, fontSize: 12, letterSpacing: 0.6, color: COLORS.textSecondary },
-  right: { alignItems: 'flex-end', gap: 6 },
+  right: { alignItems: 'flex-end', justifyContent: 'center', gap: 6 },
   pill: { borderRadius: RADIUS.pill, overflow: 'hidden' },
-  lives: { flexDirection: 'row', paddingHorizontal: 10, paddingVertical: 8 },
+  lives: { height: HUD_PILL_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
   combo: { paddingHorizontal: 10, paddingVertical: 6 },
   comboText: { fontFamily: FONTS.mono, fontSize: 13, color: COLORS.text },
   comboHot: { color: COLORS.onPrimary },
