@@ -2,7 +2,7 @@ import {
   DAILY_RUN, FIELD_W, INITIAL_INPUT, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder, Rng, clamp, createGame,
   hashState, idiv, levelById, levelSeed, step,
   type Bullet, type BulletKind, type CrabType, type Formation, type GameEvent, type GameState, type Golden,
-  type Input, type ReplayMode, type RunConfig,
+  type Input, type OctopiVariant, type ReplayMode, type RunConfig,
 } from '../src';
 
 export interface GoldenScript {
@@ -13,7 +13,7 @@ export interface GoldenScript {
   run?: RunConfig;
   /** Defaults to `REPLAY_MODE.practice`. */
   mode?: ReplayMode;
-  /** Defaults to `golden-${name}`. `level6`/`level30` key off the level id instead, matching `runFromReplay`. */
+  /** Defaults to `golden-${name}`. `level6`/`level30` (and every campaign script) key off the level id instead, matching `runFromReplay`. */
   seed?: string;
 }
 
@@ -142,6 +142,17 @@ const campaignScript = (id: number): GoldenScript => ({
   ticks: 18_000, makeInput: survivor, run: CAMPAIGN_RUN(id), mode: REPLAY_MODE.campaign, seed: levelSeed('golden', id),
 });
 
+/**
+ * One champion's golden script (champions and skins spec §1): the `survivor` dodge on level 2 as a
+ * campaign run with that champion equipped, capped at 6000 ticks and stopping early on
+ * `cleared || over` like every campaign script, its seed keyed off the level id the same way.
+ * All five share level and seed, so each run differs from the others only by its champion.
+ */
+const championScript = (octopi: OctopiVariant): GoldenScript => ({
+  ticks: 6000, makeInput: survivor, run: { ...CAMPAIGN_RUN(2), octopi }, mode: REPLAY_MODE.campaign,
+  seed: levelSeed('golden', 2),
+});
+
 export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   idle: { ticks: 3600, makeInput: () => () => INITIAL_INPUT },
   sweep: { ticks: 7200, makeInput: () => (t) => ({ x: sweepX(t), y: 9000 }) },
@@ -194,6 +205,14 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   level48: campaignScript(48), // boss 8, the Gold Corsair
   level54: campaignScript(54), // boss 9, the Storm Tyrant
   level60: campaignScript(60), // boss 10, the Abyssal Huntsman
+
+  // The five champions of core v13 (champions and skins spec §1), appended so the older scenarios
+  // keep their order in the golden file.
+  'champion-noob': championScript('noob'), // Thick skin
+  'champion-coraluna': championScript('coraluna'), // Surge
+  'champion-shoupe': championScript('shoupe'), // Last stand
+  'champion-hex': championScript('hex'), // Hex
+  'champion-kakashi': championScript('kakashi'), // Copy
 };
 
 export interface PlayResult {

@@ -24,11 +24,24 @@ export const OCTOPI = {
   fireInterval: 8,
 } as const;
 
-/** Per-variant overrides layered onto the OCTOPI defaults above (spec §4); `base` has none. */
-export const VARIANTS: Record<Exclude<OctopiVariant, 'base'>, { fireInterval?: number; lives?: number; piercing?: boolean }> = {
+/**
+ * Per-variant overrides layered onto the OCTOPI defaults above (spec §4; champions and skins spec
+ * §1 for the five champions after trident); `base` has none. Each override is read through its own
+ * `...For` accessor below, which hands back the unmodified default for every variant without it —
+ * so a run of `base` or of the first three champions takes exactly the path it always took.
+ */
+export const VARIANTS: Record<Exclude<OctopiVariant, 'base'>, {
+  fireInterval?: number; lives?: number; piercing?: boolean;
+  invulnTicks?: number; surgeEvery?: number; lastStandFireInterval?: number; enemyShotPct?: number; boostDurationPct?: number;
+}> = {
   harpoon: { fireInterval: 6 },
   anchor: { lives: 1 },
   trident: { piercing: true },
+  noob: { invulnTicks: 180 },          // Thick skin (spec §1)
+  coraluna: { surgeEvery: 30 },        // Surge
+  shoupe: { lastStandFireInterval: 5 },// Last stand
+  hex: { enemyShotPct: 90 },           // Hex
+  kakashi: { boostDurationPct: 150 },  // Copy
 };
 
 /** Octopi's fire cadence for `variant`, absent any active RAPID_FIRE boost (spec §4: harpoon fires every 6 ticks, others the base 8). */
@@ -44,6 +57,38 @@ export function bonusLivesFor(variant: OctopiVariant): number {
 /** Whether `variant` tags every player shot with the PIERCING bit regardless of boosts (spec §4: trident only). */
 export function piercingFor(variant: OctopiVariant): boolean {
   return variant !== 'base' && Boolean(VARIANTS[variant].piercing);
+}
+
+/**
+ * Octopi's grace after a hit that cost a life (`loseLife`), in ticks (champions and skins spec §1:
+ * noob's Thick skin, 180; everyone else `OCTOPI.invulnTicks`). A shield-absorbed hit's 30 and the
+ * Tide's revive grace do not read this.
+ */
+export function invulnTicksFor(variant: OctopiVariant): number {
+  return variant === 'base' ? OCTOPI.invulnTicks : (VARIANTS[variant].invulnTicks ?? OCTOPI.invulnTicks);
+}
+
+/** How many kills buy `variant` a free WAVE_BLAST (champions and skins spec §1: coraluna's Surge, 30); 0 = never. */
+export function surgeEveryFor(variant: OctopiVariant): number {
+  return variant === 'base' ? 0 : (VARIANTS[variant].surgeEvery ?? 0);
+}
+
+/**
+ * `variant`'s fire cadence on its last life, absent RAPID_FIRE (champions and skins spec §1:
+ * shoupe's Last stand, 5); null = no last stand, the ordinary `fireIntervalFor` cadence throughout.
+ */
+export function lastStandFireIntervalFor(variant: OctopiVariant): number | null {
+  return variant === 'base' ? null : (VARIANTS[variant].lastStandFireInterval ?? null);
+}
+
+/** The percentage of its speed every enemy shot moves at against `variant` (champions and skins spec §1: hex, 90); 100 unless overridden. */
+export function enemyShotPctFor(variant: OctopiVariant): number {
+  return variant === 'base' ? 100 : (VARIANTS[variant].enemyShotPct ?? 100);
+}
+
+/** The percentage of its duration a timed boost lasts for `variant` (champions and skins spec §1: kakashi's Copy, 150); 100 unless overridden. */
+export function boostDurationPctFor(variant: OctopiVariant): number {
+  return variant === 'base' ? 100 : (VARIANTS[variant].boostDurationPct ?? 100);
 }
 
 /**

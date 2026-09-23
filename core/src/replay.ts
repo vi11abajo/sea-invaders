@@ -7,7 +7,7 @@ import { step } from './step';
 import { VARIANT_INDEX, type Input, type OctopiVariant } from './types';
 
 /** Bumped whenever simulation behaviour changes; replays only run on the version that recorded them. */
-export const CORE_VERSION = 12;
+export const CORE_VERSION = 13;
 
 /** 15 minutes at 60 Hz: an upper bound on how long a single replay may run or claim to run. */
 export const MAX_REPLAY_TICKS = 54_000;
@@ -139,8 +139,11 @@ const unzigzag = (u: number): number => (u % 2 === 0 ? u / 2 : -(u + 1) / 2);
 const MIN_COORD = -2_147_483_648;
 const MAX_COORD = 2_147_483_647;
 
-/** Reverse of `VARIANT_INDEX`, in the same declaration order: `Object.keys` preserves insertion order for string keys. */
-const VARIANT_BY_INDEX: OctopiVariant[] = Object.keys(VARIANT_INDEX) as OctopiVariant[];
+/**
+ * Reverse of `VARIANT_INDEX`, in the same declaration order: `Object.keys` preserves insertion order
+ * for string keys. Exported for the app, which maps a stored selector back to its variant with it.
+ */
+export const VARIANT_BY_INDEX: readonly OctopiVariant[] = Object.keys(VARIANT_INDEX) as OctopiVariant[];
 
 /** Compact binary form: varint header, ASCII seed, then per change a tick delta and zigzag x/y deltas. */
 export function encodeReplay(r: Replay): Uint8Array {

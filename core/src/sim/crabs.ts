@@ -1,10 +1,10 @@
 import {
-  ARRIVAL, CRAB, CRAB_SHOTS, CRAB_TYPES, ENEMY_SHOT, FIELD_H, FIELD_W, TUNING, TYPE_COLOUR, scalePct,
+  ARRIVAL, CRAB, CRAB_SHOTS, CRAB_TYPES, ENEMY_SHOT, FIELD_H, FIELD_W, TUNING, TYPE_COLOUR, enemyShotPctFor, scalePct,
 } from '../config';
 import { clamp, idiv, isqrt } from '../fixed';
 import type { CrabType } from '../levels';
 import type { Bullet, Crab, GameState } from '../types';
-import { chilled, tamed } from './boosts';
+import { bossImmuneToSlowdown, chilled, tamed } from './boosts';
 import { AXE_GRAVITY, ORB_STEER, ORB_VX_MAX, orbTicks } from './boss';
 import { shotRadius } from './collide';
 import { moveLivingFormation } from './living';
@@ -269,7 +269,10 @@ function steerOrb(s: GameState, b: Bullet): void {
  * While ICE_FREEZE is active every enemy shot moves at half speed (owner ruling 2026-09-15, replacing
  * spec C5's movement-only rule): the stored `vx`/`vy` stay as fired and only the step is halved
  * through `chilled`, so the shot resumes full speed when the freeze ends; a boss's shots share its
- * own immunity (Crimson in a rage). SPEED_TAMER still never touches bullets. A shot above the field but still moving down (a meteor-shower drop spawned at y -200) is
+ * own immunity (Crimson in a rage). Against hex every enemy shot, crab's and boss's alike, moves at
+ * `enemyShotPctFor` (90 %) of its speed through the same per-tick seam, applied before the freeze's
+ * halving and with the same boss immunity (champions and skins spec §1).
+ * SPEED_TAMER still never touches bullets. A shot above the field but still moving down (a meteor-shower drop spawned at y -200) is
  * never pruned for being off the top edge — only for having left through the bottom, left or right.
  *
  * While a campaign wave is arriving (`s.arrival > 0`, spec §14 amendment) existing shots still move
@@ -277,6 +280,7 @@ function steerOrb(s: GameState, b: Bullet): void {
  */
 export function updateEnemyShots(s: GameState): void {
   const kept: Bullet[] = [];
+  const pct = enemyShotPctFor(s.run.octopi);
   for (const b of s.enemyShots) {
     if (b.kind === 'zigzag') {
       b.data -= 1;
@@ -291,8 +295,10 @@ export function updateEnemyShots(s: GameState): void {
       steerOrb(s, b); // spec §5.1: the homing orb turns towards Octopi and spends a tick of life
     }
     const bossShot = !CRAB_SHOT_KINDS.has(b.kind);
-    b.x += chilled(s, b.vx, bossShot);
-    b.y += chilled(s, b.vy, bossShot);
+    // Hex scales the step only, never the stored `vx`/`vy`; 100 % (every other variant) is the identity.
+    const hexed = (v: number): number => (pct === 100 || (bossShot && bossImmuneToSlowdown(s)) ? v : idiv(v * pct, 100));
+    b.x += chilled(s, hexed(b.vx), bossShot);
+    b.y += chilled(s, hexed(b.vy), bossShot);
     if (b.kind === 'explosive' && (b.data <= 0 || b.y > EXPLOSIVE_SPLIT_Y)) {
       for (const [vx, vy] of FRAGMENT_VECTORS) kept.push({ x: b.x, y: b.y, vx, vy, kind: 'fragment', data: 0 });
       continue;

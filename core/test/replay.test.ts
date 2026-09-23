@@ -156,6 +156,16 @@ describe('replay codec', () => {
     expect(decodeReplay(encodeReplay(r))).toEqual(r);
   });
 
+  it('round-trips a champion appended in core v13 (header index 4..8), here kakashi', () => {
+    const r: Replay = {
+      version: CORE_VERSION, mode: REPLAY_MODE.campaign, levelId: 60, lives: 5, octopi: 'kakashi', seed: 'copy', ticks: 120,
+      inputs: [3, 2000, 9000, 90, 4000, 8000],
+    };
+    const bytes = encodeReplay(r);
+    expect(bytes[4]).toBe(8); // the octopi header byte: VARIANT_INDEX.kakashi
+    expect(decodeReplay(bytes)).toEqual(r);
+  });
+
   it('round-trips a campaign replay whose level id lands in reefs 6-10, beyond the first campaign', () => {
     const r: Replay = {
       version: 1, mode: REPLAY_MODE.campaign, levelId: 45, lives: 3, octopi: 'base', seed: 'reef8', ticks: 200,
@@ -229,7 +239,8 @@ describe('replay codec', () => {
   });
 
   it('rejects an octopi variant index beyond the known variants', () => {
-    const bytes = Uint8Array.from([...varintBytes(2), ...varintBytes(0), ...varintBytes(0), ...varintBytes(3), ...varintBytes(4)]);
+    // Nine variants since the champions of core v13 (indices 0..8), so 9 is the first unknown one.
+    const bytes = Uint8Array.from([...varintBytes(2), ...varintBytes(0), ...varintBytes(0), ...varintBytes(3), ...varintBytes(9)]);
     expect(() => decodeReplay(bytes)).toThrow('replay octopi variant invalid');
   });
 

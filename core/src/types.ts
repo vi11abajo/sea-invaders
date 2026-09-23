@@ -20,11 +20,15 @@ export interface Octopi {
 }
 
 /**
- * Paid gameplay variant for a run (spec §4): `base` is the free, unmodified Octopi. Never a
- * simulation input beyond `RunConfig.octopi` — every effect (fire cadence, starting lives, the
- * piercing bit) is applied once in `createGame`/`updateShots` from that field.
+ * Gameplay variant for a run — the champion Octopi plays as (spec §4; champions and skins spec §1):
+ * `base` is the free, unmodified Octopi. Never a simulation input beyond `RunConfig.octopi` — every
+ * effect is read from that field through the `VARIANTS` overrides (`config.ts`): the fire cadence,
+ * starting lives and piercing bit of the first three, and the five champions appended after them
+ * (noob's Thick skin, coraluna's Surge, shoupe's Last stand, hex's Hex, kakashi's Copy).
  */
-export type OctopiVariant = 'base' | 'harpoon' | 'anchor' | 'trident';
+export type OctopiVariant =
+  | 'base' | 'harpoon' | 'anchor' | 'trident'
+  | 'noob' | 'coraluna' | 'shoupe' | 'hex' | 'kakashi';
 
 export type BulletKind =
   | 'crab' | 'straight' | 'zigzag' | 'large' | 'wave' | 'ring' | 'explosive' | 'fragment'
@@ -330,7 +334,13 @@ export type GameEvent =
   | { tick: number; type: 'meteor_warning'; x: number }
   | { tick: number; type: 'boost_drop' | 'boost_pickup' | 'boost_expire'; boost: BoostType }
   | { tick: number; type: 'player_freeze'; ticks: number }
-  | { tick: number; type: 'wave_start'; wave: number };
+  | { tick: number; type: 'wave_start'; wave: number }
+  /**
+   * Coraluna's Surge fires (champions and skins spec §1): the free WAVE_BLAST of every 30th kill, at
+   * Octopi's own position for the app's flash and toast. Raised even when the field was empty and
+   * the sweep found nothing — a wasted surge is still shown.
+   */
+  | { tick: number; type: 'surge'; x: number; y: number };
 
 export interface GameState {
   tick: number;
@@ -416,6 +426,12 @@ export interface GameState {
    * can ever raise it.
    */
   chillTicks: number;
+  /**
+   * Kills counted towards coraluna's next Surge (champions and skins spec §1): `killCrab` adds one
+   * per kill for a variant with a `surgeEvery`, and `surgeIfDue` spends `surgeEvery` of them on a
+   * free WAVE_BLAST. 0 at run start and 0 for good for every other variant.
+   */
+  surgeKills: number;
 }
 
 /**
@@ -483,5 +499,11 @@ export function squadCellCol(cell: number): number {
 /** Index of each FormationBehaviour in the state hash, in declaration order. */
 export const BEHAVIOUR_INDEX: Record<FormationBehaviour, number> = { march: 0, rotate: 1, split: 2, reform: 3 };
 
-/** Index of each OctopiVariant in the replay header byte, in declaration order. */
-export const VARIANT_INDEX: Record<OctopiVariant, number> = { base: 0, harpoon: 1, anchor: 2, trident: 3 };
+/**
+ * Index of each OctopiVariant in the replay header byte, in declaration order. The five champions
+ * of the champions and skins spec (§3) are appended, so an old replay header keeps its meaning.
+ */
+export const VARIANT_INDEX: Record<OctopiVariant, number> = {
+  base: 0, harpoon: 1, anchor: 2, trident: 3,
+  noob: 4, coraluna: 5, shoupe: 6, hex: 7, kakashi: 8,
+};

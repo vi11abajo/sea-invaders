@@ -1,4 +1,5 @@
 import { nextWave } from './game';
+import { surgeIfDue } from './sim/boostEffects';
 import { advanceScoreDecay, updateBoosts } from './sim/boosts';
 import { hitOrbs, updateBoss } from './sim/boss';
 import { hitCrabs, hitOctopi } from './sim/collide';
@@ -55,6 +56,9 @@ export function step(s: GameState, input: Input): void {
   // and changes nothing for kinds 1-5 (see `popSquads`'s own doc, `sim/squads.ts`, for why it is safe
   // to call unconditionally here).
   if (s.boss === null && s.squads.length > 0) popSquads(s);
+  // Coraluna's Surge (champions and skins spec §1) lands on the tick of its 30th kill, once every hit
+  // of this tick has been counted and before anything can hurt Octopi; a no-op for every other variant.
+  surgeIfDue(s);
   hitOctopi(s);
   updateBoosts(s);
   // `destroyedObstacles` is no longer swept here (fix round 2, controller ruling R19 — an

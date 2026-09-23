@@ -1,4 +1,4 @@
-import { BOOSTS, DROP, FIELD_H, FIELD_W, RARITY_LISTS, SCORE_DECAY, OCTOPI, WELL } from '../config';
+import { BOOSTS, DROP, FIELD_H, FIELD_W, RARITY_LISTS, SCORE_DECAY, OCTOPI, WELL, boostDurationPctFor } from '../config';
 import { idiv, isqrt } from '../fixed';
 import type { ActiveBoost, BoostType, Bullet, Drop, GameState } from '../types';
 import { applyEffect, removeEffect } from './boostEffects';
@@ -184,25 +184,32 @@ function setActive(s: GameState, type: BoostType, ticksLeft: number): void {
  *   a chaos pick that granted nothing must not later remove a stack on expiry either (fix round 1).
  *   A direct pickup instead (re)sets the single permanent (`-1`) entry, which never expires.
  * - GRAVITY_WELL: rolls a fresh centre (`rollWellCentre`) every time it activates, direct or chaos.
+ * Kakashi's Copy (champions and skins spec §1) stretches every timer this sets to
+ * `boostDurationPctFor` (150 %) of itself — the table duration and a chaos roll alike — while an
+ * instant (0) or until-consumed (-1) duration passes through untouched; at 100 % (every other
+ * variant) `stretch` is the identity.
  * Returns whether the pickup should be consumed (only WAVE_BLAST with no crabs is not, spec C4).
  */
 function activatePicked(s: GameState, picked: BoostType, chaosTicks: number | null): boolean {
+  const pct = boostDurationPctFor(s.run.octopi);
+  const stretch = (d: number): number => (d > 0 && pct !== 100 ? idiv(d * pct, 100) : d);
+  const chaos = chaosTicks === null ? null : stretch(chaosTicks);
   if (picked === 'HEALTH_BOOST' || picked === 'COIN_SHOWER' || picked === 'WAVE_BLAST') {
     return applyEffect(s, picked);
   }
   if (picked === 'SHIELD_BARRIER') {
     if (s.boosts.shield > 0) return true; // spec C6: re-pickup while active is a no-op, still consumed
     applyEffect(s, picked); // shield = 3
-    setActive(s, picked, chaosTicks ?? -1);
+    setActive(s, picked, chaos ?? -1);
     return true;
   }
   if (picked === 'SPEED_TAMER') {
     const before = s.boosts.tamerStacks;
     applyEffect(s, picked); // tamerStacks += 1 (capped at 10)
-    if (chaosTicks !== null) {
+    if (chaos !== null) {
       // Only push a timed entry when a stack was actually added: at the cap (10) applyEffect is a
       // no-op, so a chaos pick that grants nothing must not later remove a stack on expiry either.
-      if (s.boosts.tamerStacks > before) s.boosts.active.push({ type: picked, ticksLeft: chaosTicks });
+      if (s.boosts.tamerStacks > before) s.boosts.active.push({ type: picked, ticksLeft: chaos });
     } else {
       setActive(s, picked, -1);
     }
@@ -210,12 +217,12 @@ function activatePicked(s: GameState, picked: BoostType, chaosTicks: number | nu
   }
   if (picked === 'GRAVITY_WELL') {
     s.boosts.well = rollWellCentre(s);
-    setActive(s, picked, chaosTicks ?? BOOSTS.GRAVITY_WELL.duration);
+    setActive(s, picked, chaos ?? stretch(BOOSTS.GRAVITY_WELL.duration));
     return true;
   }
   // Every other timed boost (RAPID_FIRE, ICE_FREEZE, POINTS_FREEZE, AUTO_TARGET, INVINCIBILITY,
   // MULTI_SHOT, SCORE_MULTIPLIER, PIERCING_BULLETS): just (re)set its timer.
-  setActive(s, picked, chaosTicks ?? BOOSTS[picked].duration);
+  setActive(s, picked, chaos ?? stretch(BOOSTS[picked].duration));
   return true;
 }
 

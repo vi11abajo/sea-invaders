@@ -86,6 +86,25 @@ describe('golden replays', () => {
 });
 
 /**
+ * The five champions of core v13 (champions and skins spec §1): one `survivor` run on level 2 per
+ * champion (`championScript`, golden-scripts.ts). Each must carry its own champion in the replay
+ * header — the only thing that tells the verifier which abilities to replay — and coraluna's run
+ * must actually reach a Surge, so the golden pins the free sweep and its `surge` event end to end.
+ */
+describe('champion golden scenarios', () => {
+  it('each champion scenario was recorded with its own champion, as a campaign run on level 2', () => {
+    for (const octopi of ['noob', 'coraluna', 'shoupe', 'hex', 'kakashi'] as const) {
+      expect(fresh.find((g) => g.name === `champion-${octopi}`)!.replay)
+        .toMatchObject({ octopi, mode: REPLAY_MODE.campaign, levelId: 2, lives: 5 });
+    }
+  });
+
+  it('champion-coraluna surges at least once', () => {
+    expect(results['champion-coraluna']!.events.some((e) => e.type === 'surge')).toBe(true);
+  });
+});
+
+/**
  * The reefs 6-10 golden scenarios (spec §4/§5, controller ruling R39): one per veteran, one per
  * living formation and one scripted survivor per new boss. Each assertion checks exactly what the
  * scenario's name says, off the observations `playScript` gathers (`kindsSeen`/`formationsSeen`/

@@ -1,4 +1,4 @@
-import { MAX_LIVES } from '../config';
+import { MAX_LIVES, surgeEveryFor } from '../config';
 import { idiv } from '../fixed';
 import type { BoostType, Crab, GameState } from '../types';
 import { killCrab } from './collide';
@@ -26,6 +26,23 @@ function applyWaveBlast(s: GameState): boolean {
   }
   s.crabs = survivors;
   return true;
+}
+
+/**
+ * Coraluna's Surge (champions and skins spec §1): once `surgeEveryFor` kills (30) have been counted
+ * in `s.surgeKills` (`killCrab`), spends them on the same bottom-row sweep a WAVE_BLAST pickup makes
+ * — no drop consumed, none created — and raises a `surge` event at Octopi for the app's flash and
+ * toast. The event is raised even when the field is empty and the sweep finds nothing: that surge is
+ * wasted, not carried over to the next wave. At most one surge a tick. `step` calls this right after
+ * this tick's hits have been scored and the dead boss's squads popped, before `hitOctopi`; a no-op
+ * for every variant without a `surgeEvery`.
+ */
+export function surgeIfDue(s: GameState): void {
+  const every = surgeEveryFor(s.run.octopi);
+  if (every <= 0 || s.surgeKills < every) return;
+  s.surgeKills -= every;
+  applyWaveBlast(s);
+  s.events.push({ tick: s.tick, type: 'surge', x: s.octopi.x, y: s.octopi.y });
 }
 
 /**

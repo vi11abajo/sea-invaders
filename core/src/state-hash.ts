@@ -88,5 +88,8 @@ export function hashState(s: GameState): string {
   // one int.
   h.int(s.destroyedObstacles.length);
   for (const o of s.destroyedObstacles) h.int(o.x).int(o.y);
+  // Coraluna's Surge counter (champions and skins spec §1), appended last so every older field keeps
+  // its place; it stays 0 for every other variant, so their runs only gain this one trailing int.
+  h.int(s.surgeKills);
   return h.digest();
 }

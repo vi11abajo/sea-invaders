@@ -1,4 +1,4 @@
-import { FIELD_W, OCTOPI, SHOT, fireIntervalFor, piercingFor } from '../config';
+import { FIELD_W, OCTOPI, SHOT, fireIntervalFor, lastStandFireIntervalFor, piercingFor } from '../config';
 import { clamp, idiv, isqrt } from '../fixed';
 import { icos, isin } from '../trig';
 import type { Bullet, GameState, Input } from '../types';
@@ -115,6 +115,11 @@ export function updateShots(s: GameState): void {
     } else {
       s.shots.push({ x, y, vx: 0, vy: -SHOT.speed, kind: 'straight', data });
     }
-    s.octopi.cooldown = isActive(s, 'RAPID_FIRE') ? RAPID_FIRE_INTERVAL : fireIntervalFor(s.run.octopi);
+    // Champions and skins spec §1: shoupe's Last stand fires faster on the last life; RAPID_FIRE's
+    // own interval still wins while it is active.
+    const base = fireIntervalFor(s.run.octopi);
+    const last = lastStandFireIntervalFor(s.run.octopi);
+    const interval = last !== null && s.octopi.lives <= 1 ? last : base;
+    s.octopi.cooldown = isActive(s, 'RAPID_FIRE') ? RAPID_FIRE_INTERVAL : interval;
   }
 }

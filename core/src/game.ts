@@ -49,6 +49,8 @@ export function createGame(seed: string, run: RunConfig): GameState {
     lanes: [],
     aims: [],
     chillTicks: 0,
+    // Coraluna's Surge counter (champions and skins spec §1): every run starts it at 0.
+    surgeKills: 0,
   };
   if (run.level) {
     if (run.level.waves > 0) startLevelWave(s, 1);

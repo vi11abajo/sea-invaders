@@ -1,4 +1,4 @@
-import { BOSS, CRAB, CRAB_TYPES, ENEMY_SHOT, OCTOPI, SHOT } from '../config';
+import { BOSS, CRAB, CRAB_TYPES, ENEMY_SHOT, OCTOPI, SHOT, invulnTicksFor, surgeEveryFor } from '../config';
 import { clamp, idiv } from '../fixed';
 import type { Bullet, Crab, GameState, Squad } from '../types';
 import { isActive, rollDrop, scoreDecayPct, spawnDrop } from './boosts';
@@ -22,6 +22,10 @@ export function killCrab(s: GameState, c: Crab): void {
   const base = CRAB_TYPES[c.type].points * Math.max(1, s.wave);
   s.score += scoreMultiplier(s, idiv(base * scoreDecayPct(s), 100));
   s.kills += 1;
+  // Champions and skins spec §1: coraluna counts every kill towards its next Surge, the crabs a
+  // WAVE_BLAST or a Surge itself sweeps away included, and `surgeIfDue` (`boostEffects.ts`) spends
+  // them; no other variant ever moves this counter.
+  if (surgeEveryFor(s.run.octopi) > 0) s.surgeKills += 1;
   enrage(s, c); // spec §2: a dying patriarch enrages what is left of its formation
   countDownSquad(s, c); // spec §5.2 kind 8 (fix round 1, ruling R22): a wiped boarding crew loots
 }
@@ -242,11 +246,13 @@ export function damageOctopiDirect(s: GameState, damage = 1): void {
 /**
  * Costs Octopi `damage` lives (one by default, two for a red crab's `heavy` shot): lives never go
  * below zero, the run ends when they reach it, and however many lives the hit took it is still one
- * hit — one invulnerability window, one clearing of the enemy shots, one `player_hit` event.
+ * hit — one invulnerability window, one clearing of the enemy shots, one `player_hit` event. The
+ * window is the variant's own (`invulnTicksFor`: noob's Thick skin lasts 180 ticks, everyone else's
+ * `OCTOPI.invulnTicks`, champions and skins spec §1).
  */
 export function loseLife(s: GameState, damage = 1): void {
   s.octopi.lives = Math.max(0, s.octopi.lives - damage);
-  s.octopi.invuln = OCTOPI.invulnTicks;
+  s.octopi.invuln = invulnTicksFor(s.run.octopi);
   s.enemyShots = [];
   s.events.push({ tick: s.tick, type: 'player_hit' });
   if (s.octopi.lives <= 0) s.over = true;
