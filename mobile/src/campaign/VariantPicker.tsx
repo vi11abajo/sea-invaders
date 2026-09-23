@@ -1,6 +1,6 @@
 import type { OctopiVariant } from '@sea-invaders/core';
 import { useEffect, useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, type WithSpringConfig } from 'react-native-reanimated';
 import { OctopiThumb } from '../game/OctopiArt';
 import { BASE_LOOK, CHAMPION_LOOK } from '../game/looks';
@@ -24,6 +24,13 @@ const TILE_WIDTH = 72;
 const SHEET_PAD = 16;
 /** Room kept above and below the scrolled tiles, so a swelling tile (`SWELL_Y`) is never clipped by the scroll's bounds. */
 const SWELL_ROOM = 6;
+/**
+ * A press that travelled farther than this sideways (dp) was a swipe, not a tap (device pass
+ * 2026-09-23: a quick flick starting on a locked tile registered as its press and opened the Shop).
+ * The row's scroll also keeps taps muted from the drag's start until this long after it settles.
+ */
+const PRESS_SLOP = 12;
+const DRAG_SETTLE_MS = 150;
 /** A tile: `rgba(0,0,0,.25)` with a `rgba(236,228,253,.14)` border; the selected one white-bordered over `.14` white. */
 const TILE_BG = 'rgba(0,0,0,0.25)';
 const TILE_BORDER = 'rgba(236,228,253,0.14)';
@@ -81,6 +88,23 @@ export function VariantPicker({ selected, allowed, onPick, onLocked }: VariantPi
   const count = VARIANT_OCTOPI.length;
   const scroll = useRef<ScrollView>(null);
   const placed = useRef(false);
+  // While the row is being dragged (and a moment after), a tile's release is not a tap.
+  const dragging = useRef(false);
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragStart = () => {
+    dragging.current = true;
+    if (settle.current !== null) clearTimeout(settle.current);
+  };
+  const dragEnd = () => {
+    if (settle.current !== null) clearTimeout(settle.current);
+    settle.current = setTimeout(() => {
+      dragging.current = false;
+      settle.current = null;
+    }, DRAG_SETTLE_MS);
+  };
+  useEffect(() => () => {
+    if (settle.current !== null) clearTimeout(settle.current);
+  }, []);
 
   // The first time the scroll is laid out, the picked tile is brought to the middle, so a champion
   // far down the row is not hidden past the sheet's edge when the screen opens.
@@ -105,6 +129,7 @@ export function VariantPicker({ selected, allowed, onPick, onLocked }: VariantPi
         selected={selected}
         locked={locked}
         onPress={() => {
+          if (dragging.current) return;
           if (locked) onLocked(index);
           else if (index !== selected) onPick(index);
         }}
@@ -119,6 +144,9 @@ export function VariantPicker({ selected, allowed, onPick, onLocked }: VariantPi
       horizontal
       showsHorizontalScrollIndicator={false}
       onLayout={place}
+      onScrollBeginDrag={dragStart}
+      onScrollEndDrag={dragEnd}
+      onMomentumScrollEnd={dragEnd}
       style={styles.scroll}
       contentContainerStyle={styles.scrollRow}
     >
@@ -164,6 +192,17 @@ function JellyTile({ octopi, index, count, selected, locked, onPress }: JellyTil
     translateX.value = withDelay(far * STAGGER_MS, withSpring(dir * PUSH_DP, PUSH_SPRING));
   }, [index, selected, scaleX, scaleY, translateX]);
 
+  // Where the touch came down: a release farther than `PRESS_SLOP` sideways was a swipe.
+  const downX = useRef<number | null>(null);
+  const pressIn = (e: GestureResponderEvent) => {
+    downX.current = typeof e.nativeEvent.pageX === 'number' ? e.nativeEvent.pageX : null;
+  };
+  const press = (e: GestureResponderEvent) => {
+    const x = e.nativeEvent.pageX;
+    if (downX.current !== null && typeof x === 'number' && Math.abs(x - downX.current) > PRESS_SLOP) return;
+    onPress();
+  };
+
   const name = VARIANT_NAMES[octopi];
   const { short } = ABILITY[octopi];
   const hint = locked ? variantHint(index) : null;
@@ -175,7 +214,8 @@ function JellyTile({ octopi, index, count, selected, locked, onPress }: JellyTil
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ selected: isSelected }}
-        onPress={onPress}
+        onPressIn={pressIn}
+        onPress={press}
         style={({ pressed }) => [
           styles.tile,
           isSelected && styles.tileSelected,
