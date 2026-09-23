@@ -14,7 +14,7 @@ export interface Ability {
  */
 export const ABILITY: Readonly<Record<OctopiVariant, Ability>> = {
   base: { label: ABILITY_NAMES.base, short: 'balanced' },
-  harpoon: { label: ABILITY_NAMES.harpoon, short: 'Fire rate +25 %' },
+  harpoon: { label: ABILITY_NAMES.harpoon, short: 'Fire rate +33 %' },
   anchor: { label: ABILITY_NAMES.anchor, short: '+1 life' },
   trident: { label: ABILITY_NAMES.trident, short: 'Piercing shots' },
   noob: { label: ABILITY_NAMES.noob, short: '3 s of grace after a hit' },

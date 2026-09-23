@@ -62,7 +62,7 @@ const GLOW_CENTER_Y = 0.4;
 const GLOW_RADIUS = Math.sqrt(0.5 * 0.5 + 0.6 * 0.6);
 
 interface OctopiThumbProps {
-  /** What Octopi wears: `CHAMPION_LOOK[...]`, `SKIN_LOOK[...]`, `lookOfSkin(...)` or `BASE_LOOK`. */
+  /** What Octopi wears: `lookOfSkin(...)`, `BASE_LOOK`, or a `CHAMPION_LOOK[...]` / `SKIN_LOOK[...]` lookup with its `?? BASE_LOOK`. */
   look: Look;
   /** The glow's colour, `#RRGGBB`: an item's `ITEM_TINT`, or `accentOfLook` / `ACCENT_BY_VARIANT` / `ACCENT_BY_SKIN`. */
   accent: string;

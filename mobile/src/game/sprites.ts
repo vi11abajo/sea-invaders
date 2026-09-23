@@ -272,6 +272,24 @@ function containSize(image: SkImage, box: number): { w: number; h: number } {
   return { w: box * (imgW / imgH), h: box };
 }
 
+/** `w x h` for `image` scaled to fit inside a `boxW x boxH` box, keeping its own aspect ratio. */
+function fitInside(image: SkImage, boxW: number, boxH: number): { w: number; h: number } {
+  const scale = Math.min(boxW / image.width(), boxH / image.height());
+  return { w: image.width() * scale, h: image.height() * scale };
+}
+
+/**
+ * Disposes `image` now rather than at GC. A throw is swallowed: a failed release must never stop
+ * the caller's own clean-up (the art queue below settles every job and always unlocks itself).
+ */
+function disposeQuietly(image: SkImage | null | undefined): void {
+  try {
+    image?.dispose();
+  } catch {
+    // Nothing left to do: the image is released at GC instead.
+  }
+}
+
 function preparedFrom(image: SkImage, w: number, h: number, src?: Rect, filter: SkColorFilter | null = null): PreparedSprite {
   const scaledImage = renderScaled(image, w, h, src, filter);
   const ok = scaledImage !== null;
@@ -296,28 +314,47 @@ function preparedFrom(image: SkImage, w: number, h: number, src?: Rect, filter: 
 type PreparedOctopi = Pick<PreparedSprites, 'octopi'>;
 type PreparedWorld = Omit<PreparedSprites, 'octopi'>;
 
-/** A drawn look's two decoded poses (design doc §5): the Front pose and the Ooff (hit) pose. */
+/**
+ * A drawn look's two decoded poses (design doc §5): the Front pose and the Ooff (hit) pose, and the
+ * `lookKey` of the look they were decoded for — a pair is only ever used for that look.
+ */
 export interface ArtPair {
+  key: string;
   front: SkImage;
   ooff: SkImage;
 }
 
+/** True when `art` is `look`'s own decoded pair (never another look's). */
+function isPairOf(art: ArtPair | null, look: Look): art is ArtPair {
+  return art !== null && look.kind === 'art' && art.key === lookKey(look);
+}
+
 /**
  * Octopi's front and hit poses in `look` (`octopiLook`), pre-scaled like every other sprite. A drawn
- * look with its pair decoded (`art`) is drawn as is: Front for the front pose, Ooff for the hit pose
- * (design doc §5). Otherwise the base pair is used, recoloured for a tint look by the tint's
+ * look with its own pair decoded (`art`) is drawn as is: Front for the front pose, Ooff for the hit
+ * pose (design doc §5). Otherwise the base pair is used, recoloured for a tint look by the tint's
  * `ColorMatrix` in the same offscreen draw (both base poses share the body colour `#1C6DC6` the
- * matrix is calibrated on); the base look keeps Octopi's own colours. Every pose is fitted to
- * Octopi's width, as the base pair always was.
+ * matrix is calibrated on); the base look keeps Octopi's own colours.
+ *
+ * The base poses are fitted to Octopi's width, as they always were. A drawn pose fits INSIDE the
+ * base Front's box instead (ruling R-O): no wider than Octopi's width and no taller than the base
+ * Front at that width, its own aspect kept — a tall pair like Bunny (h/w 1.23) comes out narrower,
+ * not taller; a wide one keeps the base width. The owner judges every look at the base Octopi's
+ * size, and the hit box (the core's `OCTOPI.size`) is the same whatever Octopi wears. Each pose is
+ * fitted on its own, as the base pair's two poses are, and centred on Octopi by `draw.ts` as before.
  */
 export function prepareOctopi(sprites: Sprites, layout: Layout, look: Look, art: ArtPair | null): PreparedOctopi {
-  const drawn = look.kind === 'art' ? art : null;
-  const frontImage = drawn?.front ?? sprites.octopi.front;
-  const hitImage = drawn?.ooff ?? sprites.octopi.hit;
-  const filter = drawn !== null ? null : tintFilter(look.kind === 'tint' ? look.tint : null);
   const octopiW = OCTOPI.size * layout.scale;
-  const front = preparedFrom(frontImage, octopiW, octopiW * (frontImage.height() / frontImage.width()), undefined, filter);
-  const hit = preparedFrom(hitImage, octopiW, octopiW * (hitImage.height() / hitImage.width()), undefined, filter);
+  const base = sprites.octopi;
+  const baseFrontH = octopiW * (base.front.height() / base.front.width());
+  if (isPairOf(art, look)) {
+    const f = fitInside(art.front, octopiW, baseFrontH);
+    const o = fitInside(art.ooff, octopiW, baseFrontH);
+    return { octopi: { front: preparedFrom(art.front, f.w, f.h), hit: preparedFrom(art.ooff, o.w, o.h) } };
+  }
+  const filter = tintFilter(look.kind === 'tint' ? look.tint : null);
+  const front = preparedFrom(base.front, octopiW, baseFrontH, undefined, filter);
+  const hit = preparedFrom(base.hit, octopiW, octopiW * (base.hit.height() / base.hit.width()), undefined, filter);
   return { octopi: { front, hit } };
 }
 
@@ -355,17 +392,84 @@ function prepareWorld(sprites: Sprites, layout: Layout): PreparedWorld {
  * each with a single `canvas.drawImageOptions` call, no per-frame resampling. Memoized in two parts
  * for `GameScreen`: the world sprites (`prepareWorld`) rebuild only when `sprites`/`layout` change,
  * Octopi's two poses in `look` (`prepareOctopi`) also when Octopi's look or its drawn pair `art`
- * changes. A drawn look waits for its pair the way the world waits for its sprites (null until
- * both are decoded), so a run never starts on the base Octopi and swaps to the champion a moment
- * later; `GameScreen` passes the base look instead when the pair fails to decode.
+ * changes. A drawn look waits for its own pair (`useArtPair`) the way the world waits for its
+ * sprites — null until it is decoded, and never drawn with another look's pair — so a run never
+ * starts on the base Octopi and swaps to the champion a moment later; `GameScreen` passes the base
+ * look instead when the pair fails to decode.
  */
 export function usePreparedSprites(sprites: Sprites | null, layout: Layout, look: Look, art: ArtPair | null): PreparedSprites | null {
   const world = useMemo(() => (sprites === null ? null : prepareWorld(sprites, layout)), [sprites, layout]);
   const octopi = useMemo(
-    () => (sprites === null || (look.kind === 'art' && art === null) ? null : prepareOctopi(sprites, layout, look, art)),
+    () => (sprites === null || (look.kind === 'art' && !isPairOf(art, look)) ? null : prepareOctopi(sprites, layout, look, art)),
     [sprites, layout, look, art],
   );
   return useMemo(() => (world === null || octopi === null ? null : { ...world, ...octopi }), [world, octopi]);
+}
+
+/**
+ * The decode state of a look's drawn pair (`useArtPair`): the pair itself once both poses are
+ * decoded; `'loading'` while they are not (or while the pair in hand is another look's); `'failed'`
+ * when either pose cannot be read or decoded; null for a base or tint look, which has no pair.
+ */
+export type ArtPairState = ArtPair | 'loading' | 'failed' | null;
+
+/**
+ * How long a released pair outlives the look it was decoded for before it is disposed. A pose
+ * whose snapshot failed draws the pair's own image (`preparedFrom`'s fallback), and the UI thread
+ * may still be finishing a frame of the previous poses when React runs the clean-up; a second is
+ * far past any such frame.
+ */
+const PAIR_RELEASE_MS = 1000;
+
+/**
+ * Decodes `look`'s drawn Front/Ooff pair for a run (design doc §5: only the equipped pair, never
+ * the other twenty). The answer always belongs to the look passed in THIS render: a pair decoded
+ * for a previous look is never returned, so a look that changes while the run is mounted (the
+ * loadout answering after a quick tap on Practice) cannot draw or prime the old look's art under
+ * the new look's key. A failed decode and a rejected read of the asset both give `'failed'` (the
+ * read goes through `decodeArt`, which settles either way). A pair is disposed once its look is
+ * gone (after `PAIR_RELEASE_MS`), and one decoded for a look already gone is disposed at once.
+ */
+export function useArtPair(look: Look): ArtPairState {
+  const key = lookKey(look);
+  // `key` names the look completely, so the effect below follows `key`; the ref only hands it the
+  // look object that key was made from.
+  const lookRef = useRef(look);
+  lookRef.current = look;
+  const [held, setHeld] = useState<{ key: string; pair: ArtPair | null } | null>(null);
+  useEffect(() => {
+    const current = lookRef.current;
+    if (current.kind !== 'art') return undefined;
+    let alive = true;
+    let shown: ArtPair | null = null;
+    void Promise.all([decodeArt(current.front), decodeArt(current.ooff)]).then(([front, ooff]) => {
+      if (!alive || front === null || ooff === null) {
+        // Never handed out, so nothing can be drawing either image.
+        disposeQuietly(front);
+        disposeQuietly(ooff);
+        if (alive) setHeld({ key, pair: null });
+        return;
+      }
+      shown = { key, front, ooff };
+      setHeld({ key, pair: shown });
+    });
+    return () => {
+      alive = false;
+      // Forget this look's answer first, so a quick return to it decodes afresh instead of reusing
+      // a pair about to be disposed (or a stale failure).
+      setHeld((h) => (h !== null && h.key === key ? null : h));
+      const released = shown;
+      shown = null;
+      if (released === null) return;
+      setTimeout(() => {
+        disposeQuietly(released.front);
+        disposeQuietly(released.ooff);
+      }, PAIR_RELEASE_MS);
+    };
+  }, [key]);
+  if (look.kind !== 'art') return null;
+  if (held === null || held.key !== key) return 'loading';
+  return held.pair ?? 'failed';
 }
 
 /*
@@ -446,31 +550,34 @@ async function drainArt(): Promise<void> {
   if (artDraining) return;
   artDraining = true;
   let held: { id: string; image: SkImage | null } | null = null;
-  try {
-    while (artQueue.length > 0) {
-      const heldId = held?.id;
-      const same = heldId === undefined ? -1 : artQueue.findIndex((j) => artSourceOf(j.look).id === heldId);
-      const job = artQueue.splice(Math.max(0, same), 1)[0]!;
+  while (artQueue.length > 0) {
+    const heldId = held?.id;
+    const same = heldId === undefined ? -1 : artQueue.findIndex((j) => artSourceOf(j.look).id === heldId);
+    const job = artQueue.splice(Math.max(0, same), 1)[0]!;
+    let art: SkImage | null = null;
+    try {
       const { id, asset } = artSourceOf(job.look);
       if (held === null || held.id !== id) {
-        held?.image?.dispose();
-        held = null; // never disposed twice, whatever the decode below does
+        // Forgotten before it is disposed, so it can never be disposed twice.
+        const old = held;
+        held = null;
+        disposeQuietly(old?.image);
         held = { id, image: await decodeArt(asset) };
       }
-      let art: SkImage | null = null;
-      try {
-        art = held.image === null ? null : renderArt(held.image, job.look, job.px);
-      } catch {
-        art = null;
-      }
-      if (art !== null) rememberArt(job.key, art);
-      artJobs.delete(job.key);
-      job.done(art);
+      art = held.image === null ? null : renderArt(held.image, job.look, job.px);
+    } catch {
+      art = null;
     }
-  } finally {
-    held?.image?.dispose();
-    artDraining = false;
+    // Every job settles, whatever happened above.
+    if (art !== null) rememberArt(job.key, art);
+    artJobs.delete(job.key);
+    job.done(art);
   }
+  // Unlocked before the last release, so the next request always drains.
+  artDraining = false;
+  const last = held;
+  held = null;
+  disposeQuietly(last?.image);
 }
 
 function requestArt(look: Look, px: number): Promise<SkImage | null> {

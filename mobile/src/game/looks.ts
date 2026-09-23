@@ -42,10 +42,11 @@ const SEEKER: Look = { kind: 'art', key: 'seeker', front: require('../../assets/
 
 /**
  * Each skin code's look (design doc §2): 1-4 the legacy tints (items 3-6's `ITEM_TINT`), 5-17 the
- * drawn skins. No entry for code 0 (Octopi's own colours) or a code outside 0..17 — `lookOfSkin`
- * and `octopiLook` fall through for those.
+ * drawn skins. No entry for code 0 (Octopi's own colours) or a code outside 0..17, so a lookup is
+ * typed `Look | undefined` (ruling R-P) and every caller falls back with `?? BASE_LOOK` — or uses
+ * `lookOfSkin`, which does.
  */
-export const SKIN_LOOK: Readonly<Record<number, Look>> = {
+export const SKIN_LOOK: Readonly<Record<number, Look | undefined>> = {
   1: tint(3), // Lime
   2: tint(4), // Lilac
   3: tint(5), // Ember
@@ -65,8 +66,13 @@ export const SKIN_LOOK: Readonly<Record<number, Look>> = {
   17: SEEKER,
 };
 
-/** Each variant's own look (design doc §1): every champion is drawn; the base Octopi keeps its colours. */
-export const CHAMPION_LOOK: Readonly<Record<OctopiVariant, Look>> = {
+/**
+ * Each variant's own look (design doc §1): every champion is drawn; the base Octopi keeps its
+ * colours. Every variant is listed, but a lookup is typed `Look | undefined` (ruling R-P): a variant
+ * read from outside (`VARIANT_OCTOPI[i]` for an unknown selector) may be undefined, so callers fall
+ * back with `?? BASE_LOOK`.
+ */
+export const CHAMPION_LOOK: Readonly<Record<OctopiVariant, Look | undefined>> = {
   base: BASE_LOOK,
   harpoon: AZUL,
   anchor: KRANG,

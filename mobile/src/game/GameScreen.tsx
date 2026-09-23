@@ -1,11 +1,11 @@
-import { Canvas, Picture, Skia, useImage } from '@shopify/react-native-skia';
+import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import {
   BOOST_INDEX, CRAB_SHOTS, CRAB_TYPES, DAILY_RUN, EMPTY_FRAME, FixedStepper, INITIAL_INPUT, LANE_STRIDE, PRACTICE_RUN, REPLAY_MODE, ReplayRecorder,
   OCTOPI, TIDE_REVIVE_LIVES, createGame, fitField, formatInt, revive, snapshot, step, touchToInput,
   type BoostType, type BossFrame, type Bullet, type BulletKind, type Crab, type Frame, type GameEvent, type Input, type OctopiVariant, type Replay,
   type ReplayMode, type RunConfig,
 } from '@sea-invaders/core';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import {
@@ -24,8 +24,8 @@ import { PauseSheet, RevivedSheet } from './PauseSheet';
 import { RESULT_POSE_SIZE, ResultView } from './ResultView';
 import { EFFECT_CAP, drawFrame, effectExpired, type EffectEntry, type Effects, type WaveBlast } from './draw';
 import { BASE_LOOK, lookKey } from './looks';
-import { RunOctopiContext, useOctopiLook } from './skins';
-import { primeOctopiArt, usePreparedSprites, useSprites, type ArtPair } from './sprites';
+import { RunLookContext, RunOctopiContext, useOctopiLook } from './skins';
+import { primeOctopiArt, useArtPair, usePreparedSprites, useSprites } from './sprites';
 
 /** Milli-units between the finger and Octopi's centre, so the finger never covers Octopi. */
 const FINGER_LIFT = 600;
@@ -407,20 +407,15 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   // Octopi's own colours; a champion shows its own art unless a skin is equipped (design doc §2).
   const octopi = run?.octopi ?? 'base';
   const look = useOctopiLook(octopi);
-  // Only the equipped look's pair is decoded, and only for a drawn look (design doc §5): `useImage`
-  // loads nothing for null, so a run never decodes any other of the 21 pairs.
-  const [failedArt, setFailedArt] = useState<string | null>(null);
-  const onArtError = useCallback(() => setFailedArt(lookKey(look)), [look]);
-  const artFront = useImage(look.kind === 'art' ? look.front : null, onArtError);
-  const artOoff = useImage(look.kind === 'art' ? look.ooff : null, onArtError);
-  const art = useMemo<ArtPair | null>(
-    () => (artFront !== null && artOoff !== null ? { front: artFront, ooff: artOoff } : null),
-    [artFront, artOoff],
-  );
-  // `usePreparedSprites` holds the run until a drawn look's pair is decoded; a pair that cannot be
-  // decoded plays the base Octopi instead of holding the run on "Loading…" for good.
-  const runLook = failedArt !== null && failedArt === lookKey(look) ? BASE_LOOK : look;
-  const prepared = usePreparedSprites(sprites, layout, runLook, art);
+  // Only the equipped look's pair is decoded, and only for a drawn look (design doc §5), never any
+  // other of the 21 pairs; the answer is always this look's own (`useArtPair`).
+  const pairState = useArtPair(look);
+  const pair = typeof pairState === 'object' ? pairState : null;
+  // The look the run plays: while a drawn look's pair is 'loading', `usePreparedSprites` holds the
+  // run on "Loading…"; a pair that cannot be read or decoded plays the base Octopi instead of
+  // holding the run there for good.
+  const runLook = pairState === 'failed' ? BASE_LOOK : look;
+  const prepared = usePreparedSprites(sprites, layout, runLook, pair);
   const badge = useMemo(() => octopiBadge(octopi), [octopi]);
   const frame = useSharedValue<Frame>(EMPTY_FRAME);
   /** The last WAVE_BLAST of this run, for its shock rings (view only, never fed back to the sim). */
@@ -449,12 +444,15 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
   preparedRef.current = prepared;
 
   // The result screen's Octopi, made now from the front pose this run already decoded (the drawn
-  // look's Front, else the base sprite), so the pose is there the moment the run ends instead of
-  // decoding the asset again at that point.
+  // look's own Front, else the base sprite), so the pose is there the moment the run ends instead
+  // of decoding the asset again at that point. A pair is only used under its own look's key.
   useEffect(() => {
-    const source = runLook.kind === 'art' ? (art?.front ?? null) : (sprites?.octopi.front ?? null);
-    if (source !== null) primeOctopiArt(source, runLook, RESULT_POSE_SIZE);
-  }, [sprites, art, runLook]);
+    if (runLook.kind === 'art') {
+      if (pair !== null && pair.key === lookKey(runLook)) primeOctopiArt(pair.front, runLook, RESULT_POSE_SIZE);
+    } else if (sprites !== null) {
+      primeOctopiArt(sprites.octopi.front, runLook, RESULT_POSE_SIZE);
+    }
+  }, [sprites, pair, runLook]);
 
   useEffect(() => {
     // Practice seed: the app may use the clock; only the core must not.
@@ -845,21 +843,24 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           <Txt variant="headline">Loading…</Txt>
         </View>
       ) : hud.over && outcome ? (
-        // The result pose (`ActiveOctopi` in `ResultView`) takes the run's look through the context.
+        // The result pose (`ActiveOctopi` in `ResultView`) shows the look this run played, through
+        // `RunLookContext` (the base Octopi when the drawn pair failed), not the loadout's.
         <RunOctopiContext.Provider value={octopi}>
-          {renderResult ? renderResult(outcome, playAgain) : (
-            <ResultView
-              title="Run over"
-              score={outcome.score}
-              stats={[
-                { label: 'Crabs', value: formatInt(outcome.kills) },
-                { label: 'Wave', value: String(outcome.wave) },
-              ]}
-              note={note}
-              onPlayAgain={playAgain}
-              onBack={onExit}
-            />
-          )}
+          <RunLookContext.Provider value={runLook}>
+            {renderResult ? renderResult(outcome, playAgain) : (
+              <ResultView
+                title="Run over"
+                score={outcome.score}
+                stats={[
+                  { label: 'Crabs', value: formatInt(outcome.kills) },
+                  { label: 'Wave', value: String(outcome.wave) },
+                ]}
+                note={note}
+                onPlayAgain={playAgain}
+                onBack={onExit}
+              />
+            )}
+          </RunLookContext.Provider>
         </RunOctopiContext.Provider>
       ) : (
         <>

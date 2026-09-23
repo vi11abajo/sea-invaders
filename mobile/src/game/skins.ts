@@ -67,9 +67,24 @@ export function variantName(octopi: OctopiVariant): string | null {
  */
 export const RunOctopiContext = createContext<OctopiVariant>('base');
 
-/** The look this Octopi wears (`octopiLook`): the active skin over `octopi`, by default the run's variant. */
+/**
+ * The look the run on screen actually played, which `GameScreen` provides next to
+ * `RunOctopiContext` around its result: the equipped look, or the base Octopi when that look's
+ * drawn pair could not be decoded. The result pose shows it rather than working the look out again
+ * from the loadout, so the pose always matches the run (and the snapshot the run primed for it).
+ * Null outside a run.
+ */
+export const RunLookContext = createContext<Look | null>(null);
+
+/**
+ * The look this Octopi wears: for an explicit `octopi` (Home's hero, the Level start preview), the
+ * active skin over it (`octopiLook`); without one, the look the run on screen played
+ * (`RunLookContext`), else the active skin over the run's variant.
+ */
 export function useOctopiLook(octopi?: OctopiVariant): Look {
   const skin = useActiveSkin();
   const fromRun = useContext(RunOctopiContext);
+  const played = useContext(RunLookContext);
+  if (octopi === undefined && played !== null) return played;
   return octopiLook(skin, octopi ?? fromRun);
 }
