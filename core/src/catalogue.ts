@@ -53,7 +53,11 @@ export const SKIN_ITEM_IDS: readonly (number | null)[] = Object.freeze([
   null, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, null, null, null, null, null,
 ]);
 
-/** Each variant in `VARIANT_INDEX` order, kept private here so this module needs nothing but `types`. */
+/**
+ * Each variant in `VARIANT_INDEX` order. A private copy of `replay`'s `VARIANT_BY_INDEX` on purpose:
+ * `replay` imports the simulation (`game`, `step`, `levels`), and this module reaches no further than
+ * `types` and `campaign/progress`. The `ITEM_NAMES` test pins the order this gives.
+ */
 const VARIANTS_IN_ORDER: readonly OctopiVariant[] = (Object.keys(VARIANT_INDEX) as OctopiVariant[])
   .sort((a, b) => VARIANT_INDEX[a] - VARIANT_INDEX[b]);
 
@@ -71,14 +75,24 @@ function buildItemNames(): Record<number, string> {
   return names;
 }
 
-/** The `VARIANT_INDEX` value `itemId` sells, or null when it is not a champion item. */
+/**
+ * Whether `itemId` can name a catalogue item at all. The plain-JS backend can pass anything, and a
+ * `null` would otherwise find the leading `null` of the item tables above and read as base / no skin.
+ */
+function isItemId(itemId: unknown): itemId is number {
+  return Number.isInteger(itemId) && (itemId as number) >= 0;
+}
+
+/** The `VARIANT_INDEX` value `itemId` sells, or null when it is not a champion item (or not an item id). */
 export function variantOfItem(itemId: number): number | null {
+  if (!isItemId(itemId)) return null;
   const index = VARIANT_ITEM_IDS.indexOf(itemId);
   return index < 0 ? null : index;
 }
 
-/** The skin code `itemId` sells, or null when it is not a skin item. */
+/** The skin code `itemId` sells, or null when it is not a skin item (or not an item id). */
 export function skinOfItem(itemId: number): number | null {
+  if (!isItemId(itemId)) return null;
   const code = SKIN_ITEM_IDS.indexOf(itemId);
   return code < 0 ? null : code;
 }

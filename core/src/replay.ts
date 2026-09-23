@@ -24,7 +24,7 @@ export interface Replay {
   levelId: number;
   /** Lives Octopi started the run with. */
   lives: number;
-  /** Paid gameplay variant the run was played with (spec §4); always 'base' outside the campaign. */
+  /** The champion (bought or earned) the run was played with, or 'base' (spec §4); always 'base' outside the campaign. */
   octopi: OctopiVariant;
   seed: string;
   /** Number of ticks the recording client simulated. */
@@ -82,7 +82,7 @@ export function runFromReplay(r: Replay): RunConfig {
  * Replays `replay` and returns its outcome. When `expected` is given, the replay's own
  * seed/mode/levelId/lives/octopi must match it first — a cheap check before spending time
  * simulating a mismatched run. The daily verifier passes `octopi: 'base'`, so a daily replay
- * recorded with a paid variant is rejected here rather than silently scored (spec §4).
+ * recorded with a champion (bought or earned) is rejected here rather than silently scored (spec §4).
  */
 export function runReplay(
   replay: Replay,
@@ -141,9 +141,10 @@ const MAX_COORD = 2_147_483_647;
 
 /**
  * Reverse of `VARIANT_INDEX`, in the same declaration order: `Object.keys` preserves insertion order
- * for string keys. Exported for the app, which maps a stored selector back to its variant with it.
+ * for string keys. Exported for the app, which maps a stored selector back to its variant with it,
+ * and frozen, so a stray in-place `.sort()` there cannot remap the replay headers `decodeReplay` reads.
  */
-export const VARIANT_BY_INDEX: readonly OctopiVariant[] = Object.keys(VARIANT_INDEX) as OctopiVariant[];
+export const VARIANT_BY_INDEX: readonly OctopiVariant[] = Object.freeze(Object.keys(VARIANT_INDEX) as OctopiVariant[]);
 
 /** Compact binary form: varint header, ASCII seed, then per change a tick delta and zigzag x/y deltas. */
 export function encodeReplay(r: Replay): Uint8Array {

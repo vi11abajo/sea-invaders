@@ -189,7 +189,7 @@ describe('champions', () => {
     expect(s.boosts.active.find((a) => a.type === picked)!.ticksLeft).toBe(idiv(roll * 150, 100));
   });
 
-  it('the old variants keep their first-tick hash inputs: no surge counter for them', () => {
+  it('the old variants never count kills for a surge', () => {
     for (const octopi of ['base', 'harpoon', 'anchor', 'trident'] as const) {
       const s = createGame('t', level(octopi));
       for (let i = 0; i < 40; i++) killCrab(s, s.crabs[0]!);

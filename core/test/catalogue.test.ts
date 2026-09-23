@@ -32,6 +32,20 @@ describe('catalogue', () => {
     expect(skinOfItem(0)).toBeNull();
   });
 
+  it('variantOfItem answers null for anything that is not a non-negative integer', () => {
+    for (const bad of [null, undefined, -1, 1.5, Number.NaN, '1', [1]]) {
+      expect(variantOfItem(bad as unknown as number)).toBeNull();
+    }
+    expect(variantOfItem(0)).toBe(VARIANT_INDEX.harpoon);
+  });
+
+  it('skinOfItem answers null for anything that is not a non-negative integer', () => {
+    for (const bad of [null, undefined, -1, 3.5, Number.NaN, '3', [3]]) {
+      expect(skinOfItem(bad as unknown as number)).toBeNull();
+    }
+    expect(skinOfItem(3)).toBe(1);
+  });
+
   it('awards the four looks and two champions on the even bosses and bosses 5 and 10', () => {
     expect(AWARDS).toEqual({
       12: { kind: 'skin', skin: 13 }, 24: { kind: 'skin', skin: 14 }, 30: { kind: 'variant', variant: 'hex' },

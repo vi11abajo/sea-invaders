@@ -182,8 +182,12 @@ mod tests {
         CatalogArgs { items }
     }
 
+    // The 65th item has id 64, so the id rule alone rejects this list: it
+    // proves any 65-item list is refused, not that the length check is what
+    // refuses it (with ids 0..63 all taken, a 65th must repeat an id or go
+    // past 63).
     #[test]
-    fn build_items_rejects_more_than_the_max() {
+    fn build_items_rejects_any_65_item_list() {
         let items: Vec<CatalogItem> = (0u8..(MAX_CATALOG_ITEMS as u8 + 1))
             .map(|id| item(id, 0))
             .collect();

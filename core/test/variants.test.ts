@@ -52,7 +52,10 @@ describe('octopi variants', () => {
     }
   });
 
-  it('hashes differ between every variant played from the same seed', () => {
+  // Only the original four: their overrides act from tick 1. A later champion's ability may never
+  // come into play in a run (champion-noob and champion-shoupe share one golden hash), so the
+  // replay header, not the hash, carries which champion played.
+  it('the four original variants hash differently from the same seed: their overrides act from tick 1', () => {
     const variants: OctopiVariant[] = ['base', 'harpoon', 'anchor', 'trident'];
     const hashes = variants.map((octopi) => {
       const s = createGame('variant-hash', runWith(octopi));

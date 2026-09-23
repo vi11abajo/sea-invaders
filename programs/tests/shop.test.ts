@@ -277,7 +277,7 @@ describe("catalog and purchase", () => {
     expect(err).to.contain("Paused");
   });
 
-  it("set_catalog accepts a full 64-item list and rejects a 65th", async () => {
+  it("set_catalog accepts a full 64-item list and rejects any 65-item list", async () => {
     // Fills every id 0..63 - `MAX_CATALOG_ITEMS` is exactly the width of
     // `Player.inventory`'s bitmask (state.rs), so this is the largest
     // list `build_items` (shop.rs) can ever accept.
@@ -294,9 +294,12 @@ describe("catalog and purchase", () => {
       expect(catalog.items[i].id).to.equal(full[i].id);
     }
 
-    // One more than the max - `build_items` rejects this with
-    // `InvalidConfig` (its `args.items.len() <= MAX_CATALOG_ITEMS` check)
-    // before it ever looks at the extra item's own id.
+    // One more than the max. With every id 0..63 taken, a 65th item can
+    // only repeat an id (here `full[0]`) or go past 63, so `build_items`'s
+    // id rules reject it with `InvalidConfig` on their own: this proves a
+    // 65-item list is refused, not which check refuses it. The
+    // `len() <= MAX_CATALOG_ITEMS` check runs first today and stays as the
+    // guard for its `copy_from_slice`.
     let err = "";
     try {
       await setCatalog(ctx, [...full, full[0]]);

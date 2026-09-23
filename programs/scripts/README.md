@@ -65,8 +65,17 @@ All four scripts share their bootstrap (`loadKeypair`, `configPda`,
   read the chain. Edit the row, then run
   `npx ts-node scripts/init-catalog.ts --update` with the admin key; the
   backend serves the new price within its 60 s catalogue cache. Adding an
-  item means a row in both `PRICES_SKR` and `KIND` (and its name in
-  `core/src/catalogue.ts`); the catalogue holds at most 64 rows.
+  item touches every one of these: a row in both `PRICES_SKR` and `KIND`
+  in `init-catalog.ts` (the script refuses to send when their ids
+  differ); `core/src/catalogue.ts`'s name and selector tables
+  (`VARIANT_NAMES` and `VARIANT_ITEM_IDS` for a champion, `SKIN_NAMES` and
+  `SKIN_ITEM_IDS` for a look); the app's look table in
+  `mobile/src/game/looks.ts` (`CHAMPION_LOOK` or `SKIN_LOOK`) and its
+  glow accent in `mobile/src/shop/tints.ts` (`ITEM_TINT`); and, for a
+  drawn look, its `<slug>-front.png` / `<slug>-ooff.png` pair in
+  `mobile/assets/sprites/octopi/`, made by `tools/octopi-sprites.py`
+  (whose `SLUGS` table needs the new file stem). The catalogue holds at
+  most 64 rows.
 - **`set-prices.ts`** - changes the ticket price and the Tide's revive
   ladder in `Config` (`updateConfig`, every other field re-sent unchanged
   from the chain). Edit `TICKET_SKR`/`LADDER_SKR` at the top and run it;

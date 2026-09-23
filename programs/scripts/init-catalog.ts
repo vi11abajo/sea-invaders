@@ -67,6 +67,17 @@ const KIND: Readonly<Record<number, number>> = {
   15: VARIANT, 16: VARIANT, 17: VARIANT,
 };
 
+// Before any transaction: every priced id needs a kind and every kind a price (the `!` on
+// `KIND[id]` and `PRICES_SKR[id]` below would otherwise hide a missing row).
+const pricedWithoutKind = Object.keys(PRICES_SKR).filter((id) => !(id in KIND));
+const kindWithoutPrice = Object.keys(KIND).filter((id) => !(id in PRICES_SKR));
+if (pricedWithoutKind.length > 0 || kindWithoutPrice.length > 0) {
+  throw new Error(
+    `PRICES_SKR and KIND must list the same ids: priced without a kind [${pricedWithoutKind.join(", ")}], ` +
+      `a kind without a price [${kindWithoutPrice.join(", ")}]`
+  );
+}
+
 /** The catalogue sent to the chain: one-time purchases in id order, all on sale. */
 const ITEMS: Item[] = Object.keys(PRICES_SKR)
   .map(Number)
