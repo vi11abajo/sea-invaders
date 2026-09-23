@@ -7,9 +7,11 @@ import { parseSignInMessageText } from '@solana/wallet-standard-util';
 // parses that text back, checks the fields it issued, and verifies the ed25519 signature.
 
 export const NONCE_TTL_MS = 10 * 60 * 1000;
+/** The most nonces kept at once; past it the oldest go first, so a flood of nonce requests cannot grow the map without bound. */
+export const MAX_NONCES = 10_000;
 const STATEMENT = 'Sign in to Sea Invaders';
 
-/** One process serves the API, so an in-memory map is enough for short-lived nonces. */
+/** One process serves the API, so an in-memory map is enough for short-lived nonces. Insertion order is issue order. */
 const nonces = new Map();
 
 export function authDomain() {
@@ -24,6 +26,7 @@ export function issueNonce(now = Date.now()) {
   for (const [key, entry] of nonces) {
     if (entry.expiresAt <= now) nonces.delete(key);
   }
+  while (nonces.size >= MAX_NONCES) nonces.delete(nonces.keys().next().value);
   const nonce = randomBytes(16).toString('hex');
   const issuedAt = new Date(now).toISOString();
   nonces.set(nonce, { issuedAt, expiresAt: now + NONCE_TTL_MS });

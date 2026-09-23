@@ -174,7 +174,7 @@ describe('confirmRecord', () => {
 
     // Simulate the server's verified best for the day being corrected down after the fact (e.g. an
     // anti-cheat review) with a matching lower on-chain record - the mirror must not follow it down.
-    await memory.finishRun('run-1', { score: 300 });
+    memory.patchRun('run-1', { score: 300 });
     fakeChain.setTxStatus('sig-low', true);
     const lowBests = [0, 0, 0, 0, 0, 0, 0];
     lowBests[WEEKDAY] = 300;

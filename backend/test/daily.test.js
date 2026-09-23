@@ -100,6 +100,49 @@ describe('/api/daily', () => {
     expect((await request(app).post('/api/daily/runs')).status).toBe(401);
   });
 
+  it('asks an app on another core to update before it creates a run or counts an attempt', async () => {
+    for (const coreVersion of [CORE_VERSION + 1, CORE_VERSION - 1]) {
+      const res = await request(app).post('/api/daily/runs').set(auth).send({ coreVersion });
+      expect(res.status).toBe(426);
+      expect(res.body).toEqual({ error: 'UpdateRequired', code: 'update_required', message: expect.any(String), coreVersion: CORE_VERSION });
+    }
+    expect(await memory.countRunsForDay(user.id, dayOf(nowSeconds()))).toBe(0);
+    expect((await request(app).get('/api/daily/today').set(auth)).body.attemptsLeft).toBe(2);
+  });
+
+  it('starts a run for an app on the current core, and for one that does not say', async () => {
+    const stated = await request(app).post('/api/daily/runs').set(auth).send({ coreVersion: CORE_VERSION });
+    expect(stated.status).toBe(201);
+    expect(stated.body).toMatchObject({ coreVersion: CORE_VERSION, attemptsLeft: 1 });
+    const silent = await request(app).post('/api/daily/runs').set(auth);
+    expect(silent.status).toBe(201);
+    expect(silent.body.attemptsLeft).toBe(0);
+  });
+
+  it('refuses a coreVersion that is not an integer', async () => {
+    const res = await request(app).post('/api/daily/runs').set(auth).send({ coreVersion: String(CORE_VERSION) });
+    expect(res.status).toBe(400);
+    expect(await memory.countRunsForDay(user.id, dayOf(nowSeconds()))).toBe(0);
+  });
+
+  it('answers 400 for a day or week number outside the range the database and the chain can hold', async () => {
+    const today = dayOf(nowSeconds());
+    const week = weekOf(today);
+    for (const path of [
+      '/api/daily/leaderboard?day=3000000000', `/api/daily/leaderboard?day=${today + 2}`, '/api/daily/leaderboard?day=-1', '/api/daily/leaderboard?day=12abc',
+      '/api/daily/week?week=5000000000', `/api/daily/week?week=${week + 2}`, '/api/daily/week?week=abc',
+      '/api/daily/seed/3000000000',
+    ]) {
+      const res = await request(app).get(path);
+      expect(res.status, path).toBe(400);
+      expect(res.body.error, path).toBe('BadRequest');
+    }
+    expect((await request(app).post('/api/daily/records').set(auth).send({ day: 3_000_000_000 })).status).toBe(400);
+    expect((await request(app).post('/api/daily/records/confirm').set(auth).send({ day: 3_000_000_000, signature: 'sig' })).status).toBe(400);
+    expect((await request(app).get(`/api/daily/leaderboard?day=${today + 1}`)).status).toBe(200);
+    expect((await request(app).get(`/api/daily/week?week=${week + 1}`)).status).toBe(200);
+  });
+
   it('answers 401 (not 403) for a malformed token', async () => {
     const res = await request(app).post('/api/daily/runs').set('Authorization', 'Bearer not-a-jwt');
     expect(res.status).toBe(401);
@@ -320,9 +363,10 @@ describe('/api/daily', () => {
   });
 
   it('renders an empty week view before the pool exists', async () => {
-    const res = await request(app).get('/api/daily/week?week=999999');
+    const nextWeek = weekOf(dayOf(nowSeconds())) + 1;
+    const res = await request(app).get(`/api/daily/week?week=${nextWeek}`);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ week: 999999, endsAt: expect.any(Number), poolSkr: 0, entries: [], settled: false });
+    expect(res.body).toEqual({ week: nextWeek, endsAt: expect.any(Number), poolSkr: 0, entries: [], settled: false });
   });
 
   it('defaults the week view to the current week when no week is given', async () => {

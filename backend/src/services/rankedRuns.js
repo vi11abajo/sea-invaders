@@ -14,6 +14,9 @@ const STATUS = {
 /** Seconds of slack between replay length and wall-clock time, for latency and frame stalls. */
 const CLOCK_SLACK_SECONDS = 5;
 
+/** The longest replay upload accepted, in base64 characters (about 300 KB of replay); the finish route's 512 KB body limit (createApp.js) leaves room for it. */
+export const MAX_REPLAY_BASE64 = 400_000;
+
 export class RankedRunError extends Error {
   constructor(code, message, extra = {}) {
     super(message);
@@ -34,6 +37,19 @@ function seedSecret() {
   const secret = process.env.DAILY_SEED_SECRET;
   if (!secret) throw new Error('DAILY_SEED_SECRET is not configured');
   return secret;
+}
+
+/**
+ * Startup check for the daily seed secret: in production a missing `DAILY_SEED_SECRET` stops the
+ * server at once, instead of every ranked run failing later with a 500. Elsewhere it only warns.
+ */
+export function validateSeedConfig() {
+  if (process.env.DAILY_SEED_SECRET) return true;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('DAILY_SEED_SECRET is not configured; refusing to start in production');
+  }
+  console.warn('⚠️  DAILY_SEED_SECRET is not configured: ranked runs will fail until it is set');
+  return false;
 }
 
 const PLAYER_CACHE_TTL_MS = 5000;
@@ -108,22 +124,25 @@ export async function todayInfo({ userId, wallet, now }) {
 
 export async function startRun({ userId, wallet, now }) {
   const day = dayOf(now);
-  const used = await db.countRunsForDay(userId, day);
   const player = wallet ? await getCachedPlayer(wallet) : null;
   const attemptsAllowed = freeAttempts() + attemptsBoughtToday(player, day);
-  if (used >= attemptsAllowed) throw new RankedRunError('no_attempts', 'No ranked attempts left today', { attemptsLeft: 0 });
+  const noAttempts = () => new RankedRunError('no_attempts', 'No ranked attempts left today', { attemptsLeft: 0 });
+  if (attemptsAllowed === 0) throw noAttempts();
   // The skin snapshotted here is the run's own record forever after - ownership was validated
   // when it was equipped; a boss award can be un-earned later (a campaign reset), but the
-  // snapshot is the run's record regardless (controller ruling R-M).
+  // snapshot is the run's record regardless.
   const loadout = wallet ? await loadoutDb.getLoadout(wallet) : null;
   const skin = loadout?.activeSkin ?? 0;
   const run = { id: uuidv4(), userId, day, seed: dailySeed(seedSecret(), day), coreVersion: CORE_VERSION, startedAt: now, skin };
-  await db.insertRun(run);
+  // Counting the day's runs and inserting this one is a single locked step per user, so parallel
+  // starts queue up instead of all reading the same count and each creating a run.
+  const { inserted, used } = await db.insertRunWithinAttempts(run, attemptsAllowed);
+  if (!inserted) throw noAttempts();
   return { runId: run.id, day, seed: run.seed, coreVersion: CORE_VERSION, attemptsLeft: attemptsAllowed - used - 1 };
 }
 
 function decode(replayBase64) {
-  if (typeof replayBase64 !== 'string' || replayBase64.length === 0 || replayBase64.length > 400_000) {
+  if (typeof replayBase64 !== 'string' || replayBase64.length === 0 || replayBase64.length > MAX_REPLAY_BASE64) {
     throw new RankedRunError('bad_replay', 'Replay is missing or too large');
   }
   const bytes = new Uint8Array(Buffer.from(replayBase64, 'base64'));
@@ -134,7 +153,6 @@ function decode(replayBase64) {
   } catch (error) {
     throw new RankedRunError('bad_replay', `Replay does not decode: ${error.message}`);
   }
-  if (replay.version !== CORE_VERSION) throw new RankedRunError('update_required', `Replay core version ${replay.version}, server has ${CORE_VERSION}`);
   return { replay, bytes };
 }
 
@@ -143,28 +161,38 @@ export async function finishRun({ userId, runId, replayBase64, now }) {
   if (!run || run.userId !== userId) throw new RankedRunError('run_not_found', 'Run not found');
   if (run.status !== 'started') throw new RankedRunError('run_finished', 'Run already finished');
 
-  const reject = async (code, message) => {
-    await db.finishRun(runId, { finishedAt: now, status: 'rejected', rejectReason: code });
+  // Closes the run once: a concurrent finish of the same run that got there first wins.
+  const close = async (patch) => {
+    if (!(await db.finishRun(runId, { finishedAt: now, ...patch }))) throw new RankedRunError('run_finished', 'Run already finished');
+  };
+  const reject = async (code, message, reason = code) => {
+    await close({ status: 'rejected', rejectReason: reason });
     throw new RankedRunError(code, message);
   };
+
+  // The server's own core changed between this run's start and its finish (a deploy landed
+  // mid-run), so it can no longer verify the run. That is never the player's doing: the run is
+  // closed as `update_required`, which `countRunsForDay` skips, and the attempt - free or bought -
+  // is left for a fresh run (migration 011). Only the version the server stored at the start
+  // decides this, never the replay's own version byte, which the client writes.
+  if (run.coreVersion !== CORE_VERSION) {
+    await close({ status: 'update_required', rejectReason: 'update_required' });
+    throw new RankedRunError('update_required', `The server moved from core version ${run.coreVersion} to ${CORE_VERSION} during this run`);
+  }
 
   let decoded;
   try {
     decoded = decode(replayBase64);
   } catch (error) {
-    if (error instanceof RankedRunError) {
-      // A core version mismatch is never the player's play, so the run is closed with its own
-      // status rather than `rejected`: `countRunsForDay` skips it and the attempt - free or bought
-      // - is left for the updated app (migration 011). Every other decode failure spends it.
-      if (error.code === 'update_required') {
-        await db.finishRun(runId, { finishedAt: now, status: 'update_required', rejectReason: error.code });
-      } else {
-        await reject(error.code, error.message);
-      }
-    }
+    if (error instanceof RankedRunError) await reject(error.code, error.message);
     throw error;
   }
   const { replay, bytes } = decoded;
+  // A replay from any other core than the one the run started on spends the attempt like any other
+  // bad upload. An app on an older core is still told to update, but gets no refund for it.
+  if (replay.version !== run.coreVersion) {
+    await reject('update_required', `Replay core version ${replay.version}, this run needs ${run.coreVersion}`, 'version_mismatch');
+  }
   if (!isDayOpen(run.day, now)) await reject('day_closed', 'The day window for this run has closed');
   if (replay.ticks > MAX_REPLAY_TICKS) await reject('bad_replay', 'Replay too long');
   if (replay.ticks / TICKS_PER_SECOND > now - run.startedAt + CLOCK_SLACK_SECONDS) {
@@ -178,8 +206,8 @@ export async function finishRun({ userId, runId, replayBase64, now }) {
     await reject('seed_mismatch', error.message);
   }
 
-  await db.finishRun(runId, {
-    finishedAt: now, ticks: result.ticks, score: result.score, stateHash: result.hash, gameOver: result.over,
+  await close({
+    ticks: result.ticks, score: result.score, stateHash: result.hash, gameOver: result.over,
     replay: Buffer.from(bytes), status: 'verified',
   });
   const best = await db.bestForDay(userId, run.day);

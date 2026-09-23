@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { validateJwtConfig } from '../src/config/jwt.js';
 import { authenticateToken, optionalAuth } from '../src/middleware/auth.js';
 import { TEST_SECRET, tokenFor } from './helpers/jwt.js';
 
@@ -80,5 +81,26 @@ describe('optionalAuth verify options match authenticateToken', () => {
 
     expect(nextCalled).toBe(true);
     expect(req.user).toBeNull();
+  });
+});
+
+describe('validateJwtConfig', () => {
+  it('stops a production start without JWT_SECRET, and only complains elsewhere', () => {
+    const { NODE_ENV } = process.env;
+    const quiet = [vi.spyOn(console, 'error').mockImplementation(() => {}), vi.spyOn(console, 'log').mockImplementation(() => {})];
+    delete process.env.JWT_SECRET;
+    try {
+      process.env.NODE_ENV = 'production';
+      expect(() => validateJwtConfig()).toThrow('JWT_SECRET is not configured');
+      process.env.NODE_ENV = 'development';
+      expect(validateJwtConfig()).toBe(false);
+      process.env.JWT_SECRET = TEST_SECRET;
+      process.env.NODE_ENV = 'production';
+      expect(validateJwtConfig()).toBe(true);
+    } finally {
+      process.env.NODE_ENV = NODE_ENV;
+      process.env.JWT_SECRET = TEST_SECRET;
+      quiet.forEach((spy) => spy.mockRestore());
+    }
   });
 });

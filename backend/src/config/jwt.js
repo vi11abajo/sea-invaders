@@ -12,9 +12,13 @@ export const jwtConfig = {
   audience: 'sea-invaders-players'
 };
 
-// Configuration check
+// Configuration check: in production a missing secret stops the server at startup, since no
+// sign-in could work without it; elsewhere it only warns.
 export function validateJwtConfig() {
   if (!jwtConfig.secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET is not configured; refusing to start in production');
+    }
     console.error('❌ JWT_SECRET is not configured!');
     console.error('   Authentication endpoints will not work.');
     console.error('   Set JWT_SECRET environment variable with at least 32 characters.');

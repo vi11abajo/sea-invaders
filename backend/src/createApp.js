@@ -17,9 +17,16 @@ import swapRoutes from './routes/swap.js';
 import seekerRoutes from './routes/seeker.js';
 import { currentCluster } from './chain/config.js';
 
+/** Path of the route that uploads a finished run's replay; it gets a larger body limit than the rest. */
+const FINISH_RUN_PATH = '/api/daily/runs/:runId/finish';
+
 /** Builds the Express app without listening, so tests can drive it with supertest. */
 export function createApp() {
   const app = express();
+  // The only proxy in front of the API is nginx on this same host. Trusting loopback makes `req.ip`
+  // the address nginx appends to X-Forwarded-For, so the rate limiters key every player on their
+  // own address; without it every anonymous request would share nginx's 127.0.0.1 bucket.
+  app.set('trust proxy', 'loopback');
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cors({
@@ -28,6 +35,10 @@ export function createApp() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }));
+  // A finished run's body carries the whole replay (up to MAX_REPLAY_BASE64 = 400,000 base64
+  // characters, services/rankedRuns.js), so that route is parsed first with a 512 KB limit. The
+  // parser below leaves a body that is already parsed alone, so every other route keeps 256 KB.
+  app.use(FINISH_RUN_PATH, express.json({ limit: '512kb' }));
   app.use(express.json({ limit: '256kb' }));
   app.use(express.urlencoded({ extended: true }));
   if (process.env.NODE_ENV === 'test') {
@@ -66,10 +77,18 @@ export function createApp() {
   });
   app.use((err, req, res, next) => {
     console.error('❌ Unhandled error:', err);
-    res.status(err.status || 500).json({
+    const status = Number.isInteger(err.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
+    const production = process.env.NODE_ENV === 'production';
+    // A server fault's own message can name tables, constraints or RPC details: in production the
+    // client gets a fixed answer and the details stay in the log above. A 4xx is about the request,
+    // so its message is kept.
+    if (production && status >= 500) {
+      return res.status(status).json({ error: 'Internal', message: 'Something went wrong' });
+    }
+    res.status(status).json({
       error: err.name || 'ServerError',
       message: err.message || 'Internal server error',
-      ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
+      ...(!production && { stack: err.stack }),
     });
   });
   return app;

@@ -8,6 +8,7 @@ export function reset() {
   runs.clear();
 }
 
+/** Test seeding: stores a run as `started`, with no attempt check (the service goes through `insertRunWithinAttempts`). */
 export async function insertRun(run) {
   runs.set(run.id, { skin: 0, ...run, status: 'started' });
 }
@@ -21,7 +22,36 @@ export async function countRunsForDay(userId, day) {
   return [...runs.values()].filter((r) => r.userId === userId && r.day === day && r.status !== 'update_required').length;
 }
 
+/** Stands in for the advisory lock of the real transaction: every count-and-insert waits for the one before it. */
+let lockTail = Promise.resolve();
+
+/**
+ * Mirrors the real transaction: counts the user's runs for the day and inserts `run` only while
+ * fewer than `allowed` were spent. The yield between the count and the insert stands in for the
+ * database round trip there, so without the lock parallel calls would all read the same count.
+ */
+export function insertRunWithinAttempts(run, allowed) {
+  const result = lockTail.then(async () => {
+    const used = await countRunsForDay(run.userId, run.day);
+    await new Promise((resolve) => setImmediate(resolve));
+    if (used >= allowed) return { inserted: false, used };
+    await insertRun(run);
+    return { inserted: true, used };
+  });
+  lockTail = result.catch(() => {});
+  return result;
+}
+
+/** Mirrors the real update: only a `started` run is closed, and the answer says whether this call closed it. */
 export async function finishRun(id, patch) {
+  const run = runs.get(id);
+  if (!run || run.status !== 'started') return false;
+  runs.set(id, { ...run, ...patch });
+  return true;
+}
+
+/** Test-only: overwrites fields of a stored run whatever its status, e.g. to simulate a later correction of its score. */
+export function patchRun(id, patch) {
   runs.set(id, { ...runs.get(id), ...patch });
 }
 

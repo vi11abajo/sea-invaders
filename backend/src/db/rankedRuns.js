@@ -21,39 +21,63 @@ function rowToRun(row) {
   };
 }
 
-export async function insertRun({ id, userId, day, seed, coreVersion, startedAt, skin }) {
-  await pool.query(
-    'INSERT INTO ranked_runs (id, user_id, day, seed, core_version, started_at, skin) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-    [id, userId, day, seed, coreVersion, toIso(startedAt), skin ?? 0],
-  );
-}
-
 export async function getRun(id) {
   const result = await pool.query('SELECT * FROM ranked_runs WHERE id = $1', [id]);
   return rowToRun(result.rows[0]);
 }
 
+const COUNT_RUNS_SQL = `SELECT COUNT(*)::int AS n FROM ranked_runs WHERE user_id = $1 AND day = $2 AND status <> 'update_required'`;
+
 /**
  * How many of the day's attempts this user has spent. A run closed as `update_required` does not
- * count: the replay was rejected only because the app is a core version behind, which is never the
- * player's play (migration 011). Everything else counts, `started` included - abandoning a run
- * must not refund it.
+ * count: the server's core changed while it was being played, which is never the player's doing
+ * (migration 011). Everything else counts, `started` included - abandoning a run must not refund it.
  */
 export async function countRunsForDay(userId, day) {
-  const result = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM ranked_runs WHERE user_id = $1 AND day = $2 AND status <> 'update_required'`,
-    [userId, day],
-  );
+  const result = await pool.query(COUNT_RUNS_SQL, [userId, day]);
   return result.rows[0].n;
 }
 
+/**
+ * Inserts `run` only while its user has spent fewer than `allowed` attempts that day, and reports
+ * how many were spent before it: `{ inserted: false, used }` when none are left. The count and the
+ * insert share one transaction under a per-user advisory lock, so parallel starts by one user wait
+ * for each other here instead of all reading the same count.
+ */
+export async function insertRunWithinAttempts({ id, userId, day, seed, coreVersion, startedAt, skin }, allowed) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ranked_runs:${userId}`]);
+    const counted = await client.query(COUNT_RUNS_SQL, [userId, day]);
+    const used = counted.rows[0].n;
+    if (used >= allowed) {
+      await client.query('ROLLBACK');
+      return { inserted: false, used };
+    }
+    await client.query(
+      'INSERT INTO ranked_runs (id, user_id, day, seed, core_version, started_at, skin) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [id, userId, day, seed, coreVersion, toIso(startedAt), skin ?? 0],
+    );
+    await client.query('COMMIT');
+    return { inserted: true, used };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** Closes a run that is still `started`; `false` when it was not (a concurrent finish closed it first). */
 export async function finishRun(id, { finishedAt, ticks, score, stateHash, gameOver, replay, status, rejectReason }) {
-  await pool.query(
+  const result = await pool.query(
     `UPDATE ranked_runs
        SET finished_at = $2, ticks = $3, score = $4, state_hash = $5, game_over = $6, replay = $7, status = $8, reject_reason = $9
-     WHERE id = $1`,
+     WHERE id = $1 AND status = 'started'`,
     [id, toIso(finishedAt), ticks ?? null, score ?? null, stateHash ?? null, gameOver ?? null, replay ?? null, status, rejectReason ?? null],
   );
+  return result.rowCount > 0;
 }
 
 export async function bestForDay(userId, day) {

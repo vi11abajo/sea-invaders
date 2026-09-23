@@ -11,7 +11,7 @@ vi.mock('../src/db/users.js', () => ({
 }));
 
 const { createApp } = await import('../src/createApp.js');
-const { issueNonce, signInPayload, verifySignIn, NONCE_TTL_MS } = await import('../src/services/siws.js');
+const { issueNonce, signInPayload, verifySignIn, NONCE_TTL_MS, MAX_NONCES } = await import('../src/services/siws.js');
 
 const toB64 = (u8) => Buffer.from(u8).toString('base64');
 
@@ -79,6 +79,15 @@ describe('verifySignIn', () => {
   it('rejects garbage input without throwing', () => {
     expect(verifySignIn({ address: 'not-base58!!', signedMessage: 'xx', signature: 'yy' }).ok).toBe(false);
     expect(verifySignIn({}).ok).toBe(false);
+  });
+
+  it('keeps at most MAX_NONCES live nonces, dropping the oldest first', () => {
+    const oldest = issueNonce();
+    const oldestBody = signedInput(signInPayload(oldest.nonce, oldest.issuedAt), address, keys);
+    let newest;
+    for (let i = 0; i < MAX_NONCES; i++) newest = issueNonce();
+    expect(verifySignIn(oldestBody)).toEqual({ ok: false, reason: 'unknown_nonce' });
+    expect(verifySignIn(signedInput(signInPayload(newest.nonce, newest.issuedAt), address, keys))).toEqual({ ok: true, address });
   });
 });
 

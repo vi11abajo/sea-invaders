@@ -17,11 +17,6 @@ const pool = new Pool({
   allowExitOnIdle: false, // don't close pool when idle
 });
 
-// Connection check
-pool.on('connect', () => {
-  console.log('✅ Database connected successfully');
-});
-
 pool.on('error', (err) => {
   console.error('❌ Unexpected database error:', err);
   console.error('   Pool will attempt to reconnect automatically');

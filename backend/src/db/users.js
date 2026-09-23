@@ -1,15 +1,26 @@
 import pool from '../config/database.js';
 
-/** Finds the user for a wallet or creates one whose display name is the shortened address. */
-export async function findOrCreateWalletUser(walletAddress) {
+async function findWalletUser(walletAddress) {
   const found = await pool.query('SELECT id, wallet_address, username FROM users WHERE wallet_address = $1', [walletAddress]);
-  if (found.rows.length > 0) return found.rows[0];
+  return found.rows[0] ?? null;
+}
+
+/**
+ * Finds the user for a wallet or creates one whose display name is the shortened address. Two
+ * first sign-ins of one wallet can race: the unique wallet index lets one insert win, and the
+ * other finds nothing inserted and reads the winner's row instead of failing.
+ */
+export async function findOrCreateWalletUser(walletAddress) {
+  const found = await findWalletUser(walletAddress);
+  if (found) return found;
   const username = `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`;
   const inserted = await pool.query(
-    'INSERT INTO users (wallet_address, username) VALUES ($1, $2) RETURNING id, wallet_address, username',
+    `INSERT INTO users (wallet_address, username) VALUES ($1, $2)
+     ON CONFLICT (wallet_address) WHERE wallet_address IS NOT NULL DO NOTHING
+     RETURNING id, wallet_address, username`,
     [walletAddress, username],
   );
-  return inserted.rows[0];
+  return inserted.rows[0] ?? (await findWalletUser(walletAddress));
 }
 
 /** Batch-looks-up users by wallet address, for annotating a list of on-chain wallets with usernames. */

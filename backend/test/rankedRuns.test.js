@@ -15,7 +15,7 @@ const SECRET = 's'.repeat(40);
 process.env.DAILY_SEED_SECRET = SECRET;
 process.env.DAILY_FREE_ATTEMPTS = '3';
 
-const { startRun, finishRun, todayInfo, clearPlayerCache, RankedRunError } = await import('../src/services/rankedRuns.js');
+const { startRun, finishRun, todayInfo, clearPlayerCache, validateSeedConfig, RankedRunError } = await import('../src/services/rankedRuns.js');
 
 const NOON = Date.UTC(2026, 8, 11, 12) / 1000;
 const DAY = dayOf(NOON);
@@ -59,6 +59,37 @@ describe('startRun', () => {
   it('snapshots skin 0 when there is no wallet at all', async () => {
     const { runId } = await startRun({ userId: 7, now: NOON });
     expect((await memory.getRun(runId)).skin).toBe(0);
+  });
+
+  it('never starts more runs than the attempts allowed when starts arrive in parallel', async () => {
+    const results = await Promise.allSettled(Array.from({ length: 10 }, (_, i) => startRun({ userId: 7, now: NOON + i })));
+    const started = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+    expect(started).toHaveLength(3);
+    expect(started.map((run) => run.attemptsLeft).sort()).toEqual([0, 1, 2]);
+    expect(results.filter((r) => r.status === 'rejected').every((r) => r.reason.code === 'no_attempts')).toBe(true);
+    expect(await memory.countRunsForDay(7, DAY)).toBe(3);
+  });
+});
+
+describe('validateSeedConfig', () => {
+  it('stops a production start without DAILY_SEED_SECRET, and only warns elsewhere', () => {
+    const { NODE_ENV } = process.env;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    delete process.env.DAILY_SEED_SECRET;
+    try {
+      process.env.NODE_ENV = 'production';
+      expect(() => validateSeedConfig()).toThrow('DAILY_SEED_SECRET is not configured');
+      process.env.NODE_ENV = 'development';
+      expect(validateSeedConfig()).toBe(false);
+      expect(warn).toHaveBeenCalled();
+      process.env.DAILY_SEED_SECRET = SECRET;
+      process.env.NODE_ENV = 'production';
+      expect(validateSeedConfig()).toBe(true);
+    } finally {
+      process.env.NODE_ENV = NODE_ENV;
+      process.env.DAILY_SEED_SECRET = SECRET;
+      warn.mockRestore();
+    }
   });
 });
 
@@ -145,28 +176,67 @@ describe('finishRun', () => {
     await expect(finishRun({ userId: 7, runId: a.runId, replayBase64: played.base64, now: NOON + 11 })).rejects.toMatchObject({ code: 'run_finished', status: 409 });
   });
 
-  it('asks for an update when the replay comes from another core version', async () => {
+  it('asks for an update when the replay claims another core version, and closes the run as rejected', async () => {
     const { runId, seed } = await startRun({ userId: 7, now: NOON });
     const bytes = Buffer.from(playReplay(seed, 300).base64, 'base64');
     bytes[0] = CORE_VERSION + 1; // the version is the first varint byte
     await expect(finishRun({ userId: 7, runId, replayBase64: bytes.toString('base64'), now: NOON + 10 })).rejects.toMatchObject({ code: 'update_required', status: 426 });
-    expect((await memory.getRun(runId)).status).toBe('update_required');
+    expect(await memory.getRun(runId)).toMatchObject({ status: 'rejected', rejectReason: 'version_mismatch' });
   });
 
-  it('leaves the attempt unspent when the replay comes from another core version', async () => {
+  it('spends the attempt when the replay claims another core version: the client-written byte never refunds', async () => {
+    process.env.DAILY_FREE_ATTEMPTS = '1';
+    try {
+      for (const version of [CORE_VERSION + 1, CORE_VERSION - 1]) {
+        memory.reset();
+        const { runId, seed } = await startRun({ userId: 7, now: NOON });
+        const bytes = Buffer.from(playReplay(seed, 300).base64, 'base64');
+        bytes[0] = version;
+        await expect(finishRun({ userId: 7, runId, replayBase64: bytes.toString('base64'), now: NOON + 10 })).rejects.toMatchObject({ code: 'update_required' });
+        // The day's only attempt stays spent: the same run cannot be retried and no new one starts.
+        expect((await todayInfo({ userId: 7, now: NOON + 11 })).attemptsLeft).toBe(0);
+        await expect(startRun({ userId: 7, now: NOON + 12 })).rejects.toMatchObject({ code: 'no_attempts' });
+      }
+    } finally {
+      process.env.DAILY_FREE_ATTEMPTS = '3';
+    }
+  });
+
+  it('leaves the attempt unspent when the server core changed between the start and the finish', async () => {
     process.env.DAILY_FREE_ATTEMPTS = '1';
     try {
       const { runId, seed } = await startRun({ userId: 7, now: NOON });
       expect((await todayInfo({ userId: 7, now: NOON + 1 })).attemptsLeft).toBe(0);
-      const bytes = Buffer.from(playReplay(seed, 300).base64, 'base64');
-      bytes[0] = CORE_VERSION + 1;
-      await expect(finishRun({ userId: 7, runId, replayBase64: bytes.toString('base64'), now: NOON + 10 })).rejects.toMatchObject({ code: 'update_required' });
-      // The day's only attempt is back, and the updated app can start a fresh run with it.
+      // The run was started by the server before a deploy moved it to the current core.
+      memory.patchRun(runId, { coreVersion: CORE_VERSION - 1 });
+      const played = playReplay(seed, 300);
+      await expect(finishRun({ userId: 7, runId, replayBase64: played.base64, now: NOON + 10 })).rejects.toMatchObject({ code: 'update_required', status: 426 });
+      expect((await memory.getRun(runId)).status).toBe('update_required');
+      // The day's only attempt is back, and a fresh run can use it.
       expect((await todayInfo({ userId: 7, now: NOON + 11 })).attemptsLeft).toBe(1);
       await expect(startRun({ userId: 7, now: NOON + 12 })).resolves.toMatchObject({ day: DAY });
     } finally {
       process.env.DAILY_FREE_ATTEMPTS = '3';
     }
+  });
+
+  it('refunds a run the server core changed under whatever its replay holds', async () => {
+    const { runId } = await startRun({ userId: 7, now: NOON });
+    memory.patchRun(runId, { coreVersion: CORE_VERSION - 1 });
+    await expect(finishRun({ userId: 7, runId, replayBase64: 'not base64 at all', now: NOON + 10 })).rejects.toMatchObject({ code: 'update_required' });
+    expect((await memory.getRun(runId)).status).toBe('update_required');
+  });
+
+  it('closes a run once when two finishes race: the second is told the run is finished', async () => {
+    const { runId, seed } = await startRun({ userId: 7, now: NOON });
+    const played = playReplay(seed, 600);
+    const results = await Promise.allSettled([
+      finishRun({ userId: 7, runId, replayBase64: played.base64, now: NOON + 20 }),
+      finishRun({ userId: 7, runId, replayBase64: played.base64, now: NOON + 21 }),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.find((r) => r.status === 'rejected').reason).toMatchObject({ code: 'run_finished', status: 409 });
+    expect(await memory.getRun(runId)).toMatchObject({ status: 'verified', finishedAt: NOON + 20 });
   });
 
   it('still spends the attempt on a run left started, and on a rejected one', async () => {

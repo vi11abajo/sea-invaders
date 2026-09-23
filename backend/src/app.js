@@ -6,6 +6,7 @@ import { testConnection } from './config/database.js';
 import { validateJwtConfig } from './config/jwt.js';
 import { validateChainConfig } from './chain/config.js';
 import { createApp } from './createApp.js';
+import { validateSeedConfig } from './services/rankedRuns.js';
 import { runWeekly } from './services/weekly.js';
 
 const app = createApp();
@@ -17,6 +18,7 @@ async function startServer() {
     console.log('🚀 Starting Sea Invaders Backend...\n');
     console.log('🔧 Validating configurations...');
     validateJwtConfig();
+    validateSeedConfig();
     validateChainConfig();
     console.log('🔗 Testing database connection...');
     const dbConnected = await testConnection();
@@ -32,6 +34,8 @@ async function startServer() {
       console.log(`📡 HTTP Server: http://localhost:${PORT}`);
       console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log('\n🎯 Ready to accept connections!\n');
+      // Tells PM2 (when it waits for it) that the server is listening, not merely starting.
+      if (process.send) process.send('ready');
     });
     process.on('SIGTERM', gracefulShutdown);
     process.on('SIGINT', gracefulShutdown);
@@ -54,9 +58,5 @@ function gracefulShutdown() {
 }
 
 startServer();
-
-if (process.send) {
-  process.send('ready');
-}
 
 export default app;
