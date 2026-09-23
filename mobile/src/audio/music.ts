@@ -114,7 +114,12 @@ export function stopAmbience(): void {
 export function playMusic(id: MusicId): void {
   wantMusic = id;
   if (!musicEnabled) return;
-  if (musicPlayerId === id && musicPlayer !== null) return;
+  if (musicPlayerId === id && musicPlayer !== null) {
+    // Muting pauses this same player without releasing it (see `setMusicEnabled`); resume it
+    // in place instead of falling through to the swap-tracks path below.
+    if (!musicPlayer.playing) musicPlayer.play();
+    return;
+  }
   const asset = MUSIC[id];
   const previous = musicPlayer;
   // `createAudioPlayer` players are never released on their own: once faded out, the old track's

@@ -1,3 +1,4 @@
+import { CORE_VERSION } from '@sea-invaders/core';
 import { fromUint8Array } from 'js-base64';
 import { isSkinIndex, type SkinIndex } from '../loadout/items';
 import type { PreparedTx } from './chain';
@@ -105,7 +106,7 @@ export async function getToday(signedIn: boolean): Promise<TodayInfo> {
 }
 
 export function startRun(): Promise<StartedRun> {
-  return apiFetch<StartedRun>('/api/daily/runs', { method: 'POST', auth: true });
+  return apiFetch<StartedRun>('/api/daily/runs', { method: 'POST', auth: true, body: { coreVersion: CORE_VERSION } });
 }
 
 export function finishRun(runId: string, replay: Uint8Array): Promise<FinishedRun> {
