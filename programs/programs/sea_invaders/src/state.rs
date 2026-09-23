@@ -79,7 +79,7 @@ pub struct TopEntry {
 /// Maximum number of items the `Catalog` PDA can hold - the whole width of
 /// `Player.inventory`'s `u64` ownership bitmask (one bit per item id), so
 /// every id `build_items` allows (0..63) has a slot. Grown from 16 to 64 on
-/// 2026-09-23 for the champions/skins catalogue (spec: octopi-skins-plan).
+/// 2026-09-23 for the champions and skins catalogue.
 pub const MAX_CATALOG_ITEMS: usize = 64;
 
 /// The `catalog` PDA's second seed. A version byte string rather than a

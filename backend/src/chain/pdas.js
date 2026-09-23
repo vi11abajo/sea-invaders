@@ -38,10 +38,7 @@ export function seekerLinkPda(sgtMint) {
  * account rather than migrating it in place: the grown, 64-row `Catalog` layout cannot be
  * read back through the old 16-row account, which is abandoned on devnet since 2026-09-23. */
 export function catalogPda() {
-  return PublicKey.findProgramAddressSync(
-    [Buffer.from('catalog'), Buffer.from('v2')],
-    chainConfig().programId,
-  )[0];
+  return PublicKey.findProgramAddressSync([Buffer.from('catalog'), Buffer.from('v2')], chainConfig().programId)[0];
 }
 
 /** The associated token account for `owner` (a wallet or a PDA) and `mint`. Always allows an off-curve owner, since callers pass both wallets and PDAs (e.g. the week-pool vault). */
