@@ -29,7 +29,7 @@ interface ReefSceneProps {
  * and firing. Fills the area it is given.
  */
 export function ReefScene({ caption, onOctopi }: ReefSceneProps) {
-  // The equipped octopi, in its colour unless a skin is equipped (the same rule as in a run).
+  // The equipped champion, in its own art unless a skin is equipped (the same rule as in a run).
   const equipped = useEquippedOctopi();
   const { width } = useWindowDimensions();
   const [areaHeight, setAreaHeight] = useState(0);

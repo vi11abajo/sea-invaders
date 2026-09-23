@@ -1,4 +1,5 @@
-import { LEVELS_PER_REEF, VARIANT_INDEX, awardLevelOf, type Award, type OctopiVariant } from '@sea-invaders/core';
+import { VARIANT_INDEX, awardLevelOf, levelById, type Award, type earnedAwards } from '@sea-invaders/core';
+import type { LoadoutChange } from '../api/profile';
 import { BOSS_NAMES } from '../game/bossNames';
 import { SEEKER_SKIN_CODE, SKIN_ITEM_IDS, VARIANT_ITEM_IDS, VARIANT_OCTOPI, type SkinIndex, type VariantIndex } from './items';
 
@@ -11,11 +12,8 @@ export interface Selectors {
 /** No selectors at all: nothing earned. */
 export const NO_SELECTORS: Selectors = { variants: [], skins: [] };
 
-/** What a campaign progress has earned, in the core's own shape (`earnedAwards`). */
-export interface EarnedAwards {
-  readonly variants: readonly OctopiVariant[];
-  readonly skins: readonly number[];
-}
+/** What a campaign progress has earned: the core's own `earnedAwards` shape, taken from it rather than restated. */
+export type EarnedAwards = ReturnType<typeof earnedAwards>;
 
 /**
  * Every selector this player may equip right now (champions and skins design doc §3): 0 always; a
@@ -69,13 +67,14 @@ export function wornSkin(allowed: Selectors, activeSkin: SkinIndex): SkinIndex {
 }
 
 /**
- * The boss whose defeat earns `award` (design doc §2/§3): boss N guards the last level of reef N,
- * so the award level's reef names it. Null when no level awards it (a sold or free selector).
+ * The boss whose defeat earns `award` (design doc §2/§3): the one the level table puts on the award
+ * level's row. Null when no level awards it (a sold or free selector) or the row has no boss.
  */
 export function awardBoss(award: Award): string | null {
   const level = awardLevelOf(award);
   if (level === null) return null;
-  return BOSS_NAMES[Math.ceil(level / LEVELS_PER_REEF) - 1] ?? null;
+  const boss = levelById(level).boss;
+  return boss === undefined ? null : BOSS_NAMES[boss - 1] ?? null;
 }
 
 /** The boss whose defeat earns champion `v`; null for a sold champion and the base Octopi. */
@@ -106,6 +105,23 @@ export function skinHint(code: SkinIndex): string | null {
   const boss = skinBoss(code);
   return boss === null ? null : `Beat ${boss}`;
 }
+
+/**
+ * True when `change` puts on an award: a champion or look with no shop item (not the base Octopi,
+ * Octopi's own colours or the Seeker look), which the backend allows by the wallet's stored campaign.
+ */
+export function isAwardChange(change: LoadoutChange): boolean {
+  const { activeVariant: v, activeSkin: code } = change;
+  if (v !== undefined && v !== 0 && VARIANT_ITEM_IDS[v] === null) return true;
+  return code !== undefined && code !== 0 && code !== SEEKER_SKIN_CODE && SKIN_ITEM_IDS[code] === null;
+}
+
+/**
+ * The toast for an award the backend refuses (409 `not_owned`): the campaign upload waits 2 s
+ * (`campaign/sync.ts`), so a tap right after the win can reach the backend before it knows the
+ * level was cleared. A retry a moment later goes through.
+ */
+export const AWARD_SYNCING = 'Your campaign is still syncing — try again in a moment';
 
 /**
  * The look/ability rule, said where champions and skins are chosen (owner, 2026-09-23; design doc

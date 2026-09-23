@@ -29,7 +29,11 @@ const TILE_BG = 'rgba(0,0,0,0.25)';
 const TILE_BORDER = 'rgba(236,228,253,0.14)';
 const SELECTED_BG = 'rgba(255,255,255,0.14)';
 const SELECTED_BORDER = '#FFFFFF';
-/** The ability line under the name, at 55 % white; up to three lines at 72 dp, so no ability is cut short. */
+/**
+ * The line under the name, at 55 % white: the ability on a tile this player may wear, the hint
+ * (`variantHint`: "In the Shop" / "Beat <boss>") on a locked one, in the same slot and size so the
+ * tile keeps its height. Up to three lines at 72 dp, so no ability or hint is cut short.
+ */
 const PERK_COLOR = 'rgba(255,255,255,0.55)';
 const PERK_LINES = 3;
 /** A champion this player may not wear yet is drawn at 40 %. */
@@ -70,7 +74,8 @@ interface VariantPickerProps {
 /**
  * The champion picker of the Level start sheet (handoff 06, design doc §5): the base Octopi and
  * every champion, in `VARIANT_INDEX` order, each in its own art over its name and ability. Owned
- * and earned ones can be picked; the rest are dimmed and say, on a tap, where they are had.
+ * and earned ones can be picked; the rest are dimmed, show where they are had in place of the
+ * ability, and say it again on a tap (the Shop, the Connect sheet or a toast).
  */
 export function VariantPicker({ selected, allowed, onPick, onLocked }: VariantPickerProps) {
   const count = VARIANT_OCTOPI.length;
@@ -179,7 +184,7 @@ function JellyTile({ octopi, index, count, selected, locked, onPress }: JellyTil
       >
         <OctopiThumb look={CHAMPION_LOOK[octopi] ?? BASE_LOOK} accent={ACCENT_BY_VARIANT[octopi]} size={ART} />
         <Txt style={styles.name} numberOfLines={1}>{name}</Txt>
-        <Txt style={styles.perk} numberOfLines={PERK_LINES}>{short}</Txt>
+        <Txt style={styles.perk} numberOfLines={PERK_LINES}>{hint ?? short}</Txt>
       </Pressable>
     </Animated.View>
   );

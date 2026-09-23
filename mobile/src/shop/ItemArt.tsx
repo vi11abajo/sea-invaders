@@ -6,7 +6,7 @@ import { ITEM_TINT } from './tints';
 interface ItemArtProps {
   /** Catalogue item id; null (the base Octopi) or an id with no look (a future item) shows Octopi's own colours. */
   itemId: number | null;
-  /** Thumb side in dp: 56 for a champion row, 64 for a skin card, 34 for a Profile tile. */
+  /** Thumb side in dp: 56 for a champion row, 64 for a skin card. */
   size: number;
 }
 

@@ -4,7 +4,8 @@ import { SKIN_COUNT, VARIANT_BY_INDEX, VARIANT_INDEX, VARIANT_ITEM_IDS, VARIANT_
  * The catalogue's identity on the app side: a thin re-export of the core's `catalogue.ts`, where
  * the names, the selector ↔ item tables and the awards are written once for the backend and the app
  * alike (champions and skins design doc §3). Prices and ownership always come from the chain
- * through the backend (§4), never from here.
+ * through the backend (§4), never from here. `ITEM_NAMES` is kept as part of the app's public
+ * catalogue surface, though nothing in the app imports it today.
  */
 export {
   ABILITY_NAMES, ITEM_NAMES, SEEKER_SKIN_CODE, SKIN_COUNT, SKIN_ITEM_IDS, SKIN_NAMES, VARIANT_ITEM_IDS, VARIANT_NAMES,
@@ -24,7 +25,11 @@ export type SkinIndex = number;
  */
 export type VariantIndex = number;
 
-/** The name of the base Octopi, which every player has without buying anything. */
+/**
+ * The name of the base Octopi, which every player has without buying anything. Part of the app's
+ * public catalogue surface; no caller today (the picker and the Profile read every name, the
+ * base's included, from `VARIANT_NAMES`).
+ */
 export const BASE_OCTOPI_NAME = VARIANT_NAMES.base;
 
 /** The core's `RunConfig.octopi` for each variant selector: what a campaign run plays with (design doc §3). */
@@ -38,7 +43,10 @@ export function isVariantIndex(value: unknown): value is VariantIndex {
   return Number.isInteger(value) && (value as number) >= 0 && (value as number) < VARIANT_ITEM_IDS.length;
 }
 
-/** The catalogue item id of the core's variant `octopi`; null for the base Octopi and the awarded champions (Hex, Kakashi). */
+/**
+ * The catalogue item id of the core's variant `octopi`; null for the base Octopi and the awarded
+ * champions (Hex, Kakashi). Part of the app's public catalogue surface; no caller today.
+ */
 export function itemOfOctopi(octopi: OctopiVariant): number | null {
   return VARIANT_ITEM_IDS[VARIANT_INDEX[octopi]] ?? null;
 }

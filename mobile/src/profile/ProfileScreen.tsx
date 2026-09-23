@@ -13,7 +13,7 @@ import { useAudioSettings } from '../audio/settings';
 import { OctopiThumb } from '../game/OctopiArt';
 import { BASE_LOOK, CHAMPION_LOOK, lookOfSkin, type Look } from '../game/looks';
 import { ABILITY } from '../loadout/abilities';
-import { WEAR_RULE, skinHint, variantHint, wornSkin, wornVariant, type Selectors } from '../loadout/allowed';
+import { AWARD_SYNCING, WEAR_RULE, isAwardChange, skinHint, variantHint, wornSkin, wornVariant, type Selectors } from '../loadout/allowed';
 import { SKIN_NAMES, VARIANT_NAMES, VARIANT_OCTOPI, type SkinIndex, type VariantIndex } from '../loadout/items';
 import type { LoadoutState } from '../loadout/useLoadout';
 import { ACCENT_BY_VARIANT, accentOfLook } from '../shop/tints';
@@ -55,8 +55,9 @@ const UNKNOWN = '—';
 
 type ToastState = { id: number; text: string; dot: string } | null;
 
-function messageOf(error: unknown): string {
-  if (error instanceof ApiError && error.code === 'not_owned') return 'That item is not in your inventory';
+/** A refused save's toast; a refused award most likely means the campaign has not reached the backend yet. */
+function messageOf(error: unknown, award: boolean): string {
+  if (error instanceof ApiError && error.code === 'not_owned') return award ? AWARD_SYNCING : 'That item is not in your inventory';
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -254,7 +255,7 @@ export function ProfileScreen({
       try {
         await onEquip(change);
       } catch (e) {
-        if (alive.current) show(messageOf(e), COLORS.warning);
+        if (alive.current) show(messageOf(e, isAwardChange(change)), COLORS.warning);
       } finally {
         if (alive.current) setEquipping(false);
       }

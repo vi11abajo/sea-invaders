@@ -1,5 +1,5 @@
 import { formatInt, type BoostType, type BossFrame } from '@sea-invaders/core';
-import { Image, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions, type ImageSourcePropType } from 'react-native';
 import { Hearts } from '../ui/Hearts';
 import { GradientFill } from '../ui/GradientFill';
 import { COLORS, FONTS, RADIUS } from '../ui/tokens';
@@ -34,7 +34,7 @@ export interface HudBoost {
   count?: number;
 }
 
-/** A small tag beside the mode label, e.g. the campaign octopi a run is played with. */
+/** A small tag beside the mode label, e.g. the champion a campaign run is played with. */
 export interface HudBadge {
   text: string;
   /** The tag's fill. */
@@ -51,7 +51,7 @@ export const BOSS_COLOR: readonly string[] = BOSS_HEX;
 interface GameHudProps {
   /** Mode label, e.g. "PRACTICE" or "DAILY · SEED #214". */
   mode: string;
-  /** A tag beside the mode label (`LEVEL 8` then `HARPOON`); none when omitted. */
+  /** A tag beside the mode label (`LEVEL 8` then `AZUL`); none when omitted. */
   badge?: HudBadge;
   score: number;
   lives: number;
@@ -73,11 +73,19 @@ interface GameHudProps {
   onPause: () => void;
 }
 
+/**
+ * Below this window width, in dp, the wave pill drops its `WAVE` word (`3 / 5`, `3`): on a 360 dp
+ * phone `WAVE 3 / 5` beside a champion's badge and five hearts would ellipsise.
+ */
+const COMPACT_WAVE_BELOW = 380;
+
 /** The in-run HUD over the world. Only the pause button takes touches. */
 export function GameHud({ mode, badge, score, lives, wave = 0, waves, combo, boosts, shield = 0, boss, toast, hint, onPause }: GameHudProps) {
+  const { width } = useWindowDimensions();
   // SHIELD_BARRIER is shown only by the dedicated "Shield ×N" chip below, never as its own "∞" entry.
   const timedBoosts = boosts?.filter((b) => b.type !== 'SHIELD_BARRIER') ?? [];
   const showBoosts = timedBoosts.length > 0;
+  const waveCount = waves !== undefined ? `${wave} / ${waves}` : `${wave}`;
   return (
     <View style={styles.root} pointerEvents="box-none">
       <View style={styles.top} pointerEvents="none">
@@ -96,10 +104,13 @@ export function GameHud({ mode, badge, score, lives, wave = 0, waves, combo, boo
         </View>
         {wave > 0 && !boss && (
           // Owner's note 2026-09-23: the gap between the score card and the hearts carries the wave —
-          // `WAVE 3` in Daily Run and Practice, `WAVE 3 / 5` on a campaign level. Hidden while a boss
-          // stands, when the boss bar below says what matters.
+          // `WAVE 3` in Daily Run and Practice, `WAVE 3 / 5` on a campaign level; on a window narrower
+          // than `COMPACT_WAVE_BELOW` just `3` / `3 / 5`. Hidden while a boss stands, when the boss bar
+          // below says what matters.
           <View style={[styles.glass, styles.pill, styles.wavePill]}>
-            <Text style={styles.waveText} numberOfLines={1}>{waves !== undefined ? `WAVE ${wave} / ${waves}` : `WAVE ${wave}`}</Text>
+            <Text style={styles.waveText} numberOfLines={1} accessibilityLabel={`Wave ${waveCount}`}>
+              {width < COMPACT_WAVE_BELOW ? waveCount : `WAVE ${waveCount}`}
+            </Text>
           </View>
         )}
         <View style={styles.right}>
@@ -219,11 +230,14 @@ const styles = StyleSheet.create({
   root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   // Owner's note 2026-09-23: the three top-row pieces sit on one centre line and the two pills
   // share one height, so the row reads as a single bar rather than three loose boxes.
-  // Owner's note 2026-09-23 (second): with a campaign octopi's badge widening the score card and
-  // five hearts in the pill, the row ran past the right edge on a 400 dp screen — the hearts pill
-  // was pushed off it. The budget now: score card 150 + wave pill ≤ 92 + hearts ≤ 98 + two 10 dp
-  // gaps = 360 dp of the 368 available; the wave pill is the one piece allowed to shrink (and
-  // ellipsise) if some longer badge ever widens the card further, so the hearts always stay on screen.
+  // Owner's note 2026-09-23 (second): with a champion's badge widening the score card and five
+  // hearts in the pill, the row ran past the right edge on a 400 dp screen — the hearts pill was
+  // pushed off it. The budget, in dp of the window width less 32: the score card 150, up to ~160
+  // with a champion's badge (`LEVEL 60` + `CORALUNA`); the wave pill 94 as `WAVE 3 / 5`, 58 as the
+  // compact `3 / 5` shown below `COMPACT_WAVE_BELOW`; the hearts pill 30 plus five glyphs (drawn in
+  // a system fallback font, width not measured); two 10 dp gaps. The wave pill is the one piece
+  // allowed to shrink (and ellipsise) when the rest leave it short; `right` never shrinks, so the
+  // hearts always stay on screen.
   top: { position: 'absolute', top: 28, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   glass: { backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder },
   // `minWidth`/`paddingRight`: a seven-digit mono score measured narrower than it rendered and ran
@@ -234,9 +248,9 @@ const styles = StyleSheet.create({
   score: { fontFamily: FONTS.mono, fontSize: 26, lineHeight: 30, letterSpacing: -0.52, color: COLORS.text, paddingRight: 2 },
   wavePill: { height: HUD_PILL_HEIGHT, justifyContent: 'center', paddingHorizontal: 10, flexShrink: 1, minWidth: 0 },
   waveText: { fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 0.6, color: COLORS.textSecondary },
-  right: { alignItems: 'flex-end', justifyContent: 'center', gap: 6 },
+  right: { alignItems: 'flex-end', justifyContent: 'center', gap: 6, flexShrink: 0 },
   pill: { borderRadius: RADIUS.pill, overflow: 'hidden' },
-  lives: { height: HUD_PILL_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, flexShrink: 0 },
+  lives: { height: HUD_PILL_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10 },
   combo: { paddingHorizontal: 10, paddingVertical: 6 },
   comboText: { fontFamily: FONTS.mono, fontSize: 13, color: COLORS.text },
   comboHot: { color: COLORS.onPrimary },
@@ -245,7 +259,7 @@ const styles = StyleSheet.create({
   bossHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   bossName: { flex: 1, fontFamily: FONTS.medium, fontSize: 13, color: COLORS.text },
   bossTags: { flexDirection: 'row', gap: 4 },
-  /** The HUD's small pill tags: the boss's RAGE / FROZEN and the octopi badge. */
+  /** The HUD's small pill tags: the boss's RAGE / FROZEN and the champion badge. */
   tag: { borderRadius: RADIUS.pill, paddingHorizontal: 8, paddingVertical: 2 },
   tagText: { fontFamily: FONTS.medium, fontSize: 9, letterSpacing: 0.4, color: COLORS.text },
   rageTag: { backgroundColor: 'rgba(255,51,51,0.35)' },

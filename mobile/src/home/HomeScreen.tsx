@@ -16,8 +16,8 @@ import { Ticker, type TickerItem } from './Ticker';
 import type { HomeModel, RankedInfo } from './model';
 
 /**
- * The hero's caption: the base Octopi reads `Octopi · base defender`, an equipped octopi replaces
- * that with its name (`Octopi · Trident`), and an equipped skin is added the way the prototype writes
+ * The hero's caption: the base Octopi reads `Octopi · base defender`, an equipped champion replaces
+ * that with its name (`Octopi · Poseidon`), and an equipped skin is added the way the prototype writes
  * it (`· Lime skin`).
  */
 const HERO_CAPTION = 'Octopi · base defender';

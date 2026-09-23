@@ -23,7 +23,7 @@ export interface Loadout {
   /** Catalogue item ids the wallet owns, ascending. */
   owned: readonly number[];
   activeSkin: SkinIndex;
-  /** The campaign octopi: the Level start picker equips it, and campaign runs play with it. */
+  /** The champion: the Level start picker equips it, and campaign runs play with it. */
   activeVariant: VariantIndex;
   /**
    * What the backend derived from the wallet's stored campaign progress (design doc §3): champion

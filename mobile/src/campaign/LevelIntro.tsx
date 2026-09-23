@@ -5,7 +5,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTim
 import { ApiError } from '../api/client';
 import { onBackPress } from '../audio/onBackPress';
 import { ActiveOctopi } from '../game/OctopiArt';
-import { variantBoss, wornVariant, type Selectors } from '../loadout/allowed';
+import { AWARD_SYNCING, isAwardChange, variantBoss, wornVariant, type Selectors } from '../loadout/allowed';
 import { VARIANT_ITEM_IDS, VARIANT_NAMES, VARIANT_OCTOPI, type VariantIndex } from '../loadout/items';
 import type { LoadoutApi } from '../loadout/useLoadout';
 import { BlurText } from '../ui/BlurText';
@@ -62,8 +62,9 @@ const DRIFT_DP = 10;
 
 type ToastState = { id: number; text: string; dot: string } | null;
 
-function messageOf(error: unknown): string {
-  if (error instanceof ApiError && error.code === 'not_owned') return 'That item is not in your inventory';
+/** A refused save's toast; a refused award most likely means the campaign has not reached the backend yet. */
+function messageOf(error: unknown, award: boolean): string {
+  if (error instanceof ApiError && error.code === 'not_owned') return award ? AWARD_SYNCING : 'That item is not in your inventory';
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -142,8 +143,9 @@ export function LevelIntro({
   // Equipping shows at once; a save the backend refuses puts the last confirmed octopi back.
   const pick = useCallback(
     (variant: VariantIndex) => {
-      equip({ activeVariant: variant }).catch((e: unknown) => {
-        if (alive.current) show(messageOf(e), COLORS.warning);
+      const change = { activeVariant: variant };
+      equip(change).catch((e: unknown) => {
+        if (alive.current) show(messageOf(e, isAwardChange(change)), COLORS.warning);
       });
     },
     [equip, show],
@@ -197,7 +199,7 @@ export function LevelIntro({
       </View>
       {showPreview && (
         <Animated.View style={[styles.preview, { top: previewTop }, driftStyle]} pointerEvents="none">
-          {/* The run's look: the equipped skin, else the picked octopi's colour. */}
+          {/* The run's look (`octopiLook`): the equipped skin, else the picked champion's own art, else Octopi's own colours. */}
           <ActiveOctopi size={PREVIEW_SIZE} octopi={VARIANT_OCTOPI[selected]} />
         </Animated.View>
       )}

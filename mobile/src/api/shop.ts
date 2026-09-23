@@ -1,7 +1,7 @@
 import type { PreparedPayment } from './chain';
 import { apiFetch } from './client';
 
-/** 'variant' = a campaign octopi (Harpoon, Anchor, Trident); 'skin' = a cosmetic recolour of Octopi. */
+/** 'variant' = a champion (Azul, Krang, Poseidon, Noob, Coraluna, Shoupe), in its own drawn art; 'skin' = a look for Octopi, a recolour or a drawn one. */
 export type ShopItemKind = 'variant' | 'skin';
 
 /** One catalogue entry. Its name and price come from the backend, which reads them from the on-chain `Catalog`. */
