@@ -55,6 +55,10 @@ interface GameHudProps {
   badge?: HudBadge;
   score: number;
   lives: number;
+  /** The current wave (1-based); the wave pill shows while > 0 and no boss is on the field. */
+  wave?: number;
+  /** The level's wave count in the campaign; omitted in Daily Run and Practice (open-ended). */
+  waves?: number;
   /** Shown only when the core reports a combo. */
   combo?: number;
   /** Shown only when the core reports active boosts. */
@@ -70,7 +74,7 @@ interface GameHudProps {
 }
 
 /** The in-run HUD over the world. Only the pause button takes touches. */
-export function GameHud({ mode, badge, score, lives, combo, boosts, shield = 0, boss, toast, hint, onPause }: GameHudProps) {
+export function GameHud({ mode, badge, score, lives, wave = 0, waves, combo, boosts, shield = 0, boss, toast, hint, onPause }: GameHudProps) {
   // SHIELD_BARRIER is shown only by the dedicated "Shield ×N" chip below, never as its own "∞" entry.
   const timedBoosts = boosts?.filter((b) => b.type !== 'SHIELD_BARRIER') ?? [];
   const showBoosts = timedBoosts.length > 0;
@@ -90,6 +94,14 @@ export function GameHud({ mode, badge, score, lives, combo, boosts, shield = 0, 
           )}
           <Text style={styles.score}>{formatInt(score)}</Text>
         </View>
+        {wave > 0 && !boss && (
+          // Owner's note 2026-09-23: the gap between the score card and the hearts carries the wave —
+          // `WAVE 3` in Daily Run and Practice, `WAVE 3 / 5` on a campaign level. Hidden while a boss
+          // stands, when the boss bar below says what matters.
+          <View style={[styles.glass, styles.pill, styles.wavePill]}>
+            <Text style={styles.waveText}>{waves !== undefined ? `WAVE ${wave} / ${waves}` : `WAVE ${wave}`}</Text>
+          </View>
+        )}
         <View style={styles.right}>
           <View style={[styles.glass, styles.pill, styles.lives]}>
             <Hearts lives={lives} size={14} />
@@ -204,10 +216,14 @@ const styles = StyleSheet.create({
   root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   top: { position: 'absolute', top: 28, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   glass: { backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder },
-  scoreCard: { borderRadius: RADIUS.hudCard, paddingHorizontal: 14, paddingVertical: 10 },
+  // `minWidth`/`paddingRight`: a seven-digit mono score measured narrower than it rendered and ran
+  // past the card's edge (owner's note 2026-09-23).
+  scoreCard: { borderRadius: RADIUS.hudCard, paddingHorizontal: 14, paddingRight: 18, paddingVertical: 10, minWidth: 150 },
   mode: { fontFamily: FONTS.medium, fontSize: 10, letterSpacing: 0.4, color: COLORS.textSecondary },
   modeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  score: { fontFamily: FONTS.mono, fontSize: 26, lineHeight: 30, letterSpacing: -0.52, color: COLORS.text },
+  score: { fontFamily: FONTS.mono, fontSize: 26, lineHeight: 30, letterSpacing: -0.52, color: COLORS.text, paddingRight: 2 },
+  wavePill: { alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 7, marginHorizontal: 8 },
+  waveText: { fontFamily: FONTS.mono, fontSize: 12, letterSpacing: 0.6, color: COLORS.textSecondary },
   right: { alignItems: 'flex-end', gap: 6 },
   pill: { borderRadius: RADIUS.pill, overflow: 'hidden' },
   lives: { flexDirection: 'row', paddingHorizontal: 10, paddingVertical: 8 },

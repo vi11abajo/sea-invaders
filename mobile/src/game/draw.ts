@@ -501,8 +501,10 @@ const COLD_SNAP_COLOR = Skia.Color('rgba(174,232,255,0.7)');
 /** The Tide's own teal (`tokens.ts`'s `info`/`SIGNATURE_GRADIENT` stop), for `revive_rings`. */
 const REVIVE_RING_COLOR = Skia.Color('#28E0B9');
 /** `revive_rings`'/`phase_rings`' own disc size, relative to Octopi's/the boss's own box. */
-const REVIVE_RING_RADIUS_SCALE = 1.5;
-const PHASE_RING_RADIUS_SCALE = 0.85;
+// 1.5 until the owner's note of 2026-09-23: the outer rings reached the disc's edge and were cut
+// square — the disc is wider now and the shader fades its own rim (`magicRings.ts`).
+const REVIVE_RING_RADIUS_SCALE = 2.4;
+const PHASE_RING_RADIUS_SCALE = 1.15;
 /** `formation_rage`'s band, in dp (unscaled): its own height, and half that as the offset centring it on `waveY`. */
 const RAGE_WAVE_BAND_H = 20;
 const RAGE_WAVE_BAND_OFFSET = 10;
@@ -799,7 +801,10 @@ export function drawFrame(
       paint.setStyle(STROKE);
       paint.setStrokeWidth(WARDEN_SHIELD_STROKE_W);
       paint.setColor(WARDEN_SHIELD_COLOR);
-      canvas.drawArc(scratch(cx - r, cy - r, r * 2, r * 2), -110, 220, false, paint);
+      // Owner's note 2026-09-23: the shield faces Octopi — the arc covers the crab's underside and
+      // flanks and leaves its opening at the top (a 140° gap centred on 12 o'clock; Skia angles run
+      // clockwise from 3 o'clock), where it used to open sideways.
+      canvas.drawArc(scratch(cx - r, cy - r, r * 2, r * 2), -20, 220, false, paint);
       paint.setStyle(FILL);
     }
     if ((flags & 2) !== 0) {

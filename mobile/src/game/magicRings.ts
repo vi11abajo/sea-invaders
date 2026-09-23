@@ -70,6 +70,10 @@ half4 main(float2 fragCoord) {
     float amount = ring(p, BASE_RADIUS + fi * RADIUS_STEP, pow(RING_GAP, fi), i == 0 ? 0.0 : 0.35 * fi, px);
     col += uColor * bright * amount;
   }
+  // Owner's note 2026-09-23: the rings used to run straight into the square they are drawn in and
+  // end on its edge as a hard line; now they melt away over the last tenth of the disc's radius
+  // (p spans -0.5..0.5 across the square), so no caller's box size can ever show as an edge.
+  col *= 1.0 - smoothstep(0.38, 0.49, length(p));
   col = clamp(col, 0.0, 1.0);
   float alpha = max(col.r, max(col.g, col.b));
   return half4(half3(col), half(alpha));
