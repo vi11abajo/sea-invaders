@@ -39,7 +39,8 @@ match the program's own `ProgramData.upgrade_authority_address` - the
 standard Anchor upgrade-authority pattern - so the singleton `config` PDA
 can only ever be claimed by whoever controls the deployed program, closing
 the window between `anchor deploy` and running the init script. On devnet
-this is `admin.json` under `/mnt/d/dev/keys` (verified: `solana program
+this is `admin.json` in your keys directory, the one the devnet scripts
+read through `KEYS_DIR=<your keys dir>` (verified: `solana program
 show <PROGRAM_ID> --url devnet` prints `Authority:
 AVHHLGsaChQLKMJSthVhhrQ3rn2hSgeQUBRkmobUQBNm`).
 

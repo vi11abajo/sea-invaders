@@ -3,9 +3,10 @@
 //! wallet signs so only the player themselves can record for their own
 //! `Player` account. Records only within the day's grace window, only for a
 //! day the player holds a ticket for (today's, or the immediately previous
-//! ticket day across a rollover), and only when the week matches the
-//! player's stored week or has just advanced past it - see `time.rs` for
-//! the day/week arithmetic this all rests on.
+//! ticket day across a rollover), only when the week matches the player's
+//! stored week or has just advanced past it, and never into a week that is
+//! already settled - see `time.rs` for the day/week arithmetic this all
+//! rests on.
 
 use anchor_lang::prelude::*;
 
@@ -19,12 +20,12 @@ use crate::{errors::SeaError, state::*, time};
 // fallback branch that splices the raw seed expression into generated IDL
 // code with no `day` binding in scope, so `anchor build`'s IDL step fails
 // with "cannot find value `day` in this scope" even though the on-chain
-// build itself is fine. `buy_ticket.rs` already sidesteps this the same
-// way `create_week_pool`'s callers rely on: the seeds read the account's
-// own `week` field (a plain account-field seed, which the IDL builder does
-// support) and the handler checks that field against the value computed
-// from the instruction argument - `WrongWeekPool` below reuses the same
-// error `buy_ticket.rs` uses for this exact check.
+// build itself is fine. `buy_ticket` (in `ticket.rs`) already sidesteps
+// this the same way `create_week_pool`'s callers rely on: the seeds read
+// the account's own `week` field (a plain account-field seed, which the IDL
+// builder does support) and the handler checks that field against the
+// value computed from the instruction argument - `WrongWeekPool` below
+// reuses the same error `buy_ticket` uses for this exact check.
 #[derive(Accounts)]
 pub struct SubmitDailyBest<'info> {
     pub wallet: Signer<'info>,
@@ -45,6 +46,11 @@ pub fn submit_daily_best(
 ) -> Result<()> {
     let cfg = &ctx.accounts.config;
     require!(!cfg.paused, SeaError::Paused);
+    // A settled week has already paid out its top list, so that list is
+    // final. The day windows below close before settling opens only while
+    // both read the same `grace_seconds`; checking here keeps a settled
+    // list final even if the admin raises the grace later.
+    require!(!ctx.accounts.week_pool.settled, SeaError::AlreadySettled);
     // Never call `Clock::get()` directly - `time::now` honours the
     // feature-gated test clock (see `src/time.rs`).
     let now = time::now(cfg)?;

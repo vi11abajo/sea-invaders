@@ -2,9 +2,9 @@
 //! (no ticket, no attempts bought - just SKR in), and `settle_week`
 //! (spec §5.6) is the permissionless payout once a week's grace window has
 //! closed: it pays the top-10 list their `payout_bps` share of the vault
-//! (creating a winner's ATA when missing), and rolls whatever the empty
-//! places would have earned into the next week's pool so nothing is ever
-//! burned or lost by a light week.
+//! (creating a winner's ATA when missing and the share is above zero), and
+//! rolls whatever the empty places would have earned into the next week's
+//! pool so nothing is ever burned or lost by a light week.
 
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -15,8 +15,9 @@ use anchor_spl::{
 use crate::{errors::SeaError, state::*, time};
 
 /// A single winner's payout share of `balance` at `bps` out of 10 000,
-/// rounded down - see global-constraints.md's bps math rule (`u128`
-/// intermediate, `checked_*` everywhere). `bps` is always one of
+/// rounded down. Like every bps split in this program, it multiplies in a
+/// `u128` intermediate and uses `checked_*` for every step, so no product
+/// can overflow before the division. `bps` is always one of
 /// `Config::payout_bps`'s ten entries (each `<= 10_000`), so the result
 /// never exceeds `balance` and always fits back into a `u64`.
 pub fn share_of(balance: u64, bps: u16) -> Result<u64> {
@@ -101,8 +102,9 @@ pub struct SettleWeek<'info> {
 /// Permissionless: anyone can call this once a week's grace window has
 /// passed. Pays each of the (at most 10) top entries its configured share
 /// of the vault, creating the winner's ATA first when it does not already
-/// exist, and rolls whatever is left over (the shares of any unfilled
-/// ranks, plus rounding dust) into next week's vault. `remaining_accounts`
+/// exist and the share is above zero, and rolls whatever is left over (the
+/// shares of any unfilled ranks, plus rounding dust) into next week's
+/// vault, which must not be settled yet. `remaining_accounts`
 /// carries `top_len` `(wallet, ata)` pairs in the pool's own `top` order -
 /// wrong order, a wrong wallet or a foreign ATA all fail `WinnerMismatch`.
 pub fn settle_week<'info>(
@@ -126,6 +128,16 @@ pub fn settle_week<'info>(
 
     let pool = &ctx.accounts.week_pool;
     require!(!pool.settled, SeaError::AlreadySettled);
+    // Nothing orders settlements but the clock, and anyone may call this,
+    // so week + 1 can be settled while this week still waits (say, while
+    // this week's own settle keeps failing). Nothing ever moves tokens out
+    // of a settled week's vault again, so rolling this week's rest into it
+    // would lock that rest for good. Refuse instead: this week's balance
+    // stays in its own vault, and the failure is visible to whoever calls.
+    require!(
+        !ctx.accounts.next_week_pool.settled,
+        SeaError::NextWeekAlreadySettled
+    );
     let n = pool.top_len as usize;
     require!(
         ctx.remaining_accounts.len() == n * 2,
@@ -151,6 +163,14 @@ pub fn settle_week<'info>(
         );
         require!(ata_ai.key() == expected, SeaError::WinnerMismatch);
 
+        let share = share_of(balance, cfg.payout_bps[i])?;
+        // A zero share (an empty or tiny vault) pays this rank nothing, so
+        // it must not spend the caller's rent on an account that would
+        // stay empty. The checks above still ran for this rank.
+        if share == 0 {
+            continue;
+        }
+
         if ata_ai.data_is_empty() {
             create(CpiContext::new(
                 ctx.accounts.associated_token_program.key(),
@@ -165,24 +185,21 @@ pub fn settle_week<'info>(
             ))?;
         }
 
-        let share = share_of(balance, cfg.payout_bps[i])?;
-        if share > 0 {
-            token_interface::transfer_checked(
-                CpiContext::new_with_signer(
-                    token_program_key,
-                    TransferChecked {
-                        mint: ctx.accounts.skr_mint.to_account_info(),
-                        from: ctx.accounts.vault.to_account_info(),
-                        to: ata_ai.clone(),
-                        authority: ctx.accounts.week_pool.to_account_info(),
-                    },
-                    &[seeds],
-                ),
-                share,
-                decimals,
-            )?;
-            paid = paid.checked_add(share).ok_or(SeaError::Overflow)?;
-        }
+        token_interface::transfer_checked(
+            CpiContext::new_with_signer(
+                token_program_key,
+                TransferChecked {
+                    mint: ctx.accounts.skr_mint.to_account_info(),
+                    from: ctx.accounts.vault.to_account_info(),
+                    to: ata_ai.clone(),
+                    authority: ctx.accounts.week_pool.to_account_info(),
+                },
+                &[seeds],
+            ),
+            share,
+            decimals,
+        )?;
+        paid = paid.checked_add(share).ok_or(SeaError::Overflow)?;
     }
 
     let rest = balance.checked_sub(paid).ok_or(SeaError::Overflow)?;

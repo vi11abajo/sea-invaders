@@ -30,9 +30,10 @@ pub struct BuyTicket<'info> {
 }
 
 /// Splits `amount` into a pool share (`pool_bps` out of 10 000, rounded
-/// down) and the remainder, which goes to the treasury - see
-/// global-constraints.md's bps math rule (`u128` intermediate,
-/// `checked_*` everywhere).
+/// down) and the remainder, which goes to the treasury. Like every bps
+/// split in this program, it multiplies in a `u128` intermediate and uses
+/// `checked_*` for every step, so no product can overflow before the
+/// division.
 pub fn split(amount: u64, pool_bps: u16) -> Result<(u64, u64)> {
     let pool = (amount as u128)
         .checked_mul(pool_bps as u128)

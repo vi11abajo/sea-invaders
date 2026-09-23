@@ -4,7 +4,7 @@
     "name": "sea_invaders",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "Created with Anchor"
+    "description": "Sea Invaders on-chain program: tickets, records, weekly pools, shop, the Tide, Seeker link"
   },
   "instructions": [
     {
@@ -1535,6 +1535,11 @@
       "code": 6017,
       "name": "SeekerAlreadyLinked",
       "msg": "Player has already linked a Seeker Genesis Token"
+    },
+    {
+      "code": 6018,
+      "name": "NextWeekAlreadySettled",
+      "msg": "Next week is already settled"
     }
   ],
   "types": [

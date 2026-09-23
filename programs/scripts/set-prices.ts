@@ -11,8 +11,8 @@
  *   npx ts-node scripts/set-prices.ts            (or `npm run devnet:prices`)
  *
  * Env:
- *   KEYS_DIR             default /mnt/d/dev/keys - reads admin.json from here (secrets never
- *                        printed).
+ *   KEYS_DIR             required - your keys directory; reads admin.json from here (secrets
+ *                        never printed).
  *   ANCHOR_PROVIDER_URL  default https://api.devnet.solana.com
  */
 import { BN } from "@anchor-lang/core";

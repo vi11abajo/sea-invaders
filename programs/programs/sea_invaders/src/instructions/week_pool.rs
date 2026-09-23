@@ -22,8 +22,20 @@ pub struct CreateWeekPool<'info> {
         bump
     )]
     pub week_pool: Account<'info, WeekPool>,
+    // `init_if_needed`, not `init`: the vault's address is fixed by the week
+    // number and the mint alone, and the associated token program's plain
+    // create needs no signature from the owner, so anyone can create this
+    // account before the pool exists. With `init`, that one cheap
+    // transaction would make `create_week_pool` fail for that week forever,
+    // and every instruction that needs the week (tickets, records, the shop,
+    // the Tide, and settling the week before it) would go with it. An
+    // account that already exists is still checked against the same mint,
+    // authority and associated address, and that address can only ever
+    // hold this mint's account for this pool, so a pre-created vault is
+    // exactly the one this would have made. (A plain comment rather than a
+    // doc comment keeps the IDL unchanged.)
     #[account(
-        init,
+        init_if_needed,
         payer = payer,
         associated_token::mint = skr_mint,
         associated_token::authority = week_pool

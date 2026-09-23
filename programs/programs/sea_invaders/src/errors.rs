@@ -38,4 +38,6 @@ pub enum SeaError {
     PriceChanged,
     #[msg("Player has already linked a Seeker Genesis Token")]
     SeekerAlreadyLinked,
+    #[msg("Next week is already settled")]
+    NextWeekAlreadySettled,
 }

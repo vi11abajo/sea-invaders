@@ -17,8 +17,8 @@
  *   (or `npm run devnet:init`)
  *
  * Env:
- *   KEYS_DIR             default /mnt/d/dev/keys - reads admin.json and
- *                        server-authority.json from here (secrets never
+ *   KEYS_DIR             required - your keys directory; reads admin.json
+ *                        and server-authority.json from here (secrets never
  *                        printed).
  *   ANCHOR_PROVIDER_URL  default https://api.devnet.solana.com
  */

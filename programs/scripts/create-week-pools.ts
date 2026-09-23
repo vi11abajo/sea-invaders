@@ -15,7 +15,7 @@
  *   (or `npm run devnet:pools`)
  *
  * Env:
- *   KEYS_DIR             default /mnt/d/dev/keys - reads admin.json.
+ *   KEYS_DIR             required - your keys directory; reads admin.json.
  *   ANCHOR_PROVIDER_URL  default https://api.devnet.solana.com
  */
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";

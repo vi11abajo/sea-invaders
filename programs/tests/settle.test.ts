@@ -3,11 +3,13 @@ import { Keypair } from "@solana/web3.js";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   closeAccount,
+  createAssociatedTokenAccount,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { airdrop, Ctx, setup, warpTo } from "./helpers";
 import {
   buyTicket,
+  configArgs,
   createPlayer,
   createWeekPool,
   fetchWeekPool,
@@ -356,5 +358,173 @@ describe("fund_pool / settle_week", () => {
         `    !!! WARNING: ten-winner settle_week consumed ${consumed} CU, over the 500_000 budget headroom !!!`
       );
     }
+  });
+});
+
+// The guards below get their own +30-weeks-forward slice of the shared
+// validator's timeline, past every other range (the describe above:
+// +12..19; shop.test.ts: +20; tide.test.ts: +24), so none of their pools
+// collide with anyone else's.
+const GUARD_BASE = 1_788_739_200 + 30 * WEEK;
+
+describe("week pool guards", () => {
+  let ctx: Ctx;
+  let X: number; // the week the clock starts in; X + 1 gets settled before it
+  let sunday: number; // the last day of X + 1, alice's ticket day
+  const mallory = Keypair.generate();
+
+  before(async () => {
+    ctx = await setup();
+    await initConfig(ctx);
+    await airdrop(ctx.connection, mallory.publicKey, 10 * LAMPORTS_PER_SOL);
+
+    await warpTo(ctx, GUARD_BASE + 3600);
+    X = weekOf(dayOf(await ctx.now()));
+    await createWeekPool(ctx, X);
+    await createWeekPool(ctx, X + 1);
+    await createWeekPool(ctx, X + 2); // X + 1's own rollover target
+
+    // A balance for X to roll over, paid in while X is the current week.
+    await ctx.mintTo(ctx.bob.publicKey, 1_000_000n);
+    await fundPool(ctx, ctx.bob, 1_000_000, X);
+
+    // Alice holds a ticket for the last day of X + 1 but records nothing,
+    // so X + 1 settles with an empty top list, and the last test's record
+    // for that day passes every check but the settled one.
+    await createPlayer(ctx, ctx.alice);
+    await ctx.mintTo(ctx.alice.publicKey, 10_000_000n);
+    sunday = weekFirstDay(X + 1) + 6;
+    await warpTo(ctx, dayStart(sunday) + 60);
+    await buyTicket(ctx, ctx.alice, X + 1);
+  });
+
+  it("create_week_pool accepts a vault that someone else created first", async () => {
+    // A week nothing else here uses. The vault's address follows from the
+    // week and the mint alone, and the associated token program's plain
+    // (not idempotent) create needs no signature from the owner, so anyone
+    // can make it before the pool exists. Mallory pays the rent here.
+    const week = X + 5;
+    const pool = weekPda(ctx.programId, week);
+    const vault = await createAssociatedTokenAccount(
+      ctx.connection,
+      mallory,
+      ctx.mint,
+      pool,
+      { commitment: "confirmed" },
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID,
+      true // the owner is a PDA, off the curve
+    );
+    expect(vault.equals(ctx.ata(pool))).to.be.true;
+    expect(await ctx.program.account.weekPool.fetchNullable(pool)).to.equal(
+      null
+    );
+
+    await createWeekPool(ctx, week);
+
+    const p = await fetchWeekPool(ctx, week);
+    expect(p.week).to.equal(week);
+    expect(p.vault.equals(vault)).to.be.true;
+    expect(p.settled).to.be.false;
+    expect(p.topLen).to.equal(0);
+    expect(await ctx.tokenBalance(pool)).to.equal(0n);
+  });
+
+  it("create_week_pool still refuses a vault that is not the pool's own", async () => {
+    const week = X + 6;
+    const pool = weekPda(ctx.programId, week);
+    // Mallory's own token account: the right mint, but the wrong owner and
+    // the wrong address for this pool's vault.
+    await ctx.mintTo(mallory.publicKey, 0n);
+    const ix = await ctx.program.methods
+      .createWeekPool(week)
+      .accountsPartial({
+        payer: mallory.publicKey,
+        skrMint: ctx.mint,
+        vault: ctx.ata(mallory.publicKey),
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .instruction();
+    let err = "";
+    try {
+      await ctx.send([ix], [mallory]);
+    } catch (e: any) {
+      err = e.message;
+    }
+    expect(err).to.not.equal("");
+    expect(await ctx.program.account.weekPool.fetchNullable(pool)).to.equal(
+      null
+    );
+  });
+
+  it("settle_week refuses to roll a week's remainder into a next week that is already settled", async () => {
+    // Nothing orders settlements but the clock, and anyone may call
+    // settle_week, so X + 1 can be settled while X still waits. X + 1 has
+    // no records, so it pays no one and rolls alice's ticket share on to
+    // X + 2.
+    await warpTo(ctx, weekEnd(X + 1) + 900);
+    await settleWeek(ctx, ctx.server, X + 1, []);
+    expect((await fetchWeekPool(ctx, X + 1)).settled).to.equal(true);
+    expect(await ctx.tokenBalance(weekPda(ctx.programId, X + 1))).to.equal(
+      0n
+    );
+
+    let err = "";
+    try {
+      await settleWeek(ctx, ctx.server, X, []);
+    } catch (e: any) {
+      err = e.message;
+    }
+    expect(err).to.contain("NextWeekAlreadySettled");
+
+    // X keeps its balance and stays open, instead of paying it into a
+    // settled vault that nothing ever empties again.
+    expect((await fetchWeekPool(ctx, X)).settled).to.equal(false);
+    expect(await ctx.tokenBalance(weekPda(ctx.programId, X))).to.equal(
+      1_000_000n
+    );
+    expect(await ctx.tokenBalance(weekPda(ctx.programId, X + 1))).to.equal(
+      0n
+    );
+  });
+
+  // Runs after the test above: X + 1 is settled and the clock sits at its
+  // settle time.
+  it("submit_daily_best refuses a record for a week that is already settled", async () => {
+    // Recording a day closes before settling its week opens only while
+    // both read the same grace_seconds. Raising the grace after X + 1
+    // settled reopens alice's ticket day, so without the settled check
+    // this record would land in a top list that has already been paid
+    // out. `config` is shared with every other test file, so the grace
+    // goes back no matter how the record turns out.
+    let err = "";
+    try {
+      await ctx.send(
+        [
+          await ctx.program.methods
+            .updateConfig({ ...configArgs(ctx), graceSeconds: 900 + 3600 })
+            .accounts({ admin: ctx.admin.publicKey })
+            .instruction(),
+        ],
+        [ctx.admin]
+      );
+      try {
+        await submit(ctx, ctx.alice, sunday, 10);
+      } catch (e: any) {
+        err = e.message;
+      }
+    } finally {
+      await ctx.send(
+        [
+          await ctx.program.methods
+            .updateConfig(configArgs(ctx))
+            .accounts({ admin: ctx.admin.publicKey })
+            .instruction(),
+        ],
+        [ctx.admin]
+      );
+    }
+    expect(err).to.contain("AlreadySettled");
+    expect((await fetchWeekPool(ctx, X + 1)).topLen).to.equal(0);
   });
 });

@@ -5,6 +5,7 @@ from `programs/` with the project's ts-node runner (already a
 dependency via `ts-mocha`):
 
 ```
+export KEYS_DIR=<your keys dir>           # required, see "Env vars" below
 npx ts-node scripts/devnet-init.ts        # or: npm run devnet:init
 npx ts-node scripts/create-week-pools.ts  # or: npm run devnet:pools
 npx ts-node scripts/smoke-test.ts         # or: npm run devnet:smoke
@@ -19,12 +20,14 @@ exist, and `smoke-test.ts` needs the current week's pool to exist.
 
 ## Env vars
 
-- `KEYS_DIR` - default `/mnt/d/dev/keys`. Directory holding
-  `admin.json` and `server-authority.json` (`init-catalog.ts` reads
-  only `admin.json`). Never commit this directory or print its contents.
+- `KEYS_DIR` - required, no default: `KEYS_DIR=<your keys dir>`, the
+  directory holding `admin.json` and `server-authority.json`
+  (`create-week-pools.ts`, `init-catalog.ts` and `set-prices.ts` read
+  only `admin.json`). Every script stops with a clear error when it is
+  unset. Never commit this directory or print its contents.
 - `ANCHOR_PROVIDER_URL` - default `https://api.devnet.solana.com`.
 
-All four scripts share their bootstrap (`loadKeypair`, `configPda`,
+All five scripts share their bootstrap (`loadKeypair`, `configPda`,
 `weekPda`, `loadProgram`) via `common.ts`; it is not run directly.
 
 ## What each script does
@@ -98,8 +101,8 @@ The 16-row `Catalog` at the old single-seed PDA `["catalog"]`
 since 2026-09-23 - its layout cannot hold the grown, 64-row `Catalog`, so
 the versioned seed moved the account rather than migrating it in place.
 
-Secret keys for `ADMIN` and `SERVER_AUTHORITY` live only under
-`/mnt/d/dev/keys/` (`admin.json`, `server-authority.json`,
+Secret keys for `ADMIN` and `SERVER_AUTHORITY` live only in your keys
+directory (`admin.json`, `server-authority.json`,
 `program-keypair.json`) - never committed, never printed.
 
 ## Deploying / redeploying the program
@@ -110,7 +113,7 @@ upgrade) to devnet with an explicit override instead:
 
 ```
 anchor build --arch v1
-anchor deploy --provider.cluster devnet --provider.wallet /mnt/d/dev/keys/admin.json
+anchor deploy --provider.cluster devnet --provider.wallet "$KEYS_DIR/admin.json"
 solana program show G1vEN2CY1KfjPia3hD7MALBwseSRUfrcBivxfKKGqset --url devnet
 ```
 

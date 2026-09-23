@@ -21,8 +21,8 @@
  *   (or `npm run devnet:smoke`)
  *
  * Env:
- *   KEYS_DIR             default /mnt/d/dev/keys - reads admin.json and
- *                        server-authority.json.
+ *   KEYS_DIR             required - your keys directory; reads admin.json
+ *                        and server-authority.json.
  *   ANCHOR_PROVIDER_URL  default https://api.devnet.solana.com
  */
 import {
