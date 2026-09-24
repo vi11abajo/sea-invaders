@@ -9,8 +9,8 @@ export interface Pos {
   row: number;
   /**
    * Template column, counted from the template's own column 0 — not from its first used column, so
-   * two cells one gap apart are always one column apart whichever rows they sit on. A later task
-   * reads neighbourhoods (the herald's aura) straight off `row`/`col`.
+   * two cells one gap apart are always one column apart whichever rows they sit on. The herald's aura
+   * reads neighbourhoods straight off `row`/`col`.
    */
   col: number;
   /** Template tier, 0 on the bottom row up to 4 on the top one; `spawnFormation` turns it into a kind. */
@@ -18,7 +18,7 @@ export interface Pos {
 }
 
 /**
- * How a wave carrying a silhouette moves (spec §3). `march` is the classic block of core v10 and
+ * How a wave carrying a silhouette moves. `march` is the classic block of core v10 and
  * every static silhouette keeps it, byte for byte; the three living behaviours are separate code
  * paths in `sim/living.ts` that only ever run for their own shape.
  */
@@ -33,7 +33,7 @@ export type FormationBehaviour = 'march' | 'rotate' | 'split' | 'reform';
 export const MARCH_MARGIN = 400;
 
 /**
- * Where a formation's slot offsets hang off (spec §3): the field's centre line at the top row's
+ * Where a formation's slot offsets hang off: the field's centre line at the top row's
  * depth, which is exactly where `formationPositions` centres every template. A wave's origin
  * marches with it, so a reform can drop the spearhead onto the origin and land it where the wave
  * actually stands.
@@ -42,7 +42,7 @@ export const FORMATION_ORIGIN = { x: idiv(FIELD_W, 2), y: CRAB.startY } as const
 
 /** A template of this many rows uses `TALL_GAP_Y`, so it still fits the field. */
 const TALL_ROWS = 7;
-/** Rows in the tallest template the spec allows; it uses `TALLEST_GAP_Y`. */
+/** Rows in the tallest template used by any silhouette; it uses `TALLEST_GAP_Y`. */
 const TALLEST_ROWS = 8;
 /** Row gap for a 7-row template; shorter ones keep `CRAB.gapY`. */
 const TALL_GAP_Y = 560;
@@ -54,7 +54,7 @@ const TALL_GAP_Y = 560;
 const TALLEST_GAP_Y = 500;
 
 /**
- * The silhouettes a campaign wave takes the field in (spec §2 for the first eight, spec §3 for the
+ * The silhouettes a campaign wave takes the field in (the first eight from the first campaign, the
  * nine the second campaign adds). Each is a block of equal-width rows, `.` for an empty cell and a
  * digit for a crab's tier — 4 on the top row down to 0 on the bottom, which `spawnFormation` reads
  * off as the kind through the level's reef pool. The drawings are the data: a shape change edits
@@ -215,7 +215,7 @@ export const FORMATION_TEMPLATES: Record<Formation, readonly string[]> = {
 };
 
 /**
- * How each silhouette moves (spec §3): the whirlpool turns on its two rings, the claws split into
+ * How each silhouette moves: the whirlpool turns on its two rings, the claws split into
  * halves that march apart, the manta falls back into the spearhead when it is halved. Everything
  * else — every shape of the first campaign, the five new static ones and the spearhead a reformed
  * wave ends up in — marches as the classic block.
@@ -228,7 +228,7 @@ export const FORMATION_BEHAVIOUR: Record<Formation, FormationBehaviour> = {
 };
 
 /**
- * The shape a reforming wave falls back into (spec §3). It is a template, never a wave's own
+ * The shape a reforming wave falls back into. It is a template, never a wave's own
  * silhouette: it is missing from `FORMATIONS` on purpose, so no level chain can ever list it.
  */
 export const REFORM_TARGET: Formation = 'spearhead';
@@ -236,7 +236,7 @@ export const REFORM_TARGET: Formation = 'spearhead';
 /** Every template, including the reform target: the list a template-shape check walks. */
 export const ALL_FORMATIONS: readonly Formation[] = Object.keys(FORMATION_TEMPLATES) as Formation[];
 
-/** Every silhouette a level's wave chain may draw on, in the order the spec lists them. */
+/** Every silhouette a level's wave chain may draw on, in the order `FORMATION_TEMPLATES` declares them. */
 export const FORMATIONS: readonly Formation[] = ALL_FORMATIONS.filter((f) => f !== REFORM_TARGET);
 
 /**
@@ -252,8 +252,8 @@ export function formationGapX(formation: Formation): number {
 }
 
 /**
- * Two rings over the whirlpool's cells as (row, col) pairs, in the order a crab travels them (spec
- * §3): the outer one clockwise, the inner one the other way. Together they cover every cell of the
+ * Two rings over the whirlpool's cells as (row, col) pairs, in the order a crab travels them: the
+ * outer one clockwise, the inner one the other way. Together they cover every cell of the
  * template exactly once — `sim/living.ts` checks that when it builds its rotation table.
  */
 export const WHIRLPOOL_RINGS: {
@@ -282,7 +282,7 @@ function usedWidth(rows: readonly string[]): { firstCol: number; width: number }
 }
 
 /**
- * Turns a silhouette into crab slots, row by row and left to right (spec §2). The template's used
+ * Turns a silhouette into crab slots, row by row and left to right. The template's used
  * width — last used column minus first used column, plus one — sets the column gap: `CRAB.gapX`
  * unless that would leave less than `MARCH_MARGIN` on each side of the field, in which case it
  * compresses (6 wide keeps 800, 8 wide drops to 613). The block is centred on the field, and rows

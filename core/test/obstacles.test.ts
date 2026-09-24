@@ -12,7 +12,7 @@ function arena(): GameState {
   return s;
 }
 
-/** The Castellan's crystal (spec §5.2): a 500 x 700 box of 12 hit points. */
+/** The Castellan's crystal: a 500 x 700 box of 12 hit points. */
 function crystal(s: GameState, x: number, y: number): void {
   raiseObstacle(s, 'crystal', x, y, 500, 700, 12);
 }

@@ -37,7 +37,7 @@ export function hashState(s: GameState): string {
   else h.int(-1);
   h.int(s.drops.length);
   for (const d of s.drops) h.int(d.x).int(d.y).int(BOOST_INDEX[d.boost]).int(d.ttl);
-  // The campaign wave's living state (spec §3), appended last so every older field keeps its place.
+  // The campaign wave's living state, appended last so every older field keeps its place.
   // The slot list itself is not hashed. Its positions follow from the wave's silhouette and its
   // `reformed` flag, and which crab holds which slot is already in each crab's `slot` above. Its kinds
   // do NOT all follow that way: a whirlpool's `rotate` (`sim/living.ts`) moves `slots[].type` round
@@ -53,7 +53,7 @@ export function hashState(s: GameState): string {
   } else {
     h.int(-1);
   }
-  // The veteran skill state (spec §2), appended after everything above so every older field keeps
+  // The veteran skill state, appended after everything above so every older field keeps
   // its place: the formation's rage, the kinds a daily/practice grid wave's rows spawned with (what
   // a patriarch's rally brings back), and each crab's rally mark. The crab count is already hashed
   // with the crabs themselves, so the trailing per-crab run below is unambiguous.
@@ -61,14 +61,14 @@ export function hashState(s: GameState): string {
   h.int(s.gridRows.length);
   for (const t of s.gridRows) h.int(TYPE_INDEX[t]);
   for (const c of s.crabs) h.int(c.revived);
-  // The boss arena of reefs 6-10 (spec §5.1/§5.2), appended after everything above so every older
+  // The boss arena of reefs 6-10, appended after everything above so every older
   // field keeps its place: the squads, the arena objects, the Tyrant's lanes, the cold snap, the
   // Huntsman's sight lines, the eight new `BossState` fields (in their own guarded block, so a
   // round with no boss is unambiguous exactly as the older boss block is), and each crab's squad
   // cell. The crab count is already hashed with the crabs themselves, so the trailing per-crab run
   // is unambiguous.
   h.int(s.squads.length);
-  // `bossKind`/`alive` (fix round 1, controller ruling R22) are appended after `id`/`dir` so every
+  // `bossKind`/`alive` are appended after `id`/`dir` so every
   // older field keeps its place; a state with no squad on it hashes the same `0` length as before and
   // never reaches this line at all.
   for (const q of s.squads) h.int(q.id).int(q.dir).int(q.bossKind).int(q.alive);
@@ -87,13 +87,13 @@ export function hashState(s: GameState): string {
     h.int(-1);
   }
   for (const c of s.crabs) h.int(c.cell);
-  // `destroyedObstacles` (fix round 1, controller ruling R18), appended last of all so every older
+  // `destroyedObstacles`, appended last of all so every older
   // field keeps its place: a sim-internal, single-tick channel that is empty at the start and the
   // end of every tick but a boss's own destroying one, so it is usually empty and this usually costs
   // one int.
   h.int(s.destroyedObstacles.length);
   for (const o of s.destroyedObstacles) h.int(o.x).int(o.y);
-  // Coraluna's Surge counter (champions and skins spec §1), appended last so every older field keeps
+  // Coraluna's Surge counter, appended last so every older field keeps
   // its place; it stays 0 for every other variant, so their runs only gain this one trailing int.
   h.int(s.surgeKills);
   return h.digest();

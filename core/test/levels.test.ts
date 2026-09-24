@@ -5,7 +5,7 @@ import {
   type CrabType, type Formation,
 } from '../src';
 
-/** The level table of spec §2, transcribed here so a table edit has to be deliberate. */
+/** The level table, transcribed here so a table edit has to be deliberate. */
 const TABLE: ReadonlyArray<readonly [number, number, Formation]> = [
   [1, 2, 'classic'], [2, 2, 'fish'], [3, 3, 'diamond'], [4, 3, 'jellyfish'], [5, 4, 'wreck'],
   [7, 3, 'classic'], [8, 3, 'shell'], [9, 3, 'fish'], [10, 4, 'ring'], [11, 4, 'octopus'],
@@ -14,7 +14,7 @@ const TABLE: ReadonlyArray<readonly [number, number, Formation]> = [
   [25, 4, 'jellyfish'], [26, 5, 'shell'], [27, 5, 'diamond'], [28, 5, 'octopus'], [29, 5, 'wreck'],
 ];
 
-/** The reefs 6-10 chain table of spec §4, transcribed here the same way. */
+/** The reefs 6-10 chain table, transcribed here the same way. */
 const REEF_TABLE: ReadonlyArray<readonly [number, number, Formation]> = [
   [31, 4, 'wreck'], [32, 5, 'manta'], [33, 5, 'whirlpool'], [34, 5, 'shell'], [35, 5, 'wreck'],
   [37, 4, 'trident'], [38, 5, 'diamond'], [39, 5, 'manta'], [40, 5, 'classic'], [41, 5, 'jellyfish'],
@@ -34,7 +34,7 @@ describe('LEVELS', () => {
       expect(l.reef).toBe(Math.floor((l.id - 1) / 6) + 1);
       expect(l.index).toBe(((l.id - 1) % 6) + 1);
       const indexOffset = l.boss ? 0 : l.index - 1;
-      // Controller ruling R36: reefs 1-5 keep the first campaign's own offset formula, reefs 6-10
+      // Reefs 1-5 keep the first campaign's own offset formula, reefs 6-10
       // use the second campaign's.
       if (l.reef <= 5) {
         expect(l.speedOffset).toBe(3 * (l.reef - 1) + indexOffset);
@@ -50,7 +50,7 @@ describe('LEVELS', () => {
 
   it('gives no boss level a wave, so a boss round is only ever a boss and its squads', () => {
     // `marchCrabs` hands the whole tick to `marchSquads` as soon as a squad stands, on the strength
-    // of a boss round never carrying a wave (spec §5.1). Were a boss level ever given waves, wave
+    // of a boss round never carrying a wave. Were a boss level ever given waves, wave
     // crabs and squad crabs would share `s.crabs`, the wave would stop marching and its invasion
     // check would stop running — a silent hang rather than a crash. This pins the premise as data:
     // the day someone gives a boss level a wave, this fails instead of the game.
@@ -180,7 +180,7 @@ describe('the intro-level rule (spec §4)', () => {
     }
   });
 
-  it("level 31's wave 1 fields no veteran and wave 2 fields a warden (R42)", () => {
+  it("level 31's wave 1 fields no veteran and wave 2 fields a warden", () => {
     const VETERANS: readonly CrabType[] = ['warden', 'herald', 'bubbler', 'bombardier', 'patriarch'];
     const s = createGame(levelSeed('golden', 31), campaign(31));
     expect(s.wave).toBe(1);
@@ -203,16 +203,16 @@ describe('boss rows 36/42/48/54/60', () => {
     }
   });
 
-  it('spawns the boss of its own kind the instant the level starts (R42)', () => {
+  it('spawns the boss of its own kind the instant the level starts', () => {
     const s = createGame(levelSeed('golden', 60), campaign(60));
     expect(s.boss?.kind).toBe(10);
   });
 });
 
-/** The nine new silhouettes reefs 6-10 add, minus `spearhead` (never a chain entry): spec §4. */
+/** The nine new silhouettes reefs 6-10 add, minus `spearhead` (never a chain entry). */
 const NEW_SHAPES: readonly Formation[] = ['trident', 'anchor', 'turtle', 'crown', 'starfish', 'whirlpool', 'claws', 'manta'];
 
-/** The three living silhouettes among the new shapes (spec §3). */
+/** The three living silhouettes among the new shapes. */
 const LIVING_SHAPES: readonly Formation[] = ['whirlpool', 'claws', 'manta'];
 
 describe('reefs 6-10 chain rules (spec §4, test not generation)', () => {
@@ -251,8 +251,8 @@ describe('reefs 6-10 chain rules (spec §4, test not generation)', () => {
 
 describe('kindForTier', () => {
   /**
-   * Expected kind index per tier 0..4, one row per pool size n = 1..5 (spec §2, amended
-   * 2026-09-17). The n = 4 row ends 3, 3: reef 4 fields red crabs on both of its top tiers.
+   * Expected kind index per tier 0..4, one row per pool size n = 1..5. The n = 4 row ends 3, 3:
+   * reef 4 fields red crabs on both of its top tiers.
    */
   const EXPECTED: ReadonlyArray<readonly number[]> = [
     [0, 0, 0, 0, 0],

@@ -7,7 +7,7 @@ import {
 import type { BossState, BoostType, GameState } from '../src';
 
 /**
- * Abyssal Huntsman, boss kind 10 (spec §5.2 row 10), the last of the five reefs 6-10 bosses.
+ * Abyssal Huntsman, boss kind 10, the last of the five reefs 6-10 bosses.
  * `sim/bosses/huntsman.ts`'s own doc comment explains the sight line / needle / burst rhythm, the
  * decoy geometry (Void Sovereign's own `castClone` formula, copied rather than imported), the
  * honour guard, the Mirror's three boost classes and the RNG draw order pinned here.
@@ -111,7 +111,7 @@ describe('Abyssal Huntsman — the sight line and the needle', () => {
     expect(needle!.vx).toBe(idiv(dx * NEEDLE_SPEED, len)); // aimed at the ORIGINAL (2000, 6000)
     expect(needle!.vy).toBe(idiv(dy * NEEDLE_SPEED, len));
     expect(b.burst).toBe(0); // phase 1: one needle, no re-aim
-    expect(s.events.filter((e) => e.type === 'boss_aim')).toHaveLength(1); // one line, one boss_aim (ruling R51)
+    expect(s.events.filter((e) => e.type === 'boss_aim')).toHaveLength(1); // one line, one boss_aim
   });
 
   it('flies the needle at ×1.25 while the control mirror is up', () => {
@@ -156,7 +156,7 @@ describe('Abyssal Huntsman — the burst from phase 2', () => {
     expect(s.aims[5]).toBe(12);
     expect(s.aims[2]).toBe(1000);
     expect(s.aims[3]).toBe(5500);
-    expect(s.events.filter((e) => e.type === 'boss_aim')).toHaveLength(2); // ruling R51: every line, not just the opener
+    expect(s.events.filter((e) => e.type === 'boss_aim')).toHaveLength(2); // every line, not just the opener
 
     s.octopi.x = 3000; // Octopi moves before the second re-aim
     s.octopi.y = 8000;
@@ -175,7 +175,7 @@ describe('Abyssal Huntsman — the burst from phase 2', () => {
   });
 });
 
-describe('Abyssal Huntsman — one hunt at a time (ruling R34)', () => {
+describe('Abyssal Huntsman — one hunt at a time', () => {
   it('does nothing when attack is called while a line is still live: no new line, no redraw of the target, no draw', () => {
     const s = arena();
     const b = park(s);
@@ -262,7 +262,7 @@ describe('Abyssal Huntsman — the honour guard (phase 4)', () => {
     expect(s.squads).toHaveLength(1);
     const guard = s.squads[0]!;
     expect(guard.alive).toBe(5);
-    expect(guard.dir).toBe(1); // a fixed direction, no draw (ruling R50, fix round 1)
+    expect(guard.dir).toBe(1); // a fixed direction, no draw
     const crabs = s.crabs.filter((c) => c.squad === guard.id);
     expect(crabs).toHaveLength(5);
     expect(crabs.map((c) => c.type).sort()).toEqual([...HUNTSMAN_GUARD].sort());
@@ -306,7 +306,7 @@ describe('Abyssal Huntsman — Mirror boost classes (spec §5.2)', () => {
   it('lands durations of 600, 466 and 300 (0/-1 overridden) across the fifteen', () => {
     expect(BOOSTS.RAPID_FIRE.duration).toBe(600);
     expect(BOOSTS.AUTO_TARGET.duration).toBe(466);
-    expect(BOOSTS.HEALTH_BOOST.duration).toBe(0); // -> 300 when mirrored (ruling R26)
+    expect(BOOSTS.HEALTH_BOOST.duration).toBe(0); // -> 300 when mirrored
     expect(BOOSTS.SHIELD_BARRIER.duration).toBe(-1); // -> 300 when mirrored
     expect(BOOSTS.WAVE_BLAST.duration).toBe(0); // -> 300 when mirrored
     expect(BOOSTS.SPEED_TAMER.duration).toBe(-1); // -> 300 when mirrored
@@ -408,7 +408,7 @@ describe('Abyssal Huntsman — the defence mirror\'s shield', () => {
   it('drops the shield the instant its own mirror timer runs out, even with hits unused', () => {
     const s = arena();
     const b = park(s);
-    BOSS_HOOKS[10].onBoostPickup!(s, b, 'SHIELD_BARRIER'); // duration -1 -> 300 (ruling R26)
+    BOSS_HOOKS[10].onBoostPickup!(s, b, 'SHIELD_BARRIER'); // duration -1 -> 300
     expect(b.mirror[1]).toBe(300);
     expect(b.shieldHp).toBe(40);
     ticks(s, 300);
@@ -420,7 +420,7 @@ describe('Abyssal Huntsman — the defence mirror\'s shield', () => {
   });
 });
 
-describe('Abyssal Huntsman — a phase transition drops the aim, never the mirror (rulings R33/R26)', () => {
+describe('Abyssal Huntsman — a phase transition drops the aim, never the mirror', () => {
   it('drops the aim and the burst the moment the fight transitions', () => {
     const s = arena();
     const b = park(s);
@@ -447,7 +447,7 @@ describe('Abyssal Huntsman — a phase transition drops the aim, never the mirro
   });
 });
 
-describe('Abyssal Huntsman — the Mirror is not a timed ability (ruling R31)', () => {
+describe('Abyssal Huntsman — the Mirror is not a timed ability', () => {
   it('returns a fixed timer from both slots, with no draw at all', () => {
     const hooks = BOSS_HOOKS[10];
     const rng = scriptedRng({});
@@ -473,7 +473,7 @@ describe('Abyssal Huntsman — the Mirror is not a timed ability (ruling R31)', 
   });
 });
 
-describe('Abyssal Huntsman — Mirror wiring (sim/boosts.ts, ruling R25)', () => {
+describe('Abyssal Huntsman — Mirror wiring (sim/boosts.ts)', () => {
   it('mirrors a real pickup consumed through updateBoosts', () => {
     const s = createGame('huntsman-mirror-wiring', { ...PRACTICE_RUN, features: { boosts: true } });
     s.crabs = [];
@@ -492,7 +492,7 @@ describe('Abyssal Huntsman — Mirror wiring (sim/boosts.ts, ruling R25)', () =>
     const b = s.boss!;
     // Every draw comes back 0: the chaos roll lands on CHAOS_POOL[0] = RAPID_FIRE, an offence boost —
     // exactly the case that would wrongly set b.mirror[0] if the hook read `result.type` instead of
-    // the drop's own `d.boost` (ruling R25).
+    // the drop's own `d.boost`.
     s.rngBoosts = scriptedRng({}).rng;
     s.drops.push({ x: s.octopi.x, y: s.octopi.y, boost: 'RANDOM_CHAOS', ttl: 100 });
     updateBoosts(s);
@@ -519,7 +519,7 @@ describe('Abyssal Huntsman — Mirror wiring (sim/boosts.ts, ruling R25)', () =>
   });
 });
 
-describe('Abyssal Huntsman — the Mirror refreshes, never stacks (ruling R26)', () => {
+describe('Abyssal Huntsman — the Mirror refreshes, never stacks', () => {
   it('resets the offence mirror\'s duration and halves whatever the attack timer currently is, on a repeat pickup', () => {
     const s = arena();
     const b = park(s);
@@ -556,7 +556,7 @@ describe('Abyssal Huntsman — the Mirror refreshes, never stacks (ruling R26)',
 });
 
 describe('Abyssal Huntsman — the RNG draw order', () => {
-  it('draws facing then the attack jitter at spawn; the ability timer draws nothing (ruling R31)', () => {
+  it('draws facing then the attack jitter at spawn; the ability timer draws nothing', () => {
     const s = createGame('huntsman-order', { ...PRACTICE_RUN, features: { boosts: false } });
     s.crabs = [];
     const rng = scriptedRng({});
@@ -575,7 +575,7 @@ describe('Abyssal Huntsman — the RNG draw order', () => {
     expect(rng.log).toEqual([BOSS.attackJitter]);
   });
 
-  it('draws nothing at all on the way to phase 4: the honour guard\'s direction is fixed (ruling R50)', () => {
+  it('draws nothing at all on the way to phase 4: the honour guard\'s direction is fixed', () => {
     const s = arena();
     park(s);
     const rng = scriptedRng({});

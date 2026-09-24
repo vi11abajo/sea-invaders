@@ -8,7 +8,7 @@ function abilityTimer(rng: Rng): number {
 }
 
 /**
- * Crimson Behemoth (`crabBossRed`, kind 4, spec §4.2 row 4): meteor volleys that grow from one
+ * Crimson Behemoth (`crabBossRed`, kind 4): meteor volleys that grow from one
  * shot in phase 1 to three in phase 3, then the 12-shot berserk ring in phase 4. Its rage ability
  * (`ability`/`tick` below) scales every shot speed via `rageMult` and the attack cadence via
  * `rageDelay` (both in `boss.ts`, already wired into `updateBoss`), plus the boss's own march

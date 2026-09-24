@@ -7,17 +7,17 @@ import {
 import type { BossState, GameState } from '../src';
 
 /**
- * Storm Tyrant, boss kind 9 (spec §5.2 row 9). Every number below is the spec's or the task brief's,
- * in ticks at 60 Hz. `sim/bosses/tyrant.ts`'s own doc comment explains the lane math, the fixed draw
+ * Storm Tyrant, boss kind 9. Every number below is in ticks at 60 Hz.
+ * `sim/bosses/tyrant.ts`'s own doc comment explains the lane math, the fixed draw
  * count and walk-forward distinctness rule, why the lanes/discharge countdown lives in a new
  * `tickThroughTransition` hook instead of the ordinary `tick`, the kind-gated `dischargeMult`
  * (`sim/boss.ts`, the same idiom as `rageMult`), the escort roster and the RNG draw order pinned here.
  *
- * The task brief's own illustration of the warning formula ("2 lanes / 75 ticks in phase 1, 3 / 55 in
+ * One illustration of the warning formula ("2 lanes / 75 ticks in phase 1, 3 / 55 in
  * phase 2, 3 / 45 in phase 3, 4 / 35 in phase 4") does not match the formula it is illustrating —
  * `75 − 10·phase` gives 65, not 75, for phase 1 (`75 − 10·1 = 65`); every later value (55/45/35) does
- * match. Both the task text and the design spec state the same formula, identically, twice, so the
- * formula is treated as authoritative and the phase-1 illustration as a slip; `65` is what this file
+ * match. The formula itself is correct wherever else it appears, so it is treated as
+ * authoritative and the phase-1 illustration as a slip; `65` is what this file
  * pins for phase 1.
  */
 
@@ -254,7 +254,7 @@ describe('Storm Tyrant — a lane strike', () => {
     expect(s.crabs).toHaveLength(1);
     expect(s.crabs[0]!.x).toBe(right!.x);
     expect(s.kills).toBe(killsBefore + 1);
-    expect(s.score).toBeGreaterThan(scoreBefore); // spec §5.1: squad crabs score normally
+    expect(s.score).toBeGreaterThan(scoreBefore); // squad crabs score normally
     expect(s.squads[0]!.alive).toBe(1);
   });
 
@@ -455,7 +455,7 @@ describe('Storm Tyrant — escort', () => {
     expect(TYRANT_ESCORT).toEqual(['bombardier', 'bombardier', 'bombardier', 'bombardier', 'bombardier']);
   });
 
-  describe('fix round 1 — the escort cap (ruling R24)', () => {
+  describe('the escort cap', () => {
     it('spawns no pair at a phase start with 4 squad crabs already live', () => {
       const s = arena();
       park(s);

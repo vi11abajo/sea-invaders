@@ -9,14 +9,14 @@ const HALF = CRAB.size / 2;
 const inside = (p: { x: number; y: number }) =>
   p.x - HALF >= 0 && p.x + HALF <= FIELD_W && Number.isInteger(p.x) && Number.isInteger(p.y);
 
-/** Crab count per template: the eight of spec §2 and the nine of the second campaign's spec §3. */
+/** Crab count per template: the eight of the first campaign and the nine the second campaign adds. */
 const COUNTS: Record<Formation, number> = {
   classic: 36, fish: 29, diamond: 32, ring: 28, jellyfish: 48, octopus: 42, shell: 34, wreck: 30,
   trident: 30, anchor: 30, turtle: 34, crown: 34, starfish: 30,
   whirlpool: 28, claws: 32, manta: 36, spearhead: 18,
 };
 
-/** The behaviour each silhouette marches with, spec §3: three live, the rest march. */
+/** The behaviour each silhouette marches with: three live, the rest march. */
 const BEHAVIOURS: Record<Formation, FormationBehaviour> = {
   classic: 'march', fish: 'march', diamond: 'march', ring: 'march', jellyfish: 'march',
   octopus: 'march', shell: 'march', wreck: 'march', trident: 'march', anchor: 'march',
@@ -24,9 +24,9 @@ const BEHAVIOURS: Record<Formation, FormationBehaviour> = {
   whirlpool: 'rotate', claws: 'split', manta: 'reform',
 };
 
-/** The tighter row gap a 7-row template uses, spec §2. */
+/** The tighter row gap a 7-row template uses. */
 const TALL_GAP_Y = 560;
-/** The tightest row gap, used by an 8-row template so its bottom row lands on the old grid's, spec §2. */
+/** The tightest row gap, used by an 8-row template so its bottom row lands on the old grid's. */
 const TALLEST_GAP_Y = 500;
 /** Where the old six-row grid's bottom row sat, and the deepest any silhouette may settle. */
 const DEEPEST_ROW_Y = 5000;
@@ -162,7 +162,7 @@ describe('formation templates', () => {
 });
 
 describe('the whirlpool rings', () => {
-  /** The two ring orders of spec §3, transcribed here so a reordering has to be deliberate. */
+  /** The two ring orders, transcribed here so a reordering has to be deliberate. */
   const OUTER: ReadonlyArray<readonly [number, number]> = [
     [0, 2], [0, 3], [0, 4], [0, 5], [1, 6], [2, 7], [3, 7], [4, 7], [5, 7], [6, 6],
     [7, 5], [7, 4], [7, 3], [7, 2], [6, 1], [5, 0], [4, 0], [3, 0], [2, 0], [1, 1],

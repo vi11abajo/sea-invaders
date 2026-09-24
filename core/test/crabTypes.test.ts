@@ -7,7 +7,7 @@ import {
 
 /**
  * A crab of `type` at its spawn hp and colour, the way `spawnCrab` (game.ts) builds one: every
- * veteran field neutral except a warden's shield, which starts up (spec §2's rune shield).
+ * veteran field neutral except a warden's shield, which starts up (the warden's rune shield).
  */
 function crab(type: CrabType, x = 2812, y = 1500): Crab {
   return {
@@ -129,7 +129,7 @@ describe('crab kinds', () => {
     const s = createGame('t', PRACTICE_RUN);
     spawnWave(s, 5); // the widest daily/practice pool: all five legacy kinds can come up
     expect(s.crabs.length).toBeGreaterThan(0);
-    // A grid wave takes the cell it stands in as its slot (spec §2: the herald's neighbourhood and
+    // A grid wave takes the cell it stands in as its slot (the herald's neighbourhood and
     // the patriarch's rally need one off the formation too); every other veteran field stays neutral.
     s.crabs.forEach((c, i) => {
       expect(c).toMatchObject({ slot: i, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 });
@@ -138,7 +138,7 @@ describe('crab kinds', () => {
     expect(s.gridRows).toHaveLength(5);
     const l = levelById(25); // reef 5: all five legacy kinds, one per tier
     spawnFormation(s, { formation: l.formation, kinds: l.kinds });
-    // A campaign wave takes its formation slot (spec §3); every other veteran field stays neutral.
+    // A campaign wave takes its formation slot; every other veteran field stays neutral.
     s.crabs.forEach((c, i) => {
       expect(c).toMatchObject({ slot: i, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 });
     });
@@ -203,7 +203,7 @@ describe('spawnFormation', () => {
 });
 
 describe('hashState', () => {
-  it('is sensitive to every veteran field appended after hp (spec §7 ruling)', () => {
+  it('is sensitive to every veteran field appended after hp', () => {
     const base = () => createGame('hash-veteran', PRACTICE_RUN);
     const s0 = base();
     const same = base();

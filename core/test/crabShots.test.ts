@@ -69,7 +69,7 @@ describe('CRAB_SHOTS for the veterans (spec §2)', () => {
     expect(CRAB_SHOTS.bombardier).toEqual({ kind: 'charge', speed: 100, damage: 2 });
 
     // A charge is fired the way a legacy crab shot is, aimed at Octopi and dead ahead here so vx is
-    // 0; a bubble sinks and drifts on its own instead (spec §2, covered in veterans.test.ts).
+    // 0; a bubble sinks and drifts on its own instead (covered in veterans.test.ts).
     const bubble = fire('bubbler').enemyShots[0]!;
     expect({ kind: bubble.kind, vy: bubble.vy, drift: Math.abs(bubble.vx) })
       .toEqual({ kind: 'bubble', vy: 60, drift: 30 });

@@ -66,17 +66,17 @@ const DODGE_COLUMNS = Array.from(
 /**
  * After holding the same dodge column this long, that column is dropped from consideration for
  * one pick: dwelling in one corner lets shots fired over many ticks all converge on it. It stands
- * at 7 today, after three retunings. It first went from 8 to 5 across Phase 3A.1 lane C's two fix
- * rounds: the boost-table-size changes (RICOCHET removed, WAVE_BLAST scoped to the bottom row, the
- * RANDOM_CHAOS pool widened) and, in fix round 1, player shots actually moving on both axes (so
+ * at 7 today, after three retunings. It first went from 8 to 5 across two related changes: the
+ * boost-table-size changes (RICOCHET removed, WAVE_BLAST scoped to the bottom row, the
+ * RANDOM_CHAOS pool widened) and player shots actually moving on both axes (so
  * MULTI_SHOT/AUTO_TARGET pickups change which crabs die and when) each shift every subsequent
  * `rngBoosts` draw for the fixed `golden-survivor` seed — an unavoidable side effect of correctly
- * implementing the spec, not a simulation regression. That value was found by sweeping
+ * implementing the intended behaviour, not a simulation regression. That value was found by sweeping
  * dwell/range/column-count against `survivor`, `level6` and `level30` at once and picking one with
  * comfortable margin on `survivor` (~11,400 ticks, not a bare pass over the 6000 floor) that also
  * still clears level 6 and reaches level 30's boss phase 3 — the smallest change from the
- * pre-lane-C values (1500/8/9 columns) that satisfies all three.
- * Retuned again with the game-speed tuning of 2026-09-13 (slower Octopi shots, slower and less
+ * earlier values (1500/8/9 columns) that satisfies all three.
+ * Retuned again with the current game-speed tuning (slower Octopi shots, slower and less
  * trigger-happy crabs), which shifts every draw the same way: the same three-way sweep picked range
  * 1200, dwell 7 and 11 columns (`survivor` ~10,200 ticks, level 6 cleared, level 30 phase 3).
  * Core v8's enemy rework (heavier and faster red shots worth two lives, yellow and violet crabs
@@ -125,7 +125,7 @@ function survivor(): (tick: number, s: GameState) => Input {
 
 /**
  * The run a campaign golden script plays: reef lives, boosts on, base Octopi. Widened from
- * `6 | 30` to `number` (controller ruling R35) so the reefs 6-10 scripts below can share it.
+ * `6 | 30` to `number` so the reefs 6-10 scripts below can share it.
  */
 const CAMPAIGN_RUN = (id: number): RunConfig => ({
   mode: 'campaign', level: levelById(id), lives: 5, features: { boosts: true }, octopi: 'base',
@@ -134,7 +134,7 @@ const CAMPAIGN_RUN = (id: number): RunConfig => ({
 /**
  * One campaign golden script on level `id`: the same `survivor` dodge as `level6`/`level30`,
  * stopping early on `cleared || over` — `ticks: 18_000` is only the fallback cap for that early-exit
- * loop. Shared by the reefs 6-10 scenarios of controller ruling R39 (veterans, living formations,
+ * loop. Shared by the reefs 6-10 scenarios (veterans, living formations,
  * bosses); `level6`/`level30` above predate this helper and are left as they were, byte for byte, so
  * their recorded goldens never move for a reason unrelated to the game itself.
  */
@@ -143,7 +143,7 @@ const campaignScript = (id: number): GoldenScript => ({
 });
 
 /**
- * One champion's golden script (champions and skins spec §1): the `survivor` dodge on level 2 as a
+ * One champion's golden script: the `survivor` dodge on level 2 as a
  * campaign run with that champion equipped, capped at 6000 ticks and stopping early on
  * `cleared || over` like every campaign script, its seed keyed off the level id the same way.
  * All five share level and seed, so each run differs from the others only by its champion.
@@ -172,30 +172,30 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   },
   // The `survivor` input on a boosted daily run: exercises boost pickups/effects end to end. The seed
   // was picked (search, not the sim) for at least 5 boost_pickup events, and is re-picked whenever
-  // the `rngBoosts` draw sequence changes. Until the game-speed tuning of 2026-09-13 this used the
+  // the `rngBoosts` draw sequence changes. Before the current game-speed tuning this used the
   // non-dodging `wander` input, but its runs end too early with it. Core v8's enemy rework moved
   // every draw again and left `golden-boosted-0` with too few pickups, so the search ran once more:
   // `golden-boosted-16` gave 8 pickups over 8171 ticks. Core v11's wave-scaled daily/practice pool
-  // (spec §6: a veteran joins from wave 6 on) moves every `rngWaves` draw again and dropped
+  // (a veteran joins from wave 6 on) moves every `rngWaves` draw again and dropped
   // `golden-boosted-16` to 4, so the search ran a third time, from 0: `golden-boosted-5` gives 5
   // pickups over 6347 ticks.
   boosted: { ticks: 10_800, makeInput: survivor, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-5' },
 
-  // Reefs 6-10 (spec §4, controller ruling R39): veterans, living formations and bosses.
+  // Reefs 6-10: veterans, living formations and bosses.
   // Level 32 (6-2) opens with the manta and doubles as its scenario (`formationsSeen`/
   // `formation_reform` in golden.test.ts); it also fields the warden.
   level32: campaignScript(32), // warden (6-2) + manta (living)
   level33: campaignScript(33), // whirlpool (living)
-  // R39 names level34 for the claws, but claws is that level's *fourth* wave (`shell, ring,
-  // jellyfish, claws, turtle`) and the `survivor` dodge script — never having faced a veteran-laden
-  // wave before, since every earlier golden script is either endless mode or a boss fight — does not
-  // survive that many wave transitions of a reef-6 chain: it dies (`over`) partway through wave 3,
-  // before claws is ever fielded. Level 57 (10-3, `claws, diamond, shell, crown, manta`) opens with
-  // claws instead, so it is fielded the instant the level starts, exactly as `level33`'s whirlpool
-  // and `level32`'s manta are — the same substitution the brief itself pre-authorises for the manta
-  // scenario (name a different level when the assigned one cannot show the behaviour in time), applied
-  // here to the same category of problem for a different living shape.
-  level57: campaignScript(57), // claws (living), replacing R39's level34 — see the comment above
+  // Level34 would be the natural pick for the claws, but claws is that level's *fourth* wave (`shell,
+  // ring, jellyfish, claws, turtle`) and the `survivor` dodge script — never having faced a
+  // veteran-laden wave before, since every earlier golden script is either endless mode or a boss
+  // fight — does not survive that many wave transitions of a reef-6 chain: it dies (`over`) partway
+  // through wave 3, before claws is ever fielded. Level 57 (10-3, `claws, diamond, shell, crown,
+  // manta`) opens with claws instead, so it is fielded the instant the level starts, exactly as
+  // `level33`'s whirlpool and `level32`'s manta are — the same substitution used for the manta
+  // scenario (name a different level when the assigned one cannot show the behaviour in time),
+  // applied here to the same category of problem for a different living shape.
+  level57: campaignScript(57), // claws (living), replacing level34 — see the comment above
   level38: campaignScript(38), // herald
   level44: campaignScript(44), // bubbler
   level50: campaignScript(50), // bombardier
@@ -206,7 +206,7 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   level54: campaignScript(54), // boss 9, the Storm Tyrant
   level60: campaignScript(60), // boss 10, the Abyssal Huntsman
 
-  // The five champions of core v13 (champions and skins spec §1), appended so the older scenarios
+  // The five champions of core v13, appended so the older scenarios
   // keep their order in the golden file.
   'champion-noob': championScript('noob'), // Thick skin
   'champion-coraluna': championScript('coraluna'), // Surge
@@ -224,7 +224,7 @@ export interface PlayResult {
   /** The highest `s.boss.phase` seen at any point during the play (0 if no boss ever spawned). */
   maxBossPhase: number;
   /**
-   * The lowest `s.boss.hp` seen at any point during the play (controller ruling R57): proof a boss
+   * The lowest `s.boss.hp` seen at any point during the play: proof a boss
    * scenario's shots actually landed, not just that a boss stood there. `Infinity` if no boss ever
    * spawned, or if one spawned but was never observed below its own starting hp on any sampled tick
    * (the sentinel is never a real hit point count, so `minBossHp < startingHp` is always the right
@@ -232,14 +232,14 @@ export interface PlayResult {
    */
   minBossHp: number;
   /**
-   * Every crab kind seen alive on any tick of the play (controller ruling R39): what a veteran
+   * Every crab kind seen alive on any tick of the play: what a veteran
    * scenario's assertion checks was actually fielded, sampled from `s.crabs` and never fed back into
    * the play.
    */
   kindsSeen: Set<CrabType>;
-  /** Every formation name `s.formation` carried on any tick (R39): what a living-formation scenario checks. */
+  /** Every formation name `s.formation` carried on any tick: what a living-formation scenario checks. */
   formationsSeen: Set<Formation>;
-  /** Every enemy shot kind seen in `s.enemyShots` on any tick (R39): what the bubbler/Corsair scenarios check. */
+  /** Every enemy shot kind seen in `s.enemyShots` on any tick: what the bubbler/Corsair scenarios check. */
   shotKindsSeen: Set<BulletKind>;
 }
 
@@ -250,9 +250,9 @@ export interface PlayResult {
  * 100 % — both go through this one function so the only difference between the two golden files is
  * the tuning itself.
  *
- * `kindsSeen`/`formationsSeen`/`shotKindsSeen` (controller ruling R39) are sampled once before the
+ * `kindsSeen`/`formationsSeen`/`shotKindsSeen` are sampled once before the
  * first tick and once after every tick, straight off `s.crabs`/`s.formation`/`s.enemyShots` — pure
- * observation, nothing here ever changes what `step` sees or does. `minBossHp` (ruling R57) is
+ * observation, nothing here ever changes what `step` sees or does. `minBossHp` is
  * sampled in the same place `maxBossPhase` is, right after each `step`, so a boss that spawns
  * synchronously inside `createGame` (a boss-only level) is first sampled post-tick-1, not at spawn —
  * irrelevant to finding a minimum, since spawn is always its highest hp.

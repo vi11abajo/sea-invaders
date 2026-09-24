@@ -7,7 +7,7 @@ import {
 } from '../src';
 
 /**
- * The three living formations of spec §3 (whirlpool rotates, claws splits, manta reforms) and the
+ * The three living formations (whirlpool rotates, claws splits, manta reforms) and the
  * slot bookkeeping every campaign wave now carries. Motion is driven through `marchCrabs` directly
  * rather than `step`, so no shot ever kills a crab mid-measurement: these tests are about where the
  * crabs go, and the wave's own thinning is scripted by hand where a test needs it.
@@ -15,7 +15,7 @@ import {
 
 const HALF = CRAB.size / 2;
 const CENTRE = Math.trunc(FIELD_W / 2);
-/** The last template column of the claws' left half (spec §3: columns 0-3 left, 4-7 right). */
+/** The last template column of the claws' left half (columns 0-3 left, 4-7 right). */
 const SPLIT_COL = 3;
 
 function levelOf(formation: Formation): LevelSpec {
@@ -48,7 +48,7 @@ function advance(s: GameState, ticks: number): void {
 
 /**
  * Advances until the wave has taken `steps` march steps, and returns how many ticks that took.
- * Rotation and the reform glide count march steps, not wall-clock ticks (ruling R6), and
+ * Rotation and the reform glide count march steps, not wall-clock ticks, and
  * `TUNING.crabMovePct` rests the march on one tick in ten.
  */
 function advanceSteps(s: GameState, steps: number): number {
@@ -133,7 +133,7 @@ describe('formation slots', () => {
   it('leaves a daily or practice wave without a formation, on the plain grid cells', () => {
     const s = createGame('daily', DAILY_RUN);
     expect(s.formation).toBeNull();
-    // No slots to live by, but every crab still names the grid cell it stands in (spec §2: the
+    // No slots to live by, but every crab still names the grid cell it stands in (the
     // veteran skills need a cell off the formation too), so `freeSlots` has nothing to offer.
     expect(s.crabs.map((c) => c.slot)).toEqual(s.crabs.map((_, i) => i));
     expect(freeSlots(s)).toEqual([]);

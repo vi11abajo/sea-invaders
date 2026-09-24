@@ -1,4 +1,4 @@
-/** Persisted campaign progress: spec §6.1. Pure functions only — never mutate their inputs. */
+/** Persisted campaign progress. Pure functions only — never mutate their inputs. */
 export interface CampaignProgress {
   v: 1;
   /** 1..10, the reef currently being played. */
@@ -131,7 +131,7 @@ export function applyLevelResult(p: CampaignProgress, r: LevelResult): { next: C
  * Refills a lost reef's lives to `REVIVE_LIVES` and keeps the current reef/level. Named `reviveReef`
  * (not `revive`) so it never collides with `sim/revive.ts`'s `revive(s: GameState)` — the two are
  * unrelated: this one restarts a whole reef after `reef_lost`, that one revives mid-level after the
- * Tide's last life (spec §4).
+ * Tide's last life.
  */
 export function reviveReef(p: CampaignProgress, now: number): CampaignProgress {
   return { ...p, lives: REVIVE_LIVES, updatedAt: now };
@@ -168,7 +168,7 @@ export function settleProgress(input: CampaignProgress): CampaignProgress {
 }
 
 /**
- * Spec §6.2: per-level OR/max, position fields from the side that has cleared more levels (the newer
+ * Per-level OR/max, position fields from the side that has cleared more levels (the newer
  * one on a tie, and `second` on a full tie); the result is settled (`settleProgress`). Either side may
  * still be a record of the first campaign - an old app syncing with a phone that has the second, or
  * the other way round - so both are grown to the full length before anything is compared.
@@ -179,8 +179,8 @@ export function mergeProgress(first: CampaignProgress, second: CampaignProgress)
   const newer = b.updatedAt >= a.updatedAt ? b : a;
   // The pointer (reef, level, lives) follows the side that has cleared more levels - the side that
   // has actually played further - and only on a tie the newer one. A fresh install merging with a
-  // finished campaign otherwise dragged the pointer back to reef 1 (owner's phone, 2026-09-17),
-  // while a reef-lost reset (same cleared count on both sides) still keeps the newer pointer.
+  // finished campaign otherwise dragged the pointer back to reef 1, while a reef-lost reset (same
+  // cleared count on both sides) still keeps the newer pointer.
   const clearedA = a.cleared.filter(Boolean).length;
   const clearedB = b.cleared.filter(Boolean).length;
   const lead = clearedA > clearedB ? a : clearedB > clearedA ? b : newer;
@@ -196,7 +196,7 @@ export function mergeProgress(first: CampaignProgress, second: CampaignProgress)
 }
 
 /**
- * Structural validation for progress loaded from storage or the network: spec §6.1. Both array
+ * Structural validation for progress loaded from storage or the network. Both array
  * lengths are accepted - `LEGACY_LEVEL_COUNT` from an app or a server that predates reefs 6-10,
  * `LEVEL_COUNT` from one that has them - as long as the two arrays agree with each other.
  */

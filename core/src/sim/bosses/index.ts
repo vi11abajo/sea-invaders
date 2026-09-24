@@ -11,7 +11,7 @@ import { TEMPLAR_HOOKS } from './templar';
 import { TYRANT_HOOKS } from './tyrant';
 import { VOID_HOOKS } from './void';
 
-// The reefs 6-10 bosses are written one task at a time; each one's own module carries its constants
+// Each reefs 6-10 boss's own module carries its constants
 // (the app and the tests read them from here, never by reaching into the module).
 export * from './templar';
 export * from './castellan';
@@ -27,7 +27,7 @@ export * from './huntsman';
  *
  * Every optional member is a member no boss of the first campaign defines, which is what keeps the
  * shared code in `sim/boss.ts` a no-op for kinds 1-5: an undefined hook draws nothing, reorders
- * nothing and changes no arithmetic (spec §10's invariance promise).
+ * nothing and changes no arithmetic.
  */
 export interface BossHooks {
   attack(s: GameState, b: BossState): void;
@@ -39,8 +39,8 @@ export interface BossHooks {
    * Returns true when a shield absorbed the hit instead of the boss taking damage (or, the Gold
    * Corsair's own Spikes, reflected it back down the field). `shot` is the player bullet that hit
    * the boss box; every real hit through `collide.ts`'s `hitCrabs` supplies it, and it is undefined
-   * only when a caller (a test, mostly) reaches `damageBoss` directly without one. Added for the
-   * Corsair's task (spec §5.2): every `onHit` before it declares only `(s, b)` and TypeScript allows
+   * only when a caller (a test, mostly) reaches `damageBoss` directly without one. For the Gold
+   * Corsair's own Spikes: every `onHit` before it declares only `(s, b)` and TypeScript allows
    * an implementation with fewer parameters to satisfy an interface that declares more, so this
    * changes nothing for Azure's or the Verdant Templar's own shields.
    */
@@ -63,24 +63,24 @@ export interface BossHooks {
    * Runs every tick the boss exists, including while it is transitioning between phases — the one
    * hook `updateBoss` calls before it ever looks at `state`, ahead of the `state === 'transition'`
    * check that skips every other per-tick hook outright (`tick` above included). For a mechanic that
-   * must not pause when the fight itself does: today only the Storm Tyrant's own lanes (spec §5.2 —
+   * must not pause when the fight itself does: today only the Storm Tyrant's own lanes (
    * "lanes already warned keep counting down through a transition") and, for simplicity, his
    * discharge window alongside them (`sim/bosses/tyrant.ts`'s own doc explains why both live in one
    * hook rather than splitting the discharge countdown into the ordinary `tick`).
    */
   tickThroughTransition?(s: GameState, b: BossState): void;
   /**
-   * The player just picked up a boost drop (spec §5.2, the Abyssal Huntsman's Mirror): called from
+   * The player just picked up a boost drop (the Abyssal Huntsman's Mirror): called from
    * `sim/boosts.ts`, the one place a pickup is actually consumed, with the drop's own `type` — never
    * whatever RANDOM_CHAOS resolved it to, so a chaos pickup never mirrors anything a direct one
    * would. Only ever called while `s.boss` exists; undefined for every kind but 10, so nothing
-   * changes for kinds 1-9 (spec §10's invariance promise) — see `sim/bosses/huntsman.ts`'s own doc
+   * changes for kinds 1-9 — see `sim/bosses/huntsman.ts`'s own doc
    * for the mirror classes and durations.
    */
   onBoostPickup?(s: GameState, b: BossState, type: BoostType): void;
 }
 
-/** Per-kind boss hooks, one real implementation per boss kind. Kinds 6-10 (spec §5.2) are all written now — `templar.ts`, `castellan.ts`, `corsair.ts`, `tyrant.ts`, `huntsman.ts`. */
+/** Per-kind boss hooks, one real implementation per boss kind. Kinds 6-10 are all written now — `templar.ts`, `castellan.ts`, `corsair.ts`, `tyrant.ts`, `huntsman.ts`. */
 export const BOSS_HOOKS: Record<BossKind, BossHooks> = {
   1: EMERALD_HOOKS,
   2: AZURE_HOOKS,

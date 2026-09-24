@@ -5,11 +5,11 @@ import type { Bullet, GameState, Input } from '../types';
 import { isActive } from './boosts';
 
 const HALF = idiv(OCTOPI.size, 2);
-/** RAPID_FIRE's fire interval, replacing OCTOPI.fireInterval while active (spec §5.2). */
+/** RAPID_FIRE's fire interval, replacing OCTOPI.fireInterval while active. */
 const RAPID_FIRE_INTERVAL = 4;
 /** Half-angle in degrees between MULTI_SHOT's outer shots and its straight aim. */
 const MULTI_SHOT_SPREAD = 15;
-/** AUTO_TARGET's legacy velocity blend (spec C3): 30 % of `SHOT.speed` toward the target, 70 % up, so it follows `TUNING.octopiShotPct`. */
+/** AUTO_TARGET's legacy velocity blend: 30 % of `SHOT.speed` toward the target, 70 % up, so it follows `TUNING.octopiShotPct`. */
 const AUTO_TARGET_TOWARD = idiv(SHOT.speed * 3, 10);
 const AUTO_TARGET_UP = idiv(SHOT.speed * 7, 10);
 
@@ -20,7 +20,7 @@ function distSq(a: { x: number; y: number }, b: { x: number; y: number }): numbe
 }
 
 /**
- * AUTO_TARGET's aim point for one shot (spec C3, legacy `boost-effects.js:493-546`): the nearest of
+ * AUTO_TARGET's aim point for one shot: the nearest of
  * every crab and the boss (if present) by squared distance from the shot's current position, ties
  * broken towards a crab over the boss and towards the lower crab index; `null` with neither.
  */
@@ -42,7 +42,7 @@ function autoTargetPoint(s: GameState, b: Bullet): { x: number; y: number } | nu
  * Moves Octopi toward the target, at most `OCTOPI.maxStep` per axis per tick, inside its allowed
  * area.
  *
- * The Frost Castellan's cold snap (spec §5.2) cuts that cap to two thirds on **both** axes while
+ * The Frost Castellan's cold snap cuts that cap to two thirds on **both** axes while
  * `s.chillTicks` is above 0, and one tick of the snap is spent here — the one place in the tick
  * Octopi moves, so a snap of N ticks is exactly N slowed moves. With `chillTicks` at 0, which is
  * every tick of the first campaign, the cap is untouched and nothing counts down.
@@ -58,22 +58,22 @@ export function moveOctopi(s: GameState, input: Input): void {
 }
 
 /**
- * Moves player shots along both `vx` and `vy` (controller ruling, Phase 3A.1 lane C fix round 1:
- * every player shot moves on both axes now, not `vy` only — this makes MULTI_SHOT's ±15° shots and
+ * Moves player shots along both `vx` and `vy` (every player shot moves on both axes, not `vy` only —
+ * this makes MULTI_SHOT's ±15° shots and
  * AUTO_TARGET's steering actually change a shot's path for the first time), drops those that left
  * the field — off the top exactly as before, or now off either side (`x` outside `[0, FIELD_W]`) —
  * steers survivors while AUTO_TARGET is active, then fires when the cooldown runs out. RAPID_FIRE
  * shortens the cooldown; MULTI_SHOT fires three shots (-15/0/+15 degrees) instead of one;
  * PIERCING_BULLETS tags every new shot's `data` with bit 1 so `hitCrabs` lets it keep flying, and
- * the trident variant (spec §4) tags it unconditionally, boost or not
- * (RICOCHET was removed from the game entirely — owner decision, Phase 3A.1 lane C — so bit 2 and
+ * the trident variant tags it unconditionally, boost or not
+ * (RICOCHET was removed from the game entirely, so bit 2 and
  * the old field-edge wall-bounce it drove are gone too; only bit 1 remains meaningful). AUTO_TARGET
- * fully recomputes every surviving shot's `vx`/`vy` every tick (spec C3: the legacy's fixed
+ * fully recomputes every surviving shot's `vx`/`vy` every tick (the legacy's fixed
  * 30%-toward/70%-up blend, not an incremental turn) towards the nearest crab or the boss; a shot
  * fired this same tick is not yet steered (it starts steering from the following tick), and a shot
  * with no target keeps its current velocity.
- * While Void Sovereign's temporal freeze is active (`s.boss.kind === 5 && effectTicks > 0`, spec
- * §4.2 row 5), shots already in flight skip this motion AND AUTO_TARGET's steering entirely —
+ * While Void Sovereign's temporal freeze is active (`s.boss.kind === 5 && effectTicks > 0`), shots
+ * already in flight skip this motion AND AUTO_TARGET's steering entirely —
  * `vx`/`vy` stay untouched, so they resume exactly where they left off once `effectTicks` reaches
  * 0 — but new shots still fire.
  */
@@ -115,7 +115,7 @@ export function updateShots(s: GameState): void {
     } else {
       s.shots.push({ x, y, vx: 0, vy: -SHOT.speed, kind: 'straight', data });
     }
-    // Champions and skins spec §1: shoupe's Last stand fires faster on the last life; RAPID_FIRE's
+    // Shoupe's Last stand fires faster on the last life; RAPID_FIRE's
     // own interval still wins while it is active.
     const base = fireIntervalFor(s.run.octopi);
     const last = lastStandFireIntervalFor(s.run.octopi);

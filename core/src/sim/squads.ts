@@ -7,7 +7,7 @@ import { insideField, marchSteps, spawnCrab } from './crabs';
 import { raged } from './veterans';
 
 /**
- * The boss squads of spec §5.1: a handful of crabs that march beside a boss instead of arriving as
+ * The boss squads: a handful of crabs that march beside a boss instead of arriving as
  * a wave. They are ordinary crabs in `GameState.crabs` — they are shot, scored, dropped from and
  * collided with exactly like any other crab, and they use every veteran skill a wave crab uses
  * except the patriarch's rally (there is no formation to revive into, so `updateVeterans` passes a
@@ -44,16 +44,16 @@ export const SQUAD_GAP_X = CRAB.gapX;
 export const SQUAD_ROW_GAP = 600;
 
 /**
- * The band a squad's anchor row marches in (spec §5.1), which it never leaves because a squad never
+ * The band a squad's anchor row marches in, which it never leaves because a squad never
  * descends. Further rows of a multi-row template hang below the anchor at `SQUAD_ROW_GAP`.
  *
- * The spec names two bounds: `BOSS.top + BOSS.height + 300` (below the boss box) and
- * `OCTOPI.minY − 1200` (well above Octopi). With the current geometry they cross — 3960 against
+ * Two natural bounds exist for the anchor row: `BOSS.top + BOSS.height + 300` (below the boss box)
+ * and `OCTOPI.minY − 1200` (well above Octopi). With the current geometry they cross — 3960 against
  * 3800, because the boss box is 2960 units tall and reaches down to 3660 — so they cannot both
- * hold, and ruling R12 settles it in favour of the boss box: the band runs from half a crab below
+ * hold, and the boss box wins: the band runs from half a crab below
  * the boss box (3925, the shallowest anchor whose sprite is not drawn *inside* the boss) down to
- * the spec's own `+300` (3960). A squad therefore sits 1040 to 1075 units above Octopi's ceiling
- * rather than the spec's 1200 — still far outside Octopi's reach, which `squads.test.ts` pins for
+ * the `+300` bound (3960). A squad therefore sits 1040 to 1075 units above Octopi's ceiling
+ * rather than the full 1200 — still far outside Octopi's reach, which `squads.test.ts` pins for
  * both rows of a `crew` anchored anywhere in the band.
  */
 export const SQUAD_BAND = {
@@ -61,7 +61,7 @@ export const SQUAD_BAND = {
   maxY: BOSS.top + BOSS.height + 300,
 } as const;
 
-/** The tiny formations a boss can send out (spec §5.1). */
+/** The tiny formations a boss can send out. */
 export type SquadTemplate = 'line4' | 'crew' | 'pair' | 'guard5';
 
 /**
@@ -92,7 +92,7 @@ function nextSquadId(s: GameState): number {
  * The origin is clamped twice, and both clamps matter: `originY` into the band above, and `originX`
  * far enough from the edges that every crab of the squad starts inside the field. A crab standing
  * outside the field would fail `insideField` in *both* directions, which would freeze the squad
- * into turning round on every single march step (the same trap ruling R8 fixed for the rally).
+ * into turning round on every single march step (the same trap the rally's own placement check avoids).
  *
  * Draws nothing: where a squad is raised and which kinds it fields are the caller's decisions.
  */
@@ -121,7 +121,7 @@ export function spawnSquad(
       alive += 1;
     }
   }
-  // `alive` (fix round 1, controller ruling R22): the template's own crab count, counted as spawned
+  // `alive`: the template's own crab count, counted as spawned
   // rather than read off the template strings a second time, so it can never drift from what was
   // actually placed on the field. `bossKind` records `s.boss`'s kind right now, at spawn — the one
   // moment a squad's own boss is guaranteed to still be alive and correctly identified (see the
@@ -133,7 +133,7 @@ export function spawnSquad(
 }
 
 /**
- * A squad's per-tick march displacement in direction `dir` — spec §5.1's "the normal crab speed",
+ * A squad's per-tick march displacement in direction `dir` — the normal crab speed,
  * read on an arena that has no wave to read it from. `crabSpeed`'s two wave terms have nothing to
  * say here (a boss level never spawned a wave, so `s.wave` and `s.waveTotal` are both 0 and the
  * thinning-out term would divide by zero), so what is left is the base speed plus the level's own
@@ -146,7 +146,7 @@ export function squadStep(s: GameState, dir: number): number {
 }
 
 /**
- * Marches every squad one tick (spec §5.1): `marchSteps` steps at `squadStep`, each squad turning
+ * Marches every squad one tick: `marchSteps` steps at `squadStep`, each squad turning
  * on its own outermost crab through `insideField` — the one wall test the whole game asks — and
  * giving up no ground when it turns. A squad never steps down, so it stays in its band for as long
  * as it lives and can never invade the reef.
@@ -179,7 +179,7 @@ export function marchSquads(s: GameState): void {
 }
 
 /**
- * The fire chance `v`, halved while a boss is alive (spec §5.1). A squad fires by the ordinary crab
+ * The fire chance `v`, halved while a boss is alive. A squad fires by the ordinary crab
  * rules — the same single `rngFire` roll, the same weighted shooter pick, the same kind-specific
  * shot — only half as often, because the boss is already filling the water. With no boss on the
  * field the chance is passed through untouched, which is every wave the game has ever played.
@@ -189,17 +189,17 @@ export function halvedWhileBoss(s: GameState, v: number): number {
 }
 
 /**
- * Pops every surviving squad crab once their boss has died (spec §5.1): they are removed without
+ * Pops every surviving squad crab once their boss has died: they are removed without
  * score, without a kill and without a drop — the fight is over, and what is left of the escort goes
  * with it. One `squad_popped` event per squad that still had a crab standing; a squad already wiped
  * out by the player raised its scores as it died and raises nothing here. Decrements nothing and
- * loots nothing (fix round 1, controller ruling R22): removal here is a bulk `filter`, never through
+ * loots nothing: removal here is a bulk `filter`, never through
  * `killCrab`, so a squad's own `alive` count and the Gold Corsair's loot check never see this removal
  * at all — by design, this is not a kill.
  *
  * Called once per tick from `step.ts`, at the end of that tick's own crab-hit processing, rather than
- * synchronously from inside `damageBoss` the instant the boss's hp reaches 0 (fix round 1, ruling
- * R22): calling it mid-`hitCrabs`'s own loop over `s.shots` could remove a squad crab before a
+ * synchronously from inside `damageBoss` the instant the boss's hp reaches 0: calling it
+ * mid-`hitCrabs`'s own loop over `s.shots` could remove a squad crab before a
  * *later* shot in that same tick's array ever reached it — silently losing that crab's own loot check
  * to nothing but shot order. `step.ts`'s own call site is guarded on `s.boss === null &&
  * s.squads.length > 0`, so this function itself stays safe to call unconditionally: a no-op on an

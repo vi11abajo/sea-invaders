@@ -19,15 +19,15 @@ export function step(s: GameState, input: Input): void {
   updateShots(s);
   // The veteran timers, rallies and rage settle before anything reads them: the march speed and the
   // fire chance of this very tick already follow a rage, and a crab a patriarch rallies back marches
-  // with its wave straight away (spec §2).
+  // with its wave straight away.
   updateVeterans(s);
   marchCrabs(s);
   if (s.over) return;
   updateEnemyShots(s);
   pullShotsTowardGravity(s);
-  // The arena objects eat both sides' fire whole (spec §5.1) *before* the boss's own update, so a
+  // The arena objects eat both sides' fire whole *before* the boss's own update, so a
   // boss whose `tick` hook reacts to a destruction it caused this very tick (the Frost Castellan's
-  // shard burst, fix round 1, controller ruling R18) sees it the same tick rather than one tick
+  // shard burst) sees it the same tick rather than one tick
   // late. Moving `hitObstacle` ahead of `updateBoss` costs kinds 1-5 (and kind 6) nothing: with no
   // obstacle ever standing on their arena, `hitObstacle` is an unconditional no-op wherever it sits
   // in the tick. The one visible cost is the Castellan's own: a shot he casts this very tick (from
@@ -37,15 +37,15 @@ export function step(s: GameState, input: Input): void {
   hitObstacle(s);
   updateBoss(s);
   advanceScoreDecay(s);
-  // Before any hit is scored: the bubbler's bubbles (spec §2) and the Tyrant's orbs (spec §5.1),
+  // Before any hit is scored: the bubbler's bubbles and the Tyrant's orbs,
   // each of which a player shot has to chew through before it can reach a crab, the boss box or
   // Octopi (`hitCrabs`, `hitOctopi`). A tick with no bubble and no orb on the field leaves both at
   // once.
   popBubbles(s);
   hitOrbs(s);
   hitCrabs(s);
-  // The escort goes with its boss the moment it dies (spec §5.1), but not synchronously inside
-  // `damageBoss` any more (fix round 1, controller ruling R22): popping mid-`hitCrabs`'s own loop
+  // The escort goes with its boss the moment it dies, but not synchronously inside
+  // `damageBoss`: popping mid-`hitCrabs`'s own loop
   // over `s.shots` could remove a squad crab before a *later* shot in the same tick's array ever
   // reached it, silently losing that crab's own loot check to nothing but shot order. Popping here
   // instead — once, right after every shot of this tick has already had its chance to hit a crab or
@@ -58,13 +58,13 @@ export function step(s: GameState, input: Input): void {
   if (s.boss === null && s.squads.length > 0) popSquads(s);
   hitOctopi(s);
   updateBoosts(s);
-  // Coraluna's Surge (champions and skins spec §1, ruling R-K) lands on the tick of its 30th kill,
+  // Coraluna's Surge lands on the tick of its 30th kill,
   // after every kill this tick can make — the shots (`hitCrabs`) and a WAVE_BLAST picked up in
   // `updateBoosts`, direct or rolled by RANDOM_CHAOS — and before `nextWave` below can raise the next
   // wave, so a surge due on an emptied field is spent (wasted) there and never sweeps the wave after.
   // A no-op for every other variant.
   surgeIfDue(s);
-  // `destroyedObstacles` is no longer swept here (fix round 2, controller ruling R19 — an
+  // `destroyedObstacles` is no longer swept here — an
   // unconditional per-tick clear at this point wiped an entry pushed during a boss phase transition
   // before the boss's own `tick` hook, which does not run during one, ever got a chance to drain
   // it). It is now swept from inside `updateBoss` itself (`sim/boss.ts`, right after the point that

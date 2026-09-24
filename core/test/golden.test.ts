@@ -11,14 +11,14 @@ const FILE = join(process.cwd(), 'golden', `golden-v${CORE_VERSION}.json`);
 // falls short, tune the scripted dodge rule, never the simulation, to hold it: the goldens pin the
 // simulation, so changing it to pass a test script would defeat them.
 //
-// Core v11 (spec §6, controller ruling R39) widens the wave-scaled daily/practice pool: a veteran
+// Core v11 widens the wave-scaled daily/practice pool: a veteran
 // joins from wave 6 on, which the plain `survivor` practice script now reaches inside its run
 // (previously the pool capped at all five legacy kinds for good at wave 5). That moves every
 // `rngWaves` draw for the rest of the run — a fresh crab mix, not a weaker dodge — and the same
 // `DODGE_DWELL_LIMIT`/range/column rule now ends the run at 5,551 ticks instead of the ~10-11k of
 // earlier tunings. The floor is lowered to keep the same comfortable-margin spirit as before (a
-// clear pass, not a bare one) without touching the survivor logic or the tuning knobs themselves,
-// per R39's own instruction for a scenario that cannot clear its old threshold post-regeneration.
+// clear pass, not a bare one) without touching the survivor logic or the tuning knobs themselves —
+// this scenario cannot clear its old threshold once the pool widens like this.
 const SURVIVOR_MIN_TICKS = 5000;
 
 // Computed lazily in `beforeAll` (not at module load): PRACTICE_RUN/DAILY_RUN have boosts on and
@@ -87,7 +87,7 @@ describe('golden replays', () => {
 });
 
 /**
- * The five champions of core v13 (champions and skins spec §1): one `survivor` run on level 2 per
+ * The five champions of core v13: one `survivor` run on level 2 per
  * champion (`championScript`, golden-scripts.ts). Each must carry its own champion in the replay
  * header — the only thing that tells the verifier which abilities to replay — and coraluna's run
  * must actually reach a Surge, so the golden pins the free sweep and its `surge` event end to end.
@@ -106,7 +106,7 @@ describe('champion golden scenarios', () => {
 });
 
 /**
- * The reefs 6-10 golden scenarios (spec §4/§5, controller ruling R39): one per veteran, one per
+ * The reefs 6-10 golden scenarios: one per veteran, one per
  * living formation and one scripted survivor per new boss. Each assertion checks exactly what the
  * scenario's name says, off the observations `playScript` gathers (`kindsSeen`/`formationsSeen`/
  * `shotKindsSeen`) plus the ordinary event log — never anything that would require changing the play.
@@ -120,7 +120,7 @@ describe('reefs 6-10 golden scenarios', () => {
   });
 
   it('level32 halves and reforms its manta before the wave ends', () => {
-    // Ruling R39: name a separate `level39` for the manta if `level32`'s does not halve/reform in
+    // Name a separate `level39` for the manta if `level32`'s does not halve/reform in
     // time. It does — `formation_reform` fires while the manta is still `s.formation` — so `level32`
     // covers both the warden and the manta and no `level39` scenario is needed.
     expect(results['level32']!.events.some((e) => e.type === 'formation_reform')).toBe(true);
@@ -130,13 +130,13 @@ describe('reefs 6-10 golden scenarios', () => {
     expect(results['level33']!.formationsSeen.has('whirlpool')).toBe(true);
   });
 
-  it('level57 fields the claws (replacing R39\'s level34 — see golden-scripts.ts)', () => {
+  it('level57 fields the claws (replacing an earlier level34 — see golden-scripts.ts)', () => {
     expect(results['level57']!.formationsSeen.has('claws')).toBe(true);
   });
 
   it('level38 fields a herald', () => {
-    // The herald raises no event of its own (spec §2: its aura is a passive buff on its neighbours),
-    // so being fielded at all is what this scenario checks (ruling R39).
+    // The herald raises no event of its own (its aura is a passive buff on its neighbours),
+    // so being fielded at all is what this scenario checks.
     expect(results['level38']!.kindsSeen.has('herald')).toBe(true);
   });
 
@@ -163,15 +163,15 @@ describe('reefs 6-10 golden scenarios', () => {
   // reach him — both cut the `survivor` dodge script's effective damage output far below what its
   // raw dodge-only strategy manages against the other three reefs 6-10 bosses, so Octopi dies
   // (`over`) well inside its 18,000-tick budget without either boss ever finishing its first phase.
-  // Ruling R39 first lowered these two to a bare `maxBossPhase >= 1`, but `spawnBoss` sets `phase: 1`
+  // An earlier version of this check used a bare `maxBossPhase >= 1`, but `spawnBoss` sets `phase: 1`
   // at spawn and a boss-only level spawns its boss synchronously inside `createGame`, so that bound
   // was trivially true on tick 1 of any script — it proved a boss stood there, not that it took any
-  // damage. Ruling R57 replaces it with `minBossHp < <that boss's starting hp>` (`bossStats(kind).hp`
+  // damage. This was replaced with `minBossHp < <that boss's starting hp>` (`bossStats(kind).hp`
   // — the reefs 6-10 table, `core/src/config.ts`): a real, un-fakeable proof that the script's shots
   // landed at least once, even though neither boss is ever forced into its second phase by this
   // script. Their own signature events stay asserted alongside it. Still without touching the
-  // survivor logic or the tuning knobs; the controller can decide at review whether a stronger script
-  // is worth writing for a phase-2 proof on these two.
+  // survivor logic or the tuning knobs; a stronger script for a phase-2 proof on these two remains
+  // possible future work.
   it('level36 (the Verdant Templar) takes damage and telegraphs a wind-up', () => {
     const r = results['level36']!;
     expect(r.minBossHp).toBeLessThan(bossStats(6).hp);
@@ -184,9 +184,9 @@ describe('reefs 6-10 golden scenarios', () => {
     expect(r.events.some((e) => e.type === 'crystal_raised')).toBe(true);
   });
 
-  // Since the owner's balance note of 2026-09-22 the axe turns below Octopi's home row, and the
+  // Since the axe was retuned to turn below Octopi's home row, the
   // dodge-only `survivor` script no longer lives to phase 2 here — so, as for the Templar and the
-  // Castellan (ruling R57), the scenario proves the Corsair bled and threw the axe, not the phase.
+  // Castellan, the scenario proves the Corsair bled and threw the axe, not the phase.
   it('level48 (the Gold Corsair) takes damage and throws an axe', () => {
     const r = results['level48']!;
     expect(r.minBossHp).toBeLessThan(bossStats(8).hp);

@@ -36,7 +36,7 @@ export interface Replay {
   levelId: number;
   /** Lives Octopi started the run with. */
   lives: number;
-  /** The champion (bought or earned) the run was played with, or 'base' (spec §4); always 'base' outside the campaign. */
+  /** The champion (bought or earned) the run was played with, or 'base'; always 'base' outside the campaign. */
   octopi: OctopiVariant;
   seed: string;
   /** Number of ticks the recording client simulated. */
@@ -94,7 +94,7 @@ export function runFromReplay(r: Replay): RunConfig {
  * Replays `replay` and returns its outcome. When `expected` is given, the replay's own
  * seed/mode/levelId/lives/octopi must match it first — a cheap check before spending time
  * simulating a mismatched run. The daily verifier passes `octopi: 'base'`, so a daily replay
- * recorded with a champion (bought or earned) is rejected here rather than silently scored (spec §4).
+ * recorded with a champion (bought or earned) is rejected here rather than silently scored.
  */
 export function runReplay(
   replay: Replay,

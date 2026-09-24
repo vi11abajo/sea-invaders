@@ -43,7 +43,7 @@ describe('MULTI_SHOT', () => {
     }
   });
 
-  it("moves a side shot's x by idiv(SHOT.speed*isin(15deg), 1000) per tick (fix round 1: player shots now move on both axes)", () => {
+  it("moves a side shot's x by idiv(SHOT.speed*isin(15deg), 1000) per tick (player shots now move on both axes)", () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'MULTI_SHOT');
     for (let t = 1; t <= 8; t++) updateShots(s); // fires on the 8th call, unmoved this same tick
@@ -57,7 +57,7 @@ describe('MULTI_SHOT', () => {
   });
 });
 
-describe('player shot horizontal bounds (fix round 1)', () => {
+describe('player shot horizontal bounds', () => {
   it('drops a shot once its x leaves [0, FIELD_W]', () => {
     const s = createGame('t', PRACTICE_RUN);
     s.octopi.cooldown = 999; // keep Octopi from firing a fresh shot this same tick

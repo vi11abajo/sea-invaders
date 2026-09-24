@@ -2,26 +2,26 @@ import { extendProgress, type CampaignProgress } from './campaign/progress';
 import { VARIANT_INDEX, type OctopiVariant } from './types';
 
 /**
- * The champions and skins catalogue (champions and skins spec §2/§3): the names, the selector ↔
+ * The champions and skins catalogue: the names, the selector ↔
  * shop-item tables and the campaign awards, written once here and imported by both the backend and
  * the app. Pure data and pure functions — nothing here reaches into the simulation, and no price
- * lives here (spec §4: prices are on chain only).
+ * lives here (prices are on chain only).
  */
 
-/** The shown name of each variant (spec §1): the base Octopi, then each champion as drawn. */
+/** The shown name of each variant: the base Octopi, then each champion as drawn. */
 export const VARIANT_NAMES: Readonly<Record<OctopiVariant, string>> = Object.freeze({
   base: 'Octopi', harpoon: 'Azul', anchor: 'Krang', trident: 'Poseidon',
   noob: 'Noob', coraluna: 'Coraluna', shoupe: 'Shoupe', hex: 'Hex', kakashi: 'Kakashi',
 });
 
-/** The label of each champion's ability (spec §1); the base Octopi has none. */
+/** The label of each champion's ability; the base Octopi has none. */
 export const ABILITY_NAMES: Readonly<Record<OctopiVariant, string | null>> = Object.freeze({
   base: null, harpoon: 'Harpoon', anchor: 'Anchor', trident: 'Trident',
   noob: 'Thick skin', coraluna: 'Surge', shoupe: 'Last stand', hex: 'Hex', kakashi: 'Copy',
 });
 
 /**
- * The shown name of each skin, indexed by its code (spec §2): 0 the Octopi's own colours, 1..4 the
+ * The shown name of each skin, indexed by its code: 0 the Octopi's own colours, 1..4 the
  * legacy tints, 5..12 the sold looks, 13..16 the boss awards, 17 the Seeker owners' look.
  */
 export const SKIN_NAMES: readonly string[] = Object.freeze([
@@ -34,18 +34,18 @@ export const SKIN_NAMES: readonly string[] = Object.freeze([
 /** How many skin codes exist (0..`SKIN_COUNT - 1`). */
 export const SKIN_COUNT = 18;
 
-/** The skin code every wallet with a verified Seeker link may wear (spec §2). */
+/** The skin code every wallet with a verified Seeker link may wear. */
 export const SEEKER_SKIN_CODE = 17;
 
 /**
- * The shop item behind each variant, indexed by `VARIANT_INDEX` (spec §3): harpoon/anchor/trident
+ * The shop item behind each variant, indexed by `VARIANT_INDEX`: harpoon/anchor/trident
  * are items 0..2, noob/coraluna/shoupe items 15..17; base is free and hex/kakashi are awarded, so
  * those three have none.
  */
 export const VARIANT_ITEM_IDS: readonly (number | null)[] = Object.freeze([null, 0, 1, 2, 15, 16, 17, null, null]);
 
 /**
- * The shop item behind each skin, indexed by skin code (spec §3): the tints 1..4 are items 3..6 and
+ * The shop item behind each skin, indexed by skin code: the tints 1..4 are items 3..6 and
  * the sold looks 5..12 items 7..14; code 0 is free, 13..16 are awarded and 17 is the Seeker look,
  * so those have none.
  */
@@ -101,7 +101,7 @@ export function skinOfItem(itemId: number): number | null {
 export type Award = { kind: 'variant'; variant: OctopiVariant } | { kind: 'skin'; skin: number };
 
 /**
- * The campaign awards by level id (spec §2/§3): a look for each of bosses 2, 4, 6 and 8 (levels 12,
+ * The campaign awards by level id: a look for each of bosses 2, 4, 6 and 8 (levels 12,
  * 24, 36, 48) and a champion for bosses 5 and 10 (levels 30 and 60). Awards are derived from the
  * cleared levels, never stored. Every entry is frozen too, not only the table, so the plain-JS
  * backend cannot rewrite an award in place either.
@@ -119,7 +119,7 @@ export const AWARDS: Readonly<Record<number, Award>> = Object.freeze({
 const AWARD_LEVELS: readonly number[] = Object.keys(AWARDS).map(Number).sort((a, b) => a - b);
 
 /**
- * Everything `p` has earned (spec §3): the award of every award level it has cleared, in campaign
+ * Everything `p` has earned: the award of every award level it has cleared, in campaign
  * order. A record of the first campaign is grown by `extendProgress` first, so it earns only what
  * its thirty levels hold; nothing that is not a cleared award level ever appears.
  */

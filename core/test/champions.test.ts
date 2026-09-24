@@ -49,12 +49,12 @@ describe('champions', () => {
     expect(s.events.filter((e) => e.type === 'surge')).toHaveLength(1);
     expect(s.crabs.every((c) => bottom - c.y > 367)).toBe(true); // the bottom row is gone
     expect(s.crabs.length).toBeLessThan(before);
-    // The 30 are spent; the sweep's own kills go through `killCrab`, which counts every kill (spec
-    // §1), so they already stand towards the next surge.
+    // The 30 are spent; the sweep's own kills go through `killCrab`, which counts every kill, so
+    // they already stand towards the next surge.
     expect(s.surgeKills).toBe(before - s.crabs.length);
   });
 
-  it('coraluna: a WAVE_BLAST pickup that makes the 30th kill surges on that same tick (ruling R-K)', () => {
+  it('coraluna: a WAVE_BLAST pickup that makes the 30th kill surges on that same tick', () => {
     const s = blastReady('coraluna', 3, 29);
     step(s, INITIAL_INPUT);
     expect(s.tick).toBe(1);
@@ -141,7 +141,7 @@ describe('champions', () => {
       const s = createGame('t', runWith('hex'));
       s.crabs = []; // nothing new fires
       spawnBoss(s, 4);
-      s.boss!.effectTicks = rage; // Crimson's rage: immune to slowdowns, and so to Hex (spec §1)
+      s.boss!.effectTicks = rage; // Crimson's rage: immune to slowdowns, and so to Hex
       s.enemyShots = [
         { x: 2000, y: 2000, vx: -55, vy: 105, kind: 'large', data: 0 },
         { x: 3000, y: 2000, vx: -55, vy: 105, kind: 'crab', data: 0 },

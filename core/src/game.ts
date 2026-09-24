@@ -41,7 +41,7 @@ export function createGame(seed: string, run: RunConfig): GameState {
     scoreDecay: 0,
     rageTicks: 0,
     gridRows: [],
-    // The boss arena of reefs 6-10 (spec §5.1): empty on every run until a boss of kinds 6..10
+    // The boss arena of reefs 6-10: empty on every run until a boss of kinds 6..10
     // raises something.
     squads: [],
     obstacles: [],
@@ -49,7 +49,7 @@ export function createGame(seed: string, run: RunConfig): GameState {
     lanes: [],
     aims: [],
     chillTicks: 0,
-    // Coraluna's Surge counter (champions and skins spec §1): every run starts it at 0.
+    // Coraluna's Surge counter: every run starts it at 0.
     surgeKills: 0,
   };
   if (run.level) {
@@ -63,12 +63,12 @@ export function createGame(seed: string, run: RunConfig): GameState {
 
 /**
  * Replaces the crabs with wave `wave` of a daily or practice run: 6 columns, 3 to 5 rows, one kind
- * per row drawn from that wave's pool (spec §2 — wave 1 is green only and every wave adds the next
+ * per row drawn from that wave's pool (wave 1 is green only and every wave adds the next
  * kind, up to all five). Exactly one draw per row, as before, plus the direction draw; the colour
  * and hit points follow from the kind, so a blue crab means the same thing here as in the campaign.
  *
  * A grid wave carries no formation, but it does give every crab the cell it stands in
- * (`slot = row * CRAB.cols + col`) and records each row's kind (spec §2): the herald's aura reads
+ * (`slot = row * CRAB.cols + col`) and records each row's kind: the herald's aura reads
  * neighbourhoods off those cells and the patriarch's rally revives into the lowest empty one. The
  * grid itself is unchanged — nothing about where a crab stands, how it moves or what it draws
  * depends on the number, and no extra RNG draw is made for it.
@@ -79,9 +79,9 @@ export function spawnWave(s: GameState, wave: number): void {
   const x0 = idiv(FIELD_W - (CRAB.cols - 1) * CRAB.gapX, 2);
   s.wave = wave;
   s.crabs = [];
-  s.formation = null; // spec §3: only a campaign wave carries slots, and only it can live
-  s.scoreDecay = 0; // spec C7: the score-decay clock resets at every wave start
-  s.rageTicks = 0; // spec §2: a rage belongs to the formation that lost its patriarch
+  s.formation = null; // only a campaign wave carries slots, and only it can live
+  s.scoreDecay = 0; // the score-decay clock resets at every wave start
+  s.rageTicks = 0; // a rage belongs to the formation that lost its patriarch
   s.gridRows = [];
   for (let r = 0; r < rows; r++) {
     const type = pool[s.rngWaves.nextInt(pool.length)]!;
@@ -92,19 +92,19 @@ export function spawnWave(s: GameState, wave: number): void {
       s.crabs.push(spawnCrab(x, y, type, r * CRAB.cols + c));
     }
   }
-  armRallies(s); // spec §2: the wave's patriarchs get staggered rally clocks, in grid cell order
+  armRallies(s); // the wave's patriarchs get staggered rally clocks, in grid cell order
   s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
   s.waveTotal = s.crabs.length;
 }
 
 /**
- * Replaces the crabs with a silhouette (the campaign's spawn path, spec §2). The template gives
+ * Replaces the crabs with a silhouette (the campaign's spawn path). The template gives
  * every cell a tier, 0 on the bottom row up to 4 on the top, and `kindForTier` spreads the level's
  * reef pool over those tiers — so a reef-1 wave is all green, and a reef-5 wave has one kind per
  * tier, with the toughest crabs furthest from Octopi. Nothing here is drawn: the direction draw is
  * the only RNG draw, whatever the silhouette.
  *
- * The wave also records its shape (spec §3): one `FormationSlot` per cell in the order
+ * The wave also records its shape: one `FormationSlot` per cell in the order
  * `formationPositions` yields them — row by row, left to right — and each crab's `slot` is its
  * index in that list. A slot holds an offset from `FORMATION_ORIGIN`, so a crab sits exactly on
  * `origin + slot` and stays there for as long as its wave marches as a block.
@@ -129,28 +129,28 @@ export function spawnFormation(
     slots,
     ox: FORMATION_ORIGIN.x,
     oy: FORMATION_ORIGIN.y,
-    dirL: -1, // spec §3: a split wave's left half opens leftwards and its right half rightwards
+    dirL: -1, // a split wave's left half opens leftwards and its right half rightwards
     dirR: 1,
     rotateTick: 0,
     reformed: false,
     glideTicks: 0,
   };
-  s.rageTicks = 0; // spec §2: a rage belongs to the formation that lost its patriarch
+  s.rageTicks = 0; // a rage belongs to the formation that lost its patriarch
   s.gridRows = []; // a campaign wave carries a kind per cell in its slots instead
-  armRallies(s); // spec §2: the wave's patriarchs get staggered rally clocks, in slot order
+  armRallies(s); // the wave's patriarchs get staggered rally clocks, in slot order
   s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
   s.waveTotal = s.crabs.length;
 }
 
 /**
- * Starts wave `wave` of the current level. Every wave of a level marches in the same silhouette
- * (spec §2): the shape no longer grows with the wave number, so a level's crab count is the same
+ * Starts wave `wave` of the current level. Every wave of a level marches in the same silhouette:
+ * the shape no longer grows with the wave number, so a level's crab count is the same
  * from its first wave to its last. The formation spawns `ARRIVAL.drop` units above its slots and
  * descends into them over `ARRIVAL.ticks`; `nextWave`/`createGame` route every level wave through
  * here, so level 1 wave 1 arrives too.
  *
  * `kinds` normally comes straight off the level (`l.kinds`), but the first level of a reef 6-10
- * overrides it per wave through `l.rosters` (spec §4): waves 1 and 3 field the previous reef's
+ * overrides it per wave through `l.rosters`: waves 1 and 3 field the previous reef's
  * roster and waves 2 and 4 the reef's own, so the new veteran eases in rather than filling the very
  * first wave. Every other level leaves `rosters` undefined, so this falls straight back to `l.kinds`
  * and nothing here changes for it.
@@ -163,7 +163,7 @@ export function startLevelWave(s: GameState, wave: number): void {
   for (const c of s.crabs) c.y -= ARRIVAL.drop;
   s.formation!.oy -= ARRIVAL.drop; // the origin drops with the wave, so `origin + slot` still holds
   s.arrival = ARRIVAL.ticks;
-  s.scoreDecay = 0; // spec C7: the score-decay clock resets at every campaign wave start too
+  s.scoreDecay = 0; // the score-decay clock resets at every campaign wave start too
   s.events.push({ tick: s.tick, type: 'wave_start', wave });
 }
 
@@ -186,7 +186,7 @@ export function nextWave(s: GameState): void {
   if (l.boss && s.boss === null) {
     s.arrival = 0;
     s.formation = null; // the level's waves are done: no slots for a boss round
-    s.rageTicks = 0; // and no formation left to rage over its patriarch (spec §2)
+    s.rageTicks = 0; // and no formation left to rage over its patriarch
     spawnBoss(s, l.boss);
     return;
   }

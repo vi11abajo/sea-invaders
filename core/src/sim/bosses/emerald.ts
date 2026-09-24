@@ -9,7 +9,7 @@ function abilityTimer(rng: Rng): number {
 }
 
 /**
- * Emerald Warlord (`crabBOSSGreen`, kind 1, spec §4.2 row 1): a single-phase boss that fires
+ * Emerald Warlord (`crabBOSSGreen`, kind 1): a single-phase boss that fires
  * straight shots plus a zigzag pair on its own timer, and regenerates hp on a separate cooldown.
  */
 export const EMERALD_HOOKS: BossHooks = {

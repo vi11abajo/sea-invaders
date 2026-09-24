@@ -8,14 +8,14 @@ import { SQUAD_BAND, spawnSquad } from '../squads';
 import type { BossHooks } from './index';
 
 /**
- * Verdant Templar (kind 6, spec §5.2 row 6): the old guard of the Sunken Bastion, a shell shield
+ * Verdant Templar (kind 6): the old guard of the Sunken Bastion, a shell shield
  * with windows in it. Nothing he does reaches Octopi while his guard is closed, and nothing the
  * player does reaches him either — the only opening is the one he makes himself.
  *
- * A cycle (fix round 1, ruling R14 — the shield spends about half of it up) is four beats:
+ * A cycle (the shield spends about half of it up) is four beats:
  *
- * 1. **Rest**, `attackDelay(s, phase)` ticks, shield up. This is the pause the spec amendment names
- *    — "the next swing's timer starts when the shield comes back up" — measured from the instant
+ * 1. **Rest**, `attackDelay(s, phase)` ticks, shield up. This is the pause: the next swing's timer
+ *    starts when the shield comes back up — measured from the instant
  *    the *previous* cycle's opening closed, not from the moment the previous wind-up began. Only the
  *    shared secondary timer runs during it: a zigzag pair in phase 2 (`secondary`), gated on the
  *    shield being up exactly as before.
@@ -31,7 +31,7 @@ import type { BossHooks } from './index';
  * ordinary shared `attackTimer`/`attack()` machinery (`updateBoss`, `sim/boss.ts`) rather than a
  * field of its own: `tick()` below *holds* `b.attackTimer` at a value bigger than a whole swing for
  * every tick of beats 2-4 (reasserted every one of those ticks, so it can never reach zero early and
- * call `attack` again mid-swing — the overlap the pre-amendment cadence allowed is gone) and lets it
+ * call `attack` again mid-swing — the overlap an earlier cadence allowed is gone) and lets it
  * go the instant the shield comes back up, at the very tick it draws the fresh `attackDelay` that
  * times the next beat 1. `onPhaseStart` does the same when a phase turn hands the shield back up
  * early — but only from phase 2 on: phase 1's own rest is already timed by the draw `spawnBoss`
@@ -47,7 +47,7 @@ import type { BossHooks } from './index';
  *
  * A `line4` of wardens marches with him from the start of each phase (`onPhaseStart`), and Bulwark
  * (`ability`) raises one more while the shield is up if the escort has thinned below four squad
- * crabs (fix round 1, ruling R15). They are ordinary squad crabs — the rune shield of spec §2
+ * crabs. They are ordinary squad crabs — the rune shield
  * included, which is why the Trident's piercing shot is the one that walks through the line and
  * still finds the boss behind it.
  *
@@ -61,45 +61,45 @@ import type { BossHooks } from './index';
  * 3. (phase 2 only) `nextInt(TEMPLAR_GAP_SLOTS)` — the second doorway, drawn once when the first
  *    wall falls, exactly as before.
  * 4. `nextInt(BOSS.attackJitter)` — the *real* jitter for the next beat 1, drawn by `tick` the
- *    instant the shield comes back up (fix round 1, new: this draw did not exist before R14).
+ *    instant the shield comes back up (a draw that did not exist in the previous cadence).
  *
  * `boss-templar.test.ts` pins that sequence and the cycle's timings. The doorway triple pinned
- * against seed `templar` did *not* need re-measuring for this fix round — checked, not assumed: the
+ * against seed `templar` did *not* need re-measuring when this cadence changed — checked, not assumed: the
  * test that pins it forces each wind-up with `announce()` well before a shield-down window could
  * ever run out on its own, so draw 4 never fires inside that specific test and the three draw-1s it
  * reads stay exactly where they were. A test that let the boss run on natural cadence long enough to
  * reach a real draw 4 would need its own, separately measured pin.
  */
 
-/** Ticks of telegraphed wind-up before the wall falls (spec §5.2: 45). */
+/** Ticks of telegraphed wind-up before the wall falls (45). */
 export const TEMPLAR_WINDUP = 45;
 
-/** Ticks the shell shield stays down once a wall has fallen (spec §5.2: 120). */
+/** Ticks the shell shield stays down once a wall has fallen (120). */
 export const TEMPLAR_SHIELD_DOWN = 120;
 
-/** Ticks between phase 2's two staggered walls (spec §5.2: 30). */
+/** Ticks between phase 2's two staggered walls (30). */
 export const TEMPLAR_SECOND_WALL_DELAY = 30;
 
 /**
  * How many slots the doorway may be drawn on: `FIREWALL_SLOTS - 1`, because a doorway is the drawn
- * slot *and the one to its right* (spec §5.2 as amended, ruling R13 — `nextInt(8)`, never 9, so the
+ * slot *and the one to its right* (`nextInt(8)`, never 9, so the
  * doorway is always two slots wide). Written as a literal rather than read off `FIREWALL_SLOTS`:
  * `sim/boss.ts` and this file are a module cycle, and a top-level read across it would hit the
  * temporal dead zone. `boss-templar.test.ts` pins the two together.
  */
 export const TEMPLAR_GAP_SLOTS = 8;
 
-/** How many slots apart phase 2's two doorways must stand (spec §5.2: "second gap >= 3 slots"). */
+/** How many slots apart phase 2's two doorways must stand ("second gap >= 3 slots"). */
 export const TEMPLAR_GAP_MIN_DISTANCE = 3;
 
-/** How far a second doorway drawn too close to the first is shifted: half the wall (task brief). */
+/** How far a second doorway drawn too close to the first is shifted: half the wall. */
 const TEMPLAR_GAP_SHIFT = 4;
 
 /**
  * The roster the warden line is drawn from. `line4` is four cells of tier 1 and `kindForTier` reads
  * a five-kind roster tier for tier, so tier 1 is the roster's second entry: reef 6's own roster
- * (`normal, armored, heavy, elder, warden`) would field four *armored* crabs, not four wardens. The
- * spec asks for a line of wardens, so the line is handed a roster that is wardens at every tier.
+ * (`normal, armored, heavy, elder, warden`) would field four *armored* crabs, not four wardens. This
+ * boss needs a line of wardens, so the line is handed a roster that is wardens at every tier.
  */
 export const TEMPLAR_GUARD: readonly CrabType[] = ['warden', 'warden', 'warden', 'warden', 'warden'];
 
@@ -108,7 +108,7 @@ export const TEMPLAR_GUARD: readonly CrabType[] = ['warden', 'warden', 'warden',
  * `SECOND_WALL + gap`, `gap` in `0..TEMPLAR_GAP_SLOTS - 1` — so the doorway is drawn once, when the
  * first wall falls and the second is queued, and nothing has to remember it in the meantime. (The
  * next swing's own draw overwrites `b.gapSlot` only once a whole cycle has resolved — wind-up plus
- * shield-down, `TEMPLAR_WINDUP + TEMPLAR_SHIELD_DOWN` ticks, fix round 1 ruling R14 — far longer
+ * shield-down, `TEMPLAR_WINDUP + TEMPLAR_SHIELD_DOWN` ticks — far longer
  * than the second wall's 30-tick delay, but a queued wall that carries its own doorway cannot be
  * wrong about it whatever the timers do.)
  */
@@ -116,19 +116,19 @@ const SECOND_WALL = 10;
 
 /**
  * What `b.attackTimer` is held at through every tick of the wind-up and the shield-down window
- * (fix round 1, ruling R14): bigger than a whole swing, so the shared `updateBoss` decrement can
+ * (bigger than a whole swing, so the shared `updateBoss` decrement can
  * never bring it to zero and fire `attack` again before the shield has come back up. `tick` below
  * reasserts this value on every such tick — it does not need to survive on its own — and only stops
  * once the shield is up again, at which point a real `attackDelay` replaces it.
  */
 const TEMPLAR_ATTACK_HOLD = TEMPLAR_WINDUP + TEMPLAR_SHIELD_DOWN;
 
-/** Bulwark's timer: 8-12 s (task brief), at the fight's start and after every use. */
+/** Bulwark's timer: 8-12 s, at the fight's start and after every use. */
 function abilityTimer(rng: Rng): number {
   return 480 + rng.nextInt(241);
 }
 
-/** Whether two doorways stand far enough apart for the spec's rule (spec §5.2). */
+/** Whether two doorways stand far enough apart. */
 function farEnough(gap: number, from: number): boolean {
   return Math.abs(gap - from) >= TEMPLAR_GAP_MIN_DISTANCE;
 }
@@ -137,11 +137,11 @@ function farEnough(gap: number, from: number): boolean {
  * The doorway of phase 2's staggered second wall, at least `TEMPLAR_GAP_MIN_DISTANCE` slots from the
  * first one's.
  *
- * **Exactly one draw, never a redraw loop** (task brief): how many times a boss draws per swing has
+ * **Exactly one draw, never a redraw loop**: how many times a boss draws per swing has
  * to be fixed, or the stream would depend on its own results. So one `nextInt(TEMPLAR_GAP_SLOTS)`,
  * and the drawn slot is corrected in place when it lands too close:
  *
- * 1. The brief's correction first — shift by `TEMPLAR_GAP_SHIFT` (half the wall), modulo the slots.
+ * 1. Shift first — by `TEMPLAR_GAP_SHIFT` (half the wall), modulo the slots.
  * 2. That is not enough on its own, because the wall is a line and the shift is a circle: with the
  *    first doorway at 3 and the draw at 5, `(5 + 4) % 8 = 1`, still two slots away. Five (first,
  *    draw) pairs land like that. So a shift that is still too close falls back on the far edge of
@@ -181,7 +181,7 @@ function guardUp(b: BossState): void {
   b.pending = [];
 }
 
-/** Calls up a rank of four wardens, centred, at the bottom of the squad band (spec §5.2). */
+/** Calls up a rank of four wardens, centred, at the bottom of the squad band. */
 function raiseWardenLine(s: GameState): void {
   spawnSquad(s, 'line4', TEMPLAR_GUARD, idiv(FIELD_W, 2), SQUAD_BAND.maxY, 1);
 }
@@ -189,13 +189,13 @@ function raiseWardenLine(s: GameState): void {
 export const TEMPLAR_HOOKS: BossHooks = {
   attack(s, b) {
     // The doorway is drawn at the very start of the wind-up, not when the wall falls: telegraphing
-    // it is the whole point of the 45 ticks (spec §5.2).
+    // it is the whole point of the 45 ticks.
     b.windup = TEMPLAR_WINDUP;
     b.gapSlot = s.rngBoss.nextInt(TEMPLAR_GAP_SLOTS);
     s.events.push({ tick: s.tick, type: 'boss_windup' });
   },
   secondary(s, b) {
-    // Spec §5.2: zigzag pairs between the swings of phase 2, thrown while the guard is closed. They
+    // Zigzag pairs between the swings of phase 2, thrown while the guard is closed. They
     // are not part of a swing, so they neither open the shield nor wait for one.
     if (b.phase < 2 || b.shieldUp === 0) return;
     const m = muzzle(b);
@@ -203,11 +203,11 @@ export const TEMPLAR_HOOKS: BossHooks = {
     castZigzag(s, m.x + 925, m.y, 1);
   },
   ability(s, b) {
-    // Bulwark (spec §5, reef 6's ability label) is the shell shield itself: the Templar plants it
+    // Bulwark (reef 6's ability label) is the shell shield itself: the Templar plants it
     // again. The ticks after a swing are the only window the player has on this boss, so Bulwark
     // never cuts one short — while the shield is down it does nothing at all, and the timer simply
-    // re-arms (task brief, unchanged by the amendment). With the shield up it always announces
-    // itself for the renderer and the crest sound, and — fix round 1, ruling R15 — on top of that
+    // re-arms. With the shield up it always announces
+    // itself for the renderer and the crest sound, and on top of that
     // raises one more `line4` at the warden line's own anchor if the escort has thinned below four
     // squad crabs; four or more already standing, and there is nothing more to do this tick.
     if (b.shieldUp === 0) return;
@@ -217,7 +217,7 @@ export const TEMPLAR_HOOKS: BossHooks = {
   initialAbilityTimer: abilityTimer,
   nextAbilityTimer: abilityTimer,
   onHit(s, b) {
-    // Spec §5.2: a player shot that reaches the boss box while the guard is closed is consumed
+    // A player shot that reaches the boss box while the guard is closed is consumed
     // whole. Azure's water shield answers `damageBoss` the same way — true means absorbed.
     if (b.shieldUp === 0) return false;
     s.events.push({ tick: s.tick, type: 'boss_block' });
@@ -241,7 +241,7 @@ export const TEMPLAR_HOOKS: BossHooks = {
       b.windup -= 1;
       if (b.windup === 0) swing(s, b);
     }
-    // Fix round 1, ruling R14: `attackTimer` only really counts down through beat 1 (rest, shield
+    // `attackTimer` only really counts down through beat 1 (rest, shield
     // up). Every tick of the wind-up or the shield-down window it is held above a whole swing, so
     // the shared decrement in `updateBoss` can never bring it to zero and call `attack` again before
     // this swing has fully resolved; the instant the shield comes back up it is handed a freshly
@@ -260,7 +260,7 @@ export const TEMPLAR_HOOKS: BossHooks = {
   },
   onPhaseStart(s, b) {
     guardUp(b);
-    // Fix round 1, ruling R14: a phase start hands the shield back up (early, cutting a resolving
+    // A phase start hands the shield back up (early, cutting a resolving
     // swing short, for every phase after the first) or starts the fight with it already up (phase
     // 1, where `spawnBoss` has already drawn the very first `attackDelay` before this hook runs —
     // drawing again here would only throw that draw away).

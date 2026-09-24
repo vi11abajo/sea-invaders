@@ -9,7 +9,7 @@ import { SQUAD_BAND, spawnSquad } from '../squads';
 import type { BossHooks } from './index';
 
 /**
- * Storm Tyrant (kind 9, spec §5.2 row 9): the old warden of Stormbreak Shelf, who does not aim his
+ * Storm Tyrant (kind 9): the old warden of Stormbreak Shelf, who does not aim his
  * lightning at Octopi so much as forbid the water it stands in. The field is six equal vertical
  * lanes; Stormlanes (his ability, reef 9's own label) flashes a handful of them, then strikes every
  * one that flashed — punishing whoever is still standing in the lane, and clearing the lane itself of
@@ -46,30 +46,30 @@ import type { BossHooks } from './index';
  * use elsewhere, since a renderer can already read every lane `s.lanes` itself carries.
  *
  * **The strike** (`strikeLane`, driven by `tickThroughTransition` below): unlike `lane_warning`, one
- * `lane_strike` *per lane* that reaches 0 this tick — the task brief's own "when an entry reaches 0
- * it STRIKES: emit lane_strike" reads as a per-entry action, not a per-firing one, and several lanes
+ * `lane_strike` *per lane* that reaches 0 this tick — "when an entry reaches 0 it strikes" is a
+ * per-entry rule, not a per-firing one, and several lanes
  * of the same firing (sharing the same `warning`) do strike on the very same tick. A struck lane:
  *
  * - Costs Octopi one life through `damageOctopiDirect` (`sim/collide.ts`) — the same SHIELD_BARRIER/
  *   INVINCIBILITY-respecting damage function a crab's own shot goes through, just without a shot in
  *   `s.enemyShots` to match against — if Octopi's own centre x falls in the lane.
  * - Removes every `bubble`/`orb` enemy shot whose centre falls in it, with no event of its own (a
- *   lane strike is not a shot landing, and the spec names no `bubble_pop`/similar for this).
+ *   lane strike is not a shot landing, so there is no `bubble_pop`/similar event for it).
  * - Kills every *squad* crab whose centre falls in it through `killCrab` (`sim/collide.ts`) — exactly
  *   the path a lethal bullet hit or WAVE_BLAST already uses, so the per-squad `alive` counter (and,
  *   for any boss whose squad loots on a wipe, that check too) counts this exactly like any other
- *   kill. **Score included**: spec §5.1's own general squad rule is "Squad crabs score normally when
+ *   kill. **Score included**: the general squad rule is "Squad crabs score normally when
  *   shot", and a lane strike is exactly that aimed at a whole lane instead of one bullet — there is no
  *   second, score-less kill path for a squad crab anywhere in the game, and inventing one here would
  *   let a squad's `alive` count reach 0 without the loot check (a future boss's, or a shared one)
  *   ever running the way an ordinary kill always does. A boss round never carries a wave (`squads.ts`
  *   own doc), so in real play every crab on the field during this fight already has `squad > 0`; the
- *   check is kept anyway because "squad crab" is the letter of the spec, not "any crab that happens
+ *   check is kept anyway because "squad crab" is the rule, not "any crab that happens
  *   to be there".
  *
  * **Discharge**: after a tick that struck at least one lane, `b.discharged = TYRANT_DISCHARGE_TICKS`
- * (refreshed, not stacked, exactly the brief's own "if a new strike lands while already discharged,
- * the timer restarts at 180") and one `boss_discharged`. `sim/boss.ts`'s own `dischargeMult` doubles
+ * (refreshed, not stacked — a new strike landing while already discharged restarts the timer at 180)
+ * and one `boss_discharged`. `sim/boss.ts`'s own `dischargeMult` doubles
  * `damageBoss`'s `amount` while it is above 0, gated on `b.kind === 9` — the same kind-gated-
  * multiplier idiom `rageMult`/`rageDelay` already use for Crimson, rather than a new `BossHooks`
  * member: `damageBoss` runs the same few lines for every boss kind regardless, so a plain function
@@ -77,11 +77,11 @@ import type { BossHooks } from './index';
  * (`b.discharged` is 0 for every one of them, for the whole of any fight, always).
  *
  * **Why the lanes and the discharge countdown share one hook, `tickThroughTransition`, instead of
- * living in the ordinary `tick`:** spec §5.2's own amendment is explicit that "lanes already warned
- * keep counting down through a transition", but `updateBoss` (`sim/boss.ts`) returns before it ever
+ * living in the ordinary `tick`:** lanes already warned must keep counting down through a
+ * transition, but `updateBoss` (`sim/boss.ts`) returns before it ever
  * reaches `hooks.tick` while `state === 'transition'` — every other boss's own `tick`-driven counter
  * (Corsair's `effectTicks`, Castellan's `aimTicks`) freezes for exactly that reason, unremarked, and
- * that is fine for them because nothing in the spec asks otherwise. Here it is asked otherwise, so
+ * that is fine for them, since nothing about those fights needs otherwise. Here it does, so
  * this boss defines a *new* optional hook instead, `BossHooks.tickThroughTransition`
  * (`sim/bosses/index.ts`), which `updateBoss` calls unconditionally right after the boss's own
  * movement, before it ever looks at `state` — undefined for every kind but this one, so it changes
@@ -95,36 +95,36 @@ import type { BossHooks } from './index';
  * same tick it is (re)set" rule Corsair's/Templar's own `effectTicks` already follow.
  *
  * **The escort** (`onPhaseStart`, phases 2 and 4 only): `spawnSquad(s, 'pair', TYRANT_ESCORT,
- * idiv(FIELD_W, 2), SQUAD_BAND.maxY, dir)`, `dir` 1 at phase 2 and -1 at phase 4 (no draw — spec
- * §5.2's own "escort squad ... at the start of phases 2 and 4", the task brief's "dir alternates, no
- * draw"). `SQUAD_TEMPLATES.pair` (`squads.ts`) is `['11']`: one row, two cells, both tier digit `1`.
+ * idiv(FIELD_W, 2), SQUAD_BAND.maxY, dir)`, `dir` 1 at phase 2 and -1 at phase 4 (no draw — an escort
+ * squad spawns at the start of phases 2 and 4, direction alternating). `SQUAD_TEMPLATES.pair`
+ * (`squads.ts`) is `['11']`: one row, two cells, both tier digit `1`.
  * `kindForTier` reads a roster's tier-`n` entry as `roster[n]` by way of `TIER_KINDS` (`levels.ts`),
  * so a five-kind roster with anything but `bombardier` at index 1 would field the wrong crab — the
  * exact trap the Verdant Templar's own file doc calls out for `line4`'s tier-1 cells. `TYRANT_ESCORT`
  * sidesteps it exactly the way `TEMPLAR_GUARD` does: every tier maps to `bombardier`, so whichever
  * index `pair`'s two `1`s resolve to, both crabs come out bombardiers regardless.
  *
- * **The escort cap** (fix round 1, ruling R24): a phase start whose own `liveSquadCrabs(s) >=
+ * **The escort cap**: a phase start whose own `liveSquadCrabs(s) >=
  * TYRANT_ESCORT_CAP` (4) skips that occurrence outright — no spawn, no retry later, the phase simply
  * opens without a fresh pair. `liveSquadCrabs` sums `Squad.alive` (`types.ts`) over every entry of
- * `s.squads`, the same per-squad counter (fix round 1 of task 8, ruling R22) the Gold Corsair's own
+ * `s.squads`, the same per-squad counter the Gold Corsair's own
  * loot check already trusts as the single source of truth for "how many of this squad's crabs are
- * still alive" — not a live scan of `s.crabs`, which the Corsair's own (earlier, task-8) crew cap
+ * still alive" — not a live scan of `s.crabs`, which the Corsair's own crew cap
  * uses instead (`s.crabs.filter((c) => c.squad > 0).length`, `corsair.ts`). Both read the same true
  * count in real play (every path that kills a squad crab decrements `alive` and removes it from
  * `s.crabs` in the same call, and `marchSquads` prunes an emptied-out squad from `s.squads` earlier
  * in the very same tick, before `onPhaseStart` ever runs), so this is a shape choice, not a
- * behavioural one — the reviewer's own R24 wording asks for the `alive`-sum shape specifically.
+ * behavioural one.
  *
  * **The attack** (`attack`): a `castBolt` fork every attack, no draw. From phase 2 on, one `orb` is a
  * *candidate* every other attack — `b.burst` (scratch, this boss's own use of it) flips every attack
  * once `b.phase >= 2`, unconditionally, the same "the schedule never depends on whether anything
- * actually happens" ruling the Frost Castellan's own phase-2 large shot already established
+ * actually happens" pattern the Frost Castellan's own phase-2 large shot already established
  * (`castellan.ts`'s `attack`, alternated "by a bare flag, not a draw"); only on the half of those
  * attacks where the flag lands on 1 does it actually try `castOrb`, and even then only if
- * `s.enemyShots` carries no `orb` yet (spec §5.2: "one orb at a time"). The flag is never reset at a
+ * `s.enemyShots` carries no `orb` yet (one orb at a time). The flag is never reset at a
  * phase boundary, so the alternation runs continuously across phases 2, 3 and 4 rather than
- * restarting fresh at each one — nothing in the spec asks for a reset, and Castellan's own precedent
+ * restarting fresh at each one — there is no reason to reset it, and Castellan's own precedent
  * (a flag that starts at its spawn-time neutral 0 and is never touched before its first live use)
  * already reads the same way for "the first eligible attack casts one".
  *
@@ -153,7 +153,7 @@ import type { BossHooks } from './index';
  * `boss-tyrant.test.ts` pins this sequence, the lane/warning/discharge numbers and the escort.
  */
 
-/** How many equal vertical lanes the field is split into (spec §5.2 row 9). */
+/** How many equal vertical lanes the field is split into. */
 export const LANE_COUNT = 6;
 
 /** The left edge of lane `i`; lane `LANE_COUNT` is `FIELD_W` itself, one past the last real lane. */
@@ -162,7 +162,7 @@ function laneStart(i: number): number {
 }
 
 /**
- * Which of the `LANE_COUNT` equal vertical lanes contains `x` (spec §5.2 row 9): lane `i` spans
+ * Which of the `LANE_COUNT` equal vertical lanes contains `x`: lane `i` spans
  * `[laneStart(i), laneStart(i + 1))`, a half-open interval, so a point sitting exactly on a shared
  * boundary belongs to the lane that starts there, never the one that ends there. Total rather than
  * partial: an `x` at or past `FIELD_W` still resolves to the last lane rather than throwing.
@@ -174,35 +174,35 @@ export function laneOf(x: number): number {
   return 0;
 }
 
-/** Ticks of Stormlanes' own timer: 6-10 s (spec §5.2), at the fight's start and after every firing. */
+/** Ticks of Stormlanes' own timer: 6-10 s, at the fight's start and after every firing. */
 function abilityTimer(rng: Rng): number {
   return 360 + rng.nextInt(241);
 }
 
-/** How many distinct lanes one Stormlanes firing warns (spec §5.2): 2/3/3/4 for phases 1-4. */
+/** How many distinct lanes one Stormlanes firing warns: 2/3/3/4 for phases 1-4. */
 function laneCount(phase: number): number {
   return 2 + idiv(phase, 2);
 }
 
-/** Ticks a warned lane flashes before it strikes (spec §5.2): 65/55/45/35 for phases 1-4. */
+/** Ticks a warned lane flashes before it strikes: 65/55/45/35 for phases 1-4. */
 function warningTicks(phase: number): number {
   return 75 - 10 * phase;
 }
 
-/** Ticks the Storm Tyrant is discharged (double damage) after a strike (spec §5.2 row 9). */
+/** Ticks the Storm Tyrant is discharged (double damage) after a strike. */
 export const TYRANT_DISCHARGE_TICKS = 180;
 
 /**
- * The escort roster (spec §5.2): `SQUAD_TEMPLATES.pair` is `['11']`, both cells tier digit 1, so
+ * The escort roster: `SQUAD_TEMPLATES.pair` is `['11']`, both cells tier digit 1, so
  * every tier maps to `bombardier` — the same all-one-kind trick `TEMPLAR_GUARD` uses for the warden
  * line, so both crabs come out bombardiers regardless of which index `kindForTier` actually reads.
  */
 export const TYRANT_ESCORT: readonly CrabType[] = ['bombardier', 'bombardier', 'bombardier', 'bombardier', 'bombardier'];
 
-/** Squad crabs alive at which a phase-start escort is skipped, no retry later (fix round 1, ruling R24). */
+/** Squad crabs alive at which a phase-start escort is skipped, no retry later. */
 export const TYRANT_ESCORT_CAP = 4;
 
-/** Squad crabs alive right now, summed across every squad (fix round 1, ruling R24). See the file doc. */
+/** Squad crabs alive right now, summed across every squad. See the file doc. */
 function liveSquadCrabs(s: GameState): number {
   let total = 0;
   for (const q of s.squads) total += q.alive;
@@ -217,7 +217,7 @@ function occupiedLanes(s: GameState): Set<number> {
 }
 
 /**
- * Stormlanes (the ability, spec §5.2): warns `laneCount(b.phase)` distinct lanes for
+ * Stormlanes (the ability): warns `laneCount(b.phase)` distinct lanes for
  * `warningTicks(b.phase)` ticks each. See the file doc for the fixed draw count and the walk-forward
  * distinctness rule.
  */
@@ -234,7 +234,7 @@ function fireStormlanes(s: GameState, b: BossState): void {
   s.events.push({ tick: s.tick, type: 'lane_warning' });
 }
 
-/** Resolves one lane's strike (spec §5.2). See the file doc for what it does and why. */
+/** Resolves one lane's strike. See the file doc for what it does and why. */
 function strikeLane(s: GameState, lane: number): void {
   s.events.push({ tick: s.tick, type: 'lane_strike' });
   if (laneOf(s.octopi.x) === lane) damageOctopiDirect(s, 1);
@@ -255,11 +255,11 @@ function strikeLane(s: GameState, lane: number): void {
 
 export const TYRANT_HOOKS: BossHooks = {
   attack(s, b) {
-    // The fork (spec §5.2): every attack, no draw.
+    // The fork: every attack, no draw.
     const m = muzzle(b);
     castBolt(s, m.x, m.y);
     if (b.phase < 2) return;
-    // The orb, from phase 2 (spec §5.2): a bare flag, not a draw (see the file doc) — every other
+    // The orb, from phase 2: a bare flag, not a draw (see the file doc) — every other
     // attack is a candidate, and even then only while no orb is already alive.
     b.burst = b.burst === 0 ? 1 : 0;
     if (b.burst === 0) return;
@@ -272,8 +272,8 @@ export const TYRANT_HOOKS: BossHooks = {
   initialAbilityTimer: abilityTimer,
   nextAbilityTimer: abilityTimer,
   onPhaseStart(s, b) {
-    // The escort (spec §5.2): phases 2 and 4 only, direction alternating with no draw. Ruling R24
-    // (fix round 1): skipped outright, no retry later, once 4 or more squad crabs already live.
+    // The escort: phases 2 and 4 only, direction alternating with no draw. Skipped outright, no
+    // retry later, once 4 or more squad crabs already live.
     if (b.phase !== 2 && b.phase !== 4) return;
     if (liveSquadCrabs(s) >= TYRANT_ESCORT_CAP) return;
     spawnSquad(s, 'pair', TYRANT_ESCORT, idiv(FIELD_W, 2), SQUAD_BAND.maxY, b.phase === 2 ? 1 : -1);

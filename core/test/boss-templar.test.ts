@@ -9,10 +9,9 @@ import {
 import type { BossState, Bullet, GameState } from '../src';
 
 /**
- * The Verdant Templar, boss kind 6 (spec §5.2 row 6). Every number below is the spec's or the
- * task brief's, in ticks at 60 Hz.
+ * The Verdant Templar, boss kind 6. Every number below is in ticks at 60 Hz.
  *
- * Fix round 1 amended the swing's rhythm (ruling R14) and Bulwark (ruling R15) — see
+ * The swing's rhythm and Bulwark work as described below — see
  * `sim/bosses/templar.ts`'s own doc comment for the cycle's four beats. The RNG draw order of one
  * cycle, which these tests pin (`rngBoss` only — the boss never touches another stream):
  *
@@ -25,7 +24,7 @@ import type { BossState, Bullet, GameState } from '../src';
  * 3. (phase 2 only) `nextInt(TEMPLAR_GAP_SLOTS)` — the doorway of the staggered second wall, drawn
  *    once when the first wall falls, 45 ticks after draw 1.
  * 4. `nextInt(BOSS.attackJitter)` — the *real* jitter for the next rest, drawn by `tick` the instant
- *    the shield comes back up (new in fix round 1 — this draw did not exist before R14, and it is
+ *    the shield comes back up (a draw that did not exist in the previous cadence, and it is
  *    what actually times the pause before the next wind-up).
  *
  * Off that cadence sit only the two shared timers: `secondaryDelay`'s `nextInt(73)` every time the
@@ -54,7 +53,7 @@ function soloArena(seed = 'templar'): GameState {
 /**
  * A solo arena whose spawn-time draws (facing, `attackDelay(1)`, `secondaryDelay`,
  * `initialAbilityTimer`) come off a scripted `rng` instead of the seed, so a whole cycle's timing
- * can be pinned exactly (fix round 1, ruling R14).
+ * can be pinned exactly.
  */
 function scriptedArena(rng: GameState['rngBoss']): GameState {
   const s = createGame('templar-cycle', { ...PRACTICE_RUN, features: { boosts: false } });
@@ -221,7 +220,7 @@ describe('Verdant Templar — the sword swing', () => {
   });
 
   it('keeps windup and the shield-down window independent even if a new one is forced early', () => {
-    // Fix round 1 (ruling R14) holds the shared `attackTimer` through the whole of a swing, so
+    // Holding the shared `attackTimer` through the whole of a swing means
     // natural cadence can no longer start a wind-up before the old shield-down window has run out
     // (see "the cycle" below for the natural-cadence pin). `announce()` forces one anyway, straight
     // through that hold — this only checks that `windup` and `effectTicks` still don't interfere
@@ -255,7 +254,7 @@ describe('Verdant Templar — the sword swing', () => {
   });
 });
 
-describe('Verdant Templar — the cycle (fix round 1, ruling R14)', () => {
+describe('Verdant Templar — the cycle', () => {
   it('rests for the drawn attackDelay, winds up 45 ticks, stays down 120, then rests again on a fresh draw', () => {
     // Three width-61 draws happen before the second rest is over: the real draw for rest 1 (drawn
     // by `spawnBoss`), the shared reset's "wasted" draw the instant the first wind-up begins (its
@@ -298,7 +297,7 @@ describe('Verdant Templar — the cycle (fix round 1, ruling R14)', () => {
     // Every individual cycle already clears 45%: phase 1's rest is 120-180 ticks against a 165-tick
     // wind-up + down, phase 2's is 96-156 — worst case (120+45)/(120+45+120) = 57.9% and
     // (96+45)/(96+45+120) = 54.0%. The long run (the real seeded `rngBoss`, natural cadence, no
-    // forcing) is the belt-and-braces measurement the ruling asks for.
+    // forcing) is the belt-and-braces measurement.
     for (const phase of [1, 2] as const) {
       const s = soloArena(`templar-uptime-${phase}`);
       s.boss!.phase = phase;
@@ -428,7 +427,7 @@ describe('Verdant Templar — phase 2', () => {
 describe('Verdant Templar — the warden line', () => {
   it('raises a line of four wardens at the fight start, centred below the boss box', () => {
     const s = arena();
-    expect(s.squads).toEqual([{ id: 1, dir: 1, bossKind: 6, alive: 4 }]); // fix round 1, ruling R22
+    expect(s.squads).toEqual([{ id: 1, dir: 1, bossKind: 6, alive: 4 }]);
     expect(s.crabs).toHaveLength(4);
     for (const c of s.crabs) {
       expect(c.type).toBe('warden');
@@ -480,7 +479,7 @@ describe('Verdant Templar — the warden line', () => {
   });
 });
 
-describe('Verdant Templar — Bulwark refills the wall (fix round 1, ruling R15)', () => {
+describe('Verdant Templar — Bulwark refills the wall', () => {
   it('raises a second line4 of four wardens when fewer than four squad crabs stand and the shield is up', () => {
     const s = arena(); // the fight-start line4: squad 1, four wardens
     const b = park(s);
@@ -557,7 +556,7 @@ describe('Verdant Templar — Bulwark and the RNG', () => {
     damageBoss(s, b.hp);
     expect(s.boss).toBeNull();
     expect(s.score).toBe(bossStats(6).score); // no decay: the fight lasted no ticks at all
-    // The pop is no longer synchronous inside `damageBoss` (fix round 1, ruling R22) — it runs once
+    // The pop is no longer synchronous inside `damageBoss` — it runs once
     // at the end of the tick, from `step.ts`; a direct `damageBoss` call with no `step()` around it
     // needs its own explicit `popSquads` to see the escort actually cleared.
     expect(s.crabs).not.toEqual([]);

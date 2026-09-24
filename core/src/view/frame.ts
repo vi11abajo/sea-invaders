@@ -18,7 +18,7 @@ export interface BossFrame {
   rage: 0 | 1;
   /** Ticks of Void's temporal freeze remaining, 0 when not in effect. */
   freeze: number;
-  // The reefs 6-10 flags (spec §7), appended so every older field keeps its place. All four stay 0
+  // The reefs 6-10 flags, appended so every older field keeps its place. All four stay 0
   // for the whole of a fight with a boss of the first campaign.
   /** Templar: 1 while the shell shield is up and player shots bounce off it. */
   shieldUp: 0 | 1;
@@ -31,22 +31,22 @@ export interface BossFrame {
 }
 
 /**
- * Ints packed per crab in `Frame.crabs` (spec §7 ruling R3): x, y, kind, typeIndex, hp, flags. All
- * four flag bits are live (spec §7): bit 0 the warden's shield up, bit 1 heralded by a herald's
+ * Ints packed per crab in `Frame.crabs`: x, y, kind, typeIndex, hp, flags. All
+ * four flag bits are live: bit 0 the warden's shield up, bit 1 heralded by a herald's
  * aura, bit 2 revived by a patriarch within the last `REVIVED_TICKS` ticks, bit 3 the formation
  * raging over a fallen patriarch. A consumer must never assume 5 ints per crab any more — use this
  * constant.
  */
 export const CRAB_STRIDE = 6;
 
-/** Ints packed per arena object in `Frame.obstacles` (spec §7): x, y, w, h, hp, kindIndex. */
+/** Ints packed per arena object in `Frame.obstacles`: x, y, w, h, hp, kindIndex. */
 export const OBSTACLE_STRIDE = 6;
 
-/** Ints packed per lightning lane in `Frame.lanes` (spec §7): lane, ticksLeft. */
+/** Ints packed per lightning lane in `Frame.lanes`: lane, ticksLeft. */
 export const LANE_STRIDE = 2;
 
 /**
- * Ints packed per sight line in `Frame.aim` (spec §7, amended 2026-09-22, ruling R32): fromX, fromY,
+ * Ints packed per sight line in `Frame.aim`: fromX, fromY,
  * toX, toY, decoy, ticksLeft. Grew from 5 to 6 ints when the far point picked up its own `toY` —
  * Octopi moves on both axes, so a line named by an x alone could not be drawn or flown to the same
  * place.
@@ -75,9 +75,9 @@ export interface Frame {
   well: { x: number; y: number } | null;
   /** Ticks left in a campaign wave's arrival descent; 0 when idle. */
   arrival: number;
-  /** The wave-mode score-decay percentage right now (spec C7), 100 down to 1. */
+  /** The wave-mode score-decay percentage right now, 100 down to 1. */
   scoreDecayPct: number;
-  // The reefs 6-10 arrays (spec §7), appended so every older field keeps its name and place. All
+  // The reefs 6-10 arrays, appended so every older field keeps its name and place. All
   // three are empty and `chill` is 0 for the whole of the first campaign.
   /** `OBSTACLE_STRIDE`-int groups: x, y, w, h, hp, kindIndex. */
   obstacles: number[];
@@ -85,7 +85,7 @@ export interface Frame {
   lanes: number[];
   /** `AIM_STRIDE`-int groups: fromX, fromY, toX, toY, decoy (1 for a decoy's line), ticksLeft. */
   aim: number[];
-  /** Ticks left of the cold snap slowing Octopi (spec §5.2); 0 when it is not in effect. */
+  /** Ticks left of the cold snap slowing Octopi; 0 when it is not in effect. */
   chill: number;
 }
 

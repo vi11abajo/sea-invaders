@@ -13,10 +13,10 @@ function axeVx(fromX: number, targetX: number): number {
 }
 
 /**
- * Gold Corsair, boss kind 8 (spec §5.2 row 8). Every number below is the spec's or the task brief's,
- * in ticks at 60 Hz. `sim/bosses/corsair.ts`'s own doc comment explains the reused `BossState`
+ * Gold Corsair, boss kind 8. Every number below is in ticks at 60 Hz.
+ * `sim/bosses/corsair.ts`'s own doc comment explains the reused `BossState`
  * fields (`windup`, `effectTicks`, `burst`), the crew cap's exact rule, the `onHit` extension
- * (ruling for this task) and the RNG draw order pinned here.
+ * and the RNG draw order pinned here.
  */
 
 /** A practice arena with the Corsair on it, the practice wave swept away. */
@@ -165,7 +165,7 @@ describe('Gold Corsair — loot', () => {
     spawnSquad(s, 'crew', ['armored'], idiv(FIELD_W, 2), SQUAD_BAND.maxY, 1);
     expect(s.crabs).toHaveLength(8);
     // Only the last crab of the crew is left standing (backstory: the other 7 already died earlier —
-    // `alive` is set to match, fix round 1, ruling R22, since it is now the wipe detector, not a scan
+    // `alive` is set to match, since it is now the wipe detector, not a scan
     // of `s.crabs`). Killing this one through a real player shot is the whole-crew wipe.
     const last = s.crabs[7]!;
     last.hp = 1;
@@ -217,7 +217,7 @@ describe('Gold Corsair — loot', () => {
     spawnBoss(s, 1); // Emerald, not the Corsair
     spawnSquad(s, 'crew', ['armored'], idiv(FIELD_W, 2), SQUAD_BAND.maxY, 1);
     s.crabs = [s.crabs[7]!];
-    s.squads[0]!.alive = 1; // matches the truncation above (fix round 1, ruling R22)
+    s.squads[0]!.alive = 1; // matches the truncation above
     const c = s.crabs[0]!;
     c.hp = 1;
     s.shots.push({ x: c.x, y: c.y, vx: 0, vy: -240, kind: 'straight', data: 0 });
@@ -226,13 +226,13 @@ describe('Gold Corsair — loot', () => {
     expect(s.events.filter((e) => e.type === 'crew_looted')).toHaveLength(0);
   });
 
-  describe('fix round 1 — the alive count, not a live scan of s.crabs (controller ruling R22)', () => {
+  describe('the alive count, not a live scan of s.crabs', () => {
     it('a crew finished off by WAVE_BLAST in one batch still loots exactly once', () => {
       const s = createGame('corsair-waveblast', { ...PRACTICE_RUN, features: { boosts: true } });
       s.crabs = [];
       spawnBoss(s, 8);
       // A one-row squad, both crabs sharing one y, so WAVE_BLAST's own bottom-row band takes both in
-      // the very same call — the exact scenario fix round 0 got wrong: `applyWaveBlast`
+      // the very same call — the exact scenario an earlier version got wrong: `applyWaveBlast`
       // (`sim/boostEffects.ts`) computes its whole kill list against the *original* `s.crabs` and
       // only removes the dead in one batch afterwards, so a live scan for "any survivor left" would
       // always find the crew's own still-present, doomed-but-not-yet-removed crab-mate and never
@@ -261,8 +261,8 @@ describe('Gold Corsair — loot', () => {
       // The boss-killing shot sits FIRST in `s.shots`: `hitCrabs` (`sim/collide.ts`) iterates that
       // array in order, so with the *old* synchronous `popSquads` inside `damageBoss` this order
       // would have removed `last` from `s.crabs` before the loop ever reached the crab-killing shot
-      // below — losing the loot to nothing but shot order (fix round 1's own Important finding).
-      // `popSquads` no longer runs until the end of the tick (`step.ts`, ruling R22), so `last` is
+      // below — losing the loot to nothing but shot order.
+      // `popSquads` no longer runs until the end of the tick (`step.ts`), so `last` is
       // still there when its own shot's turn comes.
       s.shots.push({ x: s.boss!.x, y: s.boss!.y, vx: 0, vy: -240, kind: 'straight', data: 0 });
       const marched = last.x + squadStep(s, s.squads[0]!.dir);

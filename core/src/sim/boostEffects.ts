@@ -3,15 +3,15 @@ import { idiv } from '../fixed';
 import type { BoostType, Crab, GameState } from '../types';
 import { killCrab } from './collide';
 
-/** Bottom-row tolerance for WAVE_BLAST (spec C4): legacy ±10px ~= 367 units. */
+/** Bottom-row tolerance for WAVE_BLAST: legacy ±10px ~= 367 units. */
 const WAVE_BLAST_ROW_BAND = 367;
 
 /**
- * WAVE_BLAST's bottom-row kill (spec C4, legacy `boost-manager.js:463-481`): every crab within
+ * WAVE_BLAST's bottom-row kill: every crab within
  * `WAVE_BLAST_ROW_BAND` units of the highest current `y` among crabs (a diving crab counts by its
  * current `y`, not its formation slot) is killed through the same scoring path as a lethal bullet
  * hit (`killCrab`), so drops/score/decay/kills all agree with a normal kill. No boss damage, no shot
- * clearing (both removed per spec C4 — the legacy's WAVE_BLAST never touched either). Returns false
+ * clearing (both removed — the legacy's WAVE_BLAST never touched either). Returns false
  * (and does nothing else) when there are no crabs at all, so the pickup that triggered this is not
  * consumed (legacy `activateBoost` returning `false`) — the drop keeps falling.
  */
@@ -29,14 +29,14 @@ function applyWaveBlast(s: GameState): boolean {
 }
 
 /**
- * Coraluna's Surge (champions and skins spec §1): once `surgeEveryFor` kills (30) have been counted
+ * Coraluna's Surge: once `surgeEveryFor` kills (30) have been counted
  * in `s.surgeKills` (`killCrab`), spends them on the same bottom-row sweep a WAVE_BLAST pickup makes
  * and raises a `surge` event at Octopi for the app's flash and toast. No WAVE_BLAST pickup is
  * consumed or created, but each swept crab goes through `killCrab` like any kill: it rolls its own
  * loot, scores, and counts towards the next Surge. The event is raised even when the field is empty
  * and the sweep finds nothing: that surge is wasted, not carried over to the next wave.
  *
- * `step` calls this once a tick, after `updateBoosts` and before `nextWave` (ruling R-K), so every
+ * `step` calls this once a tick, after `updateBoosts` and before `nextWave`, so every
  * kill of the tick — a shot's in `hitCrabs`, a WAVE_BLAST pickup's in `updateBoosts` — is counted
  * first and a surge due on a field that tick emptied is spent there, never on the next wave. At most
  * one surge a tick: a count its own sweep carries back over 30 waits for the next tick's call. A
@@ -59,7 +59,7 @@ export function surgeIfDue(s: GameState): void {
  * and never reach this switch via `activateBoost`, but keep an explicit no-op case each for clarity.
  * RANDOM_CHAOS is intercepted by `activateBoost` before it ever calls `applyEffect` (it activates
  * the picked boost directly), so its case here is unreachable in practice; the `default` is kept
- * only for exhaustiveness. Returns whether the effect actually applied (spec C4: WAVE_BLAST reports
+ * only for exhaustiveness. Returns whether the effect actually applied (WAVE_BLAST reports
  * `false` with no crabs on screen); every other case is always consumed.
  */
 export function applyEffect(s: GameState, type: BoostType): boolean {
@@ -105,12 +105,12 @@ export function removeEffect(s: GameState, type: BoostType): void {
       s.boosts.well = null;
       return;
     case 'SHIELD_BARRIER':
-      // Only a chaos-timed shield (spec C8) ever reaches this: a permanent one's active entry has
+      // Only a chaos-timed shield ever reaches this: a permanent one's active entry has
       // `ticksLeft = -1` and never expires via the tick countdown that calls `removeEffect`.
       s.boosts.shield = 0;
       return;
     case 'SPEED_TAMER':
-      // Only a chaos-timed stack (spec C8) ever reaches this, one expiry per stack it granted; a
+      // Only a chaos-timed stack ever reaches this, one expiry per stack it granted; a
       // permanent stack's active entry has `ticksLeft = -1` and never expires this way.
       s.boosts.tamerStacks = Math.max(0, s.boosts.tamerStacks - 1);
       return;

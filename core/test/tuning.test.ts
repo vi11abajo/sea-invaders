@@ -31,7 +31,7 @@ describe('game-speed tuning', () => {
     expect(Array.from({ length: 4 }, (_, t) => marchSteps(t, 150))).toEqual([2, 1, 2, 1]);
   });
 
-  it('holds the owner tuning of 2026-09-13 (a change needs a CORE_VERSION bump and new goldens)', () => {
+  it('holds the current tuning values (a change needs a CORE_VERSION bump and new goldens)', () => {
     expect(TUNING).toEqual({ octopiShotPct: 80, crabMovePct: 90, crabFirePct: 90 });
     expect(SHOT.speed).toBe(192);
   });

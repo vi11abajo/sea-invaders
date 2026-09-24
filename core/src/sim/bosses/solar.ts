@@ -8,11 +8,11 @@ function abilityTimer(rng: Rng): number {
   return 720 + rng.nextInt(361);
 }
 
-/** Cast ids >= this offset encode a meteor-shower drop's spawn x (spec §4.1 `meteor`, §4.2 row 3). */
+/** Cast ids >= this offset encode a meteor-shower drop's spawn x. */
 const METEOR_CAST_OFFSET = 1_000_000;
 
 /**
- * Solar Kraken (`crabBossYellow`, kind 3, spec §4.2 row 3): straight shots sped up 22% in phase 1,
+ * Solar Kraken (`crabBossYellow`, kind 3): straight shots sped up 22% in phase 1,
  * an 8-shot ring sped up 11% in phase 2, and 5 explosive shots in phase 3. Its meteor shower drops
  * 8-12 meteors from above the field, each preceded by a 60-tick warning at a random x.
  */

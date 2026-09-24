@@ -7,10 +7,10 @@ import {
 import type { BossState, GameState } from '../src';
 
 /**
- * The Frost Castellan, boss kind 7 (spec §5.2 row 7). Every number below is the spec's or the task
- * brief's, in ticks at 60 Hz. `sim/bosses/castellan.ts`'s own doc comment explains the two reused
+ * The Frost Castellan, boss kind 7. Every number below
+ * is in ticks at 60 Hz. `sim/bosses/castellan.ts`'s own doc comment explains the two reused
  * `BossState` fields (`windup`, `burst`; cold snap's `aimTicks` is described at its own declaration
- * in `types.ts`), the `GameState.destroyedObstacles` channel (fix round 1, controller ruling R18)
+ * in `types.ts`), the `GameState.destroyedObstacles` channel
  * and the RNG draw order pinned here.
  */
 
@@ -244,7 +244,7 @@ describe('Frost Castellan — a player-destroyed crystal bursts', () => {
   });
 });
 
-describe('Frost Castellan — fix round 1: the burst does not depend on s.events (controller ruling R18)', () => {
+describe('Frost Castellan — the burst does not depend on s.events', () => {
   it('bursts through a real step, same tick as the destruction, even when a harness clears s.events every tick as the app does', () => {
     const s = arena();
     const b = park(s);
@@ -256,8 +256,8 @@ describe('Frost Castellan — fix round 1: the burst does not depend on s.events
     const startY = y + 240;
     for (let i = 0; i < 12; i++) s.shots.push({ x, y: startY, vx: 0, vy: -240, kind: 'straight', data: 0 });
     // Mimic `GameScreen.tsx`'s own per-frame drain (`state.events.length = 0`) around the very tick
-    // that destroys the crystal — this is exactly the scenario fix round 0's `s.events` watermark
-    // got wrong (controller ruling R18).
+    // that destroys the crystal — this is exactly the scenario an earlier version's `s.events`
+    // watermark got wrong.
     s.events = [];
     step(s, INITIAL_INPUT); // hitObstacle runs before updateBoss now, so this one tick both destroys
     // the crystal and drains it — no one-tick delay, and no dependence on s.events surviving.
@@ -280,7 +280,7 @@ describe('Frost Castellan — fix round 1: the burst does not depend on s.events
   });
 });
 
-describe('Frost Castellan — fix round 2: a destruction pending through a transition is delayed, never lost (controller ruling R19)', () => {
+describe('Frost Castellan — a destruction pending through a transition is delayed, never lost', () => {
   it('bursts on the first tick fighting resumes, and only then, when a crystal is destroyed mid-transition', () => {
     const s = arena();
     const b = park(s);

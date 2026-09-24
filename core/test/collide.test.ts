@@ -31,7 +31,7 @@ describe('hitCrabs', () => {
   });
 
   it('a piercing shot deals exactly one hit to an armored crab in a pass, then keeps flying', () => {
-    // Spec §5.2: "one hit per crab per shot". Calling hitCrabs again with no shot movement in
+    // The rule is "one hit per crab per shot". Calling hitCrabs again with no shot movement in
     // between stands in for the shot lingering in the crab's overlap box across consecutive ticks
     // (SHOT.speed is slower than the overlap window is wide) — the case the fix in `hitCrabs`
     // guards against by pushing a surviving piercing shot clear of the box it just hit.

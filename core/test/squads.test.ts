@@ -36,7 +36,7 @@ describe('squad templates and spawning', () => {
     const s = arena();
     const id = spawnSquad(s, 'line4', REEF_KINDS, idiv(FIELD_W, 2), SQUAD_BAND.minY, 1);
     expect(id).toBe(1);
-    expect(s.squads).toEqual([{ id: 1, dir: 1, bossKind: 1, alive: 4 }]); // fix round 1, ruling R22
+    expect(s.squads).toEqual([{ id: 1, dir: 1, bossKind: 1, alive: 4 }]);
     expect(s.crabs).toHaveLength(4);
     for (const c of s.crabs) {
       expect(c.squad).toBe(1);
@@ -80,7 +80,7 @@ describe('the squad band', () => {
   const BOX_BOTTOM = BOSS.top + BOSS.height; // 3660
   const HALF = idiv(CRAB.size, 2);
 
-  it('runs from half a crab below the boss box down to the spec bound (ruling R12)', () => {
+  it('runs from half a crab below the boss box down to the intended bound', () => {
     expect(SQUAD_BAND.minY).toBe(BOX_BOTTOM + HALF); // 3925
     expect(SQUAD_BAND.maxY).toBe(BOX_BOTTOM + 300); // 3960
     expect(SQUAD_BAND.minY).toBeLessThan(SQUAD_BAND.maxY);
@@ -289,7 +289,7 @@ describe('squad crabs dying', () => {
     spawnSquad(withSquads, 'pair', REEF_KINDS, 4000, SQUAD_BAND.minY, -1);
     damageBoss(withSquads, withSquads.boss!.maxHp);
     expect(withSquads.boss).toBeNull();
-    // The pop itself is no longer synchronous inside `damageBoss` (fix round 1, ruling R22) — it now
+    // The pop itself is no longer synchronous inside `damageBoss` — it now
     // runs once at the end of the tick, from `step.ts`, so a direct `damageBoss` call (as here, with
     // no `step()` around it) leaves the escort standing until something calls `popSquads` itself.
     expect(withSquads.crabs).not.toEqual([]);

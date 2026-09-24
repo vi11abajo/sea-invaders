@@ -9,7 +9,7 @@ import { FRAGMENT_VECTORS, insideField, spawnCrab } from './crabs';
 import { SPLIT_COL, freeSlots } from './living';
 
 /**
- * The five veteran skills of spec §2: the warden's rune shield, the herald's aura, the bubbler's
+ * The five veteran skills: the warden's rune shield, the herald's aura, the bubbler's
  * bubbles, the bombardier's bursting charge and the patriarch's rally and rage.
  *
  * Everything here is reachable only through a veteran. A wave of `normal`/`armored`/`swift`/`heavy`/
@@ -33,26 +33,26 @@ import { SPLIT_COL, freeSlots } from './living';
  *  5. Inside `hitCrabs`/`hitOctopi`: the rune shield absorbing a hit, and a dying patriarch's rage.
  */
 
-/** Ticks a broken rune shield takes to grow back (spec §2). */
+/** Ticks a broken rune shield takes to grow back. */
 export const SHIELD_REGROW_TICKS = 300;
 
-/** Ticks between two of a patriarch's revives (spec §2). */
+/** Ticks between two of a patriarch's revives. */
 export const RALLY_EVERY = 480;
 
 /**
- * How much later than the patriarch before it the k-th patriarch of a wave first rallies (ruling
- * R9b): a wave with four of them brings its fallen back as a trickle rather than four at a time.
+ * How much later than the patriarch before it the k-th patriarch of a wave first rallies: a wave
+ * with four of them brings its fallen back as a trickle rather than four at a time.
  * `armRallies` hands out `RALLY_EVERY + RALLY_STAGGER * k` in slot order at spawn.
  */
 export const RALLY_STAGGER = 40;
 
-/** Revives one patriarch may ever make (spec §2). */
+/** Revives one patriarch may ever make. */
 export const RALLY_CAP = 3;
 
-/** Ticks a revived crab carries its rally mark for the renderer (spec §7, frame flag bit 2). */
+/** Ticks a revived crab carries its rally mark for the renderer (frame flag bit 2). */
 export const REVIVED_TICKS = 60;
 
-/** Ticks a formation actually marches and fires half again as fast after a patriarch died (spec §2). */
+/** Ticks a formation actually marches and fires half again as fast after a patriarch died. */
 export const RAGE_TICKS = 300;
 
 /**
@@ -65,40 +65,40 @@ export const RAGE_TICKS = 300;
  */
 const RAGE_STORED = RAGE_TICKS + 1;
 
-/** A raging formation marches and fires `RAGE_NUM / RAGE_DEN` times as fast (spec §2: x1.5). */
+/** A raging formation marches and fires `RAGE_NUM / RAGE_DEN` times as fast (×1.5). */
 const RAGE_NUM = 3;
 const RAGE_DEN = 2;
 
-/** A heralded crab's shot flies `HERALD_SPEED_NUM / HERALD_SPEED_DEN` times as fast (spec §2: x1.2). */
+/** A heralded crab's shot flies `HERALD_SPEED_NUM / HERALD_SPEED_DEN` times as fast (×1.2). */
 const HERALD_SPEED_NUM = 12;
 const HERALD_SPEED_DEN = 10;
 
-/** How much heavier a heralded crab weighs in the shooter pick (spec §2). */
+/** How much heavier a heralded crab weighs in the shooter pick. */
 const HERALD_WEIGHT = 2;
 
-/** Bubbles alive at once before a bubbler falls back to the plain crab shot (spec §2). */
+/** Bubbles alive at once before a bubbler falls back to the plain crab shot. */
 export const BUBBLE_CAP = 6;
 
-/** Ticks between two flips of a bubble's sideways drift (spec §2, the zigzag mechanism). */
+/** Ticks between two flips of a bubble's sideways drift (the zigzag mechanism). */
 export const BUBBLE_FLIP = 40;
 
-/** A bubble's sinking speed, units/tick (spec §2). */
+/** A bubble's sinking speed, units/tick. */
 export const BUBBLE_VY = 60;
 
-/** A bubble's sideways drift, units/tick, flipping every `BUBBLE_FLIP` ticks (spec §2). */
+/** A bubble's sideways drift, units/tick, flipping every `BUBBLE_FLIP` ticks. */
 export const BUBBLE_VX = 30;
 
-/** A bubble's collision radius (spec §2): far wider than any other crab shot's. */
+/** A bubble's collision radius: far wider than any other crab shot's. */
 export const BUBBLE_RADIUS = 200;
 
-/** A charge's collision radius (spec §2). */
+/** A charge's collision radius. */
 export const CHARGE_RADIUS = 120;
 
-/** How far above Octopi a charge bursts into its four fragments (spec §2). */
+/** How far above Octopi a charge bursts into its four fragments. */
 export const CHARGE_BURST_GAP = 900;
 
 /**
- * The veteran tick (spec §2), called once per tick from `step` between `updateShots` and
+ * The veteran tick, called once per tick from `step` between `updateShots` and
  * `marchCrabs` so every timer is settled before anything reads it. A wave with no veteran in it
  * touches nothing here: no crab has a running shield timer or a rally mark, none is a patriarch, and
  * `rageTicks` is 0.
@@ -120,7 +120,7 @@ export function updateVeterans(s: GameState): void {
   const living = s.crabs.length;
   for (let i = 0; i < living; i++) {
     const c = s.crabs[i]!;
-    // Spec §5.1: a patriarch marching in a boss's squad never rallies — there is no formation to
+    // A patriarch marching in a boss's squad never rallies — there is no formation to
     // revive into, and a squad's shape is fixed for as long as it lives.
     if (c.type !== 'patriarch' || c.squad > 0 || c.rallies >= RALLY_CAP) continue;
     // A patriarch that reached the field with no clock armed — a hand-built state — falls back to
@@ -134,7 +134,7 @@ export function updateVeterans(s: GameState): void {
 }
 
 /**
- * Arms the rally clock of every patriarch of a freshly spawned wave (ruling R9b): the k-th of them
+ * Arms the rally clock of every patriarch of a freshly spawned wave: the k-th of them
  * in slot order — which is the order `spawnFormation` and `spawnWave` build their crabs in — waits
  * `RALLY_EVERY + RALLY_STAGGER * k` ticks for its first revive, and `RALLY_EVERY` for every one
  * after. Without the stagger a wave's four patriarchs would rally in lockstep and bring back four
@@ -150,7 +150,7 @@ export function armRallies(s: GameState): void {
 }
 
 /**
- * One revive by the patriarch `p` (spec §2): a fallen crab of its wave comes back with the kind its
+ * One revive by the patriarch `p`: a fallen crab of its wave comes back with the kind its
  * slot fields and full hp, marked as revived for the renderer. On a whirlpool, that slot's own kind
  * follows the ring right along with the crabs (`rotate`, `sim/living.ts`), so what comes back is
  * always the kind that was actually standing on that cell, not the template's original one for it.
@@ -175,12 +175,12 @@ function rally(s: GameState, p: Crab): void {
  * wave that a crab can actually be put back into**, walked in ascending slot order. A slot is
  * passed over when
  *
- * - it is a patriarch's (ruling R7). A rally never brings a patriarch back, on a formation wave or
+ * - it is a patriarch's. A rally never brings a patriarch back, on a formation wave or
  *   on the daily grid alike, so a wave's revives are bounded by `RALLY_CAP` per patriarch it
  *   *spawned with* and a dead patriarch stays dead;
  * - its place cannot be measured at all — a split wave whose half has been wiped out (see
  *   `rallyPoint`);
- * - its place lies outside the field (ruling R8). The formation origin rides with the block but the
+ * - its place lies outside the field. The formation origin rides with the block but the
  *   march's wall test only ever sees the *living* crabs, so once an edge column is dead the block
  *   marches past it and that column's slots sit off the field. A crab put there fails
  *   `insideField` in both directions on every march step, and the whole wave would stop moving
@@ -217,12 +217,12 @@ function freeCells(s: GameState): number[] {
   return free;
 }
 
-/** Where a cell of the daily/practice grid sits, relative to cell 0 (spec §2's 6-column grid). */
+/** Where a cell of the daily/practice grid sits, relative to cell 0 (the 6-column grid). */
 function gridCell(i: number): { x: number; y: number } {
   return { x: (i % CRAB.cols) * CRAB.gapX, y: idiv(i, CRAB.cols) * CRAB.gapY };
 }
 
-/** Whether slot `slot` belongs to a split wave's left half (spec §3: template columns 0-3). */
+/** Whether slot `slot` belongs to a split wave's left half (template columns 0-3). */
 function leftHalf(f: FormationState, slot: number): boolean {
   return (f.slots[slot]?.col ?? 0) <= SPLIT_COL;
 }
@@ -232,7 +232,7 @@ function leftHalf(f: FormationState, slot: number): boolean {
  *
  * A wave that marches, turns or reforms carries its origin with it, so the place is simply
  * `origin + slot`. A `split` wave does not: its two halves drift apart and its origin is frozen
- * where the arrival left it (spec §3), so the place is measured off a living crab of the same half
+ * where the arrival left it, so the place is measured off a living crab of the same half
  * instead — the offset between two cells of one rigid half never changes, so
  * `sibling + (cell - sibling's cell)` names it exactly. A daily or practice grid is measured the
  * same way off its lowest-slot living crab, having no origin either.
@@ -270,7 +270,7 @@ function placeBeside(
 }
 
 /**
- * A dying patriarch enrages what is left of its formation (spec §2): `RAGE_TICKS` of half-again
+ * A dying patriarch enrages what is left of its formation: `RAGE_TICKS` of half-again
  * march speed and fire chance, refreshed rather than stacked when a second patriarch falls. Called
  * from both paths a crab can die by — shot down (`killCrab`) and walking into Octopi (`hitOctopi`)
  * — and a no-op for every other kind.
@@ -281,13 +281,13 @@ export function enrage(s: GameState, c: Crab): void {
   s.events.push({ tick: s.tick, type: 'formation_rage' });
 }
 
-/** `v` half again as fast while the formation rages (spec §2), unchanged while it is calm. */
+/** `v` half again as fast while the formation rages, unchanged while it is calm. */
 export function raged(s: GameState, v: number): number {
   return s.rageTicks > 0 ? idiv(v * RAGE_NUM, RAGE_DEN) : v;
 }
 
 /**
- * A warden's rune shield eating a player shot (spec §2): a non-piercing hit on a shielded crab is
+ * A warden's rune shield eating a player shot: a non-piercing hit on a shielded crab is
  * consumed whole — no hit points lost — and breaks the shield for `SHIELD_REGROW_TICKS` ticks. A
  * piercing shot (the PIERCING_BULLETS/trident bit in `Bullet.data`) ignores the shield outright: it
  * damages the warden and flies on, and the shield stays up. Returns whether the shot was absorbed.
@@ -319,13 +319,13 @@ function colOf(s: GameState, slot: number): number {
 }
 
 /**
- * Whether a living herald stands within Chebyshev distance 1 of `c`'s own cell (spec §2). The cell
+ * Whether a living herald stands within Chebyshev distance 1 of `c`'s own cell. The cell
  * is the crab's current slot, so a crab that has turned onto another cell of a whirlpool ring takes
  * that cell's neighbourhood with it. Heralds never buff heralds — their own aura or another's — and
  * two heralds beside the same crab are worth no more than one: the answer is a yes or a no, so
  * auras cannot stack.
  *
- * A crab marching in a boss's squad (spec §5.1) holds no slot, so its neighbourhood is read off the
+ * A crab marching in a boss's squad holds no slot, so its neighbourhood is read off the
  * squad's own tiny grid instead — `Crab.cell` — and only ever against heralds of the *same* squad:
  * two squads that happen to march past each other are two different formations, and neither one's
  * herald reaches into the other.
@@ -346,7 +346,7 @@ export function isHeralded(s: GameState, c: Crab): boolean {
   return false;
 }
 
-/** Whether a herald of `c`'s own squad stands on one of the eight cells around `c` (spec §5.1). */
+/** Whether a herald of `c`'s own squad stands on one of the eight cells around `c`. */
 function heraldedInSquad(s: GameState, c: Crab): boolean {
   if (c.cell < 0) return false;
   const row = squadCellRow(c.cell);
@@ -358,20 +358,20 @@ function heraldedInSquad(s: GameState, c: Crab): boolean {
   return false;
 }
 
-/** `c`'s weight in the shooter pick: its kind's, doubled while it is heralded (spec §2). */
+/** `c`'s weight in the shooter pick: its kind's, doubled while it is heralded. */
 export function fireWeight(s: GameState, c: Crab, aura: boolean): number {
   const w = FIRE_WEIGHT[c.type];
   return aura && isHeralded(s, c) ? w * HERALD_WEIGHT : w;
 }
 
-/** `v` scaled by the herald's aura (spec §2: x1.2). */
+/** `v` scaled by the herald's aura (×1.2). */
 export function heraldedSpeed(v: number): number {
   return idiv(v * HERALD_SPEED_NUM, HERALD_SPEED_DEN);
 }
 
 /**
  * The shot `c` actually fires: its kind's own entry, except that a bubbler with `BUBBLE_CAP` bubbles
- * already in the water blows no more and fires the plain crab shot instead (spec §2).
+ * already in the water blows no more and fires the plain crab shot instead.
  */
 export function shotEntryFor(s: GameState, c: Crab): { kind: BulletKind; speed: number; damage: 1 | 2 } {
   const entry = CRAB_SHOTS[c.type];
@@ -382,7 +382,7 @@ export function shotEntryFor(s: GameState, c: Crab): { kind: BulletKind; speed: 
 }
 
 /**
- * Turns a freshly fired bubble from an aimed shot into a sinking, drifting one (spec §2): it falls
+ * Turns a freshly fired bubble from an aimed shot into a sinking, drifting one: it falls
  * at `BUBBLE_VY` and slides `BUBBLE_VX` to the side `towards` (1 right, -1 left — towards Octopi,
  * the only aiming a bubble does), flipping that drift every `BUBBLE_FLIP` ticks through `data`. A
  * heralded bubbler's bubble carries the aura on both axes, like every other heralded shot.
@@ -393,7 +393,7 @@ export function driftBubble(b: Bullet, towards: number, heralded: boolean): void
   b.data = BUBBLE_FLIP;
 }
 
-/** One tick of a bubble's drift clock: flips the drift every `BUBBLE_FLIP` ticks (spec §2). */
+/** One tick of a bubble's drift clock: flips the drift every `BUBBLE_FLIP` ticks. */
 export function flipBubble(b: Bullet): void {
   b.data -= 1;
   if (b.data <= 0) {
@@ -403,7 +403,7 @@ export function flipBubble(b: Bullet): void {
 }
 
 /**
- * A bombardier's charge bursting (spec §2): once it has sunk to within `CHARGE_BURST_GAP` of
+ * A bombardier's charge bursting: once it has sunk to within `CHARGE_BURST_GAP` of
  * Octopi's current depth — Octopi moves freely between `OCTOPI.minY` and `maxY`, so the line follows
  * it — the charge is replaced by four `fragment` shots on the existing fragment vectors, each
  * costing one life where the charge itself cost two. Returns whether it burst; the caller drops the
@@ -429,7 +429,7 @@ function touchesBubble(p: Bullet, b: Bullet): boolean {
 }
 
 /**
- * Player shots meeting bubbles (spec §2), called once per tick from `step` immediately before
+ * Player shots meeting bubbles, called once per tick from `step` immediately before
  * `hitCrabs`: a bubble has one hit point against player fire, so the first bubble a shot touches
  * pops, and the shot is consumed unless it pierces — a piercing shot pops the bubble and flies on.
  * Each shot pops at most one bubble per tick; shots are walked in their own array order and bubbles
@@ -464,7 +464,7 @@ export function popBubbles(s: GameState): void {
 }
 
 /**
- * The per-crab `flags` int of the view frame (spec §7): bit 0 shield up, bit 1 heralded, bit 2
+ * The per-crab `flags` int of the view frame: bit 0 shield up, bit 1 heralded, bit 2
  * revived within the last `REVIVED_TICKS` ticks, bit 3 the formation raging. `aura` is
  * `hasHerald(s)`, hoisted out of the caller's loop.
  */

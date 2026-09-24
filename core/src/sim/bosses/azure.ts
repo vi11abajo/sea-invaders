@@ -10,7 +10,7 @@ import type { BossHooks } from './index';
 const WAVE_DEGREES = [-87, -57, -29, 0, 29, 57, 87];
 
 /**
- * Azure's tidal wave (spec §4.1 `wave` row): 7 shots fanned around straight down, moving linearly
+ * Azure's tidal wave: 7 shots fanned around straight down, moving linearly
  * (no special per-tick motion; `updateEnemyShots` treats `wave` like any non-zigzag kind).
  */
 export function castWave(s: GameState, x: number, y: number): void {
@@ -27,7 +27,7 @@ function abilityTimer(rng: Rng): number {
 }
 
 /**
- * Azure Leviathan (`crabBossBlue`, kind 2, spec §4.2 row 2): phase 1 fires a large slow shot,
+ * Azure Leviathan (`crabBossBlue`, kind 2): phase 1 fires a large slow shot,
  * phase 2 fires the seven-shot tidal wave. Its water shield absorbs hits instead of hp until it
  * breaks, firing a 12-shot ring at ×1.2 speed and +29 collision radius (legacy +30%).
  */

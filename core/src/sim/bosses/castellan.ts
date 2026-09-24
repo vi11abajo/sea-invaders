@@ -9,7 +9,7 @@ import { castWave } from './azure';
 import type { BossHooks } from './index';
 
 /**
- * Frost Castellan (kind 7, spec §5.2 row 7): the old warden of Glacier Reach, who grows his walls
+ * Frost Castellan (kind 7): the old warden of Glacier Reach, who grows his walls
  * out of the sea itself. Crystals (his ability, reef 7's label) raise ice on the arena that blocks
  * both sides' fire; the player's own gunnery is what tears them down, and every crystal that falls
  * — by a player's shot or by the Castellan's own Shatter — answers with a burst of ice shards.
@@ -19,13 +19,13 @@ import type { BossHooks } from './index';
  * seven-shot fan Azure's own tidal wave already casts (`castWave`, reused verbatim — its angle
  * table never moves and Azure's own fight is untouched, so the invariance test stays green); phase
  * 2 throws that same fan plus a slow `large` shot on every other attack, alternated by a bare flag
- * rather than a coin flip (task brief: "no extra draw").
+ * rather than a coin flip (no extra draw).
  *
  * Two mechanics run on their own clocks, independent of `attackTimer`:
  *
  * - **Shatter** (phase 3's own opener, `onPhaseStart`): a 120-tick warning (`crystal_shatter`),
  *   then every crystal still standing bursts at once, left to right, and the field is swept clear.
- * - **Cold snap** (spec §5.2, reef 7's secondary mechanic): every 8-14 s, `s.chillTicks` is set to
+ * - **Cold snap** (reef 7's secondary mechanic): every 8-14 s, `s.chillTicks` is set to
  *   180 and Octopi's per-axis step cap halves to two thirds for as long as it counts down
  *   (`moveOctopi`, `sim/octopi.ts`, already wired — this boss only ever sets the counter). This
  *   cannot ride the shared `secondary`/`secondaryTimer` machinery the way Emerald's and the
@@ -36,23 +36,23 @@ import type { BossHooks } from './index';
  *   own timer through the generic `tick(s, b)` hook below instead, exactly where the destroyed-
  *   crystal burst and Shatter's own countdown already live.
  *
- * `BossState` carries eight fields the first campaign's five never touch (spec §5.2); this boss
+ * `BossState` carries eight fields the first campaign's five never touch; this boss
  * claims two of them as plain scratch storage — a field's name describes whichever boss claims it
  * first, not a fixed meaning, the same way the Verdant Templar already reads `shieldUp`/`gapSlot`
  * as his own shield and doorway (`types.ts`'s own comment for each lists every claimant, the way
  * `effectTicks`'s already does for Crimson/Void/Templar):
  *
- * - `b.windup` — Shatter's 120-tick countdown (the task brief's own suggestion).
+ * - `b.windup` — Shatter's 120-tick countdown.
  * - `b.burst` — 0 or 1, whether the *next* phase-2 attack also throws the large shot.
  * - `b.aimTicks` — cold snap's own countdown, redrawn every time it reaches 0.
  *
  * Neither is read by `view/frame.ts`'s `bossFrame()` (only `shieldUp`, `discharged` and `gapSlot`
  * feed the renderer), so this reuse never leaks a stray number onto the screen.
  *
- * **The destroyed-crystal burst does not read `s.events`** (fix round 1, controller ruling R18 —
- * `s.events` is a write-only outbox for the renderer; the app itself truncates it once a frame
- * (`GameScreen.tsx`), so a fix-round-0 version of this file that watermarked into it was reliably
- * broken in the released app despite every isolated core test passing). Instead, `hitObstacle`
+ * **The destroyed-crystal burst does not read `s.events`** — `s.events` is a write-only outbox for
+ * the renderer; the app itself truncates it once a frame (`GameScreen.tsx`), so an earlier version
+ * of this file that watermarked into it was reliably broken in the released app despite every
+ * isolated core test passing. Instead, `hitObstacle`
  * (`sim/obstacles.ts`) appends the position of everything it removes to the sim-internal
  * `GameState.destroyedObstacles`, and this boss's `tick` hook below drains the whole list every
  * time it runs, in list order, then empties it — no watermark, so nothing can be mis-tracked.
@@ -61,8 +61,8 @@ import type { BossHooks } from './index';
  * before reaching it while `state === 'transition'`), but `hitObstacle` keeps running every tick
  * regardless — so a crystal destroyed mid-transition sits in `destroyedObstacles`, undrained, for as
  * long as the transition lasts (up to `BOSS.transitionTicks` = 120 ticks), and bursts on the first
- * tick fighting resumes. This is deliberate (fix round 2, controller ruling R19): a fix-round-1
- * version of this fix had `step.ts` clear the list unconditionally at the end of every tick as a
+ * tick fighting resumes. This is deliberate: an earlier version of this fix had `step.ts` clear the
+ * list unconditionally at the end of every tick as a
  * safety net for a fight with no such boss, which wiped exactly this pending case before this boss's
  * own `tick` ever got to look — the burst was lost, not delayed. The safety net now lives inside
  * `updateBoss` itself instead (right after the point that would have dispatched `hooks.tick`, which
@@ -70,7 +70,7 @@ import type { BossHooks } from './index';
  * point a boss is removed at death (`damageBoss`), so it costs every other boss and every no-boss
  * tick nothing while still never touching an entry that is genuinely still pending for this one.
  *
- * `step.ts` runs `hitObstacle` *before* `updateBoss` (fix round 1): with `hitObstacle` first, a
+ * `step.ts` runs `hitObstacle` *before* `updateBoss`: with `hitObstacle` first, a
  * crystal destroyed this tick is in `destroyedObstacles` by the time this boss's own `tick` hook
  * (called from inside `updateBoss`) looks — so, outside a transition, the burst lands the same tick
  * as the destruction, not one tick late as an earlier round of this file had it.
@@ -87,12 +87,12 @@ import type { BossHooks } from './index';
  * the initial cold snap timer, in that order).
  */
 
-/** How many crystals a raise (the ability) tries for: 3 up to phase 2, one more from then on (spec §5.2). */
+/** How many crystals a raise (the ability) tries for: 3 up to phase 2, one more from then on. */
 function raiseCount(phase: number): number {
   return 3 + (phase >= 2 ? 1 : 0);
 }
 
-// A crystal's box and toughness (spec §5.2; `obstacles.test.ts` already pins these same numbers on
+// A crystal's box and toughness (`obstacles.test.ts` already pins these same numbers on
 // its own example crystal). Not exported: nothing outside this file needs them by name, and the
 // existing obstacle tests already spell them out as literals rather than importing a constant.
 const CRYSTAL_W = 500;
@@ -101,7 +101,7 @@ const CRYSTAL_HP = 12;
 const CRYSTAL_Y = 3600;
 
 /**
- * The six columns a crystal may stand on (spec §5.2's "six fixed columns"), spread evenly inside
+ * The six columns a crystal may stand on ("six fixed columns"), spread evenly inside
  * the march margins — `formations.ts`'s own `MARCH_MARGIN`, the room a formation keeps clear of the
  * field edges, reused here for exactly the reason it exists: nothing should be asked to stand right
  * on the edge of the field. `FIELD_W - 2*MARCH_MARGIN` (4825) divides evenly by 5 with the current
@@ -113,18 +113,18 @@ export const CRYSTAL_COLUMNS: readonly number[] = (() => {
   return [0, 1, 2, 3, 4, 5].map((i) => MARCH_MARGIN + i * step);
 })();
 
-/** How many crystals may stand on the field at once: one per column (spec §5.2's cap of 6). */
+/** How many crystals may stand on the field at once: one per column (cap of 6). */
 const CRYSTAL_CAP = CRYSTAL_COLUMNS.length;
 
-/** Ticks of warning before Shatter bursts every crystal on the field at once (spec §5.2). */
+/** Ticks of warning before Shatter bursts every crystal on the field at once. */
 export const SHATTER_WARNING = 120;
 
-/** Castellan's ability timer: 7-15 s, the same range as Azure's (spec §5.2). */
+/** Castellan's ability timer: 7-15 s, the same range as Azure's. */
 function abilityTimer(rng: Rng): number {
   return 420 + rng.nextInt(481);
 }
 
-/** Cold snap's own timer: 8-14 s (spec §5.2), independent of the shared `secondary` cadence. */
+/** Cold snap's own timer: 8-14 s, independent of the shared `secondary` cadence. */
 function coldSnapTimer(rng: Rng): number {
   return 480 + rng.nextInt(361);
 }
@@ -141,9 +141,9 @@ function occupiedColumns(s: GameState): Set<number> {
 }
 
 /**
- * Crystals (the ability, spec §5.2): raises `raiseCount(b.phase)` crystals on distinct columns.
+ * Crystals (the ability): raises `raiseCount(b.phase)` crystals on distinct columns.
  *
- * Distinctness with a fixed draw count (task brief's own ruling — how many numbers a raise draws
+ * Distinctness with a fixed draw count (how many numbers a raise draws
  * must never depend on how full the field already is, or the stream would depend on its own
  * results): exactly one `nextInt(6)` per crystal the raise tries for. A draw landing on a column
  * already standing — from an earlier raise still on the field, or from an earlier crystal of this
@@ -166,8 +166,8 @@ function raiseCrystals(s: GameState, b: BossState): void {
 }
 
 /**
- * Bursts every crystal on the field at once, left to right, and clears it. Sorted by `x` alone
- * (fix round 1, minor #2): `raiseCrystals` never lets two crystals share a column, so no two can
+ * Bursts every crystal on the field at once, left to right, and clears it. Sorted by `x` alone:
+ * `raiseCrystals` never lets two crystals share a column, so no two can
  * ever share an `x` either, and a `y` tiebreak would be permanently unreachable dead code. If that
  * one-crystal-per-column invariant is ever relaxed, add one back.
  */
@@ -182,7 +182,7 @@ export const CASTELLAN_HOOKS: BossHooks = {
     const m = muzzle(b);
     castWave(s, m.x, m.y);
     if (b.phase === 2) {
-      // Alternated by a bare flag, not a draw (task brief): every other phase-2 attack, starting
+      // Alternated by a bare flag, not a draw: every other phase-2 attack, starting
       // with the first, also throws the slow shot.
       b.burst = b.burst === 0 ? 1 : 0;
       if (b.burst === 1) castLarge(s, m.x, m.y);
@@ -212,7 +212,7 @@ export const CASTELLAN_HOOKS: BossHooks = {
       b.windup -= 1;
       if (b.windup === 0) shatterCrystals(s);
     }
-    // A crystal the player destroyed (fix round 1, controller ruling R18): drains the sim-internal
+    // A crystal the player destroyed: drains the sim-internal
     // list `hitObstacle` filled this tick, in list order, then empties it — see the file doc above
     // for why this replaced a watermark into `s.events`.
     for (const o of s.destroyedObstacles) castShardRing(s, o.x, o.y);

@@ -6,10 +6,9 @@ import { GOLDEN_SCRIPTS, playScript } from './golden-scripts';
 
 /**
  * The untuned baseline: the same eight golden scripts played with every `TUNING` knob back at
- * 100 %. It replaces the old `golden-v2-regression` file, which pinned the pre-tuning behaviour by
- * replaying the v2 goldens, and it keeps the same property under test — the knobs only scale
- * speeds. Move a knob and the tuned goldens change while this file must not; change anything else
- * in the simulation and both change together.
+ * 100 %, keeping the same property under test — the knobs only scale speeds. Move a knob and the
+ * tuned goldens change while this file must not; change anything else in the simulation and both
+ * change together.
  *
  * Regenerate with `UPDATE_GOLDEN=1 npx vitest run test/golden-untuned.test.ts`, alongside the
  * tuned goldens.

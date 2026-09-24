@@ -13,9 +13,8 @@ function stubNextInt(rng: Rng, sequence: number[]): void {
  * below would be tautological against the production list otherwise, and this way a change to
  * either one that breaks the spec correspondence fails a test instead of passing silently.
  *
- * The exact pool RANDOM_CHAOS picks from (spec C8): every boost except RANDOM_CHAOS itself, in
- * `BoostType`'s declaration order (14 candidates — RICOCHET was removed from the game entirely,
- * owner decision, Phase 3A.1 lane C).
+ * The exact pool RANDOM_CHAOS picks from: every boost except RANDOM_CHAOS itself, in
+ * `BoostType`'s declaration order (14 candidates — RICOCHET was removed from the game entirely).
  */
 const CHAOS_POOL: BoostType[] = [
   'RAPID_FIRE', 'ICE_FREEZE', 'HEALTH_BOOST', 'POINTS_FREEZE', 'SHIELD_BARRIER', 'AUTO_TARGET',

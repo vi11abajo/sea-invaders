@@ -6,19 +6,19 @@ import type { BossState, GameState } from '../../types';
 import { castBerserk, castExplosive, castRing, castStraight, muzzle } from '../boss';
 import type { BossHooks } from './index';
 
-/** Cast ids scheduled in `b.pending`, dispatched by `VOID_HOOKS.cast` (spec §4.2 row 5). */
+/** Cast ids scheduled in `b.pending`, dispatched by `VOID_HOOKS.cast`. */
 const SPIRAL = 1;
 const CLONE = 2;
 const GRAVITY = 3;
 const BERSERK = 4;
 const EXPLOSIVE3 = 5;
 
-/** Void's ability timer: 7-15 s, same range as Azure's (spec §4.1). */
+/** Void's ability timer: 7-15 s, same range as Azure's. */
 function abilityTimer(rng: Rng): number {
   return 420 + rng.nextInt(481);
 }
 
-/** Teleports the boss to a fresh random x within the field and emits `boss_teleport` (spec §4.2 row 5). */
+/** Teleports the boss to a fresh random x within the field and emits `boss_teleport`. */
 function teleport(s: GameState, b: BossState): void {
   const half = idiv(BOSS.width, 2);
   const toX = half + s.rngBoss.nextInt(FIELD_W - BOSS.width + 1);
@@ -27,7 +27,7 @@ function teleport(s: GameState, b: BossState): void {
 }
 
 /**
- * Void's spiral shot (spec §4.1 `spiral` row): 6 shots fanned evenly starting at `b.spiral`
+ * Void's spiral shot: 6 shots fanned evenly starting at `b.spiral`
  * degrees, each flying outward at 0.8x `BOSS_SHOT.speed` plus a fixed 0.3x downward bias;
  * `b.spiral` then advances 12 degrees (legacy 0.2 rad) for the next cast.
  */
@@ -43,7 +43,7 @@ function castSpiral(s: GameState, b: BossState): void {
 }
 
 /**
- * Void's clone attack (spec §4.1 `clone` row, legacy `createCloneAttack`): the standard 8-shot
+ * Void's clone attack (legacy `createCloneAttack`): the standard 8-shot
  * ring cast from the boss's own muzzle at 0.8x speed, plus a `boss_clone` event giving the
  * renderer two mirror x positions (clamped inside the field) to draw decoy clones at.
  */
@@ -57,7 +57,7 @@ function castClone(s: GameState, b: BossState): void {
 }
 
 /**
- * Void's gravity wave (spec §4.1 `gravity` row): 16 shots placed evenly on a 300-unit ring around
+ * Void's gravity wave: 16 shots placed evenly on a 300-unit ring around
  * the muzzle, flying straight outward at 0.5x `BOSS_SHOT.speed`. Each `gravity` shot then pulls
  * player shots towards itself every tick — see `pullShotsTowardGravity` in `sim/crabs.ts`.
  */
@@ -74,7 +74,7 @@ function castGravity(s: GameState, b: BossState): void {
 }
 
 /**
- * Void Sovereign (`crabBossViolet`, kind 5, spec §4.2 row 5): every phase but the last teleports
+ * Void Sovereign (`crabBossViolet`, kind 5): every phase but the last teleports
  * to a random x, then either fires immediately (phase 1) or schedules a delayed follow-up cast in
  * `b.pending` (phases 2-4: spiral, clone, gravity). Phase 5 ("chaos") never teleports: it casts a
  * spiral immediately, then schedules a berserk ring and a 3-shot explosive volley. Its temporal

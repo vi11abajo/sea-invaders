@@ -194,7 +194,7 @@ describe('AUTO_TARGET', () => {
     expect(s.shots[0]!.vx).toBeGreaterThan(0); // toward the crab on the right
   });
 
-  it("moves a shot's x toward its target using the steered vx from the previous tick (fix round 1: player shots now move on both axes)", () => {
+  it("moves a shot's x toward its target using the steered vx from the previous tick (player shots now move on both axes)", () => {
     const s = createGame('t', PRACTICE_RUN);
     activateBoost(s, 'AUTO_TARGET');
     s.crabs = [{ x: 4000, y: 760, kind: 0, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, revived: 0, cell: -1 }];

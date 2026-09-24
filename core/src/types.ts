@@ -20,7 +20,7 @@ export interface Octopi {
 }
 
 /**
- * Gameplay variant for a run — the champion Octopi plays as (spec §4; champions and skins spec §1):
+ * Gameplay variant for a run — the champion Octopi plays as:
  * `base` is the free, unmodified Octopi. Never a simulation input beyond `RunConfig.octopi` — every
  * effect is read from that field through the `VARIANTS` overrides (`config.ts`): the fire cadence,
  * starting lives and piercing bit of the first three, and the five champions appended after them
@@ -34,7 +34,7 @@ export type BulletKind =
   | 'crab' | 'straight' | 'zigzag' | 'large' | 'wave' | 'ring' | 'explosive' | 'fragment'
   | 'meteor' | 'berserk' | 'spiral' | 'gravity' | 'clone'
   | 'heavy'
-  // The veteran and boss-6..10 shot kinds (spec §2 / §5.1): appended, so no old index moves. Each
+  // The veteran and boss-6..10 shot kinds: appended, so no old index moves. Each
   // one that has a motion of its own carries it in `updateEnemyShots` — the bubbler's drifting
   // bubble, the bombardier's bursting charge, the Corsair's boomerang `axe` and the Tyrant's homing
   // `orb`; `firewall`, `shard`, `bolt` and `needle` fly the straight line they were cast on.
@@ -61,32 +61,32 @@ export interface Crab {
   hp: number;
   /**
    * The living-formation slot this crab occupies, an index into `GameState.formation.slots`; -1
-   * when unslotted (spec §3 — a later task's field, `march` waves never set it). Neutral value: -1.
+   * when unslotted (a field only a living formation uses, `march` waves never set it). Neutral value: -1.
    */
   slot: number;
-  /** Warden's rune shield (spec §2): 1 while up, 0 while broken. Neutral value: 0, except a spawned warden starts at 1. */
+  /** Warden's rune shield: 1 while up, 0 while broken. Neutral value: 0, except a spawned warden starts at 1. */
   shield: 0 | 1;
-  /** Ticks until a broken warden shield restores itself (spec §2). Neutral value: 0. */
+  /** Ticks until a broken warden shield restores itself. Neutral value: 0. */
   shieldTimer: number;
-  /** How many times a patriarch has revived a fallen crab of its wave, capped at 3 (spec §2). Neutral value: 0. */
+  /** How many times a patriarch has revived a fallen crab of its wave, capped at 3. Neutral value: 0. */
   rallies: number;
   /**
-   * Ticks left until a patriarch's next revive (spec §2), armed at spawn by `armRallies` with
+   * Ticks left until a patriarch's next revive, armed at spawn by `armRallies` with
    * `RALLY_EVERY + RALLY_STAGGER * k` for the k-th patriarch of the wave and reset to `RALLY_EVERY`
    * after every rally. Neutral value: 0.
    */
   rallyTimer: number;
-  /** The squad this crab belongs to (the boss squads of spec §5.1); 0 = none. Neutral value: 0. */
+  /** The squad this crab belongs to (the boss squads); 0 = none. Neutral value: 0. */
   squad: number;
   /**
-   * A squad crab's own place in its squad's tiny grid, packed as `row * SQUAD_CELL_STRIDE + col`
-   * (spec §5.1). A squad crab holds no formation slot (`slot` stays -1 — there is no wave to revive
+   * A squad crab's own place in its squad's tiny grid, packed as `row * SQUAD_CELL_STRIDE + col`.
+   * A squad crab holds no formation slot (`slot` stays -1 — there is no wave to revive
    * into), so this is the only thing that says which crabs stand next to each other, which is what
    * the herald's aura reads. Neutral value: -1, for every crab that marches with a wave.
    */
   cell: number;
   /**
-   * Ticks left of a revived crab's rally mark (spec §7, frame flag bit 2): `REVIVED_TICKS` the
+   * Ticks left of a revived crab's rally mark (frame flag bit 2): `REVIVED_TICKS` the
    * moment a patriarch rallies it back, counting down to 0. Purely a renderer cue — nothing in the
    * simulation reads it. Neutral value: 0.
    */
@@ -94,8 +94,8 @@ export interface Crab {
 }
 
 /**
- * One place in a formation, as an offset from the formation origin (spec §3). `row`/`col` are the
- * template's own coordinates, so a later task can read a slot's neighbourhood off them; `type` is
+ * One place in a formation, as an offset from the formation origin. `row`/`col` are the
+ * template's own coordinates, so the herald's aura can read a slot's neighbourhood off them; `type` is
  * the kind that slot fields, which is what a revived crab would come back as.
  */
 export interface FormationSlot {
@@ -108,7 +108,7 @@ export interface FormationSlot {
 }
 
 /**
- * The live shape of a campaign wave (spec §3). Daily and practice waves have none — they keep
+ * The live shape of a campaign wave. Daily and practice waves have none — they keep
  * `GameState.formation = null` and every crab's `slot` at -1, and nothing about them changed.
  *
  * `ox`/`oy` is the point the slot offsets hang off: the field centre at `CRAB.startY` when the wave
@@ -143,12 +143,12 @@ export interface FormationState {
 
 export type BossPhaseState = 'fighting' | 'transition';
 
-/** Every boss of both campaigns: 1..5 are the first campaign's, 6..10 the reefs 6-10 five (spec §5). */
+/** Every boss of both campaigns: 1..5 are the first campaign's, 6..10 the reefs 6-10 five. */
 export type BossKind = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 /**
  * The bosses whose hit points, phases and score come from `BOSS_TABLE` rather than from the legacy
- * `baseHp + hpStep*(kind-1)` / `maxPhases = kind` / `scoreBase*kind` formulas (spec §5).
+ * `baseHp + hpStep*(kind-1)` / `maxPhases = kind` / `scoreBase*kind` formulas.
  */
 export type TableBossKind = 6 | 7 | 8 | 9 | 10;
 
@@ -182,7 +182,7 @@ export interface BossState {
   spiral: number;
   /** Pending delayed casts as [ticksLeft, castId] pairs. */
   pending: number[];
-  // The eight fields below belong to the bosses of reefs 6-10 (spec §5.2). Every one of them is 0
+  // The eight fields below belong to the bosses of reefs 6-10. Every one of them is 0
   // (`[0, 0, 0]` for `mirror`) at spawn and stays there for the whole of a kind-1..5 fight: nothing
   // in the first campaign's five hooks reads or writes one.
   /** Templar: 1 while the shell shield is up (player shots bounce off it), 0 while it is down. */
@@ -234,7 +234,7 @@ export interface Drop {
 }
 
 /**
- * One living squad of crabs a boss fights alongside (spec §5.1). Its crabs are the ones in
+ * One living squad of crabs a boss fights alongside. Its crabs are the ones in
  * `GameState.crabs` carrying this `id` in `Crab.squad`; the squad itself only has to remember which
  * way it is marching, because it never descends and never changes shape.
  */
@@ -244,13 +244,13 @@ export interface Squad {
   /** March direction: 1 = right, -1 = left. */
   dir: number;
   /**
-   * The kind of the boss that raised this squad (fix round 1, controller ruling R22), `0` only if
+   * The kind of the boss that raised this squad, `0` only if
    * `spawnSquad` was ever called with no boss standing (never happens in real play — a squad is
    * always raised from inside a boss's own `ability` hook — kept only as a safe fallback rather than
    * a crash). Recorded once, at spawn, from `GameState.boss.kind` at that moment, and read instead of
    * `GameState.boss?.kind` by anything that has to know *whose* squad this is once a kill is actually
    * being processed: a squad can outlive its own boss by up to one tick (`popSquads` no longer runs
-   * synchronously inside `damageBoss`, ruling R22's other half), so `GameState.boss` may already be
+   * synchronously inside `damageBoss`), so `GameState.boss` may already be
    * `null` — pointing at no boss at all, not "the wrong one" — by the time a later shot in the very
    * same tick lands a crew's true last kill. `s.boss?.kind` at *that* moment would wrongly read as
    * "no boss, so nothing loots"; the squad's own recorded kind never changes underneath it.
@@ -260,7 +260,7 @@ export interface Squad {
    * Crabs of this squad still alive, set at spawn to the template's own crab count and decremented
    * by one every time one of them dies — through whichever kill path reaches `killCrab`
    * (`sim/collide.ts`): a direct bullet hit, WAVE_BLAST, and later the Storm Tyrant's own lane
-   * strike (fix round 1, controller ruling R22). This is the single source of truth a boss with a
+   * strike. This is the single source of truth a boss with a
    * squad-loot mechanic (today, only the Gold Corsair's) reads to tell a genuine whole-squad wipe
    * from an ordinary kill mid-loop — never a live scan of `GameState.crabs`, which a batched removal
    * (WAVE_BLAST) or a same-tick boss death (`popSquads`) can make an unreliable proxy for "is anyone
@@ -271,10 +271,10 @@ export interface Squad {
   alive: number;
 }
 
-/** The arena objects a boss can raise (spec §5.1). `crystal` is the Frost Castellan's. */
+/** The arena objects a boss can raise. `crystal` is the Frost Castellan's. */
 export type ObstacleKind = 'crystal';
 
-/** A box standing on the arena that eats shots from both sides (spec §5.1). `x`/`y` is its centre. */
+/** A box standing on the arena that eats shots from both sides. `x`/`y` is its centre. */
 export interface Obstacle {
   x: number;
   y: number;
@@ -290,15 +290,15 @@ export type GameEvent =
       tick: number;
       type:
         | 'wave_cleared' | 'level_cleared' | 'boss_spawn' | 'boss_phase' | 'boss_dead' | 'shield_break' | 'player_hit' | 'revived'
-        // Veteran-skill events (spec §2) with no position of their own: `crab_shield_up` (the app
+        // Veteran-skill events with no position of their own: `crab_shield_up` (the app
         // reads the crab's own `Frame.crabs` flags while the shield is up) and `formation_rage` (a
         // field-wide state, not a place). `crab_shield_break`/`bubble_pop`/`charge_burst`/
-        // `crab_rallied` moved to their own member below (app ruling R60, task 12 fix round 1) —
+        // `crab_rallied` moved to their own member below —
         // each has a specific crab's or bullet's own position to carry.
         | 'crab_shield_up' | 'formation_rage'
-        // Raised once, by a `reform` wave falling back into the spearhead (spec §3).
+        // Raised once, by a `reform` wave falling back into the spearhead.
         | 'formation_reform'
-        // The reefs 6-10 boss events (spec §5), all live now. `squad_popped` is raised by
+        // The reefs 6-10 boss events, all live now. `squad_popped` is raised by
         // `popSquads` (sim/squads.ts) once per squad that still had a crab standing when its boss
         // died. The rest come from sim/bosses/*: `boss_windup` (Gold Corsair, Verdant Templar),
         // `boss_block` (Verdant Templar, Abyssal Huntsman), `boss_aim` (Abyssal Huntsman),
@@ -312,18 +312,17 @@ export type GameEvent =
         | 'crystal_raised' | 'crystal_shatter'
     }
   /**
-   * The four veteran-skill events with a specific position of their own (spec §2, app ruling R60,
-   * task 12 fix round 1): a warden's shield breaking, a bubbler's bubble popping, a bombardier's
+   * The four veteran-skill events with a specific position of their own: a warden's shield breaking, a bubbler's bubble popping, a bombardier's
    * charge bursting and a patriarch's revive, each at the crab's or bullet's own `x`/`y` at the
    * instant it happens. Before this, the event carried only `tick` and the app scanned `state.crabs`
    * (or fell back to Octopi's own position) to guess a place to draw a one-shot effect at — fragile,
    * since `Array.find` returns only the first match and two same-tick occurrences shared one spot.
    */
   | { tick: number; type: 'crab_shield_break' | 'bubble_pop' | 'charge_burst' | 'crab_rallied'; x: number; y: number }
-  /** An arena object shattered by player fire (spec §5.1), at the position it stood on. */
+  /** An arena object shattered by player fire, at the position it stood on. */
   | { tick: number; type: 'obstacle_destroyed'; x: number; y: number }
   /**
-   * The Frost Castellan's cold snap fires (spec §5.2): `s.chillTicks` is set to 180. No existing
+   * The Frost Castellan's cold snap fires: `s.chillTicks` is set to 180. No existing
    * `boss_ability` name fits (those are all one-per-boss ability labels; cold snap is reef 7's
    * secondary mechanic, on its own timer, not the "Crystals" ability), so this is its own event.
    */
@@ -336,7 +335,7 @@ export type GameEvent =
   | { tick: number; type: 'player_freeze'; ticks: number }
   | { tick: number; type: 'wave_start'; wave: number }
   /**
-   * Coraluna's Surge fires (champions and skins spec §1): the free WAVE_BLAST of every 30th kill, at
+   * Coraluna's Surge fires: the free WAVE_BLAST of every 30th kill, at
    * Octopi's own position for the app's flash and toast. Raised even when the field was empty and
    * the sweep found nothing — a wasted surge is still shown.
    */
@@ -368,37 +367,37 @@ export interface GameState {
   events: GameEvent[];
   /** Ticks left in a campaign wave's arrival descent; 0 when idle. Daily/practice never set this. */
   arrival: number;
-  /** The campaign wave's slots and living state (spec §3); null for daily, practice and boss rounds. */
+  /** The campaign wave's slots and living state; null for daily, practice and boss rounds. */
   formation: FormationState | null;
-  /** Ticks elapsed on the wave-mode score-decay clock (spec C7); reset at every wave start. */
+  /** Ticks elapsed on the wave-mode score-decay clock; reset at every wave start. */
   scoreDecay: number;
   /**
-   * Ticks left of the formation's rage after a patriarch of it died (spec §2): while it is above 0
+   * Ticks left of the formation's rage after a patriarch of it died: while it is above 0
    * the wave marches and fires half again as fast. Refreshed, never stacked, and cleared at every
    * wave start — the rage belongs to the formation that lost its patriarch, not to the run.
    */
   rageTicks: number;
   /**
-   * The kind each row of a daily or practice grid wave spawned with, in row order (spec §2): a
+   * The kind each row of a daily or practice grid wave spawned with, in row order: a
    * patriarch's rally has to know what a fallen grid cell was, and a grid row's kind is the whole of
    * that answer (`spawnWave` paints a row in one kind). Empty for a campaign wave, which carries a
    * kind per cell in `formation.slots`, and for a boss round.
    */
   gridRows: CrabType[];
   /**
-   * The squads marching beside a boss right now (spec §5.1), in the order they were raised. Empty
+   * The squads marching beside a boss right now, in the order they were raised. Empty
    * outside a boss fight and for every boss of the first campaign.
    */
   squads: Squad[];
-  /** The arena objects standing right now (spec §5.1). Empty for every boss of the first campaign. */
+  /** The arena objects standing right now. Empty for every boss of the first campaign. */
   obstacles: Obstacle[];
   /**
-   * The position of every obstacle `hitObstacle` removed and not yet drained (spec §5.1, controller
-   * rulings R18/R19): a boss whose own mechanic reacts to a destroyed obstacle (the Frost Castellan's
+   * The position of every obstacle `hitObstacle` removed and not yet drained: a boss whose own
+   * mechanic reacts to a destroyed obstacle (the Frost Castellan's
    * shard burst) drains this in its own `tick` hook, then empties it. `updateBoss` (`sim/boss.ts`)
    * sweeps whatever a tick call left behind right after dispatching it — except while the boss is in
    * a phase transition, so a destruction during one survives, undrained, until the first tick
-   * fighting resumes (fix round 2, R19 — a fix-round-1 version cleared this unconditionally every
+   * fighting resumes (an earlier version cleared this unconditionally every
    * tick in `step.ts`, which lost exactly that pending case). Also cleared where a boss is removed at
    * death (`damageBoss`). `s.events` is a write-only outbox for the renderer (nothing in the sim may
    * read it back — the app itself truncates it once a frame, which is exactly why this exists
@@ -407,13 +406,13 @@ export interface GameState {
    */
   destroyedObstacles: { x: number; y: number }[];
   /**
-   * The Storm Tyrant's lanes, flat `[lane, ticksLeft]` pairs (spec §5.2): a lane warns for
-   * `ticksLeft` ticks and then strikes. Empty until that boss's own task fills it.
+   * The Storm Tyrant's lanes, flat `[lane, ticksLeft]` pairs: a lane warns for
+   * `ticksLeft` ticks and then strikes. Empty until that boss's own attack fills it.
    */
   lanes: number[];
   /**
-   * The Abyssal Huntsman's sight lines, flat `[fromX, fromY, toX, toY, decoy, ticksLeft]` groups
-   * (spec §7, amended 2026-09-22, ruling R32) — the state the frame's `aim` array is built from.
+   * The Abyssal Huntsman's sight lines, flat `[fromX, fromY, toX, toY, decoy, ticksLeft]` groups —
+   * the state the frame's `aim` array is built from.
    * Octopi moves on both axes (`sim/octopi.ts`, `OCTOPI.minY..maxY`), so a line described by an x
    * alone could not be drawn or flown; the far point now carries both `toX` and `toY`, and the real
    * line (`decoy = 0`) is the single source of truth for where the next needle goes. A decoy's line
@@ -421,13 +420,13 @@ export interface GameState {
    */
   aims: number[];
   /**
-   * Ticks left of the Frost Castellan's cold snap (spec §5.2): while it is above 0 Octopi's per-axis
+   * Ticks left of the Frost Castellan's cold snap: while it is above 0 Octopi's per-axis
    * step cap is two thirds of `OCTOPI.maxStep`. 0 the rest of the time, and nothing but that boss
    * can ever raise it.
    */
   chillTicks: number;
   /**
-   * Kills counted towards coraluna's next Surge (champions and skins spec §1): `killCrab` adds one
+   * Kills counted towards coraluna's next Surge: `killCrab` adds one
    * per kill for a variant with a `surgeEvery`, and `surgeIfDue` spends `surgeEvery` of them on a
    * free WAVE_BLAST. 0 at run start and 0 for good for every other variant.
    */
@@ -436,7 +435,7 @@ export interface GameState {
 
 /**
  * Index of each CrabType in the state hash and the view frame, in declaration order: 0..4 the five
- * legacy kinds (unchanged), 5..9 the veterans, appended (spec §2 — `TYPE_COLOUR` mirrors the same
+ * legacy kinds (unchanged), 5..9 the veterans, appended (`TYPE_COLOUR` mirrors the same
  * indices for the sprite colour).
  */
 export const TYPE_INDEX: Record<CrabType, number> = {
@@ -447,7 +446,7 @@ export const TYPE_INDEX: Record<CrabType, number> = {
 /**
  * Index of each BulletKind in the state hash and the view frame, in declaration order. The `fast`
  * kind went with the swift crab's own shot in core v8, so the list was 14 long, not 15, before the
- * veteran and boss-6..10 kinds appended eight more (spec §2 / §5.1); any consumer keying off these
+ * veteran and boss-6..10 kinds appended eight more; any consumer keying off these
  * numbers (the app's bullet drawing) needs the same list, old indices never moving.
  */
 export const KIND_INDEX: Record<BulletKind, number> = {
@@ -459,7 +458,7 @@ export const KIND_INDEX: Record<BulletKind, number> = {
 
 /**
  * Index of each BoostType in the state hash, in declaration order. RICOCHET was removed from the
- * game entirely (owner decision, Phase 3A.1 lane C) — the indices below are contiguous over the
+ * game entirely — the indices below are contiguous over the
  * remaining 15 boosts, not the old 16; any consumer keying off these numbers (the mobile app's drop
  * icon/HUD-name maps) needs the same renumbering.
  */
@@ -474,7 +473,7 @@ export const BOOST_INDEX: Record<BoostType, number> = {
 export const OBSTACLE_INDEX: Record<ObstacleKind, number> = { crystal: 0 };
 
 /**
- * How many columns a squad's cell packing leaves room for (spec §5.1): `Crab.cell` is
+ * How many columns a squad's cell packing leaves room for: `Crab.cell` is
  * `row * SQUAD_CELL_STRIDE + col`, one int instead of a second and third `Crab` field. Eight is a
  * comfortable ceiling — the widest squad template is five crabs across — and it keeps the two
  * accessors below a shift and a mask in spirit while staying plain integer arithmetic.
@@ -501,7 +500,7 @@ export const BEHAVIOUR_INDEX: Record<FormationBehaviour, number> = { march: 0, r
 
 /**
  * Index of each OctopiVariant in the replay header byte, in declaration order. The five champions
- * of the champions and skins spec (§3) are appended, so an old replay header keeps its meaning.
+ * are appended, so an old replay header keeps its meaning.
  */
 export const VARIANT_INDEX: Record<OctopiVariant, number> = {
   base: 0, harpoon: 1, anchor: 2, trident: 3,

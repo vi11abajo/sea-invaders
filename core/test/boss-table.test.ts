@@ -150,7 +150,7 @@ describe('the view frame', () => {
   it('copies the lanes, the sight lines and the cold snap straight through', () => {
     const s = arena();
     s.lanes = [2, 45, 5, 30];
-    s.aims = [1000, 2000, 3000, 4000, 0, 40]; // ruling R32: fromX, fromY, toX, toY, decoy, ticksLeft
+    s.aims = [1000, 2000, 3000, 4000, 0, 40]; // fromX, fromY, toX, toY, decoy, ticksLeft
     s.chillTicks = 77;
     const f = snapshot(s);
     expect(LANE_STRIDE).toBe(2);
@@ -193,12 +193,12 @@ describe('the state hash', () => {
     expect(mutated((s) => { s.boss!.burst = 3; })).toBe(true);
     expect(mutated((s) => { s.boss!.mirror = [0, 300, 0]; })).toBe(true);
     expect(mutated((s) => { s.boss!.discharged = 180; })).toBe(true);
-    // Fix round 1, controller ruling R18: a state with one pending destroyed-obstacle entry hashes
+    // A state with one pending destroyed-obstacle entry hashes
     // differently from one without, even though the field is usually empty.
     expect(mutated((s) => { s.destroyedObstacles = [{ x: 2000, y: 3600 }]; })).toBe(true);
   });
 
-  it("covers a squad's own alive count, not just its id and dir (fix round 1, controller ruling R22)", () => {
+  it("covers a squad's own alive count, not just its id and dir", () => {
     const withSquad = (): GameState => {
       const s = arena();
       spawnSquad(s, 'pair', REEF_KINDS, 2000, SQUAD_BAND.minY, 1);

@@ -1,8 +1,8 @@
 import type { Bullet, GameState, Obstacle, ObstacleKind } from '../types';
 
 /**
- * The arena objects of spec §5.1: boxes a boss raises on the field that eat shots from both sides.
- * The Frost Castellan's crystals are the only kind so far; his own task raises them and shatters
+ * The arena objects: boxes a boss raises on the field that eat shots from both sides.
+ * The Frost Castellan's crystals are the only kind so far; he raises them and shatters
  * them on cue, and reacts to one being destroyed by draining `GameState.destroyedObstacles` below.
  *
  * The rule is deliberately blunt and symmetric: **any** shot whose centre enters the box is
@@ -10,7 +10,7 @@ import type { Bullet, GameState, Obstacle, ObstacleKind } from '../types';
  * a crab, and nothing flies through it. Only a player's shot costs the box a hit point.
  *
  * `hitObstacle` runs once per tick from `step`, after both sides' shots have moved (`updateEnemyShots`
- * and the gravity pull are done) but **before** `updateBoss` (fix round 1, controller ruling R18):
+ * and the gravity pull are done) but **before** `updateBoss`:
  * moved earlier specifically so a boss's own `tick` hook can react to a destruction it caused this
  * very tick, with no delay. A shot the boss casts this same tick (from `updateBoss`, which now runs
  * after this) is therefore not checked against an obstacle until the next tick — unobservable for
@@ -27,9 +27,9 @@ import type { Bullet, GameState, Obstacle, ObstacleKind } from '../types';
  * write-only outbox for the renderer — this keeps working exactly as before, unconditionally, for
  * whatever the app wants to do with it) and a `{x, y}` entry appended to
  * `GameState.destroyedObstacles` (the sim-internal channel a boss's own hooks may read back from,
- * since reading `s.events` back is not allowed — controller ruling R18). `updateBoss` (`sim/boss.ts`)
+ * since reading `s.events` back is not allowed). `updateBoss` (`sim/boss.ts`)
  * sweeps the second list right after `hooks.tick` runs, but not while the boss sits in
- * `state === 'transition'` (fix round 2, controller ruling R19 — a destruction mid-transition survives
+ * `state === 'transition'` (a destruction mid-transition survives
  * until fighting resumes rather than being wiped early), and `damageBoss` sweeps it once more at the
  * boss's own death, so a boss that never drains it (or a fight with none at all) can never accumulate
  * stale entries.
@@ -54,7 +54,7 @@ function obstacleAt(s: GameState, b: Bullet): number {
 }
 
 /**
- * The per-tick obstacle collision (spec §5.1). Costs an arena with nothing standing on it a single
+ * The per-tick obstacle collision. Costs an arena with nothing standing on it a single
  * length check, which is every tick of the first campaign.
  */
 export function hitObstacle(s: GameState): void {

@@ -25,10 +25,10 @@ export const OCTOPI = {
 } as const;
 
 /**
- * Per-variant overrides layered onto the OCTOPI defaults above (spec §4; champions and skins spec
- * §1 for the five champions after trident); `base` has none. Each override is read through its own
- * `...For` accessor below, which hands back the unmodified default for every variant without it —
- * so a run of `base` or of the first three champions takes exactly the path it always took.
+ * Per-variant overrides layered onto the OCTOPI defaults above; `base` has none. Each override is
+ * read through its own `...For` accessor below, which hands back the unmodified default for every
+ * variant without it — so a run of `base` or of the first three champions takes exactly the path it
+ * always took.
  */
 export const VARIANTS: Record<Exclude<OctopiVariant, 'base'>, {
   fireInterval?: number; lives?: number; piercing?: boolean;
@@ -37,56 +37,56 @@ export const VARIANTS: Record<Exclude<OctopiVariant, 'base'>, {
   harpoon: { fireInterval: 6 },
   anchor: { lives: 1 },
   trident: { piercing: true },
-  noob: { invulnTicks: 180 },          // Thick skin (spec §1)
+  noob: { invulnTicks: 180 },          // Thick skin
   coraluna: { surgeEvery: 30 },        // Surge
   shoupe: { lastStandFireInterval: 5 },// Last stand
   hex: { enemyShotPct: 90 },           // Hex
   kakashi: { boostDurationPct: 150 },  // Copy
 };
 
-/** Octopi's fire cadence for `variant`, absent any active RAPID_FIRE boost (spec §4: harpoon fires every 6 ticks, others the base 8). */
+/** Octopi's fire cadence for `variant`, absent any active RAPID_FIRE boost (harpoon fires every 6 ticks, others the base 8). */
 export function fireIntervalFor(variant: OctopiVariant): number {
   return variant === 'base' ? OCTOPI.fireInterval : (VARIANTS[variant].fireInterval ?? OCTOPI.fireInterval);
 }
 
-/** Extra lives `variant` grants on top of `RunConfig.lives` at run start (spec §4: anchor only). */
+/** Extra lives `variant` grants on top of `RunConfig.lives` at run start (anchor only). */
 export function bonusLivesFor(variant: OctopiVariant): number {
   return variant === 'base' ? 0 : (VARIANTS[variant].lives ?? 0);
 }
 
-/** Whether `variant` tags every player shot with the PIERCING bit regardless of boosts (spec §4: trident only). */
+/** Whether `variant` tags every player shot with the PIERCING bit regardless of boosts (trident only). */
 export function piercingFor(variant: OctopiVariant): boolean {
   return variant !== 'base' && Boolean(VARIANTS[variant].piercing);
 }
 
 /**
- * Octopi's grace after a hit that cost a life (`loseLife`), in ticks (champions and skins spec §1:
- * noob's Thick skin, 180; everyone else `OCTOPI.invulnTicks`). A shield-absorbed hit's 30 and the
+ * Octopi's grace after a hit that cost a life (`loseLife`), in ticks (noob's Thick skin, 180;
+ * everyone else `OCTOPI.invulnTicks`). A shield-absorbed hit's 30 and the
  * Tide's revive grace do not read this.
  */
 export function invulnTicksFor(variant: OctopiVariant): number {
   return variant === 'base' ? OCTOPI.invulnTicks : (VARIANTS[variant].invulnTicks ?? OCTOPI.invulnTicks);
 }
 
-/** How many kills buy `variant` a free WAVE_BLAST (champions and skins spec §1: coraluna's Surge, 30); 0 = never. */
+/** How many kills buy `variant` a free WAVE_BLAST (coraluna's Surge, 30); 0 = never. */
 export function surgeEveryFor(variant: OctopiVariant): number {
   return variant === 'base' ? 0 : (VARIANTS[variant].surgeEvery ?? 0);
 }
 
 /**
- * `variant`'s fire cadence on its last life, absent RAPID_FIRE (champions and skins spec §1:
- * shoupe's Last stand, 5); null = no last stand, the ordinary `fireIntervalFor` cadence throughout.
+ * `variant`'s fire cadence on its last life, absent RAPID_FIRE (shoupe's Last stand, 5); null = no
+ * last stand, the ordinary `fireIntervalFor` cadence throughout.
  */
 export function lastStandFireIntervalFor(variant: OctopiVariant): number | null {
   return variant === 'base' ? null : (VARIANTS[variant].lastStandFireInterval ?? null);
 }
 
-/** The percentage of its speed every enemy shot moves at against `variant` (champions and skins spec §1: hex, 90); 100 unless overridden. */
+/** The percentage of its speed every enemy shot moves at against `variant` (hex, 90); 100 unless overridden. */
 export function enemyShotPctFor(variant: OctopiVariant): number {
   return variant === 'base' ? 100 : (VARIANTS[variant].enemyShotPct ?? 100);
 }
 
-/** The percentage of its duration a timed boost lasts for `variant` (champions and skins spec §1: kakashi's Copy, 150); 100 unless overridden. */
+/** The percentage of its duration a timed boost lasts for `variant` (kakashi's Copy, 150); 100 unless overridden. */
 export function boostDurationPctFor(variant: OctopiVariant): number {
   return variant === 'base' ? 100 : (VARIANTS[variant].boostDurationPct ?? 100);
 }
@@ -94,7 +94,7 @@ export function boostDurationPctFor(variant: OctopiVariant): number {
 /**
  * Game-speed tuning in percent of the original speeds (100 = unchanged, below 100 slower, above
  * faster). Change these knobs rather than the values they scale: every derived speed follows.
- * Owner tuning 2026-09-13: Octopi's shots -20 %, crab movement -10 %, crab fire rate -10 %.
+ * Current tuning: Octopi's shots -20 %, crab movement -10 %, crab fire rate -10 %.
  * Any change alters every replay, so the release carries a CORE_VERSION bump and regenerated goldens.
  */
 export const TUNING = {
@@ -131,7 +131,7 @@ export const CRAB = {
   /** About 9.4% of the field width. */
   size: 530,
   /**
-   * Sprite-colour count: 5 legacy + 5 veteran kinds (spec §2, "Reefs 6-10" design). Nothing in
+   * Sprite-colour count: 5 legacy + 5 veteran kinds (the "Reefs 6-10" design). Nothing in
    * core/src draws a random colour or keys a colour modulo off this number — the daily/practice
    * spawn (`spawnWave` in game.ts) draws its kind from `dailyPool`'s own length, and the campaign
    * spawn (`spawnFormation`) never draws a colour at all — so raising it here changes no existing
@@ -149,11 +149,11 @@ export const CRAB = {
 } as const;
 
 /**
- * Hit points and score per crab kind: the five legacy kinds (spec §1, unchanged) plus the five
- * veteran kinds of reefs 6-10 (spec §2). `normal` matches CRAB.points and 1 hp, unchanged from
+ * Hit points and score per crab kind: the five legacy kinds (unchanged) plus the five
+ * veteran kinds of reefs 6-10. `normal` matches CRAB.points and 1 hp, unchanged from
  * wave-mode behaviour; armored survives one hit and elder two, and the app draws the damage. The
  * veterans enter a reef's pool through `levels.ts`'s `REEF_ROSTERS` and the daily/practice grid
- * through `ALL_KINDS` (core v11, spec §4/§6).
+ * through `ALL_KINDS` (core v11).
  */
 export const CRAB_TYPES = {
   normal: { hp: 1, points: 10 },
@@ -169,7 +169,7 @@ export const CRAB_TYPES = {
 } as const;
 
 /**
- * Colour a crab is drawn with, by kind (spec §1/§2): one colour index per kind, cosmetic only, and
+ * Colour a crab is drawn with, by kind: one colour index per kind, cosmetic only, and
  * the sprites are keyed off it. `spawnFormation` and `spawnWave` assign it directly, drawing no
  * colours. The veterans take colours 5..9, green through violet, in reef order (warden, herald,
  * bubbler, bombardier, patriarch) — old indices 0..4 never move.
@@ -188,13 +188,12 @@ export const TYPE_COLOUR: Record<CrabType, number> = {
 };
 
 /**
- * The shot each crab kind fires when it is the one chosen to fire (spec §1/§2): every kind fires
+ * The shot each crab kind fires when it is the one chosen to fire: every kind fires
  * exactly one aimed shot. Among the legacy kinds only the red `heavy` crab fires anything but the
  * plain crab shot — faster, wider (`shotRadius`) and worth two lives (`shotDamage`). Among the
  * veterans, warden/herald/patriarch fire the same plain crab shot; bubbler fires a `bubble` and
- * bombardier a `charge` — both still just fly straight and aimed like any other crab shot until a
- * later task gives them their own motion (zigzag bubble, bursting charge) and `shotRadius`/
- * `shotDamage` cases.
+ * bombardier a `charge` — both still just fly straight and aimed like any other crab shot, without
+ * their own motion (zigzag bubble, bursting charge) or distinct `shotRadius`/`shotDamage` cases.
  */
 export const CRAB_SHOTS: Record<CrabType, { kind: BulletKind; speed: number; damage: 1 | 2 }> = {
   normal: { kind: 'crab', speed: 110, damage: 1 },
@@ -210,7 +209,7 @@ export const CRAB_SHOTS: Record<CrabType, { kind: BulletKind; speed: number; dam
 };
 
 /**
- * How likely each kind is to be the crab that fires (spec §1/§2). The per-tick chance that *some*
+ * How likely each kind is to be the crab that fires. The per-tick chance that *some*
  * crab fires is unchanged (`fireChance`); this only picks which one, by weight over the live crabs,
  * so a yellow or violet crab (legacy or veteran) fires twice as often as a green one and a red one
  * half as often.
@@ -230,7 +229,7 @@ export const FIRE_WEIGHT: Record<CrabType, number> = {
 
 export type BoostRarity = 'common' | 'rare' | 'epic' | 'legendary';
 
-/** Rarity roll order, common to legendary (spec §5.2). */
+/** Rarity roll order, common to legendary. */
 export const RARITY_ORDER: BoostRarity[] = ['common', 'rare', 'epic', 'legendary'];
 
 /** One boost type per rarity, in the legacy web engine's `DISTRIBUTION` order. */
@@ -242,7 +241,7 @@ export const RARITY_LISTS: Record<BoostRarity, BoostType[]> = {
 };
 
 /**
- * Rarity and duration (ticks; 0 instant, -1 until consumed) per boost type (spec §5.2).
+ * Rarity and duration (ticks; 0 instant, -1 until consumed) per boost type.
  * RANDOM_CHAOS's `duration` here is unused: its actual timer is rolled in `activateBoost`
  * (`600 + rngBoosts.nextInt(301)`, i.e. 600-900 ticks), applied to whichever boost it picks.
  */
@@ -264,10 +263,10 @@ export const BOOSTS: Record<BoostType, { rarity: BoostRarity; duration: number }
   SPEED_TAMER: { rarity: 'legendary', duration: -1 },
 };
 
-/** Drop spawn and lifecycle constants (spec §5.1; legacy `SPAWN`). */
+/** Drop spawn and lifecycle constants (legacy `SPAWN`). */
 export const DROP = { chance: 3, fall: 60, size: 600, ttl: 600 } as const;
 
-/** Common boss model: spec §4.1. */
+/** Common boss model. */
 export const BOSS = {
   /** 66% of FIELD_W. */
   width: 3700,
@@ -288,7 +287,7 @@ export const BOSS = {
 export const BOSS_SHOT = { speed: 110, radius: 96 } as const;
 
 /**
- * Hit points, phases and score base of the bosses of reefs 6-10 (spec §5). The first campaign's
+ * Hit points, phases and score base of the bosses of reefs 6-10. The first campaign's
  * five are deliberately absent: they keep taking their numbers from `BOSS.baseHp`/`BOSS.hpStep`,
  * `maxPhases = kind` and `BOSS.scoreBase * kind`, and `bossStats` is the one place that chooses.
  * `score` is the *whole* base (what `scoreBase * kind` yields for a legacy boss), before the fight's
@@ -303,21 +302,20 @@ export const BOSS_TABLE: Readonly<Record<TableBossKind, Readonly<{ hp: number; p
 };
 
 /**
- * Campaign-only wave arrival (spec §14 amendment): a level wave spawns `drop` units above its
+ * Campaign-only wave arrival: a level wave spawns `drop` units above its
  * slots and descends at `speed` units/tick for `ticks` ticks (30 * 50 = 1500, landing exactly on
  * the slots) with no enemy fire. Daily/practice never trigger this.
  */
 export const ARRIVAL = { ticks: 30, drop: 1500, speed: 50 } as const;
 
-/** The Tide (spec §4, owner ruling 2026-09-15): a paid revive brings Octopi back with this many lives. */
+/** The Tide: a paid revive brings Octopi back with this many lives. */
 export const TIDE_REVIVE_LIVES = 3;
 
-/** HEALTH_BOOST's life cap (spec C9, legacy `game-constants.js` `MAX_LIVES`). */
+/** HEALTH_BOOST's life cap. */
 export const MAX_LIVES = 100;
 
 /**
- * GRAVITY_WELL's centre roll and its pull on enemy fire (spec C1, legacy `boost-manager.js:317-336`
- * `activateBoost` and `boost-effects.js:203-247` `applyGravityWellEffect`): the centre is a seeded
+ * GRAVITY_WELL's centre roll and its pull on enemy fire: the centre is a seeded
  * random point inset `margin` from the field edges, re-rolled while within `minDist` of Octopi, up
  * to `maxAttempts` rolls (the last one stands regardless); every enemy shot is redirected at `speed`
  * units/tick towards the centre, and one within `absorb` units of it is removed.
@@ -325,8 +323,7 @@ export const MAX_LIVES = 100;
 export const WELL = { margin: 1835, minDist: 3670, maxAttempts: 8, speed: 147, absorb: 550 } as const;
 
 /**
- * The wave-mode score-decay clock (spec C7, legacy `game-constants.js` decay wired through
- * `updateScoreMultiplier`): the percentage applied to a crab kill's points falls 1% every `every`
+ * The wave-mode score-decay clock: the percentage applied to a crab kill's points falls 1% every `every`
  * ticks (1700ms at 60 ticks/s) elapsed with no boss active and POINTS_FREEZE inactive, floored at
  * `floorPct`.
  */

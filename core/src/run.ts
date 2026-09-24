@@ -11,7 +11,7 @@ export interface RunConfig {
   /** Lives Octopi starts with: reef lives in the campaign, OCTOPI.lives otherwise. */
   lives: number;
   features: { boosts: boolean };
-  /** The champion (bought or earned) for this run, or 'base' (spec §4): only ever non-'base' for a campaign run. */
+  /** The champion (bought or earned) for this run, or 'base': only ever non-'base' for a campaign run. */
   octopi: OctopiVariant;
 }
 

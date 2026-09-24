@@ -60,8 +60,8 @@ describe('firewall', () => {
     }
   });
 
-  it('still leaves a two-slot doorway when the gap is out of range (ruling R13)', () => {
-    // Spec §5.2 draws "the slot nearest rngBoss.nextInt(9)", which yields 8 one time in nine; a
+  it('still leaves a two-slot doorway when the gap is out of range', () => {
+    // A caller draws "the slot nearest rngBoss.nextInt(9)", which yields 8 one time in nine; a
     // doorway one slot wide would be a materially harder wall. The helper's contract is the
     // doorway, not a precondition on the caller.
     for (const gap of [FIREWALL_SLOTS - 1, FIREWALL_SLOTS, 100, -1, -100]) {
@@ -262,10 +262,10 @@ describe('needle', () => {
   });
 });
 
-// The owner's balance note of 2026-09-22 (on-device): the Corsair's axe turned above every row Octopi
+// Before this fix (found testing on-device): the Corsair's axe turned above every row Octopi
 // can stand on, and the Tyrant's orb only touched the home row as it died. Both shots must reach the
 // player now, measured from the muzzle a boss actually fires from.
-describe('reach of the boss shots (owner balance note 2026-09-22)', () => {
+describe('reach of the boss shots', () => {
   const muzzleY = BOSS.top + BOSS.height; // `muzzle(b)`: boss centre + half the box, at the resting y
 
   it("the axe turns below Octopi's home row", () => {

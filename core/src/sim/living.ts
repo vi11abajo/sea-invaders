@@ -8,7 +8,7 @@ import { chilled, tamed } from './boosts';
 import { crabStepFor, marchBlockOnce, marchSteps } from './crabs';
 
 /**
- * The three living formations of spec §3. Every wave whose behaviour is `march` — daily, practice,
+ * The three living formations. Every wave whose behaviour is `march` — daily, practice,
  * and every static silhouette of both campaigns — goes through `marchCrabs`'s block march instead
  * and never reaches this file, which is what keeps core v10's play bit-identical.
  *
@@ -22,18 +22,18 @@ import { crabStepFor, marchBlockOnce, marchSteps } from './crabs';
 const HALF = idiv(CRAB.size, 2);
 
 /**
- * March steps a whirlpool crab takes to travel from its slot to the next one on its ring (spec §3,
- * amended by ruling R6: march steps, not wall-clock ticks). At the game's default 90 %
+ * March steps a whirlpool crab takes to travel from its slot to the next one on its ring (march
+ * steps, not wall-clock ticks). At the game's default 90 %
  * `TUNING.crabMovePct`, and with nothing slowing the wave, that is 50 ticks.
  */
 export const ROTATE_TICKS = 45;
 
-/** March steps a reforming wave takes to glide into the spearhead (spec §3); 66 ticks untroubled. */
+/** March steps a reforming wave takes to glide into the spearhead; 66 ticks untroubled. */
 export const REFORM_TICKS = 60;
 
 /**
  * What one unhindered march step is worth to a rotation or a glide. Both are crab movement, so both
- * obey ICE_FREEZE and SPEED_TAMER like the march does (ruling R6) — but the march carries those
+ * obey ICE_FREEZE and SPEED_TAMER like the march does — but the march carries those
  * slowdowns in the *size* of its step, not in how many steps it takes, and a counter that only ever
  * moved by whole steps could not be halved. Counting a step as twenty units lets the very same
  * `chilled` and `tamed` the march puts its displacement through apply to the counter exactly:
@@ -57,13 +57,13 @@ function marchProgress(s: GameState, steps: number): number {
 }
 
 /**
- * The last template column of a split wave's left half; 4 to 7 are the right half (spec §3). The
+ * The last template column of a split wave's left half; 4 to 7 are the right half. The
  * patriarch's rally needs it too: a revived crab of a split wave is placed off a living crab of its
  * own half, because the two halves march apart and the wave's origin no longer describes either.
  */
 export const SPLIT_COL = 3;
 
-/** A reformed wave marches `REFORM_SPEED_NUM / REFORM_SPEED_DEN` times as fast (spec §3: x1.25). */
+/** A reformed wave marches `REFORM_SPEED_NUM / REFORM_SPEED_DEN` times as fast (×1.25). */
 const REFORM_SPEED_NUM = 5;
 const REFORM_SPEED_DEN = 4;
 
@@ -77,13 +77,13 @@ const SPEARHEAD: ReadonlyArray<Omit<FormationSlot, 'type'>> = formationPositions
 }));
 
 /**
- * A wave reforms only once it is down to this many crabs or fewer (spec §3), which is exactly the
+ * A wave reforms only once it is down to this many crabs or fewer, which is exactly the
  * number of spearhead slots — so every survivor is guaranteed a place.
  */
 const REFORM_MAX = SPEARHEAD.length;
 
 /**
- * The slot each whirlpool slot turns into, built once from the ring lists of spec §3 and checked as
+ * The slot each whirlpool slot turns into, built once from the ring lists above and checked as
  * it is built: every cell of the template belongs to exactly one ring, and a ring is a cycle, so a
  * crab following it can never land on another's cell.
  */
@@ -167,7 +167,7 @@ export function moveLivingFormation(s: GameState, f: FormationState): void {
 }
 
 /**
- * The whirlpool (spec §3). The block marches and steps down as always, carrying the origin; on top
+ * The whirlpool. The block marches and steps down as always, carrying the origin; on top
  * of that every crab travels its ring, one slot every `ROTATE_TICKS` march steps, gliding between
  * the two by the integer lerp. The wheel turns with the march and not against a clock of its own: a
  * tick the march rests, or a wave held back by ICE_FREEZE or SPEED_TAMER, turns it that much less,
@@ -181,7 +181,7 @@ function rotate(s: GameState, f: FormationState): void {
     // Any progress past the span is dropped rather than carried: a crab that has reached its slot
     // is *on* it, and a step is only ever overshot by part of one tick's worth.
     f.rotateTick = 0;
-    // The slots' own kinds ride the same ring the crabs do (spec §2: a rally restores the kind the
+    // The slots' own kinds ride the same ring the crabs do (a rally restores the kind the
     // fallen crab actually spawned with): without this, `slots[*].type` stays put while `c.slot`
     // moves on, so a later rally into a slot the ring has since carried a different kind through
     // would hand back the template's original kind for that cell rather than the kind that was
@@ -201,7 +201,7 @@ function rotate(s: GameState, f: FormationState): void {
 }
 
 /**
- * The claws (spec §3). Template columns 0-3 and 4-7 march as two independent halves, the left one
+ * The claws. Template columns 0-3 and 4-7 march as two independent halves, the left one
  * opening leftwards and the right one rightwards, each at the wave's shared march speed. A half
  * turns at the field margin it owns and steps down there; it turns half a column gap short of the
  * centre line without stepping down, which is what keeps the halves from ever touching. A half with
@@ -227,7 +227,7 @@ function split(s: GameState, f: FormationState): void {
   slideInside(halfCrabs(s, f, false), centre + gap, FIELD_W - HALF);
 }
 
-/** The living crabs of one half of a split wave (spec §3: template columns 0-3 and 4-7). */
+/** The living crabs of one half of a split wave (template columns 0-3 and 4-7). */
 function halfCrabs(s: GameState, f: FormationState, left: boolean): Crab[] {
   return s.crabs.filter((c) => c.slot >= 0 && (f.slots[c.slot]!.col <= SPLIT_COL) === left);
 }
@@ -260,7 +260,7 @@ function marchHalf(s: GameState, f: FormationState, left: boolean, dir: number, 
 }
 
 /**
- * The manta (spec §3). It marches as a plain block until it is halved, then falls back into the
+ * The manta. It marches as a plain block until it is halved, then falls back into the
  * spearhead: the survivors glide onto the new slots over `REFORM_TICKS` march steps, and from the
  * moment it reforms the wave marches a quarter faster. The glide moves by the share of the distance
  * still to cover that this tick's march is worth of the glide still to run, so it is integer
@@ -291,7 +291,7 @@ function reform(s: GameState, f: FormationState): void {
 
 /**
  * Hands the spearhead's slots to the survivors once the wave is down to half its size and no more
- * than `REFORM_MAX` crabs (spec §3): sorted by tier, highest first, then by the slot they held, they
+ * than `REFORM_MAX` crabs: sorted by tier, highest first, then by the slot they held, they
  * take the spearhead in template order — so the elites end up in the broad tail and the infantry at
  * the tip. The spearhead is centred on the wave's current origin, which is where the wave stands.
  */

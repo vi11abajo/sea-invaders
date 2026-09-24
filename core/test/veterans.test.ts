@@ -11,7 +11,7 @@ import {
 } from '../src';
 
 /**
- * The five veteran skills of spec §2: the warden's rune shield, the herald's aura, the bubbler's
+ * The five veteran skills: the warden's rune shield, the herald's aura, the bubbler's
  * bubbles, the bombardier's bursting charge and the patriarch's rally and rage.
  *
  * No level in the game fields a veteran yet, so every wave here is hand-built: a one-wave campaign level
@@ -61,7 +61,7 @@ const at = (s: GameState, slot: number): Crab => s.crabs.find((c) => c.slot === 
 const onSlot = (s: GameState, c: Crab) => ({ x: c.x - form(s).ox, y: c.y - form(s).oy });
 const count = (s: GameState, type: string) => s.events.filter((e) => e.type === type).length;
 /**
- * The first event of `type`, its `x`/`y` payload exposed (ruling R60, task 12 fix round 1): a plain
+ * The first event of `type`, its `x`/`y` payload exposed: a plain
  * cast rather than `Extract<GameEvent, { type: T }>`, which collapses to `never` here — the member
  * these four events share has `type: 'crab_shield_break' | 'bubble_pop' | 'charge_burst' |
  * 'crab_rallied'`, a union itself, and `Extract` needs a member whose own `type` is assignable to
@@ -120,7 +120,7 @@ describe('the warden raises a rune shield', () => {
       .toEqual({ hp: CRAB_TYPES.warden.hp, shield: 0, timer: SHIELD_REGROW_TICKS, shots: 0 });
     expect(count(s, 'crab_shield_break')).toBe(1);
     expect(s.crabs).toHaveLength(1);
-    // Ruling R60 (task 12 fix round 1): the event carries the warden's own position.
+    // The event carries the warden's own position.
     const ev = eventOf(s, 'crab_shield_break');
     expect(ev && { x: ev.x, y: ev.y }).toEqual({ x: c.x, y: c.y });
   });
@@ -326,7 +326,7 @@ describe('the bubbler blows bubbles', () => {
       expect({ data, bubbles: s.enemyShots.length, shots: s.shots.length })
         .toEqual({ data, bubbles: 0, shots: data });
       expect(count(s, 'bubble_pop')).toBe(1);
-      // Ruling R60 (task 12 fix round 1): the event carries the popped bubble's own position.
+      // The event carries the popped bubble's own position.
       const ev = eventOf(s, 'bubble_pop');
       expect(ev && { x: ev.x, y: ev.y }).toEqual({ x: 1000, y: 3000 });
     }
@@ -406,7 +406,7 @@ describe('the bombardier throws a bursting charge', () => {
       ['fragment', 2000, burstY + 99, -73, 0],
       ['fragment', 2000, burstY + 99, 0, -73],
     ]);
-    // Ruling R60 (task 12 fix round 1): the event carries the charge's own position, at the moment it burst.
+    // The event carries the charge's own position, at the moment it burst.
     const ev = eventOf(s, 'charge_burst');
     expect(ev && { x: ev.x, y: ev.y }).toEqual({ x: 2000, y: burstY + 99 });
   });
@@ -460,13 +460,13 @@ describe('the patriarch rallies the fallen', () => {
     expect(CRAB_TYPES[slot.type].hp).toBeGreaterThan(1); // a full-hp revive is worth asserting
     expect(onSlot(s, back)).toEqual({ x: slot.x, y: slot.y });
     expect(freeSlots(s)).toEqual([8, 20]);
-    // Ruling R60 (task 12 fix round 1): the event carries the revived crab's own position.
+    // The event carries the revived crab's own position.
     const ev = eventOf(s, 'crab_rallied');
     expect(ev && { x: ev.x, y: ev.y }).toEqual({ x: back.x, y: back.y });
   });
 
   it("brings back the kind that actually stood on a whirlpool's slot, not the template cell's own, once the ring has turned it over", () => {
-    // spec §2: "restored with the kind it spawned with" is the *crab's* own kind — a whirlpool's ring
+    // "restored with the kind it spawned with" is the *crab's* own kind — a whirlpool's ring
     // carries different tiers through the same cell, so the cell's template kind and the kind
     // actually marching through it can disagree.
     const s = landed('whirlpool', PATRIARCH_POOL);
@@ -551,7 +551,7 @@ describe('the patriarch rallies the fallen', () => {
     const s = landed('claws', PATRIARCH_POOL);
     const p = at(s, 0); // column 1, the left half: the wave's first patriarch
     const slots = form(s).slots;
-    // Slots 1..3 are the other tier-4 cells, which a rally will never take (ruling R7); slot 4 is
+    // Slots 1..3 are the other tier-4 cells, which a rally will never take; slot 4 is
     // the left half's own column 0 on the next row down, and it is the one that comes back.
     s.crabs = s.crabs.filter((c) => ![1, 2, 3, 4].includes(c.slot));
     expect(freeSlots(s)).toEqual([1, 2, 3, 4]);
@@ -576,7 +576,7 @@ describe('the patriarch rallies the fallen', () => {
     s.crabs = s.crabs.filter((c) => slots[c.slot]!.col <= 3); // the whole right half is gone
     at(s, 1).type = 'normal'; // the wave's other left-half patriarch: one rally clock is enough here
     expect(s.crabs.filter((c) => c.type === 'patriarch')).toHaveLength(1);
-    // Slots 2 and 3 are tier-4 cells a rally never takes (R7); slot 8 is the lowest free one it
+    // Slots 2 and 3 are tier-4 cells a rally never takes; slot 8 is the lowest free one it
     // would take, and it belongs to the half that is gone.
     expect(freeSlots(s).filter((i) => slots[i]!.type !== 'patriarch')[0]).toBe(8);
 
@@ -629,7 +629,7 @@ describe('the patriarch rallies the fallen', () => {
   });
 
   it('never puts a revived crab outside the field, however far its wave has marched', () => {
-    // The reviewer's second reproduction: a `classic` wave whose two left columns are swept away,
+    // A regression case: a `classic` wave whose two left columns are swept away,
     // with four patriarchs rallying over three full rally periods.
     const s = landed('classic', PATRIARCH_POOL);
     const slots = form(s).slots;
