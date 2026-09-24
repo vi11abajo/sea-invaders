@@ -22,7 +22,7 @@ export function createGame(seed: string, run: RunConfig): GameState {
     kills: 0,
     over: false,
     dir: 1,
-    octopi: { x: INITIAL_INPUT.x, y: INITIAL_INPUT.y, cooldown: fireIntervalFor(run.octopi), invuln: 0, lives },
+    octopi: { x: INITIAL_INPUT.x, y: INITIAL_INPUT.y, cooldown: fireIntervalFor(run.octopi), invuln: 0, lives, fireCarry: 0 },
     shots: [],
     enemyShots: [],
     crabs: [],

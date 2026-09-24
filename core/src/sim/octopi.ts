@@ -1,4 +1,4 @@
-import { FIELD_W, OCTOPI, SHOT, fireIntervalFor, lastStandFireIntervalFor, piercingFor } from '../config';
+import { FIELD_W, OCTOPI, SHOT, fireIntervalFor, lowLifeFireBonusPctFor, piercingFor } from '../config';
 import { clamp, idiv, isqrt } from '../fixed';
 import { icos, isin } from '../trig';
 import type { Bullet, GameState, Input } from '../types';
@@ -63,7 +63,8 @@ export function moveOctopi(s: GameState, input: Input): void {
  * AUTO_TARGET's steering actually change a shot's path for the first time), drops those that left
  * the field — off the top exactly as before, or now off either side (`x` outside `[0, FIELD_W]`) —
  * steers survivors while AUTO_TARGET is active, then fires when the cooldown runs out. RAPID_FIRE
- * shortens the cooldown; MULTI_SHOT fires three shots (-15/0/+15 degrees) instead of one;
+ * shortens the cooldown, and so does shoupe's Last stand the fewer lives are left
+ * (`nextFireInterval`); MULTI_SHOT fires three shots (-15/0/+15 degrees) instead of one;
  * PIERCING_BULLETS tags every new shot's `data` with bit 1 so `hitCrabs` lets it keep flying, and
  * the trident variant tags it unconditionally, boost or not
  * (RICOCHET was removed from the game entirely, so bit 2 and
@@ -115,11 +116,27 @@ export function updateShots(s: GameState): void {
     } else {
       s.shots.push({ x, y, vx: 0, vy: -SHOT.speed, kind: 'straight', data });
     }
-    // Shoupe's Last stand fires faster on the last life; RAPID_FIRE's
-    // own interval still wins while it is active.
-    const base = fireIntervalFor(s.run.octopi);
-    const last = lastStandFireIntervalFor(s.run.octopi);
-    const interval = last !== null && s.octopi.lives <= 1 ? last : base;
-    s.octopi.cooldown = isActive(s, 'RAPID_FIRE') ? RAPID_FIRE_INTERVAL : interval;
+    s.octopi.cooldown = isActive(s, 'RAPID_FIRE') ? RAPID_FIRE_INTERVAL : nextFireInterval(s);
   }
+}
+
+/**
+ * The ticks until Octopi's next shot, absent RAPID_FIRE. Every variant without a Last stand takes
+ * its plain `fireIntervalFor` cadence, exactly as it always has, and never touches `fireCarry`.
+ *
+ * Shoupe's Last stand fires `1 + bonus` times as often, the bonus read from the lives Octopi has
+ * right now, so the interval is `8 / (1 + bonus)` ticks: 5 at one life, 5.517 at two, 6.153 at
+ * three, 6.956 at four, 8 from five up. Cooldowns are whole ticks, so the interval is worked in
+ * thousandths of a tick and the remainder rides in `fireCarry` from shot to shot: over any run of
+ * shots at one life count the gaps add up to the exact interval, give or take a single tick.
+ * RAPID_FIRE's shorter interval replaces this while it is active and leaves the carry where it was,
+ * so the remainder picks up again once the boost is gone.
+ */
+function nextFireInterval(s: GameState): number {
+  const variant = s.run.octopi;
+  const bonusPct = lowLifeFireBonusPctFor(variant, s.octopi.lives);
+  if (bonusPct === null) return fireIntervalFor(variant);
+  const milli = idiv(fireIntervalFor(variant) * 1000 * 100, 100 + bonusPct) + s.octopi.fireCarry;
+  s.octopi.fireCarry = milli % 1000;
+  return idiv(milli, 1000);
 }

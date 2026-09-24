@@ -192,7 +192,7 @@ of the core it was built with and reports that version as `coreVersion` in
 - a replay whose version byte differs from the run's stored version is rejected like any other bad
   upload and spends the attempt (the answer is still `426 update_required`, with no refund).
 
-`CORE_VERSION` is 13 since 2026-09-23. History: 3 brought the campaign, bosses and boosts; 4 the
+`CORE_VERSION` is 14 since 2026-09-24. History: 3 brought the campaign, bosses and boosts; 4 the
 legacy boost rules and player-shot motion; 5 rarer boost drops; 6 the octopi variants and the
 mid-level revive; 7 slowed enemy shots under ICE_FREEZE; 8 the new crab kinds, the weighted shooter,
 the two-life heavy shot and the silhouette formations; 9 chained the silhouettes in a fixed order;
@@ -200,7 +200,8 @@ the two-life heavy shot and the silhouette formations; 9 chained the silhouettes
 with skills, nine silhouettes of which three living, five bosses with squads and obstacles, sixty
 levels); 12 the first balance note on the deep reefs (the Gold Corsair's axe turns below Octopi's
 home row, the Storm Tyrant's orb sinks fast enough to cross it); 13 the five new champions (Thick
-skin, Surge, Last stand, Hex, Copy).
+skin, Surge, Last stand, Hex, Copy); 14 rescales Shoupe's Last stand by lives, sets Hex to 70 % and
+Copy to ×1.33, and makes today's speeds the knobs' reference.
 
 Whenever the core version bumps, run the migrations, deploy the API and release the new APK
 together: until a player updates, the app is told to update before it can start a ranked run.

@@ -17,6 +17,12 @@ export interface Octopi {
   /** Remaining invulnerability ticks after a hit. */
   invuln: number;
   lives: number;
+  /**
+   * Shoupe's Last stand carry, in thousandths of a tick: the part of a fractional fire interval
+   * (8000 / 1.45 = 5517 milli-ticks at two lives) that whole-tick cooldowns have not paid out yet,
+   * so the intervals average out exactly. 0 at run start and 0 for good for every other variant.
+   */
+  fireCarry: number;
 }
 
 /**

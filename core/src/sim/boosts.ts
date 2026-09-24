@@ -184,7 +184,7 @@ function setActive(s: GameState, type: BoostType, ticksLeft: number): void {
  *   A direct pickup instead (re)sets the single permanent (`-1`) entry, which never expires.
  * - GRAVITY_WELL: rolls a fresh centre (`rollWellCentre`) every time it activates, direct or chaos.
  * Kakashi's Copy stretches every timer this sets to
- * `boostDurationPctFor` (150 %) of itself — the table duration and a chaos roll alike — while an
+ * `boostDurationPctFor` (133 %) of itself — the table duration and a chaos roll alike — while an
  * instant (0) or until-consumed (-1) duration passes through untouched; at 100 % (every other
  * variant) `stretch` is the identity.
  * Returns whether the pickup should be consumed (only WAVE_BLAST with no crabs is not).

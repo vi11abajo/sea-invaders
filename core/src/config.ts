@@ -1,4 +1,4 @@
-import { idiv } from './fixed';
+import { clamp, idiv } from './fixed';
 import type { CrabType } from './levels';
 import type { BoostType, BulletKind, OctopiVariant, TableBossKind } from './types';
 
@@ -32,16 +32,17 @@ export const OCTOPI = {
  */
 export const VARIANTS: Record<Exclude<OctopiVariant, 'base'>, {
   fireInterval?: number; lives?: number; piercing?: boolean;
-  invulnTicks?: number; surgeEvery?: number; lastStandFireInterval?: number; enemyShotPct?: number; boostDurationPct?: number;
+  invulnTicks?: number; surgeEvery?: number; lowLifeFireBonusPct?: number; lowLifeFullAt?: number;
+  enemyShotPct?: number; boostDurationPct?: number;
 }> = {
   harpoon: { fireInterval: 6 },
   anchor: { lives: 1 },
   trident: { piercing: true },
   noob: { invulnTicks: 180 },          // Thick skin
   coraluna: { surgeEvery: 30 },        // Surge
-  shoupe: { lastStandFireInterval: 5 },// Last stand
-  hex: { enemyShotPct: 90 },           // Hex
-  kakashi: { boostDurationPct: 150 },  // Copy
+  shoupe: { lowLifeFireBonusPct: 60, lowLifeFullAt: 5 }, // Last stand
+  hex: { enemyShotPct: 70 },           // Hex
+  kakashi: { boostDurationPct: 133 },  // Copy
 };
 
 /** Octopi's fire cadence for `variant`, absent any active RAPID_FIRE boost (harpoon fires every 6 ticks, others the base 8). */
@@ -74,19 +75,29 @@ export function surgeEveryFor(variant: OctopiVariant): number {
 }
 
 /**
- * `variant`'s fire cadence on its last life, absent RAPID_FIRE (shoupe's Last stand, 5); null = no
- * last stand, the ordinary `fireIntervalFor` cadence throughout.
+ * How much faster `variant` fires with `lives` lives left, in percent of its ordinary fire rate
+ * (shoupe's Last stand): the whole `lowLifeFireBonusPct` on the last life, falling in equal steps
+ * to nothing at `lowLifeFullAt` lives and above — for shoupe +60 / +45 / +30 / +15 / +0 % at
+ * 1 / 2 / 3 / 4 / 5+ lives. It is read with the lives Octopi has at each shot, so the bonus rises
+ * as lives fall and falls again when a life comes back. null = no Last stand, and then the
+ * ordinary `fireIntervalFor` cadence holds throughout, untouched by any sub-tick carry.
  */
-export function lastStandFireIntervalFor(variant: OctopiVariant): number | null {
-  return variant === 'base' ? null : (VARIANTS[variant].lastStandFireInterval ?? null);
+export function lowLifeFireBonusPctFor(variant: OctopiVariant, lives: number): number | null {
+  if (variant === 'base') return null;
+  const { lowLifeFireBonusPct: bonusPct, lowLifeFullAt: fullAt } = VARIANTS[variant];
+  if (bonusPct === undefined || fullAt === undefined) return null;
+  // Clamped so a life count outside 1..fullAt can neither exceed the whole bonus nor go negative:
+  // HEALTH_BOOST stacks lives far above fullAt, and a run at zero lives is over before it fires.
+  const missing = clamp(fullAt - lives, 0, fullAt - 1);
+  return idiv(bonusPct * missing, fullAt - 1);
 }
 
-/** The percentage of its speed every enemy shot moves at against `variant` (hex, 90); 100 unless overridden. */
+/** The percentage of its speed every enemy shot moves at against `variant` (hex, 70); 100 unless overridden. */
 export function enemyShotPctFor(variant: OctopiVariant): number {
   return variant === 'base' ? 100 : (VARIANTS[variant].enemyShotPct ?? 100);
 }
 
-/** The percentage of its duration a timed boost lasts for `variant` (kakashi's Copy, 150); 100 unless overridden. */
+/** The percentage of its duration a timed boost lasts for `variant` (kakashi's Copy, 133); 100 unless overridden. */
 export function boostDurationPctFor(variant: OctopiVariant): number {
   return variant === 'base' ? 100 : (VARIANTS[variant].boostDurationPct ?? 100);
 }

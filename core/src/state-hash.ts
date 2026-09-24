@@ -96,5 +96,8 @@ export function hashState(s: GameState): string {
   // Coraluna's Surge counter, appended last so every older field keeps
   // its place; it stays 0 for every other variant, so their runs only gain this one trailing int.
   h.int(s.surgeKills);
+  // Shoupe's Last stand carry, appended last so every older field keeps its place; it stays 0 for
+  // every other variant, so their runs only gain this one trailing int.
+  h.int(s.octopi.fireCarry);
   return h.digest();
 }

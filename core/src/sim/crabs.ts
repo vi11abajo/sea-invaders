@@ -278,7 +278,7 @@ function hexStep(v: number, pct: number): number {
  * earlier version had it): the stored `vx`/`vy` stay as fired and only the step is halved
  * through `chilled`, so the shot resumes full speed when the freeze ends; a boss's shots share its
  * own immunity (Crimson in a rage). Against hex every enemy shot, crab's and boss's alike, moves at
- * `enemyShotPctFor` (90 %) of its speed through the same per-tick seam, applied before the freeze's
+ * `enemyShotPctFor` (70 %) of its speed through the same per-tick seam, applied before the freeze's
  * halving and with the same boss immunity.
  * SPEED_TAMER still never touches bullets. A shot above the field but still moving down (a meteor-shower drop spawned at y -200) is
  * never pruned for being off the top edge — only for having left through the bottom, left or right.

@@ -19,7 +19,7 @@ export const ABILITY: Readonly<Record<OctopiVariant, Ability>> = {
   trident: { label: ABILITY_NAMES.trident, short: 'Piercing shots' },
   noob: { label: ABILITY_NAMES.noob, short: '3 s of grace after a hit' },
   coraluna: { label: ABILITY_NAMES.coraluna, short: 'Every 30 kills sweep the bottom row' },
-  shoupe: { label: ABILITY_NAMES.shoupe, short: 'Fires faster on the last life' },
-  hex: { label: ABILITY_NAMES.hex, short: 'Enemy shots 10 % slower' },
-  kakashi: { label: ABILITY_NAMES.kakashi, short: 'Boosts last half again as long' },
+  shoupe: { label: ABILITY_NAMES.shoupe, short: 'Fires faster the fewer lives are left' },
+  hex: { label: ABILITY_NAMES.hex, short: 'Enemy shots 30 % slower' },
+  kakashi: { label: ABILITY_NAMES.kakashi, short: 'Boosts last a third longer' },
 };
