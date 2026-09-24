@@ -132,9 +132,10 @@ Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
 
 ## License
 
-All rights reserved. The source is published for reading and evaluation; see [LICENSE](LICENSE). Third-party notices stay in the files they apply to. React Bits components (MIT + Commons Clause) are adapted in two places:
+All rights reserved. The source is published for reading and evaluation; see [LICENSE](LICENSE). [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists every third-party piece and its licence, and each adapted file carries its own credit. React Bits components (MIT + Commons Clause) are adapted in three places:
 
 - the landing page's Splash Cursor and screen gallery (Accordion Gallery), plain-JS adaptations credited in `site/index.html`;
-- six shaders in the app, ported to Skia's SkSL and credited in each file: `Lightning` (the Storm Tyrant's strike, `mobile/src/game/lightning.ts`), `LightTunnel` (the gravity well, `mobile/src/game/tunnel.ts`), `Orb` (the Storm Tyrant's orb, `mobile/src/game/orb.ts`), `MagicRings` (the Tide's return and a boss's phase change, `mobile/src/game/magicRings.ts`), `LightRays` (the menu and campaign-map backdrops, `mobile/src/ui/lightRays.ts`) and `Balatro` (the Shop's swirl backdrop, `mobile/src/ui/SwirlBackdrop.tsx`).
+- six shaders in the app, ported to Skia's SkSL and credited in each file: `Lightning` (the Storm Tyrant's strike, `mobile/src/game/lightning.ts`), `LightTunnel` (the gravity well, `mobile/src/game/tunnel.ts`), `Orb` (the Storm Tyrant's orb, `mobile/src/game/orb.ts`), `MagicRings` (the Tide's return and a boss's phase change, `mobile/src/game/magicRings.ts`), `LightRays` (the menu and campaign-map backdrops, `mobile/src/ui/lightRays.ts`) and `Balatro` (the Shop's swirl backdrop, `mobile/src/ui/SwirlBackdrop.tsx`);
+- interface motion rebuilt with React Native and Reanimated: Jelly Radio (the champion picker), Squish Switch, Rubber Segment, Blur Text, Shiny Text, Star Border, Animated List, Bounce Cards, Count Up and Tear Ticket.
 
 The app bundles the Instrument Sans and Geist Mono fonts (SIL Open Font License 1.1) through `@expo-google-fonts`.

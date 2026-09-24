@@ -1,7 +1,7 @@
 {
   "name": "sea-invaders-backend",
   "version": "1.0.0",
-  "description": "Sea Invaders backend - auth, game sessions, leaderboards and tournaments",
+  "description": "Sea Invaders API - wallet sign-in, ranked runs and replay verification, on-chain transactions, the weekly crank",
   "main": "src/app.js",
   "type": "module",
   "scripts": {
