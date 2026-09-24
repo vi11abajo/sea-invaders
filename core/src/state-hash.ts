@@ -93,11 +93,14 @@ export function hashState(s: GameState): string {
   // one int.
   h.int(s.destroyedObstacles.length);
   for (const o of s.destroyedObstacles) h.int(o.x).int(o.y);
-  // Coraluna's Surge counter, appended last so every older field keeps
-  // its place; it stays 0 for every other variant, so their runs only gain this one trailing int.
-  h.int(s.surgeKills);
+  // Coraluna's Coral growth counter, appended last so every older field keeps its place; it stays 0
+  // for every other variant, so their runs only gain this one trailing int.
+  h.int(s.growthKills);
   // Shoupe's Last stand carry, appended last so every older field keeps its place; it stays 0 for
   // every other variant, so their runs only gain this one trailing int.
   h.int(s.octopi.fireCarry);
+  // Noob's Shell, appended last so every older field keeps its place; it stays 0 for every other
+  // variant, so their runs only gain this one trailing int.
+  h.int(s.octopi.shell);
   return h.digest();
 }

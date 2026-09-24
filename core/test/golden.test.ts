@@ -89,8 +89,10 @@ describe('golden replays', () => {
 /**
  * The five champions of core v13: one `survivor` run on level 2 per
  * champion (`championScript`, golden-scripts.ts). Each must carry its own champion in the replay
- * header — the only thing that tells the verifier which abilities to replay — and coraluna's run
- * must actually reach a Surge, so the golden pins the free sweep and its `surge` event end to end.
+ * header — the only thing that tells the verifier which abilities to replay — and noob's run must
+ * actually break its Shell, so the golden pins the absorbed hit and its `shell_break` event end to
+ * end. Coraluna's Coral growth cannot show here: level 2 fields 57 crabs in all (29 and 28), fewer
+ * than the 120 kills it waits for, so `champions.test.ts` covers it instead.
  */
 describe('champion golden scenarios', () => {
   it('each champion scenario was recorded with its own champion, as a campaign run on level 2', () => {
@@ -100,8 +102,8 @@ describe('champion golden scenarios', () => {
     }
   });
 
-  it('champion-coraluna surges at least once', () => {
-    expect(results['champion-coraluna']!.events.some((e) => e.type === 'surge')).toBe(true);
+  it('champion-noob breaks its Shell at least once', () => {
+    expect(results['champion-noob']!.events.some((e) => e.type === 'shell_break')).toBe(true);
   });
 });
 

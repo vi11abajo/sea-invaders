@@ -23,6 +23,12 @@ export interface Octopi {
    * so the intervals average out exactly. 0 at run start and 0 for good for every other variant.
    */
   fireCarry: number;
+  /**
+   * Noob's Shell: 1 while a shell is up to take the next hit that would cost a life, 0 once it has
+   * (`breakShell`). Raised at the start of every wave and boss fight (`raiseShell`); 0 for good for
+   * every other variant.
+   */
+  shell: number;
 }
 
 /**
@@ -30,7 +36,7 @@ export interface Octopi {
  * `base` is the free, unmodified Octopi. Never a simulation input beyond `RunConfig.octopi` — every
  * effect is read from that field through the `VARIANTS` overrides (`config.ts`): the fire cadence,
  * starting lives and piercing bit of the first three, and the five champions appended after them
- * (noob's Thick skin, coraluna's Surge, shoupe's Last stand, hex's Hex, kakashi's Copy).
+ * (noob's Shell, coraluna's Coral growth, shoupe's Last stand, hex's Hex, kakashi's Copy).
  */
 export type OctopiVariant =
   | 'base' | 'harpoon' | 'anchor' | 'trident'
@@ -340,12 +346,13 @@ export type GameEvent =
   | { tick: number; type: 'boost_drop' | 'boost_pickup' | 'boost_expire'; boost: BoostType }
   | { tick: number; type: 'player_freeze'; ticks: number }
   | { tick: number; type: 'wave_start'; wave: number }
+  /** Noob's Shell took a hit instead of a life (`breakShell`), at Octopi's position. */
+  | { tick: number; type: 'shell_break'; x: number; y: number }
   /**
-   * Coraluna's Surge fires: the free WAVE_BLAST of every 30th kill, at
-   * Octopi's own position for the app's flash and toast. Raised even when the field was empty and
-   * the sweep found nothing — a wasted surge is still shown.
+   * Coraluna's Coral growth granted its life (`countCoralKill`), at Octopi's position. Only raised
+   * when a life was actually granted: a growth spent at the life cap passes without one.
    */
-  | { tick: number; type: 'surge'; x: number; y: number };
+  | { tick: number; type: 'coral_growth'; x: number; y: number };
 
 export interface GameState {
   tick: number;
@@ -432,11 +439,11 @@ export interface GameState {
    */
   chillTicks: number;
   /**
-   * Kills counted towards coraluna's next Surge: `killCrab` adds one
-   * per kill for a variant with a `surgeEvery`, and `surgeIfDue` spends `surgeEvery` of them on a
-   * free WAVE_BLAST. 0 at run start and 0 for good for every other variant.
+   * Kills counted towards coraluna's Coral growth (`countCoralKill`, called from `killCrab`): one
+   * per kill until the run's growths are all spent, where it stops for good. 0 at run start and
+   * 0 for good for every other variant.
    */
-  surgeKills: number;
+  growthKills: number;
 }
 
 /**

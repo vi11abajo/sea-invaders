@@ -17,7 +17,7 @@ export const VARIANT_NAMES: Readonly<Record<OctopiVariant, string>> = Object.fre
 /** The label of each champion's ability; the base Octopi has none. */
 export const ABILITY_NAMES: Readonly<Record<OctopiVariant, string | null>> = Object.freeze({
   base: null, harpoon: 'Harpoon', anchor: 'Anchor', trident: 'Trident',
-  noob: 'Thick skin', coraluna: 'Surge', shoupe: 'Last stand', hex: 'Hex', kakashi: 'Copy',
+  noob: 'Shell', coraluna: 'Coral growth', shoupe: 'Last stand', hex: 'Hex', kakashi: 'Copy',
 });
 
 /**

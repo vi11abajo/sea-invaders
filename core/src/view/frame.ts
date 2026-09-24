@@ -56,7 +56,8 @@ export const AIM_STRIDE = 6;
 /** Plain-number copy of what the renderer needs; safe to hand to the UI thread every frame. */
 export interface Frame {
   tick: number;
-  octopi: { x: number; y: number; invuln: number };
+  /** `shell` is noob's Shell: 1 while it is up to take the next hit, 0 otherwise and for every other variant. */
+  octopi: { x: number; y: number; invuln: number; shell: number };
   lives: number;
   /** `CRAB_STRIDE`-int groups: x, y, kind, typeIndex, hp, flags (1 shield up, 2 heralded, 4 revived, 8 raging). */
   crabs: number[];
@@ -91,7 +92,7 @@ export interface Frame {
 
 export const EMPTY_FRAME: Frame = {
   tick: 0,
-  octopi: { x: 0, y: 0, invuln: 0 },
+  octopi: { x: 0, y: 0, invuln: 0, shell: 0 },
   lives: 0,
   crabs: [],
   shots: [],
@@ -150,7 +151,7 @@ export function snapshot(s: GameState): Frame {
   for (const o of s.obstacles) obstacles.push(o.x, o.y, o.w, o.h, o.hp, OBSTACLE_INDEX[o.kind]);
   return {
     tick: s.tick,
-    octopi: { x: s.octopi.x, y: s.octopi.y, invuln: s.octopi.invuln },
+    octopi: { x: s.octopi.x, y: s.octopi.y, invuln: s.octopi.invuln, shell: s.octopi.shell },
     lives: s.octopi.lives,
     crabs,
     shots,

@@ -14,6 +14,7 @@ export * from './sim/boostEffects';
 export * from './sim/boosts';
 export * from './sim/boss';
 export * from './sim/bosses';
+export * from './sim/champions';
 export * from './sim/collide';
 export * from './sim/crabs';
 export * from './sim/living';

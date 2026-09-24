@@ -1,8 +1,9 @@
-import { BOSS, CRAB, CRAB_TYPES, ENEMY_SHOT, OCTOPI, SHOT, invulnTicksFor, surgeEveryFor } from '../config';
+import { BOSS, CRAB, CRAB_TYPES, ENEMY_SHOT, OCTOPI, SHOT } from '../config';
 import { clamp, idiv } from '../fixed';
 import type { Bullet, Crab, GameState, Squad } from '../types';
 import { isActive, rollDrop, scoreDecayPct, spawnDrop } from './boosts';
 import { ORB_RADIUS, damageBoss, scoreMultiplier } from './boss';
+import { breakShell, countCoralKill } from './champions';
 import { BUBBLE_RADIUS, CHARGE_RADIUS, enrage, shieldAbsorbs } from './veterans';
 
 /**
@@ -22,10 +23,9 @@ export function killCrab(s: GameState, c: Crab): void {
   const base = CRAB_TYPES[c.type].points * Math.max(1, s.wave);
   s.score += scoreMultiplier(s, idiv(base * scoreDecayPct(s), 100));
   s.kills += 1;
-  // Coraluna counts every kill towards its next Surge, the crabs a
-  // WAVE_BLAST or a Surge itself sweeps away included, and `surgeIfDue` (`boostEffects.ts`) spends
-  // them; no other variant ever moves this counter.
-  if (surgeEveryFor(s.run.octopi) > 0) s.surgeKills += 1;
+  // Coraluna's Coral growth counts every kill, the crabs a WAVE_BLAST sweeps away included, and
+  // grows its life on the kill that completes the count; a no-op for every other variant.
+  countCoralKill(s);
   enrage(s, c); // a dying patriarch enrages what is left of its formation
   countDownSquad(s, c); // kind 8 only: a wiped boarding crew loots
 }
@@ -172,8 +172,8 @@ function octopiVulnerable(s: GameState): boolean {
 /**
  * Enemy shots, crab bodies and the boss box hurt Octopi unless it is invulnerable. A crab that
  * touches Octopi dies without score. INVINCIBILITY ignores every hit outright (no life loss, no
- * shield use, no crab removal). Otherwise SHIELD_BARRIER absorbs a hit (see `applyOctopiHit`) before
- * any life is lost.
+ * shell or shield use, no crab removal). Otherwise noob's Shell and then SHIELD_BARRIER absorb a
+ * hit (see `applyOctopiHit`) before any life is lost.
  */
 export function hitOctopi(s: GameState): void {
   if (!octopiVulnerable(s)) return;
@@ -212,10 +212,12 @@ export function hitOctopi(s: GameState): void {
 }
 
 /**
- * A hit worth `damage` lives lands on Octopi: SHIELD_BARRIER absorbs the whole hit while charged
- * (one charge, however hard the shot), otherwise that many lives are lost.
+ * A hit worth `damage` lives lands on Octopi: noob's Shell takes the whole hit while it is up
+ * (`breakShell`), then SHIELD_BARRIER absorbs it while charged (one charge, however hard the shot),
+ * otherwise that many lives are lost.
  */
 function applyOctopiHit(s: GameState, damage: number): void {
+  if (breakShell(s)) return;
   if (s.boosts.shield > 0) {
     s.boosts.shield -= 1;
     s.octopi.invuln = 30;
@@ -246,13 +248,12 @@ export function damageOctopiDirect(s: GameState, damage = 1): void {
 /**
  * Costs Octopi `damage` lives (one by default, two for a red crab's `heavy` shot): lives never go
  * below zero, the run ends when they reach it, and however many lives the hit took it is still one
- * hit — one invulnerability window, one clearing of the enemy shots, one `player_hit` event. The
- * window is the variant's own (`invulnTicksFor`: noob's Thick skin lasts 180 ticks, everyone else's
- * `OCTOPI.invulnTicks`).
+ * hit — one invulnerability window of `OCTOPI.invulnTicks`, one clearing of the enemy shots, one
+ * `player_hit` event.
  */
 export function loseLife(s: GameState, damage = 1): void {
   s.octopi.lives = Math.max(0, s.octopi.lives - damage);
-  s.octopi.invuln = invulnTicksFor(s.run.octopi);
+  s.octopi.invuln = OCTOPI.invulnTicks;
   s.enemyShots = [];
   s.events.push({ tick: s.tick, type: 'player_hit' });
   if (s.octopi.lives <= 0) s.over = true;

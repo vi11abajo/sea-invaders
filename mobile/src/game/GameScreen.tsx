@@ -604,10 +604,10 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
           toastFrames = TOAST_FRAMES;
           // Only emitted when the blast actually fired (with no crabs the drop is not consumed).
           if (ev.boost === 'WAVE_BLAST') blast.value = { tick: ev.tick, x: state.octopi.x, y: state.octopi.y };
-        } else if (ev.type === 'surge') {
-          // Coraluna's Surge is a free WAVE_BLAST: the same shock rings and toast as
-          // a picked-up one, at the position of Octopi the core recorded with the event.
-          toastText = 'Surge';
+        } else if (ev.type === 'coral_growth') {
+          // Coraluna's Coral growth: a toast and the shock rings at the position of Octopi the core
+          // recorded with the event, until it gets feedback of its own.
+          toastText = 'Coral growth';
           toastFrames = TOAST_FRAMES;
           blast.value = { tick: ev.tick, x: ev.x, y: ev.y };
         }

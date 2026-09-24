@@ -208,8 +208,8 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
 
   // The five champions of core v13, appended so the older scenarios
   // keep their order in the golden file.
-  'champion-noob': championScript('noob'), // Thick skin
-  'champion-coraluna': championScript('coraluna'), // Surge
+  'champion-noob': championScript('noob'), // Shell
+  'champion-coraluna': championScript('coraluna'), // Coral growth
   'champion-shoupe': championScript('shoupe'), // Last stand
   'champion-hex': championScript('hex'), // Hex
   'champion-kakashi': championScript('kakashi'), // Copy

@@ -1,5 +1,4 @@
 import { nextWave } from './game';
-import { surgeIfDue } from './sim/boostEffects';
 import { advanceScoreDecay, updateBoosts } from './sim/boosts';
 import { hitOrbs, updateBoss } from './sim/boss';
 import { hitCrabs, hitOctopi } from './sim/collide';
@@ -58,12 +57,6 @@ export function step(s: GameState, input: Input): void {
   if (s.boss === null && s.squads.length > 0) popSquads(s);
   hitOctopi(s);
   updateBoosts(s);
-  // Coraluna's Surge lands on the tick of its 30th kill,
-  // after every kill this tick can make — the shots (`hitCrabs`) and a WAVE_BLAST picked up in
-  // `updateBoosts`, direct or rolled by RANDOM_CHAOS — and before `nextWave` below can raise the next
-  // wave, so a surge due on an emptied field is spent (wasted) there and never sweeps the wave after.
-  // A no-op for every other variant.
-  surgeIfDue(s);
   // `destroyedObstacles` is no longer swept here — an
   // unconditional per-tick clear at this point wiped an entry pushed during a boss phase transition
   // before the boss's own `tick` hook, which does not run during one, ever got a chance to drain

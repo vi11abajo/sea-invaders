@@ -60,7 +60,7 @@ describe('snapshot', () => {
     s.shots = [{ x: 1, y: 2, vx: 0, vy: -240, kind: 'straight', data: 0 }];
     s.enemyShots = [{ x: 3, y: 4, vx: 5, vy: 6, kind: 'crab', data: 0 }];
     const f = snapshot(s);
-    expect(f.octopi).toEqual({ x: 2812, y: 9650, invuln: 0 });
+    expect(f.octopi).toEqual({ x: 2812, y: 9650, invuln: 0, shell: 0 });
     expect(f.lives).toBe(3);
     expect(f.crabs).toHaveLength(18 * CRAB_STRIDE);
     expect(f.crabs.slice(0, 2)).toEqual([812, 1500]);

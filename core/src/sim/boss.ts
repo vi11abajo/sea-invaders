@@ -4,6 +4,7 @@ import { icos, isin } from '../trig';
 import type { Bullet, BossKind, BossState, GameState, TableBossKind } from '../types';
 import { isActive } from './boosts';
 import { BOSS_HOOKS, type BossHooks } from './bosses';
+import { raiseShell } from './champions';
 
 /** The point boss shots are fired from: the bottom-centre of the boss box. */
 export function muzzle(b: BossState): { x: number; y: number } {
@@ -356,6 +357,7 @@ export function spawnBoss(s: GameState, kind: BossKind): void {
     shieldUp: 0, windup: 0, gapSlot: 0, aimX: 0, aimTicks: 0, burst: 0, mirror: [0, 0, 0], discharged: 0,
   };
   s.events.push({ tick: s.tick, type: 'boss_spawn' });
+  raiseShell(s); // noob's Shell comes back for the fight, and only here: a new phase does not raise it
   // Phase 1 begins the moment the boss stands. Undefined for every boss of the first campaign, so
   // this adds nothing to their spawn — no draw, no field touched.
   hooks.onPhaseStart?.(s, s.boss);

@@ -32,14 +32,14 @@ export const OCTOPI = {
  */
 export const VARIANTS: Record<Exclude<OctopiVariant, 'base'>, {
   fireInterval?: number; lives?: number; piercing?: boolean;
-  invulnTicks?: number; surgeEvery?: number; lowLifeFireBonusPct?: number; lowLifeFullAt?: number;
-  enemyShotPct?: number; boostDurationPct?: number;
+  shellPerWave?: boolean; lifeEvery?: number; lifeCap?: number; livesPerRun?: number;
+  lowLifeFireBonusPct?: number; lowLifeFullAt?: number; enemyShotPct?: number; boostDurationPct?: number;
 }> = {
   harpoon: { fireInterval: 6 },
   anchor: { lives: 1 },
   trident: { piercing: true },
-  noob: { invulnTicks: 180 },          // Thick skin
-  coraluna: { surgeEvery: 30 },        // Surge
+  noob: { shellPerWave: true },        // Shell
+  coraluna: { lifeEvery: 120, lifeCap: 5, livesPerRun: 1 }, // Coral growth
   shoupe: { lowLifeFireBonusPct: 60, lowLifeFullAt: 5 }, // Last stand
   hex: { enemyShotPct: 70 },           // Hex
   kakashi: { boostDurationPct: 133 },  // Copy
@@ -61,17 +61,22 @@ export function piercingFor(variant: OctopiVariant): boolean {
 }
 
 /**
- * Octopi's grace after a hit that cost a life (`loseLife`), in ticks (noob's Thick skin, 180;
- * everyone else `OCTOPI.invulnTicks`). A shield-absorbed hit's 30 and the
- * Tide's revive grace do not read this.
+ * Whether `variant` wears a one-hit shell that comes back at the start of every wave and of every
+ * boss fight (noob's Shell); false for everyone else.
  */
-export function invulnTicksFor(variant: OctopiVariant): number {
-  return variant === 'base' ? OCTOPI.invulnTicks : (VARIANTS[variant].invulnTicks ?? OCTOPI.invulnTicks);
+export function shellPerWaveFor(variant: OctopiVariant): boolean {
+  return variant !== 'base' && Boolean(VARIANTS[variant].shellPerWave);
 }
 
-/** How many kills buy `variant` a free WAVE_BLAST (coraluna's Surge, 30); 0 = never. */
-export function surgeEveryFor(variant: OctopiVariant): number {
-  return variant === 'base' ? 0 : (VARIANTS[variant].surgeEvery ?? 0);
+/**
+ * `variant`'s Coral growth (coraluna's): one life for every `every` kills (120), at most `perRun`
+ * times a run (1) and never to more than `cap` lives (5); null for every variant without it.
+ */
+export function coralGrowthFor(variant: OctopiVariant): { every: number; cap: number; perRun: number } | null {
+  if (variant === 'base') return null;
+  const { lifeEvery: every, lifeCap: cap, livesPerRun: perRun } = VARIANTS[variant];
+  if (every === undefined || cap === undefined || perRun === undefined) return null;
+  return { every, cap, perRun };
 }
 
 /**

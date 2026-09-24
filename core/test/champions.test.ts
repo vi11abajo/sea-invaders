@@ -1,31 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
-  INITIAL_INPUT, OCTOPI, PRACTICE_RUN, activateBoost, createGame, fireIntervalFor, idiv, killCrab, levelById,
-  loseLife, lowLifeFireBonusPctFor, spawnBoss, step, surgeIfDue, updateEnemyShots, updateShots, type Crab,
-  type GameState, type OctopiVariant, type RunConfig,
+  BOSS, OCTOPI, PRACTICE_RUN, activateBoost, breakShell, createGame, damageBoss, fireIntervalFor, hitOctopi, idiv,
+  killCrab, levelById, loseLife, lowLifeFireBonusPctFor, nextWave, spawnBoss, spawnWave, updateBoss,
+  updateEnemyShots, updateShots, type GameState, type OctopiVariant, type RunConfig,
 } from '../src';
 
 const runWith = (octopi: OctopiVariant): RunConfig => ({ ...PRACTICE_RUN, octopi });
 const level = (octopi: OctopiVariant): RunConfig => ({ mode: 'campaign', level: levelById(2), lives: 5, features: { boosts: true }, octopi });
 
-/** A plain one-hit crab at `(x, y)`; `tag` rides in the cosmetic `kind` so a test can tell its rows apart. */
-const crab = (x: number, y: number, tag: number): Crab => ({
-  x, y, kind: tag, type: 'normal', hp: 1, slot: -1, shield: 0, shieldTimer: 0, rallies: 0, rallyTimer: 0, squad: 0, cell: -1, revived: 0,
-});
+/** A plain crab shot parked on Octopi, then `hitOctopi`: one hit worth one life, if nothing takes it. */
+function hitOnOctopi(s: GameState): void {
+  s.enemyShots = [{ x: s.octopi.x, y: s.octopi.y, vx: 0, vy: 0, kind: 'crab', data: 0 }];
+  hitOctopi(s);
+}
 
-/**
- * A practice run of `octopi` whose field is exactly `rows` rows of three crabs, 1000 units apart (far
- * more than WAVE_BLAST's 367-unit row band), the lowest row tagged 0; no crab fires, and a WAVE_BLAST
- * drop sits on Octopi so the next tick's `updateBoosts` picks it up.
- */
-function blastReady(octopi: OctopiVariant, rows: number, surgeKills: number): GameState {
-  const s = createGame('surge-pickup', runWith(octopi));
-  s.rngFire = { nextInt: () => 999 } as never; // nothing new fires
-  s.crabs = [];
-  for (let r = 0; r < rows; r++) for (const x of [2000, 2800, 3600]) s.crabs.push(crab(x, 3000 - r * 1000, r));
-  s.surgeKills = surgeKills;
-  s.drops.push({ x: s.octopi.x, y: s.octopi.y, boost: 'WAVE_BLAST', ttl: 100 });
-  return s;
+/** Counts `n` kills of the field's first crab through `killCrab`, which leaves the crab standing. */
+function killTimes(s: GameState, n: number): void {
+  for (let i = 0; i < n; i++) killCrab(s, s.crabs[0]!);
 }
 
 /** Whether this tick's `updateShots` fires: the cooldown runs out on a tick it enters at 1 or below. */
@@ -63,81 +54,120 @@ function nextGaps(s: GameState, n: number): number[] {
 }
 
 describe('champions', () => {
-  it('noob: Thick skin gives 180 ticks of grace after a hit, base 120', () => {
-    const base = createGame('t', runWith('base'));
-    loseLife(base);
-    expect(base.octopi.invuln).toBe(OCTOPI.invulnTicks);
-    const noob = createGame('t', runWith('noob'));
-    loseLife(noob);
-    expect(noob.octopi.invuln).toBe(180);
+  it('noob: the Shell takes the first hit of a wave instead of a life, and not the second', () => {
+    const s = createGame('t', level('noob'));
+    expect(s.octopi.shell).toBe(1); // the level's first wave raised it
+    hitOnOctopi(s);
+    expect(s.octopi).toMatchObject({ lives: 5, shell: 0, invuln: 30 });
+    expect(s.events.filter((e) => e.type === 'shell_break' || e.type === 'player_hit'))
+      .toEqual([{ tick: 0, type: 'shell_break', x: s.octopi.x, y: s.octopi.y }]);
+    expect(s.enemyShots).toHaveLength(1); // like a shield charge, the shell clears no shots
+    s.octopi.invuln = 0;
+    hitOnOctopi(s);
+    expect(s.octopi).toMatchObject({ lives: 4, shell: 0, invuln: OCTOPI.invulnTicks });
+    expect(s.events.filter((e) => e.type === 'shell_break')).toHaveLength(1);
   });
 
-  it('coraluna: Surge sweeps the bottom row on the 30th kill and raises a surge event', () => {
-    const s = createGame('surge', level('coraluna'));
-    const bottom = Math.max(...s.crabs.map((c) => c.y));
-    const before = s.crabs.length;
-    for (let i = 0; i < 29; i++) killCrab(s, s.crabs[0]!); // counts only; nothing removed here
-    surgeIfDue(s);
-    expect(s.events.some((e) => e.type === 'surge')).toBe(false);
-    killCrab(s, s.crabs[0]!);
-    surgeIfDue(s);
-    expect(s.events.filter((e) => e.type === 'surge')).toHaveLength(1);
-    expect(s.crabs.every((c) => bottom - c.y > 367)).toBe(true); // the bottom row is gone
-    expect(s.crabs.length).toBeLessThan(before);
-    // The 30 are spent; the sweep's own kills go through `killCrab`, which counts every kill, so
-    // they already stand towards the next surge.
-    expect(s.surgeKills).toBe(before - s.crabs.length);
+  it('noob: the Shell comes back with the next wave, campaign and practice alike', () => {
+    const s = createGame('t', level('noob'));
+    hitOnOctopi(s);
+    expect(s.octopi.shell).toBe(0);
+    nextWave(s);
+    expect(s.wave).toBe(2);
+    expect(s.octopi.shell).toBe(1);
+    const practice = createGame('t', runWith('noob'));
+    expect(practice.octopi.shell).toBe(1);
+    hitOnOctopi(practice);
+    expect(practice.octopi.shell).toBe(0);
+    spawnWave(practice, 2);
+    expect(practice.octopi.shell).toBe(1);
   });
 
-  it('coraluna: a WAVE_BLAST pickup that makes the 30th kill surges on that same tick', () => {
-    const s = blastReady('coraluna', 3, 29);
-    step(s, INITIAL_INPUT);
-    expect(s.tick).toBe(1);
-    expect(s.events.filter((e) => e.type === 'boost_pickup')).toEqual([{ tick: 1, type: 'boost_pickup', boost: 'WAVE_BLAST' }]);
-    // The pickup swept row 0 (29 + 3 = 32), then the surge swept the field's bottom row after it,
-    // row 1, whose three kills count towards the next surge: 32 - 30 + 3 = 5.
-    expect(s.events.filter((e) => e.type === 'surge')).toEqual([{ tick: 1, type: 'surge', x: s.octopi.x, y: s.octopi.y }]);
-    expect(s.crabs.map((c) => c.kind)).toEqual([2, 2, 2]);
-    expect(s.kills).toBe(6);
-    expect(s.surgeKills).toBe(5);
+  it('noob: the Shell goes before a SHIELD_BARRIER charge', () => {
+    const s = createGame('t', level('noob'));
+    activateBoost(s, 'SHIELD_BARRIER');
+    hitOnOctopi(s);
+    expect({ shell: s.octopi.shell, shield: s.boosts.shield, lives: s.octopi.lives }).toEqual({ shell: 0, shield: 3, lives: 5 });
+    s.octopi.invuln = 0;
+    hitOnOctopi(s);
+    expect({ shell: s.octopi.shell, shield: s.boosts.shield, lives: s.octopi.lives }).toEqual({ shell: 0, shield: 2, lives: 5 });
   });
 
-  it('coraluna: a 30th kill that empties the field wastes the surge there and never touches the next wave', () => {
-    const coraluna = blastReady('coraluna', 1, 27);
-    const base = blastReady('base', 1, 0);
-    step(coraluna, INITIAL_INPUT);
-    step(base, INITIAL_INPUT);
-    expect(coraluna.events.filter((e) => e.type === 'surge')).toEqual([{ tick: 1, type: 'surge', x: coraluna.octopi.x, y: coraluna.octopi.y }]);
-    expect(coraluna.surgeKills).toBe(0);
-    // `nextWave` raised wave 2 on the same tick, whole: crab for crab the wave a base run raises.
-    expect(coraluna.wave).toBe(2);
-    expect(coraluna.crabs.length).toBeGreaterThan(0);
-    expect(coraluna.crabs).toEqual(base.crabs);
-    step(coraluna, INITIAL_INPUT);
-    step(base, INITIAL_INPUT);
-    expect(coraluna.events.filter((e) => e.type === 'surge')).toHaveLength(1);
-    expect(coraluna.crabs).toEqual(base.crabs);
+  it('noob: a boss fight raises the Shell, a phase change does not', () => {
+    const s = createGame('t', { ...level('noob'), level: levelById(12) }); // the Azure Leviathan, two phases
+    expect(s.boss!.kind).toBe(2);
+    expect(s.octopi.shell).toBe(1); // the fight's spawn raised it
+    expect(breakShell(s)).toBe(true);
+    const maxHp = s.boss!.maxHp;
+    damageBoss(s, maxHp - idiv(maxHp, 2)); // down to half: the transition to phase 2 starts
+    for (let t = 0; t < BOSS.transitionTicks; t++) updateBoss(s);
+    expect(s.boss!.phase).toBe(2);
+    expect(s.events.some((e) => e.type === 'boss_phase')).toBe(true);
+    expect(s.octopi.shell).toBe(0);
+    spawnBoss(s, 2);
+    expect(s.octopi.shell).toBe(1);
   });
 
-  it('coraluna: a surge due on an empty field is spent and shown, and changes nothing else', () => {
-    const s = createGame('surge', level('coraluna'));
-    s.crabs = [];
-    s.surgeKills = 30;
-    const rest = (g: GameState): string => JSON.stringify({ ...g, events: [], surgeKills: 0 });
-    const before = rest(s);
-    const eventsBefore = s.events.length;
-    surgeIfDue(s);
-    expect(s.surgeKills).toBe(0);
-    expect(s.events.slice(eventsBefore)).toEqual([{ tick: s.tick, type: 'surge', x: s.octopi.x, y: s.octopi.y }]);
-    expect(rest(s)).toBe(before);
+  it('every other variant never has a Shell: a wave or a boss fight raises nothing, a hit costs a life', () => {
+    for (const octopi of ['base', 'harpoon', 'anchor', 'trident', 'coraluna', 'shoupe', 'hex', 'kakashi'] as const) {
+      const s = createGame('t', level(octopi));
+      nextWave(s);
+      spawnBoss(s, 2);
+      expect({ octopi, shell: s.octopi.shell }).toEqual({ octopi, shell: 0 });
+      expect(breakShell(s)).toBe(false);
+      const lives = s.octopi.lives;
+      hitOnOctopi(s);
+      expect({ octopi, lives: s.octopi.lives }).toEqual({ octopi, lives: lives - 1 });
+    }
   });
 
-  it('base never surges however many kills', () => {
-    const s = createGame('surge', level('base'));
-    for (let i = 0; i < 60; i++) killCrab(s, s.crabs[0]!);
-    surgeIfDue(s);
-    expect(s.surgeKills).toBe(0);
-    expect(s.events.some((e) => e.type === 'surge')).toBe(false);
+  it('coraluna: Coral growth grows exactly one life on the 120th kill, with a coral_growth event', () => {
+    const s = createGame('t', level('coraluna'));
+    s.octopi.lives = 3;
+    killTimes(s, 119); // counts only; nothing is removed from the field here
+    expect({ lives: s.octopi.lives, growthKills: s.growthKills }).toEqual({ lives: 3, growthKills: 119 });
+    expect(s.events.some((e) => e.type === 'coral_growth')).toBe(false);
+    killTimes(s, 1);
+    expect(s.octopi.lives).toBe(4);
+    expect(s.events.filter((e) => e.type === 'coral_growth')).toEqual([{ tick: 0, type: 'coral_growth', x: s.octopi.x, y: s.octopi.y }]);
+  });
+
+  it('coraluna: Coral growth never grows twice in a run', () => {
+    const s = createGame('t', level('coraluna'));
+    s.octopi.lives = 2;
+    killTimes(s, 500);
+    expect({ lives: s.octopi.lives, growthKills: s.growthKills }).toEqual({ lives: 3, growthKills: 120 });
+    expect(s.events.filter((e) => e.type === 'coral_growth')).toHaveLength(1);
+  });
+
+  it('coraluna: Coral growth never goes above 5 lives, and a growth due at 5 is spent without one', () => {
+    const s = createGame('t', level('coraluna'));
+    expect(s.octopi.lives).toBe(5);
+    killTimes(s, 120);
+    expect({ lives: s.octopi.lives, growthKills: s.growthKills }).toEqual({ lives: 5, growthKills: 120 });
+    loseLife(s);
+    killTimes(s, 240);
+    expect(s.octopi.lives).toBe(4);
+    expect(s.events.some((e) => e.type === 'coral_growth')).toBe(false);
+  });
+
+  it('coraluna: a WAVE_BLAST kill counts towards Coral growth like any other', () => {
+    const s = createGame('t', level('coraluna'));
+    s.octopi.lives = 3;
+    s.growthKills = 119;
+    activateBoost(s, 'WAVE_BLAST');
+    expect(s.octopi.lives).toBe(4);
+    expect(s.events.filter((e) => e.type === 'coral_growth')).toHaveLength(1);
+  });
+
+  it('every other variant never counts a kill towards Coral growth', () => {
+    for (const octopi of ['base', 'harpoon', 'anchor', 'trident', 'noob', 'shoupe', 'hex', 'kakashi'] as const) {
+      const s = createGame('t', level(octopi));
+      s.octopi.lives = 3;
+      killTimes(s, 150);
+      expect({ octopi, lives: s.octopi.lives, growthKills: s.growthKills }).toEqual({ octopi, lives: 3, growthKills: 0 });
+      expect(s.events.some((e) => e.type === 'coral_growth')).toBe(false);
+    }
   });
 
   it('shoupe: Last stand adds 60 / 45 / 30 / 15 / 0 % fire rate at 1 / 2 / 3 / 4 / 5+ lives', () => {
@@ -282,13 +312,5 @@ describe('champions', () => {
     expect(roll).toBeGreaterThanOrEqual(600);
     expect(roll).toBeLessThanOrEqual(900);
     expect(s.boosts.active.find((a) => a.type === picked)!.ticksLeft).toBe(idiv(roll * 133, 100));
-  });
-
-  it('the old variants never count kills for a surge', () => {
-    for (const octopi of ['base', 'harpoon', 'anchor', 'trident'] as const) {
-      const s = createGame('t', level(octopi));
-      for (let i = 0; i < 40; i++) killCrab(s, s.crabs[0]!);
-      expect(s.surgeKills).toBe(0);
-    }
   });
 });

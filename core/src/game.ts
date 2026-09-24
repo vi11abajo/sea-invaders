@@ -5,6 +5,7 @@ import { dailyPool, kindForTier, type CrabType, type Formation } from './levels'
 import { Rng } from './rng';
 import type { RunConfig } from './run';
 import { spawnBoss } from './sim/boss';
+import { raiseShell } from './sim/champions';
 import { spawnCrab } from './sim/crabs';
 import { armRallies } from './sim/veterans';
 import type { FormationSlot, GameState, Input } from './types';
@@ -22,7 +23,10 @@ export function createGame(seed: string, run: RunConfig): GameState {
     kills: 0,
     over: false,
     dir: 1,
-    octopi: { x: INITIAL_INPUT.x, y: INITIAL_INPUT.y, cooldown: fireIntervalFor(run.octopi), invuln: 0, lives, fireCarry: 0 },
+    octopi: {
+      x: INITIAL_INPUT.x, y: INITIAL_INPUT.y, cooldown: fireIntervalFor(run.octopi), invuln: 0, lives, fireCarry: 0,
+      shell: 0, // raised by the first wave or boss fight below, for noob only
+    },
     shots: [],
     enemyShots: [],
     crabs: [],
@@ -49,8 +53,8 @@ export function createGame(seed: string, run: RunConfig): GameState {
     lanes: [],
     aims: [],
     chillTicks: 0,
-    // Coraluna's Surge counter: every run starts it at 0.
-    surgeKills: 0,
+    // Coraluna's Coral growth counter: every run starts it at 0.
+    growthKills: 0,
   };
   if (run.level) {
     if (run.level.waves > 0) startLevelWave(s, 1);
@@ -95,6 +99,7 @@ export function spawnWave(s: GameState, wave: number): void {
   armRallies(s); // the wave's patriarchs get staggered rally clocks, in grid cell order
   s.dir = s.rngWaves.nextInt(2) === 0 ? 1 : -1;
   s.waveTotal = s.crabs.length;
+  raiseShell(s); // noob's Shell comes back with every wave
 }
 
 /**
@@ -164,6 +169,7 @@ export function startLevelWave(s: GameState, wave: number): void {
   s.formation!.oy -= ARRIVAL.drop; // the origin drops with the wave, so `origin + slot` still holds
   s.arrival = ARRIVAL.ticks;
   s.scoreDecay = 0; // the score-decay clock resets at every campaign wave start too
+  raiseShell(s); // noob's Shell comes back with every wave
   s.events.push({ tick: s.tick, type: 'wave_start', wave });
 }
 
