@@ -1,4 +1,4 @@
-//! `submit_daily_best` (spec §5.1/§5.4): a dual-signed daily score record.
+//! `submit_daily_best`: a dual-signed daily score record.
 //! The server co-signs to attest the score came from a verified replay; the
 //! wallet signs so only the player themselves can record for their own
 //! `Player` account. Records only within the day's grace window, only for a
@@ -12,20 +12,20 @@ use anchor_lang::prelude::*;
 
 use crate::{errors::SeaError, state::*, time};
 
-// The brief's original seeds constraint - `time::week_of(day).to_le_bytes()`
-// on `week_pool`, gated by `#[instruction(day: u32)]` - does not compile
-// under this Anchor 1.2.0 fork's IDL builder: a seed expression that calls
-// a program-defined function (rather than a bare instruction arg, account
-// field, or constant) falls through `anchor-syn`'s `parse_seed` to a
-// fallback branch that splices the raw seed expression into generated IDL
-// code with no `day` binding in scope, so `anchor build`'s IDL step fails
-// with "cannot find value `day` in this scope" even though the on-chain
-// build itself is fine. `buy_ticket` (in `ticket.rs`) already sidesteps
-// this the same way `create_week_pool`'s callers rely on: the seeds read
-// the account's own `week` field (a plain account-field seed, which the IDL
-// builder does support) and the handler checks that field against the
-// value computed from the instruction argument - `WrongWeekPool` below
-// reuses the same error `buy_ticket` uses for this exact check.
+// A seeds constraint like `time::week_of(day).to_le_bytes()` on `week_pool`,
+// gated by `#[instruction(day: u32)]`, does not compile under this Anchor
+// 1.2.0 fork's IDL builder: a seed expression that calls a program-defined
+// function (rather than a bare instruction arg, account field, or constant)
+// falls through `anchor-syn`'s `parse_seed` to a fallback branch that
+// splices the raw seed expression into generated IDL code with no `day`
+// binding in scope, so `anchor build`'s IDL step fails with "cannot find
+// value `day` in this scope" even though the on-chain build itself is fine.
+// `buy_ticket` (in `ticket.rs`) already sidesteps this the same way
+// `create_week_pool`'s callers rely on: the seeds read the account's own
+// `week` field (a plain account-field seed, which the IDL builder does
+// support) and the handler checks that field against the value computed
+// from the instruction argument - `WrongWeekPool` below reuses the same
+// error `buy_ticket` uses for this exact check.
 #[derive(Accounts)]
 pub struct SubmitDailyBest<'info> {
     pub wallet: Signer<'info>,

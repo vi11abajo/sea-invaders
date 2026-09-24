@@ -1,8 +1,8 @@
 /**
- * One-time devnet setup (Phase 2B Task 6, Step 4).
+ * One-time devnet setup.
  *
  * Creates the devnet test SKR mint (6 decimals, mint authority = the
- * server authority - not the admin - so the backend faucet, Task 8, can
+ * server authority - not the admin - so the backend faucet can
  * mint test SKR without ever holding the admin key), the admin's ATA
  * (used as the protocol treasury), and calls `initConfig` with exactly
  * the `configArgs` values the test suite uses (`tests/fixtures.ts`: ticket

@@ -1,4 +1,4 @@
-"""Prepares the drawn Octopi looks for the app (design doc 2026-09-23 §6).
+"""Prepares the drawn Octopi looks for the app.
 
 For every `<name>Front.png` + `<name>Ooff.png` pair under the source folder:
 1. Make the alpha binary first: alpha >= 128 -> 255, else 0 (the rule the first sprites got). A
@@ -19,7 +19,7 @@ For every `<name>Front.png` + `<name>Ooff.png` pair under the source folder:
 Usage: python tools/octopi-sprites.py <source folder> <output folder>
 Needs Python >= 3.9 and Pillow >= 9.1 (Image.Resampling, Image.Quantize, Image.Dither).
 
-The slug table below maps the owner's file names to the codes of the design doc (§1). Nothing is
+The slug table below maps the owner's file names to the slug each look uses elsewhere. Nothing is
 guessed: a file whose stem is not in the table, a bare `<name>.png` that is not the unnamed front,
 a second file for a pose already taken (the first met in a sorted walk stays), an incomplete pair
 and a source that cannot be keyed (its whole pair is then left unwritten) are each reported and

@@ -22,10 +22,11 @@ const dayStart = (d: number) => d * DAY;
 const ZERO_HASH = new Array(32).fill(0);
 
 // 1_788_739_200 = 2026-09-07T00:00:00Z, a Monday (see tests/fixtures.ts /
-// src/time.rs for why this replaces the brief's original constant). This
-// file gets its own six-weeks-forward slice of the shared validator's
-// timeline (see helpers.ts - the clock is a singleton config field moved
-// only by `warpTo`) so its weeks never collide with config.test.ts's
+// src/time.rs for why this Monday timestamp is used instead of a
+// Wednesday-dated one). This file gets its own six-weeks-forward slice of
+// the shared validator's timeline (see helpers.ts - the clock is a
+// singleton config field moved only by `warpTo`) so its weeks never
+// collide with config.test.ts's
 // (week_of(T0)) or ticket.test.ts's (week_of(T0) + 1..3), and every warp
 // below only moves further forward from here - never backward.
 const BASE = 1_788_739_200 + 6 * WEEK;

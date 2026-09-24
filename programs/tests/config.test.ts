@@ -170,7 +170,8 @@ describe("config and accounts", () => {
 
   it("create_week_pool makes the pool and its vault, and refuses a duplicate", async () => {
     // 1_788_739_200 = 2026-09-07T00:00:00Z, a Monday (see tests/fixtures.ts
-    // / time.rs for why this replaces the brief's original constant).
+    // / time.rs for why this Monday timestamp is used instead of a
+    // Wednesday-dated one).
     const monday = 1_788_739_200;
     await warpTo(ctx, monday);
     const week = Math.floor((Math.floor(monday / 86400) + 3) / 7);

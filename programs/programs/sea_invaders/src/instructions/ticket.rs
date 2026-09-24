@@ -1,4 +1,4 @@
-//! `buy_ticket` (spec §5.3): a player pays a fixed SKR ticket price, split
+//! `buy_ticket`: a player pays a fixed SKR ticket price, split
 //! 95/5 between the current week's pool vault and the treasury, and gets
 //! `attempts_per_ticket` more attempts for today. Attempts roll over: a
 //! ticket bought on a new day resets `attempts_bought` to zero (after

@@ -66,8 +66,9 @@ export async function airdrop(
 
 // `config` (seeds = [b"config"]) is a singleton PDA on the single
 // `solana-test-validator` this harness now shares across every test file in
-// the mocha run (unlike the Task 1 LiteSVM harness, where each file got its
-// own isolated in-memory VM and could freely `init_config` on its own), and
+// the mocha run (unlike an earlier LiteSVM-based harness, where each file
+// got its own isolated in-memory VM and could freely `init_config` on its
+// own), and
 // it stores `skr_mint`/`treasury`/`server_authority` (`has_one` constraints
 // check these on later instructions, e.g. `create_week_pool`). So `admin`,
 // `server`, `mint` and `treasury` are all cached at module scope and reused
@@ -97,7 +98,7 @@ export async function setup(): Promise<Ctx> {
   if (!sharedAdmin) {
     // `anchor test` deploys the program with the provider wallet as the
     // upgrade authority, and `init_config` now requires the signer to BE
-    // that upgrade authority (see admin.rs's `InitConfig` - Fix F2). So
+    // that upgrade authority (see admin.rs's `InitConfig`). So
     // `admin` must be the provider wallet keypair itself, not a random
     // one, or the first `initConfig()` call in the suite fails with
     // `NotUpgradeAuthority`. `anchor test`/`ts-mocha` runs with

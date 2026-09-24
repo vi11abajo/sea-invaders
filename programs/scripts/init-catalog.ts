@@ -1,6 +1,6 @@
 /**
- * Creates the devnet `Catalog` with the eighteen shop items of the champions and skins design
- * (spec section 4), every one on sale. `PRICES_SKR` below is the one place a shop price is set,
+ * Creates the devnet `Catalog` with the eighteen shop items of the champions and skins design,
+ * every one on sale. `PRICES_SKR` below is the one place a shop price is set,
  * in whole SKR: the chain stores it in SKR base units (6 decimals) and the backend and the app
  * read it from there, never from this file - no price exists in `core/`, `backend/` or `mobile/`.
  * To change a price, edit its row and run with `--update`. The first three champions were priced

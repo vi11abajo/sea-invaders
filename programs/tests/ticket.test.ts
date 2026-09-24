@@ -10,8 +10,8 @@ import {
 } from "./fixtures";
 
 // 1_788_739_200 = 2026-09-07T00:00:00Z, a Monday (see tests/fixtures.ts /
-// src/time.rs for why this replaces the brief's original constant, which
-// was a Wednesday).
+// src/time.rs for why this Monday timestamp is used instead of a
+// Wednesday-dated one).
 const T0 = 1_788_739_200;
 const DAY = 86400;
 const dayOf = (ts: number) => Math.floor(ts / DAY);

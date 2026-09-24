@@ -1,9 +1,8 @@
-//! `revive` (spec §1/§2, "the Tide"): a player who has just run out of
+//! `revive` ("the Tide"): a player who has just run out of
 //! lives can pay to continue mid-level. The price rises one step on the
 //! `Config.revive_ladder` each time it is used and ebbs back down by one
-//! step for every full `cfg.ebb_seconds` that passes without a revive -
-//! see the design doc's `effective`/`price` formulas, mirrored exactly
-//! below.
+//! step for every full `cfg.ebb_seconds` that passes without a revive,
+//! per the `effective`/`price` computation below.
 
 use anchor_lang::prelude::*;
 

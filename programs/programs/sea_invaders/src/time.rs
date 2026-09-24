@@ -1,5 +1,5 @@
 //! Time helpers shared by every instruction that reasons about days and
-//! weeks (spec §5.1). A "day" is the number of whole 86 400-second periods
+//! weeks. A "day" is the number of whole 86 400-second periods
 //! since the Unix epoch; a "week" starts on Monday and is numbered so that
 //! `weekday_of` returns `0` for Monday (the epoch, 1970-01-01, was a
 //! Thursday, i.e. weekday `3`).
@@ -68,9 +68,9 @@ mod tests {
     #[test]
     fn monday_2026_09_07() {
         // 1_788_739_200 = 2026-09-07T00:00:00Z, a Monday (verified with
-        // `date -u -d @1788739200` in WSL; the brief's original constant,
-        // 1_788_912_000, is 2026-09-09, a Wednesday, so it was replaced
-        // here and in tests/fixtures.ts per the brief's own fallback rule).
+        // `date -u -d @1788739200` in WSL). 1_788_912_000 is 2026-09-09, a
+        // Wednesday, so this Monday timestamp is used here and in
+        // tests/fixtures.ts instead.
         let d = day_of(1_788_739_200);
         assert_eq!(weekday_of(d), 0);
         assert_eq!(week_first_day(week_of(d)), d);

@@ -1,4 +1,4 @@
-//! `link_seeker` (design §2): links a Seeker Genesis Token mint to a
+//! `link_seeker`: links a Seeker Genesis Token mint to a
 //! player's wallet, setting a permanent on-chain badge flag
 //! (`Player.seeker`). The badge changes nothing else - no scores, no
 //! prices, no attempts. The devnet program cannot read mainnet itself, so

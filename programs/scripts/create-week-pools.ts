@@ -1,13 +1,13 @@
 /**
- * One-time devnet setup (Phase 2B Task 6, Step 5).
+ * One-time devnet setup.
  *
  * Creates `WeekPool` for the current week and the next week (payer:
  * admin, here - the backend's crank does the same later with the server
- * authority, Task 9). Idempotent per week: skips any week whose pool
+ * authority). Idempotent per week: skips any week whose pool
  * already exists.
  *
  * The current week is derived from the RPC clock the same way the
- * program does (spec Sec5.1): `day = floor(blockTime / 86400)`,
+ * program does: `day = floor(blockTime / 86400)`,
  * `week = floor((day + 3) / 7)`.
  *
  * Run from `programs/`:

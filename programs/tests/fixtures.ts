@@ -26,8 +26,8 @@ export function programDataPda(programId: PublicKey): PublicKey {
 }
 
 // @anchor-lang/core's borsh coder (unlike @coral-xyz/anchor) only accepts
-// BN.js instances for u64 fields, not native bigint - the brief's literal
-// `BigInt(s) * 1_000_000n` values throw "src.toArrayLike is not a
+// BN.js instances for u64 fields, not native bigint - a literal like
+// `BigInt(s) * 1_000_000n` throws "src.toArrayLike is not a
 // function" from BNLayout.encode, so u64 values here use BN instead.
 export const LADDER = [25, 30, 40, 50, 60, 75, 95, 120].map((s) =>
   new BN(s).mul(new BN(1_000_000))
@@ -65,9 +65,9 @@ export const catalogPda = (pid: PublicKey) =>
     pid
   )[0];
 
-// The seven items of design §1 - kind 0 = variant (ids 0..2), kind 1 = skin
-// (ids 3..6). Prices are the design's SKR figures, in base units (6
-// decimals, same as LADDER above).
+// The seven catalog items - kind 0 = variant (ids 0..2), kind 1 = skin
+// (ids 3..6). Prices are in SKR base units (6 decimals, same as LADDER
+// above).
 export const CATALOG_ITEMS = [
   { id: 0, kind: 0, price: 40 }, // Harpoon
   { id: 1, kind: 0, price: 60 }, // Anchor

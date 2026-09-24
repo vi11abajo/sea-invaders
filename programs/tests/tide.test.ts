@@ -25,7 +25,7 @@ const weekOf = (d: number) => Math.floor((d + 3) / 7);
 const T0 = 1_788_739_200;
 const BASE = T0 + 24 * WEEK;
 
-// 25, 30, 40, 50, 60, 75, 95, 120 SKR in base units (design §1's Tide
+// 25, 30, 40, 50, 60, 75, 95, 120 SKR in base units (the Tide
 // ladder, same values as fixtures.ts's LADDER).
 const LADDER = [25, 30, 40, 50, 60, 75, 95, 120].map((s) => s * 1_000_000);
 const EBB_SECONDS = 7200; // Config.ebb_seconds, from configArgs() in fixtures.ts

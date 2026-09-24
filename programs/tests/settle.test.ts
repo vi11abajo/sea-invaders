@@ -30,10 +30,11 @@ const weekEnd = (w: number) => weekFirstDay(w + 1) * DAY;
 const dayStart = (d: number) => d * DAY;
 
 // 1_788_739_200 = 2026-09-07T00:00:00Z, a Monday (see tests/fixtures.ts /
-// src/time.rs for why this replaces the brief's original constant). This
-// file gets its own twelve-weeks-forward slice of the shared validator's
-// timeline (see helpers.ts - the clock is a singleton config field moved
-// only by `warpTo`), past every other file's own range (config.test.ts:
+// src/time.rs for why this Monday timestamp is used instead of a
+// Wednesday-dated one). This file gets its own twelve-weeks-forward slice
+// of the shared validator's timeline (see helpers.ts - the clock is a
+// singleton config field moved only by `warpTo`), past every other file's
+// own range (config.test.ts:
 // week_of(T0); ticket.test.ts: + 1..4; record.test.ts: + 6..8), so this
 // file's weeks never collide, and every warp below only moves further
 // forward - never backward.
@@ -74,8 +75,8 @@ describe("fund_pool / settle_week", () => {
 
     // Carol's ticket purchase spent her whole balance, so her ATA now
     // holds exactly 0 - close it so it is fully absent (not just empty)
-    // by settlement time, per the brief's test 4: settle_week must create
-    // it from scratch for her payout.
+    // by settlement time: settle_week must create it from scratch for
+    // her payout.
     await closeAccount(
       ctx.connection,
       carol,
@@ -235,14 +236,14 @@ describe("fund_pool / settle_week", () => {
   });
 
   it("floors a winner's share and rolls the rounding dust over to next week's vault", async () => {
-    // The brief's own rounding example (a 1_000_001 vault, one winner,
-    // 3000 bps -> floor(300_000.3) = 300_000, 700_001 rolling over) cannot
-    // be reached through this validator's shared config: the smallest
-    // possible non-zero contribution to any week's vault is one ticket's
-    // pool share (9_500_000, fixed by config.ticket_price/ticket_pool_bps
-    // for the whole run), already bigger than that whole balance. The
-    // exact brief numbers are instead checked as a Rust unit test on
-    // `share_of` in settle.rs; this test demonstrates the same floor
+    // A 1_000_001 vault, one winner, 3000 bps -> floor(300_000.3) =
+    // 300_000, 700_001 rolling over - cannot be reached through this
+    // validator's shared config: the smallest possible non-zero
+    // contribution to any week's vault is one ticket's pool share
+    // (9_500_000, fixed by config.ticket_price/ticket_pool_bps for the
+    // whole run), already bigger than that whole balance. Those exact
+    // numbers are instead checked as a Rust unit test on `share_of` in
+    // settle.rs; this test demonstrates the same floor
     // rounding and rollover on-chain, at a balance this harness can
     // actually produce: one ticket (9_500_000) plus a 1-unit fund_pool
     // top-up (9_500_001), which 3000 bps does not divide evenly.
@@ -274,7 +275,7 @@ describe("fund_pool / settle_week", () => {
     ).to.equal(6_650_001n);
   });
 
-  // I4: the settle path had never run against the real program with a full
+  // The settle path had never run against the real program with a full
   // top-10 payout, and `buildSettleWeekTx` added no compute-budget headroom
   // - up to 10 ATA creations + 10 transfer_checked CPIs + 1 rollover
   // transfer can plausibly exceed the default 200_000 CU budget. This
@@ -319,7 +320,7 @@ describe("fund_pool / settle_week", () => {
     const winners = actors.map((a) => a.publicKey);
     // Without a compute-budget bump this fails on-chain under the default
     // 200_000 CU limit - verified: removing the 600_000 argument here
-    // reproduces exactly I4's predicted failure ("exceeded CUs meter").
+    // reproduces exactly the predicted failure ("exceeded CUs meter").
     const sig = await settleWeek(ctx, ctx.server, week4, winners, 600_000);
 
     // floor(95_000_000 * bps / 10_000) for [3000,2000,1200,800,600,480x5] -

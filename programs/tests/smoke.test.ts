@@ -11,7 +11,7 @@ describe("harness", () => {
   // if no other file has yet, or just confirms the existing config matches
   // this `ctx` otherwise. Either way, `config` exists and is owned by
   // `ctx.admin` by the time `warpTo` below (an admin-gated on-chain
-  // instruction, unlike the Task 1 LiteSVM harness's direct VM-clock write)
+  // instruction, unlike an earlier LiteSVM harness's direct VM-clock write)
   // runs.
   let ctx: Ctx;
 

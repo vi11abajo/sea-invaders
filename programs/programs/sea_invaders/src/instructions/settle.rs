@@ -1,6 +1,6 @@
-//! `fund_pool` (spec §5.5) lets anyone top up a week's pool vault directly
+//! `fund_pool` lets anyone top up a week's pool vault directly
 //! (no ticket, no attempts bought - just SKR in), and `settle_week`
-//! (spec §5.6) is the permissionless payout once a week's grace window has
+//! is the permissionless payout once a week's grace window has
 //! closed: it pays the top-10 list their `payout_bps` share of the vault
 //! (creating a winner's ATA when missing and the share is above zero), and
 //! rolls whatever the empty places would have earned into the next week's
@@ -232,10 +232,9 @@ mod tests {
     }
 
     #[test]
-    fn share_of_matches_the_brief_rounding_example() {
+    fn share_of_matches_the_rounding_example() {
         // 1_000_001 at 3000 bps (30 %) floors to 300_000, leaving 700_001
-        // to roll over - the exact values from the Task 5 brief's rounding
-        // test. Unreachable as a full on-chain integration test: the
+        // to roll over. Unreachable as a full on-chain integration test: the
         // smallest possible non-zero contribution to any week's vault is
         // one ticket's pool share (9_500_000, from the shared config's
         // fixed `ticket_price`/`ticket_pool_bps`), already bigger than

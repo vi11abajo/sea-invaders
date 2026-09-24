@@ -1,5 +1,5 @@
-//! The `Catalog` PDA and `purchase` (spec §2/§1): a small admin-managed
-//! price list for the one-time cosmetic/gameplay items of spec §1 (Octopi
+//! The `Catalog` PDA and `purchase`: a small admin-managed
+//! price list for the one-time cosmetic/gameplay items (Octopi
 //! variants and skins), and the instruction that lets a player buy one of
 //! them with SKR. Ownership is a bitmask on `Player.inventory` (one bit per
 //! catalog item id), so an item can only ever be bought once per player.

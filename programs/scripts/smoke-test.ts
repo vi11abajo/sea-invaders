@@ -1,11 +1,11 @@
 /**
- * Devnet smoke test (Phase 2B Task 6, Step 6).
+ * Devnet smoke test.
  *
  * Mints 100 test SKR (100_000_000 base units, 6 decimals) to a throwaway
  * keypair - generated in memory only, never written to disk, so there is
  * nothing left to "delete" once the script exits - using the server
- * authority as mint authority (the controller ruling: the backend faucet
- * mints with the server key, never the admin key). Then it calls
+ * authority as mint authority (the backend faucet mints with the server
+ * key, never the admin key). Then it calls
  * `createPlayer` and `buyTicket` for that throwaway wallet against the
  * current week's pool, and asserts:
  *   - `Player.attemptsBought === 3`  (one ticket at attemptsPerTicket=3)
