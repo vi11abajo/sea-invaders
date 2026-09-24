@@ -290,12 +290,20 @@ describe('dailyPool', () => {
     expect(dailyPool(5)).toEqual(REEF_KINDS);
   });
 
-  it('keeps growing one veteran per wave from 6 to 10, then stops at all ten kinds (spec §6)', () => {
+  it('adds one veteran every other wave from 6 on (6, 8, 10, 12, 14), then stops at all ten kinds', () => {
+    // Sizes for waves 6..16: a veteran joins on 6, 8, 10, 12 and 14, holding steady on the wave
+    // in between each pair, then holding at 10 (all of ALL_KINDS) from 14 on.
+    const sizes: Record<number, number> = {
+      6: 6, 7: 6, 8: 7, 9: 7, 10: 8, 11: 8, 12: 9, 13: 9, 14: 10, 15: 10, 16: 10,
+    };
+    for (const [wave, size] of Object.entries(sizes)) {
+      expect({ wave, pool: dailyPool(Number(wave)) }).toEqual({ wave, pool: ALL_KINDS.slice(0, size) });
+    }
     expect(dailyPool(6)).toEqual([...REEF_KINDS, 'warden']);
-    expect(dailyPool(7)).toEqual([...REEF_KINDS, 'warden', 'herald']);
-    expect(dailyPool(8)).toEqual([...REEF_KINDS, 'warden', 'herald', 'bubbler']);
-    expect(dailyPool(9)).toEqual([...REEF_KINDS, 'warden', 'herald', 'bubbler', 'bombardier']);
-    expect(dailyPool(10)).toEqual(ALL_KINDS);
+    expect(dailyPool(8)).toEqual([...REEF_KINDS, 'warden', 'herald']);
+    expect(dailyPool(10)).toEqual([...REEF_KINDS, 'warden', 'herald', 'bubbler']);
+    expect(dailyPool(12)).toEqual([...REEF_KINDS, 'warden', 'herald', 'bubbler', 'bombardier']);
+    expect(dailyPool(14)).toEqual(ALL_KINDS);
     expect(dailyPool(20)).toEqual(ALL_KINDS);
   });
 });

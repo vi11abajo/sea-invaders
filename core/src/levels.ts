@@ -1,3 +1,4 @@
+import { idiv } from './fixed';
 import type { BossKind } from './types';
 
 /**
@@ -110,14 +111,29 @@ export function kindForTier(kinds: readonly CrabType[], tier: number): CrabType 
 export const ALL_KINDS: readonly CrabType[] = [...REEF_KINDS, 'warden', 'herald', 'bubbler', 'bombardier', 'patriarch'];
 
 /**
+ * Waves between two veterans joining the daily/practice pool from wave 6 on: the warden at wave 6,
+ * then the herald, bubbler, bombardier and patriarch every `DAILY_VETERAN_EVERY` waves after
+ * (8, 10, 12, 14). Widened from 1 (a new veteran every wave) to smooth the climb a daily/practice
+ * run takes after wave 5: the same five veterans still arrive, just spread over twice as many
+ * waves, so the pool no longer widens faster than a player can adjust to it. The top of the pool —
+ * all ten kinds — still lands from wave 14 on, one wave earlier than the fire ramp reaches its own
+ * cap (see `fireRamp` in `sim/crabs.ts`), so the daily/practice ceiling is unchanged, only later.
+ */
+export const DAILY_VETERAN_EVERY = 2;
+
+/**
  * The crab kinds a daily or practice wave may draw a row from: wave 1
  * is green only and each wave adds the next kind of `ALL_KINDS` — the five legacy ones first, then
- * one veteran per wave from wave 6 on — stopping once it has all ten from wave 10 on. Waves 1-5 are
- * exactly the pre-reefs-6-10 behaviour (`REEF_KINDS.slice(0, wave)`), since `ALL_KINDS` starts with
- * `REEF_KINDS` itself. Colours mean the same thing here as in the campaign.
+ * one new veteran every `DAILY_VETERAN_EVERY` waves from wave 6 on — stopping once it has all ten
+ * from wave 14 on. Waves 1-5 are exactly the pre-reefs-6-10 behaviour (`REEF_KINDS.slice(0, wave)`),
+ * since `ALL_KINDS` starts with `REEF_KINDS` itself. Colours mean the same thing here as in the
+ * campaign.
  */
 export function dailyPool(wave: number): CrabType[] {
-  return ALL_KINDS.slice(0, Math.min(Math.max(wave, 1), ALL_KINDS.length));
+  const w = Math.max(wave, 1);
+  const legacy = REEF_KINDS.length; // 5: waves 1-5 unchanged
+  const n = w <= legacy ? w : legacy + 1 + idiv(w - legacy - 1, DAILY_VETERAN_EVERY);
+  return ALL_KINDS.slice(0, Math.min(n, ALL_KINDS.length));
 }
 
 /**

@@ -19,6 +19,11 @@ const FILE = join(process.cwd(), 'golden', `golden-v${CORE_VERSION}.json`);
 // earlier tunings. The floor is lowered to keep the same comfortable-margin spirit as before (a
 // clear pass, not a bare one) without touching the survivor logic or the tuning knobs themselves —
 // this scenario cannot clear its old threshold once the pool widens like this.
+//
+// Stretching the climb after wave 5 (a veteran every other wave instead of every wave, `dailyPool`
+// in levels.ts; the fire ramp halved past wave 6, `fireRamp` in sim/crabs.ts) moves every draw again
+// and lets survivor last longer before dying: 7,130 ticks, comfortably above this same floor, so the
+// floor itself did not need to move again.
 const SURVIVOR_MIN_TICKS = 5000;
 
 // Computed lazily in `beforeAll` (not at module load): PRACTICE_RUN/DAILY_RUN have boosts on and

@@ -177,9 +177,12 @@ export const GOLDEN_SCRIPTS: Record<string, GoldenScript> = {
   // every draw again and left `golden-boosted-0` with too few pickups, so the search ran once more:
   // `golden-boosted-16` gave 8 pickups over 8171 ticks. Core v11's wave-scaled daily/practice pool
   // (a veteran joins from wave 6 on) moves every `rngWaves` draw again and dropped
-  // `golden-boosted-16` to 4, so the search ran a third time, from 0: `golden-boosted-5` gives 5
-  // pickups over 6347 ticks.
-  boosted: { ticks: 10_800, makeInput: survivor, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-5' },
+  // `golden-boosted-16` to 4, so the search ran a third time, from 0: `golden-boosted-5` gave 5
+  // pickups over 6347 ticks. Stretching the climb after wave 5 (a veteran every other wave instead
+  // of every wave, from `dailyPool`) moves every `rngWaves` draw from wave 7 on and dropped
+  // `golden-boosted-5` to 4, so the search ran a fourth time, from 0: `golden-boosted-7` gives 5
+  // pickups over 8653 ticks.
+  boosted: { ticks: 10_800, makeInput: survivor, run: DAILY_RUN, mode: REPLAY_MODE.daily, seed: 'golden-boosted-7' },
 
   // Reefs 6-10: veterans, living formations and bosses.
   // Level 32 (6-2) opens with the manta and doubles as its scenario (`formationsSeen`/

@@ -218,11 +218,37 @@ function pickShooter(s: GameState, aura: boolean): Crab {
 }
 
 /**
+ * Up to `FIRE_RAMP_KNEE` the fire chance still climbs `FIRE_STEP` per mille a wave (unchanged);
+ * after it, `FIRE_STEP_LATE` (half that) a wave, so the same cap of 60 arrives on wave 16 instead of
+ * 11. Halving the ramp past the knee — alongside `dailyPool`'s slower veteran cadence in
+ * `levels.ts` — stretches a daily/practice run's climb after wave 5 over roughly twice as many
+ * waves, without changing the top difficulty it eventually reaches.
+ */
+const FIRE_RAMP_KNEE = 6;
+const FIRE_STEP = 4;
+const FIRE_STEP_LATE = 2;
+
+/**
+ * The wave's own (unclamped, unscaled) addition to the fire chance: `(wave-1)*FIRE_STEP` through
+ * `FIRE_RAMP_KNEE`, `FIRE_STEP_LATE` a wave after it. Campaign waves are numbered 1..5 (the longest
+ * level has 5 waves — `levels.test.ts` pins `LEVELS`'s row count) and a boss round's own squads
+ * fire with `wave` 0 (`startLevelWave` never runs for a boss level's `waves: 0`, so `s.wave` stays
+ * 0), so both stay inside the unchanged `wave <= FIRE_RAMP_KNEE` branch and see exactly today's
+ * term — only the daily/practice grid, which alone reaches wave 7 and beyond, ever takes the
+ * shallower branch.
+ */
+export function fireRamp(wave: number): number {
+  return wave <= FIRE_RAMP_KNEE
+    ? (wave - 1) * FIRE_STEP
+    : (FIRE_RAMP_KNEE - 1) * FIRE_STEP + (wave - FIRE_RAMP_KNEE) * FIRE_STEP_LATE;
+}
+
+/**
  * Chance per tick, in 1/1000, that some crab fires: the original chance (capped at 60) scaled by
  * `SPEED_PCT.crabFire`. `offset` is the level's fireOffset (0 outside the campaign).
  */
 export function fireChance(wave: number, offset = 0): number {
-  return scalePct(Math.min(ENEMY_SHOT.perMille + offset + (wave - 1) * 4, 60), SPEED_PCT.crabFire);
+  return scalePct(Math.min(ENEMY_SHOT.perMille + offset + fireRamp(wave), 60), SPEED_PCT.crabFire);
 }
 
 /** An `explosive` shot below this line splits into fragments immediately, fuse or not. */
