@@ -26,8 +26,16 @@ router.post('/faucet', authenticateToken, async (req, res, next) => {
     if (last !== undefined && now - last < FAUCET_COOLDOWN_MS) {
       return res.status(429).json({ error: 'TooManyRequests', message: 'The faucet can only be used once every 10 minutes' });
     }
-    const { signature } = await claimFaucet(wallet);
+    // The cooldown starts before the mint is awaited, so parallel calls for one wallet cannot all
+    // mint; it is handed back when nothing was minted, so the player can try again at once.
     lastFaucetAt.set(wallet, now);
+    let signature;
+    try {
+      ({ signature } = await claimFaucet(wallet));
+    } catch (error) {
+      if (lastFaucetAt.get(wallet) === now) lastFaucetAt.delete(wallet);
+      throw error;
+    }
     res.json({ signature, amountSkr: 100 });
   } catch (error) {
     if (error instanceof FaucetUnavailableError) {

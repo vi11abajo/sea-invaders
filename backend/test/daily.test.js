@@ -403,14 +403,52 @@ describe('/api/daily', () => {
       process.env.SOLANA_CLUSTER = original;
     });
 
-    it('returns 503 FaucetUnavailable when the server authority has no SOL for fees', async () => {
+    it('returns 503 FaucetUnavailable when the server authority is below its SOL reserve', async () => {
       const original = process.env.SOLANA_CLUSTER;
       process.env.SOLANA_CLUSTER = 'devnet';
-      fakeChain.setSolBalance(1_000_000n); // well below the 0.01 SOL threshold
+      fakeChain.setSolBalance(400_000_000n); // 0.4 SOL: enough for fees, but under the 0.5 SOL crank reserve
       const devnetApp = createApp();
       const res = await request(devnetApp).post('/api/devnet/faucet').set(auth);
       expect(res.status).toBe(503);
-      expect(res.body).toEqual({ error: 'FaucetUnavailable', message: 'The faucet key has no SOL for fees; fund the server authority' });
+      expect(res.body).toEqual({ error: 'FaucetUnavailable', message: 'The server authority is below its SOL reserve; fund it to reopen the faucet' });
+      process.env.SOLANA_CLUSTER = original;
+    });
+
+    it('takes its reserve from FAUCET_MIN_SOL', async () => {
+      const original = process.env.SOLANA_CLUSTER;
+      process.env.SOLANA_CLUSTER = 'devnet';
+      process.env.FAUCET_MIN_SOL = '0.1';
+      try {
+        fakeChain.setSolBalance(400_000_000n);
+        const res = await request(createApp()).post('/api/devnet/faucet').set(auth);
+        expect(res.status).toBe(200);
+      } finally {
+        delete process.env.FAUCET_MIN_SOL;
+        process.env.SOLANA_CLUSTER = original;
+      }
+    });
+
+    it('mints once when two calls for one wallet arrive together', async () => {
+      const original = process.env.SOLANA_CLUSTER;
+      process.env.SOLANA_CLUSTER = 'devnet';
+      const devnetApp = createApp();
+      const [first, second] = await Promise.all([
+        request(devnetApp).post('/api/devnet/faucet').set(auth),
+        request(devnetApp).post('/api/devnet/faucet').set(auth),
+      ]);
+      expect([first.status, second.status].sort()).toEqual([200, 429]);
+      expect(fakeChain.state.balances.get(user.wallet_address)).toBe(100_000_000n);
+      process.env.SOLANA_CLUSTER = original;
+    });
+
+    it('lets the wallet try again at once when the faucet could not mint', async () => {
+      const original = process.env.SOLANA_CLUSTER;
+      process.env.SOLANA_CLUSTER = 'devnet';
+      fakeChain.setMintTestTokensError(new Error('rpc unavailable'));
+      const devnetApp = createApp();
+      expect((await request(devnetApp).post('/api/devnet/faucet').set(auth)).status).toBe(503);
+      fakeChain.setMintTestTokensError(null);
+      expect((await request(devnetApp).post('/api/devnet/faucet').set(auth)).status).toBe(200);
       process.env.SOLANA_CLUSTER = original;
     });
 

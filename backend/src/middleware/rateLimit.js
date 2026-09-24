@@ -128,25 +128,11 @@ export const confirmLimiter = rateLimit({
   keyGenerator: getUserKey, // Per-user limiting
 });
 
-// Soft limiter for leaderboard (for tournaments with frequent updates)
-export const leaderboardLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 200, // maximum 200 requests per minute with per-user limiting
-  message: {
-    error: 'TooManyLeaderboardRequests',
-    message: 'Too many leaderboard requests. Please wait.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: getUserKey, // Per-user limiting
-});
-
 export default {
   apiLimiter,
   authLimiter,
   scoreSubmitLimiter,
   sessionLimiter,
   quoteLimiter,
-  confirmLimiter,
-  leaderboardLimiter
+  confirmLimiter
 };

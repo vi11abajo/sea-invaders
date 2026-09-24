@@ -3,9 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { apiLimiter } from './middleware/rateLimit.js';
-import authRoutes from './routes/auth.js';
-import scoresRoutes from './routes/scores.js';
-import leaderboardRoutes from './routes/leaderboard.js';
 import dailyRoutes from './routes/daily.js';
 import campaignRoutes from './routes/campaign.js';
 import siwsRoutes from './routes/siws.js';
@@ -40,7 +37,6 @@ export function createApp() {
   // parser below leaves a body that is already parsed alone, so every other route keeps 256 KB.
   app.use(FINISH_RUN_PATH, express.json({ limit: '512kb' }));
   app.use(express.json({ limit: '256kb' }));
-  app.use(express.urlencoded({ extended: true }));
   if (process.env.NODE_ENV === 'test') {
     // no request logging in tests
   } else if (process.env.NODE_ENV !== 'production') {
@@ -53,14 +49,11 @@ export function createApp() {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime(), environment: process.env.NODE_ENV || 'development' });
   });
   app.get('/', (req, res) => {
-    res.json({ name: 'Sea Invaders API', version: '1.0.0', status: 'running', endpoints: { auth: '/api/auth', scores: '/api/scores', leaderboard: '/api/leaderboard', daily: '/api/daily' } });
+    res.json({ name: 'Sea Invaders API', version: '1.0.0', status: 'running', endpoints: { auth: '/api/auth/siws', daily: '/api/daily' } });
   });
 
   app.use('/api', apiLimiter);
-  app.use('/api/auth', authRoutes);
   app.use('/api/auth/siws', siwsRoutes);
-  app.use('/api/scores', scoresRoutes);
-  app.use('/api/leaderboard', leaderboardRoutes);
   app.use('/api/daily', dailyRoutes);
   app.use('/api/campaign', campaignRoutes);
   app.use('/api/shop', shopRoutes);

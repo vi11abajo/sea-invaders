@@ -16,9 +16,11 @@ const MAX_WEEKS_BACK = 4;
  * Ensures `WeekPool(current)` and `WeekPool(current + 1)` exist (server authority pays), then
  * settles every finished, unsettled week it can find looking back from `current - 1` to
  * `current - MAX_WEEKS_BACK` (oldest first): a pool that exists, is not already settled, and
- * whose `week_end + GRACE_SECONDS` has passed. A missing pool is skipped (not an error - it
- * may simply predate the feature); an already-settled one is skipped too. Idempotent: a second
- * run with the same `now` and on-chain state does nothing.
+ * whose `week_end + GRACE_SECONDS` has passed. `settle_week` rolls what is left into the next
+ * week's vault and needs that pool, so a missing `WeekPool(week + 1)` is created first - it is
+ * missing when no crank ran during both weeks (an outage of over a week). A missing pool to settle
+ * is skipped (not an error - it may simply predate the feature); an already-settled one is skipped
+ * too. Idempotent: a second run with the same `now` and on-chain state does nothing.
  *
  * @param {object} args
  * @param {number} args.now - Unix seconds.
@@ -29,10 +31,13 @@ const MAX_WEEKS_BACK = 4;
 export async function runWeekly({ now, chain = defaultChain, log = console }) {
   const currentWeek = weekOf(dayOf(now));
   const createdPools = [];
+  const ensured = new Set();
 
-  for (const week of [currentWeek, currentWeek + 1]) {
-    const pool = await chain.getWeekPool(week);
-    if (pool) continue;
+  /** Creates `WeekPool(week)` when it does not exist yet; each week is looked at once per run. */
+  const ensurePool = async (week) => {
+    if (ensured.has(week)) return;
+    ensured.add(week);
+    if (await chain.getWeekPool(week)) return;
     const prepared = await chain.buildCreateWeekPoolTx(week);
     try {
       await chain.sendSigned(prepared);
@@ -43,11 +48,14 @@ export async function runWeekly({ now, chain = defaultChain, log = console }) {
       // is all that matters; anything else is a real failure.
       if (!(await chain.getWeekPool(week))) throw error;
       log.log(`Weekly crank: week pool ${week} was created by a concurrent run`);
-      continue;
+      return;
     }
     createdPools.push(week);
     log.log(`Weekly crank: created week pool ${week}`);
-  }
+  };
+
+  await ensurePool(currentWeek);
+  await ensurePool(currentWeek + 1);
 
   const settled = [];
   const oldestWeek = Math.max(0, currentWeek - MAX_WEEKS_BACK);
@@ -59,6 +67,7 @@ export async function runWeekly({ now, chain = defaultChain, log = console }) {
       continue;
     }
     if (pool.settled) continue;
+    await ensurePool(week + 1);
     const winners = pool.top.map((entry) => entry.player);
     const prepared = await chain.buildSettleWeekTx(week, winners);
     await chain.sendSigned(prepared);

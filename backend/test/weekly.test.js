@@ -160,6 +160,43 @@ describe('runWeekly', () => {
       expect(fakeChain.state.calls.settleWeek).toEqual([{ week: PREV_WEEK, winners: ['Wallet1'] }]);
     });
 
+    it("creates a missing next-week pool before settling a week, since settle_week rolls into it", async () => {
+      // No crank ran during PREV2_WEEK or PREV_WEEK, so PREV_WEEK's pool was never created.
+      seedSurroundingPools();
+      fakeChain.setWeekPool(PREV2_WEEK, { top: [{ player: 'Wallet2', total: 300, updatedAt: NOW }], settled: false });
+      const order = [];
+      const chain = {
+        ...fakeChain,
+        buildCreateWeekPoolTx: async (week) => {
+          order.push(`create ${week}`);
+          return fakeChain.buildCreateWeekPoolTx(week);
+        },
+        buildSettleWeekTx: async (week, winners) => {
+          order.push(`settle ${week}`);
+          return fakeChain.buildSettleWeekTx(week, winners);
+        },
+      };
+      const now = weekEnd(PREV_WEEK) + GRACE_SECONDS + 100;
+
+      const result = await runWeekly({ now, chain, log: silentLog() });
+
+      expect(order).toEqual([`create ${PREV_WEEK}`, `settle ${PREV2_WEEK}`]);
+      expect(result.createdPools).toEqual([PREV_WEEK]);
+      expect(result.settled).toEqual([PREV2_WEEK]);
+    });
+
+    it('does not create a pool twice in one run when the next week is also the current one', async () => {
+      // WEEK's pool is created up front; settling PREV_WEEK needs the same pool and must not re-create it.
+      fakeChain.setWeekPool(WEEK + 1, {});
+      fakeChain.setWeekPool(PREV_WEEK, { top: [{ player: 'Wallet1', total: 500, updatedAt: NOW }], settled: false });
+      const now = weekEnd(PREV_WEEK) + GRACE_SECONDS + 100;
+
+      const result = await runWeekly({ now, chain: fakeChain, log: silentLog() });
+
+      expect(fakeChain.state.calls.createWeekPool).toEqual([WEEK]);
+      expect(result.settled).toEqual([PREV_WEEK]);
+    });
+
     it('skips an already-settled older week while settling the rest', async () => {
       seedSurroundingPools();
       fakeChain.setWeekPool(PREV_WEEK, { top: [{ player: 'Wallet1', total: 500, updatedAt: NOW }], settled: false });
