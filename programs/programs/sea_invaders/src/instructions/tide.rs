@@ -20,8 +20,8 @@ pub struct Revived {
     pub tide_at: i64,
 }
 
-/// Reuses `BuyTicket`'s account set verbatim - the design doc says as much
-/// ("accounts like `BuyTicket` (no catalog)") and this program already
+/// Reuses `BuyTicket`'s account set verbatim - a revive touches exactly the
+/// accounts a ticket does (no catalog) - and this program already
 /// reuses one `Accounts` struct across several instructions the same way
 /// (`AdminOnly` backs `update_config`, `set_paused` and `set_test_clock`).
 ///

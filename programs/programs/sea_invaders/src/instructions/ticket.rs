@@ -83,7 +83,7 @@ pub fn pay_split<'info>(
     Ok(())
 }
 
-/// The Tide's current step (spec §1/§2, `revive` in tide.rs): `tide` decays
+/// The Tide's current step (read by `revive` in tide.rs): `tide` decays
 /// by one step for every full `ebb_seconds` since `tide_at`, floored at 0.
 /// `tide_at == 0` (a player who has never revived) always yields `tide`
 /// itself, and a `now` at or before `tide_at` (a backward test-clock warp)

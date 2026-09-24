@@ -55,7 +55,7 @@ pub struct Player {
     pub bump: u8,
 }
 
-/// One per Seeker Genesis Token mint (design §2): links that mint to the
+/// One per Seeker Genesis Token mint: links that mint to the
 /// player who holds it. Seeds `["seeker", sgt_mint]` mean the chain itself
 /// enforces one mint -> at most one player - a second `link_seeker` for the
 /// same mint fails at `init` because the account already exists. There is
