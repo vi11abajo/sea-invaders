@@ -2,6 +2,15 @@
 
 ## Building
 
+Toolchain: Rust 1.89.0 (pinned by `rust-toolchain.toml`), the Solana CLI
+(Anza stable) and Anchor 1.2.0 from the otter-sec fork, installed the way
+the `anchor` CI workflow does it:
+
+```sh
+cargo install --locked --git https://github.com/otter-sec/anchor avm --force
+avm install 1.2.0 && avm use 1.2.0
+```
+
 Tests need the `test-clock` feature (see `src/time.rs`), which compiles in
 the admin-only `set_test_clock` instruction the test harness uses to warp
 the on-chain clock. A deployable artifact must never carry it.
@@ -40,7 +49,7 @@ standard Anchor upgrade-authority pattern - so the singleton `config` PDA
 can only ever be claimed by whoever controls the deployed program, closing
 the window between `anchor deploy` and running the init script. On devnet
 this is `admin.json` in your keys directory, the one the devnet scripts
-read through `KEYS_DIR=<your keys dir>` (verified: `solana program
+read through `KEYS_DIR=<your keys dir>`, which they require (verified: `solana program
 show <PROGRAM_ID> --url devnet` prints `Authority:
 AVHHLGsaChQLKMJSthVhhrQ3rn2hSgeQUBRkmobUQBNm`).
 
@@ -52,7 +61,8 @@ the program via `--bpf-program` (upgrades disabled, `ProgramData` account
 present but with no real authority) and every `init_config` call, including
 the test harness's own, fails with `NotUpgradeAuthority`.** Verified by
 running with the key removed: all `config`/`ticket`/`record`/`settle`/
-`harness` tests fail that way; restoring it returns to 23 passing.
+`harness` tests failed that way when this was written, and restoring it made them pass
+again (the suite has since grown to 51 tests across eight files).
 `tests/helpers.ts`'s `setup()` therefore makes `admin` the provider wallet
 keypair (read from the `ANCHOR_WALLET` env var `anchor test` sets), not a
 random one.

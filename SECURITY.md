@@ -21,7 +21,7 @@ In scope:
 - The mobile app: wallet sign-in, replay recording and run submission (`mobile/`)
 - The deterministic game core and its replay verification (`core/`)
 - The Express backend: authentication, run verification, on-chain transaction building (`backend/`)
-- The Anchor program: tickets, daily records, weekly pool settlement (`programs/`)
+- The Anchor program: tickets, daily records, weekly pool settlement, the shop, the Tide's revives and the Seeker link (`programs/`)
 
 Out of scope:
 

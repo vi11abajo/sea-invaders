@@ -1,8 +1,7 @@
 # Devnet setup scripts
 
 One-time (idempotent) setup for the `sea_invaders` program on devnet. Run
-from `programs/` with the project's ts-node runner (already a
-dependency via `ts-mocha`):
+from `programs/` with the project's ts-node runner (a devDependency):
 
 ```
 export KEYS_DIR=<your keys dir>           # required, see "Env vars" below
@@ -39,12 +38,14 @@ All five scripts share their bootstrap (`loadKeypair`, `configPda`,
   values the test suite uses (`tests/fixtures.ts`'s `configArgs`: 10 SKR
   ticket, 3 attempts/ticket, 9500/2000 bps, the revive ladder, a 7200s
   ebb window, 900s grace, the payout table). Idempotent: if `Config`
-  already exists it prints the stored values and exits 0.
+  already exists it prints the stored values and exits 0. The ladder it
+  writes (25..120 SKR) was later lowered to 5..24 SKR by `set-prices.ts`;
+  that is what devnet holds today.
 - **`create-week-pools.ts`** - computes the current week from the RPC
   clock (`day = floor(blockTime / 86400)`, `week = floor((day + 3) / 7)`)
   and creates `WeekPool(week)` and `WeekPool(week + 1)` if missing
   (payer: admin here; the backend's crank does the same later with the
-  server authority - Task 9). Idempotent per week.
+  server authority). Idempotent per week.
 - **`smoke-test.ts`** - mints 100 test SKR to an in-memory-only throwaway
   keypair (never written to disk - there is nothing to "delete"
   afterwards), then `createPlayer` + `buyTicket` for it against the

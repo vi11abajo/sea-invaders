@@ -15,19 +15,24 @@ the API only.
 - **Deploy pipeline:** the GitHub Actions workflow **"Deploy API to VPS"**
   (`.github/workflows/deploy.yml`, manual `workflow_dispatch` trigger only). It builds
   `core/` (`npm ci && npm run build`), writes `backend/.env` from GitHub secrets, copies
-  `backend/` and `core/dist` to the server over `scp`/`ssh`, installs production
-  dependencies, runs migrations, and (re)starts the PM2 apps.
+  `backend/` and `core/` (with the built `dist/`, without `node_modules`) to the server over
+  `scp`/`ssh`, installs production dependencies, runs migrations, and (re)starts the PM2 apps.
 - **Server path:** `/var/www/sea-invaders-api` (backend + built core). Not
   `/var/www/sea-invaders` — that path is the legacy web game's checkout.
 - **Process manager:** `backend/ecosystem.api.config.cjs` defines two PM2 apps:
   - `sea-invaders-api` — the Express API, `fork` mode, **one instance** (the SIWS nonce
-    store and the leaderboard cache are in-process, so a second instance would not share
-    them), listening on **port 5439**.
+    store, the rate-limit counters, the faucet cooldown and the short read caches are
+    in-process, so a second instance would not share them), listening on **port 5439**.
   - `weekly-crank` — runs `src/jobs/weekly.js` on the cron schedule `20 * * * *` (every
     hour at :20) and exits; `autorestart: false` is intentional, so `pm2 status` showing it
     as *stopped* between runs is expected, not a crash. See "Weekly crank" below.
-- **Reverse proxy:** Nginx serves `api.seainvaders.xyz` and proxies to
-  `127.0.0.1:5439`. The site sits behind Cloudflare, which terminates TLS.
+- **Reverse proxy and TLS:** Nginx serves `api.seainvaders.xyz` on ports 80 and 443 with a
+  Let's Encrypt certificate (Certbot) and proxies to `127.0.0.1:5439`. Cloudflare only hosts
+  the domain's DNS (DNS-only records pointing at the VPS); it does not proxy the traffic or
+  terminate TLS. The API trusts exactly one proxy hop on loopback
+  (`app.set('trust proxy', 'loopback')` in `src/createApp.js`), so `req.ip` is the client
+  address nginx appends to `X-Forwarded-For` and the rate limiters key every client
+  separately.
 - **Database:** PostgreSQL database `sea_invaders_api`, role `sea_invaders_user`
   (a different database from the legacy web game's).
 - **Migrations:** run automatically by the workflow on the server (`npm run migrate`,
@@ -49,7 +54,7 @@ the API only.
 
 ## 📋 Prerequisites (manual setup)
 
-- ✅ A VPS running Ubuntu 22.04
+- ✅ A VPS running Ubuntu 22.04 or 24.04 (production runs 24.04 with PostgreSQL 16)
 - ✅ SSH access to the server
 - ✅ A domain with a DNS A record pointing at the server IP (`api.seainvaders.xyz`)
 - ✅ PostgreSQL installed
@@ -114,7 +119,7 @@ sudo ufw allow OpenSSH
 sudo ufw enable
 ```
 
-### Install Certbot (for SSL, if not already handled by Cloudflare)
+### Install Certbot (for the TLS certificate)
 
 ```bash
 sudo apt install certbot python3-certbot-nginx -y
@@ -140,7 +145,7 @@ GRANT ALL PRIVILEGES ON DATABASE sea_invaders_api TO sea_invaders_user;
 ### Configure pg_hba.conf (only if you need password auth over TCP)
 
 ```bash
-sudo nano /etc/postgresql/14/main/pg_hba.conf
+sudo nano /etc/postgresql/<version>/main/pg_hba.conf   # 16 on Ubuntu 24.04, 14 on 22.04
 
 # Append (local access only):
 host    all             all             127.0.0.1/32            md5
@@ -174,15 +179,31 @@ The CI deploy workflow does this same build (`cd core && npm ci && npm run build
 clone needs this step.
 
 **Core version contract.** The API verifies replays only against the exact `CORE_VERSION`
-of the core it was built with (`backend/src/services/rankedRuns.js` rejects any other version
-with `update_required`) and reports that version as `coreVersion` in `GET /api/daily/today`.
-`CORE_VERSION` is 13 since 2026-09-23 (13 adds the five new champions — Thick skin, Surge, Last stand, Hex, Copy; 12 is the owner's first balance note on the deep reefs: the Gold Corsair's axe turns below Octopi's home row and the Storm Tyrant's orb sinks fast enough to cross it; 11 opens reefs 6–10: five veteran crab kinds with skills, nine silhouettes of which three living, five bosses with squads and obstacles, sixty campaign levels; 10 gives every level its own fixed shuffle of silhouettes, one per wave; 9 chained them in a fixed order; 8 brings the new crab kinds, the weighted shooter, the
-two-life heavy shot and the silhouette formations; 7 slowed enemy shots under ICE_FREEZE; 3 brought the campaign, bosses and boosts of Phase 3A; 4 the legacy boost rules and player-shot motion of Phase 3A.1; 5 the rarer boost drops; 6 the octopi
-variants and mid-level revive of Phase 3B), so whenever the core version bumps, deploy the API and
-release the new APK together: runs recorded by an older app are rejected until it updates. Such a
-rejection does not cost the player the attempt: the run is closed as `update_required` and
-`countRunsForDay` skips that status, so the free or bought attempt is still there after the update
-(migration `011_run_update_required.sql` - run the migrations before serving a new core version).
+of the core it was built with and reports that version as `coreVersion` in
+`GET /api/daily/today`. The app sends its own core version when it starts a ranked run
+(`POST /api/daily/runs` with `coreVersion`); an app on any other version gets
+`426 update_required` there, before a run is created or an attempt counted
+(`backend/src/routes/daily.js`). Each run stores the version it started on, and at finish
+(`backend/src/services/rankedRuns.js`):
+
+- if the server's own core changed during the run (a deploy landed mid-run), the run is closed as
+  `update_required`; `countRunsForDay` skips that status, so the free or bought attempt is still
+  there (migration `011_run_update_required.sql`);
+- a replay whose version byte differs from the run's stored version is rejected like any other bad
+  upload and spends the attempt (the answer is still `426 update_required`, with no refund).
+
+`CORE_VERSION` is 13 since 2026-09-23. History: 3 brought the campaign, bosses and boosts; 4 the
+legacy boost rules and player-shot motion; 5 rarer boost drops; 6 the octopi variants and the
+mid-level revive; 7 slowed enemy shots under ICE_FREEZE; 8 the new crab kinds, the weighted shooter,
+the two-life heavy shot and the silhouette formations; 9 chained the silhouettes in a fixed order;
+10 gave every level its own fixed shuffle, one per wave; 11 opened reefs 6-10 (five veteran kinds
+with skills, nine silhouettes of which three living, five bosses with squads and obstacles, sixty
+levels); 12 the first balance note on the deep reefs (the Gold Corsair's axe turns below Octopi's
+home row, the Storm Tyrant's orb sinks fast enough to cross it); 13 the five new champions (Thick
+skin, Surge, Last stand, Hex, Copy).
+
+Whenever the core version bumps, run the migrations, deploy the API and release the new APK
+together: until a player updates, the app is told to update before it can start a ranked run.
 
 ---
 
@@ -229,7 +250,7 @@ pm2 flush                           # Clear logs
 
 ### Weekly crank
 
-`src/jobs/weekly.js` (run via `npm run crank`) creates the current and next week's on-chain pools and settles the finished week once its grace period has passed; see `src/services/weekly.js` for the exact rules. It also runs once, fire-and-forget, at backend startup (`src/app.js`, right after the DB check) so pools exist on a fresh deploy without waiting for Monday.
+`src/jobs/weekly.js` (run via `npm run crank`) creates the current and next week's on-chain pools and settles every finished week (up to four weeks back) once its grace period has passed. Settling a week rolls what is left into the next week's vault, so before each settle the crank creates that next week's pool if it is missing (it is, after an outage of over a week); see `src/services/weekly.js` for the exact rules. It also runs once, fire-and-forget, at backend startup (`src/app.js`, right after the DB check) so pools exist on a fresh deploy without waiting for Monday.
 
 The crank runs as the `weekly-crank` app in `backend/ecosystem.api.config.cjs`, alongside `sea-invaders-api`:
 
@@ -295,9 +316,8 @@ sudo systemctl restart nginx
 
 ## 9️⃣ Set up SSL
 
-The production domain sits behind Cloudflare, which terminates TLS at the edge (a
-Cloudflare "Full" or "Full (strict)" SSL mode still needs a certificate on the origin
-server). If you are not using Cloudflare, get a certificate directly with Certbot:
+Production terminates TLS on the server itself with a Let's Encrypt certificate; Cloudflare
+serves only the DNS. Get the certificate with Certbot:
 
 ```bash
 sudo certbot --nginx -d api.seainvaders.xyz
@@ -343,21 +363,21 @@ Expected response:
 `POST /api/devnet/faucet` mints 100 test SKR to the caller's wallet (10-minute cooldown
 per wallet, requires an authenticated request). The route is mounted only when
 `SOLANA_CLUSTER=devnet` (`backend/src/createApp.js`); on `mainnet` it does not exist
-(returns 404), by design — see the global constraint that the faucet must not exist on
-mainnet.
+(returns 404), by design: the faucet must never exist on mainnet. It also stays shut while the
+server authority is below its SOL reserve (`FAUCET_MIN_SOL`, see "Server authority funding").
 
 ---
 
 ## Configuration
 
 Every environment variable that `backend/src` and `backend/migrations` read from
-`process.env` (migrations read none directly; they load `.env` indirectly through
-`config/database.js`). See `backend/.env.example` for a filled-in template (never
+`process.env` (migrations read none directly: `migrations/run.js` loads `.env` through
+`src/loadEnv.js`, and `src/config/database.js` reads the `DB_*` values). See `backend/.env.example` for a filled-in template (never
 commit or print the real `backend/.env`).
 
 | Variable | Required? | Default | Meaning |
 |---|---|---|---|
-| `NODE_ENV` | No | `development` | `production` enables combined request logging and hides stack traces in error responses. |
+| `NODE_ENV` | No | `development` | `production` enables combined request logging, hides stack traces, answers every 5xx with a fixed message, and refuses to start without `JWT_SECRET` or `DAILY_SEED_SECRET`. |
 | `PORT` | No | `3000` (production sets `5439` via the workflow) | Port the Express app listens on. |
 | `FRONTEND_URL` | No | `http://localhost:5173` | Allowed CORS origin. |
 | `DB_HOST` | No | `localhost` | PostgreSQL host. |
@@ -365,20 +385,9 @@ commit or print the real `backend/.env`).
 | `DB_NAME` | No | `sea_invaders` (production sets `sea_invaders_api`) | PostgreSQL database name. |
 | `DB_USER` | No | `sea_invaders_user` | PostgreSQL role. |
 | `DB_PASSWORD` | Yes | — | PostgreSQL password. |
-| `JWT_SECRET` | Yes | — | Signs and verifies session JWTs. |
-| `REDIS_ENABLED` | No | `false` (must be the literal string `'true'` to enable) | Whether the optional Redis-backed features are used. |
-| `REDIS_HOST` | No | `localhost` | Redis host, read when `REDIS_ENABLED=true`. |
-| `REDIS_PORT` | No | `6379` | Redis port, read when `REDIS_ENABLED=true`. |
+| `JWT_SECRET` | Yes | — | Signs and verifies session JWTs (at least 32 characters). |
 | `RATE_LIMIT_WINDOW_MS` | No | `900000` (15 min) | `/api/*` rate-limit window. |
-| `RATE_LIMIT_MAX_REQUESTS` | No | `3000` | Max requests per window per the limiter's key. |
-| `SESSION_HEARTBEAT_TIMEOUT` | No | `30000` (30 s) | Max gap between session heartbeats before a run is flagged stale. |
-| `LEADERBOARD_CACHE_TTL` | No | `30` (seconds) | Cache TTL for the global leaderboard endpoint. |
-| `TOURNAMENT_LEADERBOARD_CACHE_TTL` | No | `10` (seconds) | Cache TTL for the tournament leaderboard endpoint. |
-| `ENABLE_SCORE_VALIDATION` | No | disabled unless the literal string `'true'` | In `POST /api/scores/submit`, gates the session-heartbeat-timeout rejection and the second-pass anti-cheat check (`validateScore`); the request-shape limits below are enforced unconditionally by `validateScoreSubmission` regardless of this flag. |
-| `MAX_SCORE_PER_LEVEL` | No | `10000` | Score ceiling per level, enforced on every score submission. |
-| `MAX_LEVEL` | No | `100` | Level ceiling, enforced on every score submission. |
-| `MIN_GAME_DURATION` | No | `5000` (ms) | Minimum session duration, enforced on every score submission. |
-| `LOG_LEVEL` | No | `INFO` | One of `DEBUG` / `INFO` / `WARN` / `ERROR`, gates `backend/src/utils/logger.js`. |
+| `RATE_LIMIT_MAX_REQUESTS` | No | `3000` | Max `/api/*` requests per window per client (a signed-in user, otherwise the client's address). |
 | `DAILY_SEED_SECRET` | Yes | — | HMAC secret behind the daily ranked-run seed; changing it changes every future day's seed, so set it once and keep it stable. |
 | `DAILY_FREE_ATTEMPTS` | No | `0` | Free ranked attempts per UTC day, on top of any on-chain ticket. **In production this is `0`: free attempts cannot be recorded on chain**, so any non-zero value here would let a run be played without a ticket but with nowhere to record it. |
 | `AUTH_DOMAIN` | No | `seainvaders.xyz` | Sign-In With Solana: the domain shown to the wallet and checked by the server; must match the identity the app presents (`mobile/src/api/config.ts`). |
@@ -386,11 +395,12 @@ commit or print the real `backend/.env`).
 | `JUPITER_API_KEY` | No | — | Sent as the `x-api-key` header on `POST /api/swap/quote`'s calls to Jupiter's swap API (`quoteSwap` in `services/swap.js`); never returned to clients. Server-side only, never `EXPO_PUBLIC_*`. Swap itself is gated (see below), so this is only read on `mainnet`. |
 | `HELIUS_API_KEY` | No | — | The mainnet read behind the Seeker Genesis Token check (`backend/src/chain/helius.js`); sent only inside the Helius endpoint URL, never returned to a client and never part of an error message. Server-side only, never `EXPO_PUBLIC_*`. Without it `POST /api/seeker/link` answers `503 seeker_unavailable` (see below). |
 | `HELIUS_MAINNET_URL` | No | `https://mainnet.helius-rpc.com/?api-key=<HELIUS_API_KEY>` | Overrides the endpoint that check calls, for a different Helius plan or a proxy. Ignored without `HELIUS_API_KEY`. |
-| `SOLANA_CLUSTER` | No | `devnet` | `devnet` or `mainnet`; also gates whether `/api/devnet/*` (the faucet) is mounted at all, and whether `POST /api/swap/quote` is available at all - the SOL→SKR swap only ever makes sense once the deployment has actually moved to `mainnet`, so on any other value the route answers `409 { error: 'swap_unavailable' }` without touching Jupiter (`services/swap.js#swapAvailable`). Set explicitly in production so it is never left to the default by accident. |
+| `SOLANA_CLUSTER` | No | `devnet` | `devnet` or `mainnet`; also gates whether `/api/devnet/*` (the faucet) is mounted at all, and whether `POST /api/swap/quote` is available at all - the SOL→SKR swap only ever makes sense once the deployment has actually moved to `mainnet`, so on any other value the route answers `409 { error: 'Swap', code: 'swap_unavailable' }` without touching Jupiter (`services/swap.js#swapAvailable`). Set explicitly in production so it is never left to the default by accident. |
 | `SOLANA_RPC_URL` | Yes | — | RPC endpoint used for all chain reads/writes. |
 | `PROGRAM_ID` | Yes | — | The `sea_invaders` Anchor program's deployed address. |
 | `SKR_MINT` | Yes | — | The SKR token mint used for tickets and payouts. |
-| `SERVER_AUTHORITY_SECRET` | Yes | — | Base58 of the server authority's 64-byte Ed25519 secret key; co-signs `submit_daily_best`. Never print or commit this value. |
+| `SERVER_AUTHORITY_SECRET` | Yes | — | Base58 of the server authority's 64-byte Ed25519 secret key; co-signs `submit_daily_best` and `link_seeker`, pays for the weekly crank and settlement, and on devnet mints the faucet's test SKR. Never print or commit this value. |
+| `FAUCET_MIN_SOL` | No | `0.5` | Devnet only: the SOL the server authority keeps for the crank and settlement; below it the faucet answers `503 FaucetUnavailable`. |
 
 ### Seeker Genesis Token check
 
@@ -427,11 +437,11 @@ solana balance <SERVER_AUTHORITY pubkey> --url <cluster>
 ```
 
 The devnet faucet route (`POST /api/devnet/faucet`, `backend/src/services/faucet.js`)
-checks this balance before every mint and refuses with `503 FaucetUnavailable` below
-**0.01 SOL (10,000,000 lamports)** rather than attempting a transaction that cannot pay
-its own fees; it also returns `503 FaucetUnavailable` if the mint transaction itself
-does not land (e.g. an RPC error). Either response names the fix: fund the server
-authority, or check the RPC.
+checks this balance before every mint and refuses with `503 FaucetUnavailable` below a
+reserve of **`FAUCET_MIN_SOL` (default 0.5 SOL)**, so test-token requests can never drain
+the SOL the crank and settlement need; it also returns `503 FaucetUnavailable` if the mint
+transaction itself does not land (e.g. an RPC error). Either response names the fix: fund
+the server authority, or check the RPC.
 
 ---
 
@@ -460,11 +470,10 @@ the server and to reach it over SSH:
 | `SSH_PORT` | secret, never written down here |
 | `SSH_PRIVATE_KEY` | secret, never written down here |
 
-The five chain secrets (`SOLANA_CLUSTER`, `SOLANA_RPC_URL`, `PROGRAM_ID`, `SKR_MINT`,
-`SERVER_AUTHORITY_SECRET`) are not yet created in the GitHub repository settings — add
-them under **Settings → Secrets and variables → Actions** before the next deploy run,
-or the workflow will write an incomplete `backend/.env` and the API will fail to start
-(`chainConfig()` throws on any missing value).
+Every secret above exists in the repository settings (**Settings → Secrets and variables →
+Actions**). A missing chain secret would make the workflow write an incomplete
+`backend/.env`, and the API would refuse to start (`chainConfig()` throws on any missing
+value).
 
 ### Release signing (the "Build APK" workflow)
 
@@ -479,6 +488,11 @@ produces an installable APK:
 | `ANDROID_KEY_ALIAS` | the key alias inside the keystore (`sea-invaders`) |
 | `ANDROID_KEY_PASSWORD` | the key password (PKCS12: the same as the keystore's) — secret |
 
+The workflow also reads `SSH_HOST`, `SSH_USER`, `SSH_PORT` and `SSH_PRIVATE_KEY` (the same
+four as the API deploy) to copy the APK to `/root/apk/` on the VPS as
+`sea-invaders-<sha>.apk` and `latest.apk`; the landing page's `/sea-invaders.apk` is
+replaced by hand (see `site/README.md`).
+
 The workflow decodes the keystore onto the runner, hands its path and the passwords to
 `expo prebuild` through `SEA_RELEASE_*` environment variables, and the config plugin
 `mobile/plugins/withReleaseSigning.js` writes a `release` signing config into the generated
@@ -489,7 +503,7 @@ fingerprint is public and must match `https://seainvaders.xyz/.well-known/assetl
 the app's identity through Mobile Wallet Adapter. Android installs an update only over an
 app signed with the same key, so switching from the debug key to the release key means one
 uninstall on the device. `mobile/app.json`'s `android.versionCode` must grow with every
-build that goes to people.
+build that goes to people (it is 3 for version 1.0.0).
 
 ---
 
@@ -499,7 +513,9 @@ build that goes to people.
 
 1. **Use strong passwords** for PostgreSQL
 2. **Never commit `.env`** to Git (it is in `.gitignore`)
-3. **Restrict SSH access**:
+3. **Restrict SSH access** (before disabling root login, make sure the workflows'
+   `SSH_USER` secret names a non-root user that can run `pm2` and write
+   `/var/www/sea-invaders-api`):
    ```bash
    sudo nano /etc/ssh/sshd_config
    # Set: PermitRootLogin no
@@ -533,7 +549,7 @@ sudo tail -f /var/log/nginx/access.log
 ### PostgreSQL logs
 
 ```bash
-sudo tail -f /var/log/postgresql/postgresql-14-main.log
+sudo tail -f /var/log/postgresql/postgresql-<version>-main.log   # 16 on Ubuntu 24.04
 ```
 
 ---
@@ -600,4 +616,4 @@ If something goes wrong:
 
 1. Check the logs: `pm2 logs sea-invaders-api`
 2. Open an issue on GitHub
-3. Reach out to [@IIIDARt](https://twitter.com/IIIDARt)
+3. Reach out on X: [@vi11abajo](https://x.com/vi11abajo)

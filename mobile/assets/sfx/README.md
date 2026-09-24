@@ -18,20 +18,18 @@ The files below are the owner's own recordings, taken from an earlier version of
 - `player_hit_1.m4a`, `player_hit_2.m4a`, `player_hit_3.m4a`, `player_hit_4.m4a` (`sfx.ts`'s `VARIANTS`
   picks one at random per play, behind the public id `player_hit`)
 
-Every other file here (`crab_shot`, `boss_dead`, `wave_start`, the interface sounds, and so on) is
+Every other file here (`crab_shot`, `boss_dead`, `boss_spawn`, the interface sounds, and so on) is
 still a generated placeholder, to be swapped for a real recording later. Each file name is the
 sound's id, used verbatim by `mobile/src/audio/sfx.ts` (the four `player_hit_*` files and `player_hit`
 itself are the one exception — see `VARIANTS` there). Replacing a placeholder is a drop-in: put the
 real recording under the same file name in this folder — no code changes needed. The sheet sound
 (`ui_sheet`), the level-cleared fanfare (`level_cleared`), the drop bloop (`boost_drop`) and the wave
-swell and chime (`wave_start`, `wave_cleared`) have no placeholder either: it ships silent until a real recording is dropped in here and
-enabled in `mobile/src/audio/sfx.ts`.
+swell and chime (`wave_start`, `wave_cleared`) have no file at all: they stay silent until a real
+recording is dropped in here and enabled in `mobile/src/audio/sfx.ts`.
 
-The eight reefs-6-10 one-shots (task 12, ruling R46's own amendment — the README named no procedure
-for how the first set of placeholders was made, so this set was synthesised fresh with a throwaway
-Python script using the standard `wave` module: 22050 Hz mono 16-bit, each under 400 ms, a simple
-tone/sweep/filtered-noise burst per sound with an attack-decay envelope, no loops) are also generated
-placeholders, not final:
+The eight reefs-6-10 one-shots (synthesised with a throwaway Python script using the standard `wave`
+module: 22050 Hz mono 16-bit, each under 400 ms, a simple tone/sweep/filtered-noise burst per sound
+with an attack-decay envelope, no loops) are also generated placeholders, not final:
 
 - `rune_break.wav` (the warden's rune shield breaking — a glassy crack)
 - `rune_up.wav` (the shield regrowing — a rising two-note chime)
