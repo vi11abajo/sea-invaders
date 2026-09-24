@@ -202,8 +202,9 @@ levels); 12 the first balance note on the deep reefs (the Gold Corsair's axe tur
 home row, the Storm Tyrant's orb sinks fast enough to cross it); 13 the five new champions (Thick
 skin, Surge, Last stand, Hex, Copy); 14 rescales Shoupe's Last stand by lives, sets Hex to 70 % and
 Copy to ×1.33, and makes today's speeds the knobs' reference, then gives Noob a Shell (the first hit
-of every wave) in place of Thick skin and Coraluna Coral growth (+1 life at 120 kills, once a run)
-in place of Surge.
+of every wave and boss fight) in place of Thick skin and Coraluna Coral growth (+1 life at 120 kills,
+once a run) in place of Surge, and stretches the Daily Run's climb after wave five (a veteran every
+other wave, the fire ramp halved after wave six).
 
 Whenever the core version bumps, run the migrations, deploy the API and release the new APK
 together: until a player updates, the app is told to update before it can start a ranked run.

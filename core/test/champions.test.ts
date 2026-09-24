@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BOSS, OCTOPI, PRACTICE_RUN, activateBoost, breakShell, createGame, damageBoss, fireIntervalFor, hitOctopi, idiv,
-  killCrab, levelById, loseLife, lowLifeFireBonusPctFor, nextWave, spawnBoss, spawnWave, updateBoss,
+  BOSS, OCTOPI, PRACTICE_RUN, TIDE_REVIVE_LIVES, activateBoost, breakShell, createGame, damageBoss, fireIntervalFor, hitOctopi, idiv,
+  killCrab, levelById, loseLife, lowLifeFireBonusPctFor, nextWave, revive, spawnBoss, spawnWave, step, updateBoss,
   updateEnemyShots, updateShots, type GameState, type OctopiVariant, type RunConfig,
 } from '../src';
 
@@ -108,6 +108,25 @@ describe('champions', () => {
     expect(s.octopi.shell).toBe(1);
   });
 
+  it('noob: INVINCIBILITY takes the hit before the Shell does, so the Shell stays up', () => {
+    const s = createGame('t', level('noob'));
+    activateBoost(s, 'INVINCIBILITY');
+    hitOnOctopi(s);
+    expect({ shell: s.octopi.shell, lives: s.octopi.lives }).toEqual({ shell: 1, lives: 5 });
+    expect(s.events.some((e) => e.type === 'shell_break')).toBe(false);
+  });
+
+  it('noob: a Tide revive brings lives back but not the Shell, which waits for the next wave', () => {
+    const s = createGame('t', level('noob'));
+    hitOnOctopi(s); // the Shell takes the first hit
+    s.octopi.lives = 1;
+    s.octopi.invuln = 0;
+    hitOnOctopi(s); // the last life
+    expect({ over: s.over, lives: s.octopi.lives }).toEqual({ over: true, lives: 0 });
+    revive(s);
+    expect({ over: s.over, lives: s.octopi.lives, shell: s.octopi.shell }).toEqual({ over: false, lives: TIDE_REVIVE_LIVES, shell: 0 });
+  });
+
   it('every other variant never has a Shell: a wave or a boss fight raises nothing, a hit costs a life', () => {
     for (const octopi of ['base', 'harpoon', 'anchor', 'trident', 'coraluna', 'shoupe', 'hex', 'kakashi'] as const) {
       const s = createGame('t', level(octopi));
@@ -130,6 +149,23 @@ describe('champions', () => {
     killTimes(s, 1);
     expect(s.octopi.lives).toBe(4);
     expect(s.events.filter((e) => e.type === 'coral_growth')).toEqual([{ tick: 0, type: 'coral_growth', x: s.octopi.x, y: s.octopi.y }]);
+  });
+
+  it('coraluna: a 120th kill on the same tick as a lethal hit grows the life first, so the run goes on', () => {
+    const s = createGame('t', level('coraluna'));
+    s.arrival = 0;
+    s.growthKills = 119;
+    s.octopi.lives = 1;
+    const crab = s.crabs[0]!;
+    crab.hp = 1;
+    // One of Octopi's shots parked on that crab and one crab shot parked on Octopi: `step` scores the
+    // shot (`hitCrabs`) before it lets the crab shot land (`hitOctopi`).
+    s.shots = [{ x: crab.x, y: crab.y, vx: 0, vy: 0, kind: 'straight', data: 0 }];
+    s.enemyShots = [{ x: s.octopi.x, y: s.octopi.y, vx: 0, vy: 0, kind: 'crab', data: 0 }];
+    step(s, { x: s.octopi.x, y: s.octopi.y });
+    expect(s.events.some((e) => e.type === 'coral_growth')).toBe(true);
+    expect(s.events.some((e) => e.type === 'player_hit')).toBe(true);
+    expect({ over: s.over, lives: s.octopi.lives }).toEqual({ over: false, lives: 1 });
   });
 
   it('coraluna: Coral growth never grows twice in a run', () => {

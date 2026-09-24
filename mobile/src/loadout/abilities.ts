@@ -17,7 +17,7 @@ export const ABILITY: Readonly<Record<OctopiVariant, Ability>> = {
   harpoon: { label: ABILITY_NAMES.harpoon, short: 'Fire rate +33 %' },
   anchor: { label: ABILITY_NAMES.anchor, short: '+1 life' },
   trident: { label: ABILITY_NAMES.trident, short: 'Piercing shots' },
-  noob: { label: ABILITY_NAMES.noob, short: 'Blocks the first hit of every wave' },
+  noob: { label: ABILITY_NAMES.noob, short: 'Blocks the first hit of every wave and boss fight' },
   coraluna: { label: ABILITY_NAMES.coraluna, short: '+1 life at 120 crabs, once a level' },
   shoupe: { label: ABILITY_NAMES.shoupe, short: 'Fires faster the fewer lives are left' },
   hex: { label: ABILITY_NAMES.hex, short: 'Enemy shots 30 % slower' },
