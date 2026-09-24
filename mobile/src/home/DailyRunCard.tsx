@@ -130,7 +130,7 @@ export function DailyRunCard({ ranked, now, signedIn, onConnect, error = null, o
           <Txt variant="secondary" tone="tertiary" style={styles.small}>Pool</Txt>
           <View style={styles.pool}>
             <SkrIcon size={11} color={COLORS.info} />
-            {/* Count Up fix round 2: throttled mode bridges to React at most once every 80 ms (and
+            {/* Throttled mode bridges to React at most once every 80 ms (and
                 once more, unconditionally, on the exact final value) instead of `ShinyText`'s own
                 Skia `Canvas` re-measuring on every animation frame — see `CountUp.tsx`'s doc for the
                 exact cadence. `ShinyText` itself memoises its glyph measurement by string, so those

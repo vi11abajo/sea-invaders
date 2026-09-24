@@ -23,7 +23,7 @@ import { PurchaseSheets } from '../wallet/WalletSheets';
 import { ItemArt } from './ItemArt';
 
 /**
- * What a champion item does, `label · short` (champions and skins design doc §1), read from the
+ * What a champion item does, `label · short`, read from the
  * champion's ability by the variant the item sells; null for an item that sells none. Names and
  * prices come from the backend.
  */
@@ -35,7 +35,7 @@ function perkOf(itemId: number): string | null {
   return label === null ? short : `${label} · ${short}`;
 }
 
-/** Handoff 07 sizes, in dp. */
+/** Shop screen sizes, in dp. */
 const VARIANT_THUMB = 56;
 const SKIN_SWATCH = 64;
 const ROW_PILL = 40;
@@ -60,7 +60,7 @@ interface ShopScreenProps {
 }
 
 /**
- * The Shop (handoff 07): the SKR/SOL balance, the champions on sale and the Octopi skins, with
+ * The Shop: the SKR/SOL balance, the champions on sale and the Octopi skins, with
  * prices and ownership read from the chain through the backend. A price tap runs the on-chain
  * purchase through `usePurchase` and its sheets; pull down to refresh.
  */

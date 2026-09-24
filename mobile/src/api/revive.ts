@@ -2,7 +2,7 @@ import type { PreparedPayment } from './chain';
 import { apiFetch } from './client';
 
 /**
- * The Tide's price for the signed-in wallet right now (design doc §1): the backend reads the ladder
+ * The Tide's price for the signed-in wallet right now: the backend reads the ladder
  * from the on-chain `Config` and the wallet's `tide`/`tide_at` from its `Player`, ebbed to `now`.
  */
 export interface ReviveQuote {

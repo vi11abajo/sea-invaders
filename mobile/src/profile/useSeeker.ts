@@ -42,7 +42,7 @@ function describeLinkError(error: unknown): string {
 }
 
 /**
- * Reads the wallet's Seeker link status once per signed-in session (spec §3/§4) and runs the link
+ * Reads the wallet's Seeker link status once per signed-in session and runs the link
  * flow: issue the server-co-signed `link_seeker` transaction, have the wallet sign and send it (the
  * record-score path - `sendWithBlockhashRetry` + `useSignAndSend`, `useRecordScore.ts`), then poll
  * confirm. `status`/`sgtMint` drive the Profile's Seeker row and Home's wallet pill; `phase` only

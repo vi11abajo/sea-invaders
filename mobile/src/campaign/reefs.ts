@@ -3,7 +3,7 @@ import {
 } from '@sea-invaders/core';
 
 /**
- * Throws unless `table` has exactly `REEFS` entries (ruling R52, task 13): every reef-indexed table
+ * Throws unless `table` has exactly `REEFS` entries: every reef-indexed table
  * below is checked at module load, so a table left short after the campaign grows fails at import
  * time instead of silently reading past its end deep in a render.
  */
@@ -12,8 +12,7 @@ function assertReefTable(name: string, table: readonly unknown[]): void {
 }
 
 /**
- * Reef 1..10 display names: spec §7 (reefs 1-5) and the reefs 6-10 design §5 (reefs 6-10, task 13).
- * Shared by the campaign map, LevelIntro and BossIntro.
+ * Reef 1..10 display names, shared by the campaign map, LevelIntro and BossIntro.
  */
 export const REEF_NAMES = [
   'Kelp Shallows', 'Coral Ridge', 'Sunlit Trench', 'Crimson Deep', 'The Void',
@@ -22,8 +21,7 @@ export const REEF_NAMES = [
 assertReefTable('REEF_NAMES', REEF_NAMES);
 
 /**
- * Campaign-map accent colour per reef: reefs 1-5 owner design 2026-09-13 (`CampaignMap.dc.html`'s
- * `REEFS` table), reefs 6-10 the reefs 6-10 design §5/§8 (task 13). Deliberately distinct from
+ * Campaign-map accent colour per reef. Deliberately distinct from
  * `REEF_PROGRESS` in `ui/tokens.ts`, which other screens (result, HUD) keep using unchanged.
  */
 export const REEF_ACCENT = [
@@ -48,14 +46,14 @@ export const REEF_NEW_KIND: readonly { kind: CrabType; name: string }[] = [
 assertReefTable('REEF_NEW_KIND', REEF_NEW_KIND);
 
 /**
- * The first reef with a veteran crab (reefs 6-10 design §4): where the first, five-reef campaign
+ * The first reef with a veteran crab: where the first, five-reef campaign
  * ends and the second begins. Derived from the core's own counts, never hard-coded, so it stays
  * right if either one ever changes.
  */
 export const FIRST_VETERAN_REEF = LEGACY_LEVEL_COUNT / LEVELS_PER_REEF + 1;
 
 /**
- * "New enemy this reef" copy for the level sheet (owner copy, 2026-09-13): reef 1 is just "Crab"
+ * "New enemy this reef" copy for the level sheet: reef 1 is just "Crab"
  * since it has no prior reef to contrast with; every later reef reads "<Name> crab".
  */
 export function reefNewEnemyCopy(reef: number): string {
@@ -64,9 +62,8 @@ export function reefNewEnemyCopy(reef: number): string {
 }
 
 /**
- * Boss ability per reef, shown on the boss sheet: reefs 1-5 owner ruling 2026-09-13 (the mock's
- * "Meteor" rendered as "Sunfire" to respect the ocean lore — no meteors underwater), reefs 6-10 the
- * reefs 6-10 design §5 (task 13).
+ * Boss ability per reef, shown on the boss sheet ("Meteor" renamed to "Sunfire" to respect the
+ * ocean lore — no meteors underwater).
  */
 export const BOSS_ABILITY = [
   'Regen', 'Shield', 'Sunfire', 'Rage', 'Freeze',
@@ -75,9 +72,7 @@ export const BOSS_ABILITY = [
 assertReefTable('BOSS_ABILITY', BOSS_ABILITY);
 
 /**
- * Two-line lore legend per reef, shown in the level/boss sheet's info panel (index = reef − 1):
- * reefs 1-5 owner copy 2026-09-13, reefs 6-10 the reefs 6-10 design §5 (task 13, proposals the owner
- * may edit later).
+ * Two-line lore legend per reef, shown in the level/boss sheet's info panel (index = reef − 1).
  */
 export const REEF_LEGENDS = [
   "The invasion began in the kelp. Emerald Warlord's scouts probe the reef's edge, and only Octopi is awake to answer.",
@@ -102,7 +97,7 @@ interface Gradient {
 export interface ReefWorld {
   /** Full-screen background water gradient, top -> bottom. */
   bg: Gradient;
-  /** The top water-light glow band, left -> right (three colours, per `CampaignMap.dc.html`). */
+  /** The top water-light glow band, left -> right (three colours). */
   glow: readonly string[];
   /** The two skewed light rays, each already carrying its own alpha. */
   ray: string;
@@ -114,11 +109,10 @@ export interface ReefWorld {
 }
 
 /**
- * Per-reef map world: reefs 1-5 transcribed from `CampaignMap.dc.html`'s `REEFS` table, reefs 6-10
- * the reefs 6-10 design's second descent (ruling R63, task 13 fix round 1) — deeper and darker than
- * the first five, each built around its own reef: `floraAccent` is that reef's `REEF_ACCENT`, and one
- * `glow` colour is that reef's boss tint (`game/bossPalette.ts`'s `BOSS_HEX`). The five new entries'
- * hex values are starting points the owner tunes on device, the way the first five once were.
+ * Per-reef map world: reefs 6-10 read deeper and darker than the first five, each built around its
+ * own reef: `floraAccent` is that reef's `REEF_ACCENT`, and one `glow` colour is that reef's boss
+ * tint (`game/bossPalette.ts`'s `BOSS_HEX`). The five new entries' hex values are starting points,
+ * tuned on device, the way the first five once were.
  */
 export const REEF_WORLD: readonly ReefWorld[] = [
   {
@@ -213,7 +207,7 @@ export type LevelState = 'current' | 'cleared' | 'locked';
 
 /**
  * The one true state for level id `1..LEVEL_COUNT` — the map's nodes and both sheets all derive
- * their state from this, so they can never disagree (fix round 1, 2026-09-13). `currentLevelId`
+ * their state from this, so they can never disagree. `currentLevelId`
  * only takes priority while the campaign isn't finished:
  * - A reef loss resets `progress.level` to 1 but keeps `cleared[]` as-is, so `currentLevelId` can
  *   point at a level that's already `cleared` (e.g. levels 1-3 cleared, then a loss on level 4

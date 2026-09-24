@@ -5,7 +5,7 @@ import { Easing, useDerivedValue, useSharedValue, withRepeat, withTiming } from 
 import { COLORS, SIGNATURE_GRADIENT } from './tokens';
 
 /**
- * A full-bleed swirl for a menu screen (owner's pick 2026-09-22 evening), adapted for Skia's SkSL
+ * A full-bleed swirl for a menu screen, adapted for Skia's SkSL
  * from the React Bits `Balatro` component (MIT + Commons Clause, https://reactbits.dev — the same
  * credit `lightning.ts`/`tunnel.ts` already carry). Changes from the original: SkSL types and entry
  * point; mouse interaction removed entirely (`uMouse` is gone, not just zeroed); `uIsRotate` is gone
@@ -34,7 +34,7 @@ uniform float4 uColor2;
 uniform float4 uColor3;
 
 const float SPIN_ROTATION = -2.0;
-// 3.5 in the original; lowered after the first on-device look (2026-09-23): the full-contrast
+// 3.5 in the original; lowered after the first on-device look: the full-contrast
 // swirl fought the shop's glass cards for the eye.
 const float CONTRAST = 2.2;
 const float LIGHTING = 0.4;
@@ -112,14 +112,14 @@ export interface SwirlBackdropProps {
   /** The shader's own spin speed; defaults slow, for a menu backdrop. */
   speed?: number;
   /**
-   * A black veil over the swirl, 0..1 (default 0.55): the first on-device look (2026-09-23) showed
+   * A black veil over the swirl, 0..1 (default 0.55): the first on-device look showed
    * the raw swirl overpowering the cards laid over it; the veil keeps the motion and calms the colour.
    */
   dim?: number;
 }
 
 /**
- * A full-bleed swirl (owner's pick 2026-09-22 evening): no required props, no mouse
+ * A full-bleed swirl: no required props, no mouse
  * interaction. Lane B wires this into the Shop screen; it renders on its own wherever it is mounted.
  */
 export function SwirlBackdrop({ style, colors = DEFAULT_COLORS, speed = DEFAULT_SPEED, dim = 0.55 }: SwirlBackdropProps) {

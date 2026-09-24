@@ -4,13 +4,13 @@ import { BOSS_COLOR } from '../game/GameHud';
 import type { ReefBackdropVariant } from './ReefBackdrop';
 
 /**
- * The reef screens' background, an owner trial (2026-09-15): Home's reef key art
+ * The reef screens' background: Home's reef key art
  * (`assets/home-bg.jpg`, drawn edge to edge with `cover`) tinted with the reef boss's colour, in
  * place of `ReefBackdrop`'s water gradient, glow band, light rays, seabed dome and flora, with the
  * looming boss drawn clearer, the level path drawn bolder and a scrim plus text shadows keeping the
  * header readable on the bright water. Set this to `false` to bring the previous world back: every
  * key-art-only value below switches off with it and nothing else changes — including reefs 6-10's
- * own `REEF_WORLD` entries (ruling R63, `campaign/reefs.ts`), which stay dormant, never drawn, while
+ * own `REEF_WORLD` entries (`campaign/reefs.ts`), which stay dormant, never drawn, while
  * this flag is on and only take over once it is switched off.
  */
 export const REEF_KEY_ART_BACKGROUND = true;

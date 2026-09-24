@@ -1,7 +1,7 @@
 import { Skia, type SkRuntimeEffect } from '@shopify/react-native-skia';
 
 /**
- * The gravity well's pull (spec M8, owner's pick of 2026-09-22 evening): fibre-like cables radiating
+ * The gravity well's pull: fibre-like cables radiating
  * from the well's centre with light pulses running INWARD along them, so the black hole visibly
  * drinks. Adapted for Skia's SkSL from the React Bits `LightTunnel` component (MIT + Commons
  * Clause, https://reactbits.dev — credited like the Tyrant's lightning in `lightning.ts`).

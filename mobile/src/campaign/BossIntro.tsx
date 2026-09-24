@@ -7,14 +7,14 @@ import { ArtSlot } from '../ui/ArtSlot';
 import { BlurText } from '../ui/BlurText';
 import { BOSS_NAMES } from '../game/bossNames';
 
-/** Spec §7: 90 ticks at 60/s. */
+/** 90 ticks at 60/s. */
 const AUTO_ADVANCE_MS = 1500;
 const SPRITE_SIZE = 160;
 
 interface BossIntroProps {
   // Widened from `1 | 2 | 3 | 4 | 5` to `BossKind` so `level.boss` (now 1..10) still type-checks
-  // here (`LevelSpec.boss` widened for reefs 6-10, core task 11). `sprites.bosses` (task 12) and
-  // `BOSS_NAMES` (task 13) both now cover all ten kinds, so a boss of reefs 6-10 shows its own
+  // here (`LevelSpec.boss` widened for reefs 6-10). `sprites.bosses` and
+  // `BOSS_NAMES` both now cover all ten kinds, so a boss of reefs 6-10 shows its own
   // sprite and name exactly as reefs 1-5 always have.
   kind: BossKind;
   onDone: () => void;

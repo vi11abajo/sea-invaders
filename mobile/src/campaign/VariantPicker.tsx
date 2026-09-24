@@ -11,12 +11,12 @@ import { ACCENT_BY_VARIANT } from '../shop/tints';
 import { Txt } from '../ui/Txt';
 import { COLORS, FONTS, RADIUS } from '../ui/tokens';
 
-/** Handoff 06 (Level start) picker sizes, in dp: tiles 8 apart, a 34 dp thumb in each. */
+/** Level start picker sizes, in dp: tiles 8 apart, a 34 dp thumb in each. */
 const ART = 34;
 const TILE_GAP = 8;
 /**
- * Up to this many tiles share the row equally (handoff 06's four); more slide sideways in a
- * scroll, `TILE_WIDTH` each (champions and skins design doc §5: nine tiles → a horizontal scroll).
+ * Up to this many tiles share the row equally; more slide sideways in a
+ * scroll, `TILE_WIDTH` each — there are nine champion tiles in total, more than fit in one row.
  */
 const ROW_FIT = 4;
 const TILE_WIDTH = 72;
@@ -25,8 +25,8 @@ const SHEET_PAD = 16;
 /** Room kept above and below the scrolled tiles, so a swelling tile (`SWELL_Y`) is never clipped by the scroll's bounds. */
 const SWELL_ROOM = 6;
 /**
- * A press that travelled farther than this sideways (dp) was a swipe, not a tap (device pass
- * 2026-09-23: a quick flick starting on a locked tile registered as its press and opened the Shop).
+ * A press that travelled farther than this sideways (dp) was a swipe, not a tap (a quick flick
+ * starting on a locked tile used to register as its press and open the Shop).
  * The row's scroll also keeps taps muted from the drag's start until this long after it settles.
  */
 const PRESS_SLOP = 12;
@@ -79,7 +79,7 @@ interface VariantPickerProps {
 }
 
 /**
- * The champion picker of the Level start sheet (handoff 06, design doc §5): the base Octopi and
+ * The champion picker of the Level start sheet: the base Octopi and
  * every champion, in `VARIANT_INDEX` order, each in its own art over its name and ability. Owned
  * and earned ones can be picked; the rest are dimmed, show where they are had in place of the
  * ability, and say it again on a tap (the Shop, the Connect sheet or a toast).

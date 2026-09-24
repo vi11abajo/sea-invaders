@@ -29,7 +29,7 @@ export interface TodayInfo {
   skrBalance: number;
   cluster: Cluster;
   /**
-   * Whether the signed-in wallet has a linked Seeker Genesis Token (Phase 3C); false when signed
+   * Whether the signed-in wallet has a linked Seeker Genesis Token; false when signed
    * out, unlinked, or on an older API that omits it. Home's wallet pill and the Profile row read
    * the status from `useSeeker` instead so both always agree; this field is the API's own mirror
    * of it.
@@ -61,9 +61,9 @@ export interface LeaderboardEntry {
   username: string;
   walletAddress: string;
   score: number;
-  /** The skin the run that set this score was played in (design doc §8); 0 is Octopi's own colours. */
+  /** The skin the run that set this score was played in; 0 is Octopi's own colours. */
   skin: SkinIndex;
-  /** Whether this player's wallet has a linked Seeker Genesis Token (Phase 3C): shows the `SEEKER` badge next to their name. */
+  /** Whether this player's wallet has a linked Seeker Genesis Token: shows the `SEEKER` badge next to their name. */
   seeker: boolean;
 }
 
@@ -75,9 +75,9 @@ export interface WeekEntry {
   /** Mon..Sun totals; 0 means no record that day. */
   days: number[];
   forecastSkr: number;
-  /** The skin of this player's best run of the week (design doc §8); 0 is Octopi's own colours. */
+  /** The skin of this player's best run of the week; 0 is Octopi's own colours. */
   skin: SkinIndex;
-  /** Whether this player's wallet has a linked Seeker Genesis Token (Phase 3C): shows the `SEEKER` badge next to their name. */
+  /** Whether this player's wallet has a linked Seeker Genesis Token: shows the `SEEKER` badge next to their name. */
   seeker: boolean;
 }
 

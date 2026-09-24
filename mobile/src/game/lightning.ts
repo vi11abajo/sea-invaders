@@ -1,7 +1,7 @@
 import { Skia, type SkRuntimeEffect } from '@shopify/react-native-skia';
 
 /**
- * The Storm Tyrant's lightning (spec §5.2 row 9, owner's pick of 2026-09-22 evening): a runtime
+ * The Storm Tyrant's lightning: a runtime
  * shader that draws one jagged bolt down a lane, adapted for Skia's SkSL from the React Bits
  * `Lightning` component (MIT + Commons Clause, https://reactbits.dev — the same credit the landing
  * page carries for its cursor and gallery). Changes from the original: SkSL types and entry point,

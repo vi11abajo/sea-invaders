@@ -12,7 +12,7 @@ interface SkrIconProps {
   color?: string;
 }
 
-/** The SKR token mark, so an amount reads as SKR without the word (owner ruling 2026-09-18). */
+/** The SKR token mark, so an amount reads as SKR without the word. */
 export function SkrIcon({ size = 14, color = COLORS.text }: SkrIconProps) {
   return <Image source={MARK} accessibilityLabel="SKR" style={{ width: size, height: size, tintColor: color }} />;
 }

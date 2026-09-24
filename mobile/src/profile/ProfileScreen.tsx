@@ -28,7 +28,7 @@ import { formatSkr, formatSolBalance } from '../wallet/format';
 import { ConnectSheet, SigningSheet } from '../wallet/WalletSheets';
 import type { SeekerState } from './useSeeker';
 
-/** Handoff 09 sizes, in dp. */
+/** Profile screen sizes, in dp. */
 const AVATAR = 52;
 const TILE_ART = 34;
 const TILE_COLUMNS = 4;
@@ -41,14 +41,14 @@ const CARD_GLASS = 'rgba(236,228,253,0.10)';
 /** Inventory tiles: `rgba(236,228,253,.08)` with a `.12` border. */
 const TILE_GLASS = 'rgba(236,228,253,0.08)';
 const TILE_BORDER = 'rgba(236,228,253,0.12)';
-/** An equipped tile takes the design's selected-tile look from the level sheet's octopi picker (06). */
+/** An equipped tile takes the design's selected-tile look from the level sheet's octopi picker. */
 const TILE_SELECTED_BG = 'rgba(255,255,255,0.14)';
 const TILE_SELECTED_BORDER = '#FFFFFF';
 /** A locked tile's Octopi, name and ability are drawn at 40 %, like the Level start picker's; its hint stays readable. */
 const LOCKED_OPACITY = 0.4;
 /** A champion's ability line under its name: up to three lines at a tile's width, so no ability is cut short. */
 const DETAIL_LINES = 3;
-/** The Skins group's first tile, skin code 0 (design doc §2). */
+/** The Skins group's first tile, skin code 0. */
 const OWN_COLOURS = "Octopi's own colours";
 /** Shown for a balance that has not been read (or could not be). */
 const UNKNOWN = '—';
@@ -73,14 +73,14 @@ interface Tile {
   equipped: boolean;
   /** Not wearable yet: dimmed and not pressable. */
   locked: boolean;
-  /** Where a locked one is had: "In the Shop", "Beat <boss>" or "Verify Seeker" (design doc §5). */
+  /** Where a locked one is had: "In the Shop", "Beat <boss>" or "Verify Seeker". */
   hint: string | null;
   /** The loadout change a tap makes; null when there is nothing to do (locked, or the base already on). */
   change: LoadoutChange | null;
 }
 
 /**
- * The Champions group (design doc §5): the base Octopi and every champion in `VARIANT_INDEX` order,
+ * The Champions group: the base Octopi and every champion in `VARIANT_INDEX` order,
  * each in its own art with its ability, whether it is had yet or not. Exactly one is worn; tapping
  * the worn champion takes it off, back to the base Octopi.
  */
@@ -103,7 +103,7 @@ function championTiles(worn: VariantIndex, allowed: Selectors): Tile[] {
 }
 
 /**
- * The Skins group (design doc §5): Octopi's own colours first, then every look by its code, had
+ * The Skins group: Octopi's own colours first, then every look by its code, had
  * or not. At most one is worn; tapping the worn look goes back to Octopi's own colours.
  */
 function skinTiles(worn: SkinIndex, allowed: Selectors): Tile[] {
@@ -150,12 +150,12 @@ interface ProfileScreenProps {
   /** Forgets the wallet authorization and the session (the app's sign-out). */
   onDisconnect: () => void;
   onBack: () => void;
-  /** The shell's one Seeker status (Phase 3C), shared with Home's wallet pill. */
+  /** The shell's one Seeker status, shared with Home's wallet pill. */
   seeker: SeekerState;
 }
 
 /**
- * The Profile (handoff 09): the wallet card with the Seeker row, the SKR and SOL balances and
+ * The Profile: the wallet card with the Seeker row, the SKR and SOL balances and
  * Disconnect, or the no-wallet card with Connect; then the inventory — every champion and every
  * look, the ones this player may wear equipped from here (without a wallet, the earned awards
  * only). Pull down to refresh the balances and the inventory.
@@ -436,7 +436,7 @@ function Balance({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * The Seeker row (handoff 09, design §1): nested in the wallet card between identity and balances.
+ * The Seeker row: nested in the wallet card between identity and balances.
  * `unknown` (signed out, or the first read has not resolved) renders nothing. `linked` shows the
  * `SEEKER` badge in a dark tile next to its confirmation copy; the other three states share a
  * prompt with the `Verify Seeker` pill - enabled for a first try or a `no_token` retry, disabled
@@ -491,8 +491,8 @@ function tileLabel(tile: Tile): string {
 }
 
 /**
- * An inventory tile (handoff 09: 34 dp art, 11 dp name) with its Equip / Equipped pill, or, locked,
- * dimmed with where it is had in the pill's place (design doc §5). The pill or the hint sits at the
+ * An inventory tile (34 dp art, 11 dp name) with its Equip / Equipped pill, or, locked,
+ * dimmed with where it is had in the pill's place. The pill or the hint sits at the
  * tile's foot, so a row of tiles with names and abilities of different lengths still lines up. The
  * whole tile is the button, so the touch target is the tile, well over 48 dp.
  */

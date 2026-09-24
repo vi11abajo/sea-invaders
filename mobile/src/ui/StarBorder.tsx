@@ -9,7 +9,7 @@ interface StarBorderProps {
   children: ReactNode;
   /** The orbiting glow's colour. */
   color?: string;
-  /** One full orbit, ms — kept slow and subtle per the brief (about 4 s). */
+  /** One full orbit, ms — kept slow and subtle (about 4 s). */
   periodMs?: number;
   /** The glow dot's diameter, dp. */
   dotSize?: number;

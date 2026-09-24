@@ -10,7 +10,7 @@ setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false, inte
 });
 
 /**
- * Owner-provided tracks (design doc table B), the owner's own earlier version of the game
+ * Owner-provided tracks, from the owner's own earlier version of the game
  * (`assets/music/CREDITS.md`). `music_result` has no recording supplied yet - `playMusic`/`stopMusic`
  * read this map at call time, so dropping `music_result.mp3` under `assets/music/` and adding its
  * entry here is a drop-in with no other code change; until then that one id is a silent no-op (the
@@ -27,18 +27,18 @@ const MUSIC: Partial<Record<MusicId, number>> = {
 };
 
 /**
- * The reef ambience loop (spec table A, `ambience_reef`): a loop, not a one-shot, so it is driven
+ * The reef ambience loop (`ambience_reef`): a loop, not a one-shot, so it is driven
  * from here rather than `sfx.ts`. A bubbles-only loop (`assets/music/CREDITS.md`), kept low under
  * everything else via `AMBIENCE_VOLUME`.
  */
 const AMBIENCE_ASSET: number | null = require('../../assets/music/ambience_reef.wav');
 
-/** Ambience sits well under anything else (doc: "ambience -12 dB"). */
+/** Ambience sits well under anything else, at roughly -12 dB relative to the mix. */
 const AMBIENCE_VOLUME = 0.2;
 /**
- * Each track's level, the owner's earlier version's own mix (`soundVolumes` there: menu, map and
+ * Each track's level, matching the owner's earlier version's own mix (`soundVolumes` there: menu, map and
  * gameplay at 0.1, the boss theme at 0.15 - quiet under the effects on purpose); a track without a
- * recording keeps the doc's default. `LEGACY_GAIN` scales the reused tracks together if the phone
+ * recording keeps a plain default level. `LEGACY_GAIN` scales the reused tracks together if the phone
  * wants them louder or quieter.
  */
 const LEGACY_GAIN = 1;
@@ -157,7 +157,7 @@ export function stopMusic(): void {
   fadeTo(player, 0, () => player.pause());
 }
 
-/** The Music switch: also gates the ambience loop (design doc, section E instructions). Off pauses both immediately (no fade, so the switch reads as instant); on resumes whatever was last requested. */
+/** The Music switch: also gates the ambience loop. Off pauses both immediately (no fade, so the switch reads as instant); on resumes whatever was last requested. */
 export function setMusicEnabled(enabled: boolean): void {
   musicEnabled = enabled;
   if (enabled) {

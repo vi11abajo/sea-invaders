@@ -10,7 +10,7 @@ interface ItemArtProps {
   size: number;
 }
 
-/** The look catalogue item `itemId` sells (design doc §1, §2): a champion's own art, a skin's look, else the base Octopi. */
+/** The look catalogue item `itemId` sells: a champion's own art, a skin's look, else the base Octopi. */
 function lookOfItem(itemId: number | null): Look {
   if (itemId === null) return BASE_LOOK;
   const variant = variantOfItem(itemId);

@@ -8,10 +8,10 @@ import { COLORS, FONTS, MOTION, RADIUS } from '../ui/tokens';
 import { formatSkr, formatSolAmount, formatSolPrice } from './format';
 import type { Purchase } from './usePurchase';
 
-// The wallet sheets of the handoff ("Wallet & error states", screens 11, 13, 16): modal sheets
+// The wallet sheets: modal sheets
 // (`#141318`, radius 24) over the dimmed scrim, built on `Sheet kind="modal"`.
 
-/** The 28 dp ring spinner (handoff Motion): a 2 dp track at 15 % white with its top arc in `color` (green signing, purple revive), one turn a second. */
+/** The 28 dp ring spinner: a 2 dp track at 15 % white with its top arc in `color` (green signing, purple revive), one turn a second. */
 export function Spinner({ color = COLORS.success }: { color?: string }) {
   const turn = useSharedValue(0);
   useEffect(() => {
@@ -29,7 +29,7 @@ interface ConnectSheetProps {
   onClose: () => void;
 }
 
-/** "Connect a wallet" (handoff 16): what a signed-out tap on a wallet-only action opens. System Back closes it. */
+/** "Connect a wallet": what a signed-out tap on a wallet-only action opens. System Back closes it. */
 export function ConnectSheet({ visible, onContinue, onClose }: ConnectSheetProps) {
   useEffect(() => {
     if (!visible) return undefined;
@@ -53,7 +53,7 @@ export function ConnectSheet({ visible, onContinue, onClose }: ConnectSheetProps
   );
 }
 
-/** A label over a mono value, as in sheet 13's Required / You have tiles; `short` gives the value and border the warning orange. */
+/** A label over a mono value, as in the Required / You have tiles; `short` gives the value and border the warning orange. */
 function AmountTile({ label, value, short = false }: { label: string; value: string; short?: boolean }) {
   return (
     <View style={[styles.tile, short && styles.tileShort]}>
@@ -64,10 +64,10 @@ function AmountTile({ label, value, short = false }: { label: string; value: str
 }
 
 /**
- * "Waiting for signature" (handoff 11): spinner, title, what is being paid, and the mono amount +
+ * "Waiting for signature": spinner, title, what is being paid, and the mono amount +
  * fee row. `swap` adds a second line naming what an auto-swap contributes, under - never instead
  * of - the price, so the SKR the wallet already holds is never hidden. `amount` is null for a
- * signature that pays nothing (Phase 3C's Seeker link): the amount row is skipped and `swap` (a
+ * signature that pays nothing (the Seeker link): the amount row is skipped and `swap` (a
  * plain note in that case, e.g. "One wallet signature · no fee beyond network") stands alone. Not
  * dismissible. Exported so other signature flows outside a purchase (Seeker link) reuse the same
  * sheet rather than growing their own.
@@ -98,7 +98,7 @@ export function SigningSheet({ title, what, amount, fee, swap }: { title: string
 }
 
 /**
- * "Not enough SOL for fees" (handoff 13). The design's "Top up in wallet" only closes the sheet:
+ * "Not enough SOL for fees". The design's "Top up in wallet" only closes the sheet:
  * the app cannot fund a wallet. With `swapping`, `requiredLamports` also covers the SOL the
  * auto-swap spends, so the copy says so rather than calling all of it a network fee.
  */
@@ -124,7 +124,7 @@ function NoSolSheet({ requiredLamports, haveLamports, swapping, onClose }: {
 }
 
 /**
- * The backend's 409 `not_enough_skr`, laid out like sheet 13. The handoff has no SKR-short sheet
+ * The backend's 409 `not_enough_skr`. There is no dedicated SKR-short design
  * because it pays the difference with an auto-swap, which only exists on mainnet; `onFaucet`
  * (devnet builds) offers the test faucet the way the ticket card does.
  */

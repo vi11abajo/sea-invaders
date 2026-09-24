@@ -9,8 +9,8 @@ export interface Ability {
 }
 
 /**
- * Every variant's ability (champions and skins design doc §1). A champion keeps its ability under
- * any skin (§2), so this is read by variant, never by look.
+ * Every variant's ability. A champion keeps its ability under
+ * any skin, so this is read by variant, never by look.
  */
 export const ABILITY: Readonly<Record<OctopiVariant, Ability>> = {
   base: { label: ABILITY_NAMES.base, short: 'balanced' },

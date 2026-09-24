@@ -7,7 +7,7 @@ import { Txt } from '../ui/Txt';
 import { COLORS, MOTION } from '../ui/tokens';
 import { KEY_ART_TEXT_SHADOW } from './homeBackground';
 
-/** The swaying row's five crabs (spec M7); cosmetic order, independent of the game's kind indices. */
+/** The swaying row's five crabs; cosmetic order, independent of the game's kind indices. */
 const CRAB_ROW = [
   require('../../assets/sprites/crabGreen.png'),
   require('../../assets/sprites/crabBlue.png'),

@@ -14,8 +14,8 @@ const SAMPLING = { filter: FilterMode.Linear, mipmap: MipmapMode.None } as const
  * Octopi's front pose in its look (`useOctopiLook`: the player's active skin, else the art of the
  * champion `octopi`, by default the run's), fitted into a `size` dp square (the way
  * `resizeMode="contain"` placed the plain sprite before skins). The square is laid out at once;
- * Octopi appears in it as soon as its snapshot is ready. A drawn look shows its Front pose (design
- * doc §5: there are no side poses for them).
+ * Octopi appears in it as soon as its snapshot is ready. A drawn look shows its Front pose (there
+ * are no side poses for them).
  */
 export function ActiveOctopi({ size, octopi }: { size: number; octopi?: OctopiVariant }) {
   const art = useOctopiArt(useOctopiLook(octopi), size);
@@ -31,9 +31,9 @@ export function ActiveOctopi({ size, octopi }: { size: number; octopi?: OctopiVa
 }
 
 /**
- * A leaderboard row's Octopi (design doc §5): the whole front pose in `skin`'s look, fitted into a
- * `size` dp square with no frame - the owner dropped handoff 08's glass circle because it cropped
- * the tentacles (2026-09-15). `skin` here is the raw selector of the entry's own run (a daily run
+ * A leaderboard row's Octopi: the whole front pose in `skin`'s look, fitted into a
+ * `size` dp square with no frame - the glass circle used before was dropped because it cropped
+ * the tentacles. `skin` here is the raw selector of the entry's own run (a daily run
  * always plays the base Octopi, so the skin is the run's whole look), not the viewer's active skin,
  * so it goes straight to `lookOfSkin` rather than through `useOctopiLook` (which reads the current
  * player's loadout/run context). Draws through the same `useOctopiArt` snapshot cache as every
@@ -71,7 +71,7 @@ interface OctopiThumbProps {
 }
 
 /**
- * A look's thumb (design doc §5): Octopi's front pose in `look` over a soft glow of `accent` — the
+ * A look's thumb: Octopi's front pose in `look` over a soft glow of `accent` — the
  * Shop's cards (`ItemArt`), the Profile's tiles and the Level start picker. The sprite is a
  * `useOctopiArt` snapshot already pre-scaled to the screen's physical pixels; the full-size source
  * is never held for it.

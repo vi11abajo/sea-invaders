@@ -39,7 +39,7 @@ const FIELD_BG_COLOR = Skia.Color(COLORS.app);
 /** Visible player shot in milli-units: 3 x 18 dp on a 400 dp wide field. The hitbox stays SHOT's. */
 const SHOT_LOOK = { w: 42, h: 253 };
 
-/** Boss palette by kind 1..10 (spec §4.2 / §5.2), from the shared table (`bossPalette.ts`, ruling R44). */
+/** Boss palette by kind 1..10, from the shared table (`bossPalette.ts`). */
 const BOSS_SK = BOSS_HEX.map((hex) => Skia.Color(hex));
 const DEFAULT_BOSS_SK = Skia.Color('#FFFFFF');
 
@@ -67,7 +67,7 @@ const WHITE_FLASH_FILTER = Skia.ColorFilter.MakeBlend(Skia.Color('#FFFFFF'), Ble
 const FREEZE_OVERLAY = Skia.Color('rgba(153,102,255,0.18)');
 
 /**
- * A damaged crab's shell (spec §1 last bullet, core v8): a crab whose `hp` is below its kind's max
+ * A damaged crab's shell (core v8): a crab whose `hp` is below its kind's max
  * (armored at 1/2, elder at 2/3 or 1/3) is drawn darker, one Skia colour matrix per lost hit point
  * scaling RGB by `DAMAGE_BRIGHTNESS` (alpha untouched) — 0.7 for one lost point, 0.49 for two. Both
  * matrices are built once here, never per frame or per crab; `TYPE_INDEX`/`CRAB_TYPES` give the max
@@ -84,7 +84,7 @@ const MAX_HP_BY_TYPE_INDEX: number[] = [];
 for (const type of Object.keys(CRAB_TYPES) as CrabType[]) MAX_HP_BY_TYPE_INDEX[TYPE_INDEX[type]] = CRAB_TYPES[type].hp;
 
 /**
- * A damaged crab also gets a short white crack across its shell's upper half (spec §1 last bullet):
+ * A damaged crab also gets a short white crack across its shell's upper half:
  * two or three straight segments, about 40% of the sprite's width, in unit coordinates (fraction of
  * `sprite.w`/`sprite.h`, origin at the sprite's own top-left) so every pattern scales with the crab's
  * on-screen size. Which pattern a crab shows is picked from its slot index in `f.crabs` (same trick
@@ -103,9 +103,9 @@ const CRACK_PATTERNS: readonly (readonly [number, number])[][] = [
 ];
 
 /**
- * ICE_FREEZE indication (owner ruling): one of the owner's three ice sprites drawn over every crab,
- * plus the legacy full-field fog drawn right after them (legacy `boost-effects.js:453-489`'s
- * desktop-branch full-canvas rect at 0.1 alpha). The ice sprites themselves are pre-scaled in
+ * ICE_FREEZE indication: three ice sprites drawn over every crab,
+ * plus a legacy full-field fog drawn right after them (matching the legacy desktop-branch
+ * full-canvas rect at 0.1 alpha). The ice sprites themselves are pre-scaled in
  * `sprites.ts` (`PreparedSprites.ice`); the variant per crab is picked deterministically below
  * (crab offset + kind) so it doesn't flicker frame to frame, and drawn at `ICE_ALPHA` via the same
  * `drawSpriteAt` every other sprite uses.
@@ -140,7 +140,7 @@ function colorLoop(stops: readonly string[], perSegment: number): string[] {
 }
 
 /**
- * INVINCIBILITY indication (owner ruling 2026-09-13): Octopi itself flashes through the Solana
+ * INVINCIBILITY indication: Octopi itself flashes through the Solana
  * signature gradient. Its silhouette is drawn again over the sprite in one colour of the gradient
  * loop (`SrcIn` keeps the sprite's own alpha, so every skin and both poses work), the colour stepping
  * every `INVINCIBLE_STEP_TICKS` and the overlay pulsing between `INVINCIBLE_ALPHA_MIN` and
@@ -190,8 +190,8 @@ const BLAST_INNER_W = 4;
 const BLAST_INNER_FROM = 20;
 
 /**
- * Legacy black-hole look (spec M8): base/pulse glow radius in units; `pulse = 0.5 + 0.5*sin(tick/4)`.
- * Half the legacy size (1470 / 550) since 2026-09-16 - the owner found the full one too big on the
+ * Legacy black-hole look: base/pulse glow radius in units; `pulse = 0.5 + 0.5*sin(tick/4)`.
+ * Half the legacy size (1470 / 550) — the full one was too big on the
  * phone; the well's pull radius in the core is unchanged.
  */
 const WELL_GLOW_BASE = 735;
@@ -248,9 +248,9 @@ function scratch(x: number, y: number, width: number, height: number): Rect {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Reefs 6-10 (spec §7/§8, task 12): the veteran crab flags, the new arena/lane/aim arrays, the new
+// Reefs 6-10: the veteran crab flags, the new arena/lane/aim arrays, the new
 // boss flags and the new enemy shot kinds 14-21. Every colour/shader/path below is built once here,
-// at module scope, never per frame or per crab (ruling R49) — the worklet only ever reads them.
+// at module scope, never per frame or per crab — the worklet only ever reads them.
 // ---------------------------------------------------------------------------------------------
 
 /** Warden's rune shield (frame flag bit 0): a stroked arc around the crab, gapped rather than a full ring. */
@@ -293,9 +293,9 @@ const CRYSTAL_UNIT_PATH = Skia.Path.Polygon(
   true,
 );
 /**
- * Crack lines drawn across a crystal as it takes hits, scaling with `12 - hp` (ruling R45's own
- * literal — a crystal's full 12 hp comes from `castellan.ts`'s own `CRYSTAL_HP`, not exported, so the
- * ruling's number is used verbatim rather than re-derived). Centred unit coordinates, transformed the
+ * Crack lines drawn across a crystal as it takes hits, scaling with `12 - hp` (a literal copy — a
+ * crystal's full 12 hp comes from `castellan.ts`'s own `CRYSTAL_HP`, not exported, so the
+ * number is used verbatim rather than re-derived). Centred unit coordinates, transformed the
  * same way the crab damage cracks are (absolute `ox + x*ow`), not inside the diamond's own
  * `canvas.scale`, so the stroke width stays a constant dp regardless of the crystal's own box size.
  */
@@ -310,13 +310,13 @@ const CRYSTAL_CRACK_LINES: readonly (readonly [number, number, number, number])[
 /** A crystal at full 12 hp shows no cracks; every 2 hp lost reveals one more of the six lines above. */
 const CRYSTAL_FULL_HP = 12;
 /**
- * Shatter's own warning (ruling R61, fix round 1): every crystal in `frame.obstacles` pulses this
+ * Shatter's own warning: every crystal in `frame.obstacles` pulses this
  * tint for `CRYSTAL_SHATTER_WARN_TICKS` ticks after a `crystal_shatter` event — the Frost Castellan's
  * own warning length (`SHATTER_WARNING`, `core/src/sim/bosses/castellan.ts`, not exported, so the
- * ruling's own number is used verbatim, the same "literal over a private core constant" call already
+ * number is used verbatim, the same "literal over a private core constant" choice already
  * made for `CRYSTAL_FULL_HP` above) — faster than the lane warning's own pulse, so the two read as
- * different urgencies. The one-shot flash the app drew before this fix round is folded into this
- * window's own start rather than kept separately (see the fix-round report for why).
+ * different urgencies. The one-shot flash the app drew before is folded into this
+ * window's own start rather than kept separately.
  */
 const CRYSTAL_SHATTER_WARN_TICKS = 120;
 const CRYSTAL_SHATTER_PULSE_PERIOD = 10;
@@ -352,7 +352,7 @@ const SPIKE_FLASH_COLOR = Skia.Color('rgba(255,214,102,0.9)');
 const SPIKE_FLASH_STROKE = 3;
 const SPIKE_POINTS = 14;
 /**
- * Spikes' own wind-up telegraph (ruling R62, fix round 1): the same saw-tooth outline as `reflecting`
+ * Spikes' own wind-up telegraph: the same saw-tooth outline as `reflecting`
  * above, but flickering — visible on alternate `CORSAIR_FLICKER_BEAT_TICKS`-tick beats — for the 45
  * ticks between the `boss_windup` event and `boss_reflect` turning `reflecting` on for real.
  */
@@ -374,7 +374,7 @@ const SAWTOOTH_UNIT_POINTS: readonly { x: number; y: number }[] = Array.from({ l
  */
 const SPIKE_FLASH_PATH = Skia.Path.Make();
 /** Draws the saw-tooth outline centred at `(cx, cy)` with half-extents `(rx, ry)` (screen dp), shared
- * by `reflecting` and its ruling-R62 wind-up flicker so the fix lives in one place. */
+ * by `reflecting` and its wind-up flicker so the fix lives in one place. */
 function drawSpikeFlash(canvas: Canvas, paint: Paint, cx: number, cy: number, rx: number, ry: number) {
   'worklet';
   SPIKE_FLASH_PATH.rewind();
@@ -435,7 +435,7 @@ function laneLeftX(lane: number): number {
 }
 
 /**
- * One-shot visuals (spec §8 / ruling R45), the `WaveBlast` pattern generalised to a capped list: each
+ * One-shot visuals, the `WaveBlast` pattern generalised to a capped list: each
  * entry is captured once, in `GameScreen.tsx`'s event loop, from the `GameEvent` that raised it (and,
  * for the handful with no position of their own, from `state` at that same instant — never read back
  * by this file, which only ever sees the entry's own `x`/`y`/`x2`). `drawFrame` draws every entry as a
@@ -445,7 +445,7 @@ export type EffectKind =
   | 'crab_shield_break' | 'bubble_pop' | 'charge_burst' | 'crab_rallied' | 'formation_rage'
   | 'crystal_shatter' | 'obstacle_destroyed' | 'boss_windup' | 'boss_reflect'
   | 'lane_strike' | 'boss_clone' | 'cold_snap'
-  // Owner's pick 2026-09-22 evening (React Bits `MagicRings`, `magicRings.ts`): the Tide's return
+  // React Bits `MagicRings` (`magicRings.ts`): the Tide's return
   // around Octopi, and a boss's phase change around itself.
   | 'revive_rings' | 'phase_rings';
 
@@ -458,7 +458,7 @@ export interface EffectEntry {
   x2: number;
 }
 
-/** One shared value, capped at 32 entries (ruling R49) — never one shared value per effect. */
+/** One shared value, capped at 32 entries — never one shared value per effect. */
 export interface Effects {
   entries: EffectEntry[];
 }
@@ -481,14 +481,14 @@ const EFFECT_LIFETIME: Record<EffectKind, number> = {
   phase_rings: 45,
 };
 
-/** The cap `GameScreen.tsx`'s own `pushEffect` enforces (ruling R49); exported so it is declared once. */
+/** The cap `GameScreen.tsx`'s own `pushEffect` enforces; exported so it is declared once. */
 export const EFFECT_CAP = 32;
 
 /**
- * Whether `entry` has outlived its own kind's lifetime as of `tick` (fix round: `pushEffect` uses
+ * Whether `entry` has outlived its own kind's lifetime as of `tick`. `pushEffect` uses
  * this to drop expired entries before it ever needs to evict by age, so a burst of one frequent kind
  * — the Templar's/Huntsman's own `boss_block`, which used to flood this same list — can no longer
- * push out an unrelated entry that is still within its own window). `EFFECT_LIFETIME` itself stays
+ * push out an unrelated entry that is still within its own window. `EFFECT_LIFETIME` itself stays
  * module-private; this is the one door `GameScreen.tsx` needs into it.
  */
 export function effectExpired(entry: EffectEntry, tick: number): boolean {
@@ -501,7 +501,7 @@ const COLD_SNAP_COLOR = Skia.Color('rgba(174,232,255,0.7)');
 /** The Tide's own teal (`tokens.ts`'s `info`/`SIGNATURE_GRADIENT` stop), for `revive_rings`. */
 const REVIVE_RING_COLOR = Skia.Color('#28E0B9');
 /** `revive_rings`'/`phase_rings`' own disc size, relative to Octopi's/the boss's own box. */
-// 1.5 until the owner's note of 2026-09-23: the outer rings reached the disc's edge and were cut
+// 1.5 until the outer rings reached the disc's edge and were cut
 // square — the disc is wider now and the shader fades its own rim (`magicRings.ts`).
 const REVIVE_RING_RADIUS_SCALE = 2.4;
 const PHASE_RING_RADIUS_SCALE = 1.15;
@@ -532,7 +532,7 @@ const DROP_GLOW_COLOR: ReturnType<typeof Skia.Color>[] = Object.entries(BOOST_IN
 );
 
 /**
- * Star Border sweep (owner's pick 2026-09-22 evening, React Bits `StarBorder`, MIT + Commons Clause,
+ * Star Border sweep (React Bits `StarBorder`, MIT + Commons Clause,
  * https://reactbits.dev — the same credit `lightning.ts`/`tunnel.ts` already carry): `epic`/
  * `legendary` drops only, one `SkColor` per `BOOST_INDEX` slot when its rarity qualifies, built once
  * alongside `DROP_GLOW_COLOR` above by the same reduce over `BOOST_INDEX`, `undefined` otherwise.
@@ -635,7 +635,7 @@ export function drawFrame(
   paint.setColorFilter(null);
   paint.setAlphaf(1);
 
-  // Solid dark playfield (spec M4), unless a themed world (a campaign reef) shows through behind the run.
+  // Solid dark playfield, unless a themed world (a campaign reef) shows through behind the run.
   if (solidField) {
     paint.setColor(FIELD_BG_COLOR);
     canvas.drawRect(fieldRect, paint);
@@ -648,7 +648,7 @@ export function drawFrame(
     canvas.drawRect(scratch(l.offsetX + l.width, 0, 1, h), paint);
   }
 
-  // Gravity well (legacy look, spec M8): one radial gradient, black core fading to transparent blue.
+  // Gravity well (legacy look): one radial gradient, black core fading to transparent blue.
   if (f.well !== null) {
     const wx = px(f.well.x);
     const wy = py(f.well.y);
@@ -661,7 +661,7 @@ export function drawFrame(
     canvas.drawCircle(0, 0, 1, paint);
     canvas.restore();
     paint.setShader(null);
-    // Owner's pick 2026-09-22: the pull itself (`tunnel.ts`) — cables of light falling into the
+    // The pull itself (`tunnel.ts`) — cables of light falling into the
     // core, drawn over the gradient inside the very same disc, so the well keeps its size. One
     // shader object per frame while a well is open; the gradient alone remains the fallback.
     if (TUNNEL !== null) {
@@ -676,7 +676,7 @@ export function drawFrame(
     }
   }
 
-  // ICE_FREEZE (owner ruling): an ice sprite over every crab below, plus the legacy fog after them.
+  // ICE_FREEZE: an ice sprite over every crab below, plus the legacy fog after them.
   let iceFreeze = false;
   for (let i = 0; i < f.boosts.length; i += 2) {
     if (f.boosts[i] === BOOST_INDEX.ICE_FREEZE) {
@@ -685,7 +685,7 @@ export function drawFrame(
     }
   }
 
-  // Shatter's own warning (ruling R61, fix round 1): the latest `crystal_shatter` entry's tick, if
+  // Shatter's own warning: the latest `crystal_shatter` entry's tick, if
   // any is still within its own 120-tick window — read once, applied to every crystal below.
   let shatterTick = -1;
   for (const entry of effects.entries) {
@@ -694,9 +694,9 @@ export function drawFrame(
   const shatterAge = shatterTick >= 0 ? f.tick - shatterTick : -1;
   const shatterWarning = shatterAge >= 0 && shatterAge < CRYSTAL_SHATTER_WARN_TICKS;
 
-  // Frost Castellan's crystals (`frame.obstacles`, spec §7/§8): a faceted diamond in a cold tint,
+  // Frost Castellan's crystals (`frame.obstacles`): a faceted diamond in a cold tint,
   // terrain drawn early so crabs, shots and the boss all render over it. Cracks scale with the
-  // literal `12 - hp` (ruling R45), never a decoded core constant (see `CRYSTAL_FULL_HP`'s own doc).
+  // literal `12 - hp`, never a decoded core constant (see `CRYSTAL_FULL_HP`'s own doc).
   for (let i = 0; i < f.obstacles.length; i += OBSTACLE_STRIDE) {
     const ox = px(f.obstacles[i]!);
     const oy = py(f.obstacles[i + 1]!);
@@ -723,7 +723,7 @@ export function drawFrame(
     }
     if (shatterWarning) {
       // Every crystal on the field pulses, not only the ones standing when the warning fired — the
-      // window is boss-wide (ruling R61), and a crystal raised mid-window shatters with the rest.
+      // window is boss-wide, and a crystal raised mid-window shatters with the rest.
       const pulse = 0.5 + 0.5 * Math.sin((shatterAge * 2 * Math.PI) / CRYSTAL_SHATTER_PULSE_PERIOD);
       paint.setColor(CRYSTAL_WARN_COLOR);
       paint.setAlphaf(0.25 + 0.4 * pulse);
@@ -736,8 +736,8 @@ export function drawFrame(
     }
   }
 
-  // Heralds tracked for the aura's link line below (ruling R45: "a faint link line to the nearest
-  // herald ... if cheap"): one bounded pre-pass over `f.crabs`, no allocation (`HERALD_SCRATCH_*`
+  // Heralds tracked for the aura's link line below (drawn only "if cheap"): one bounded pre-pass
+  // over `f.crabs`, no allocation (`HERALD_SCRATCH_*`
   // are module-scope arrays reused every frame), so the main crab loop can find the nearest one by a
   // cheap linear scan instead of re-walking `f.crabs` itself.
   let heraldCount = 0;
@@ -793,7 +793,7 @@ export function drawFrame(
         paint.setAlphaf(1);
       }
     }
-    // Reefs 6-10 crab flags (spec §7, ruling R45): bit 0 the warden's shield, bit 1 the herald's
+    // Reefs 6-10 crab flags: bit 0 the warden's shield, bit 1 the herald's
     // aura, bit 2 a patriarch's rally mark, bit 3 the formation's rage — every one of them cheap
     // (an int test and a shape or two), so every crab pays for the check even outside a veteran wave.
     if ((flags & 1) !== 0) {
@@ -801,7 +801,7 @@ export function drawFrame(
       paint.setStyle(STROKE);
       paint.setStrokeWidth(WARDEN_SHIELD_STROKE_W);
       paint.setColor(WARDEN_SHIELD_COLOR);
-      // Owner's note 2026-09-23: the shield faces Octopi — the arc covers the crab's underside and
+      // The shield faces Octopi — the arc covers the crab's underside and
       // flanks and leaves its opening at the top (a 140° gap centred on 12 o'clock; Skia angles run
       // clockwise from 3 o'clock), where it used to open sideways.
       canvas.drawArc(scratch(cx - r, cy - r, r * 2, r * 2), -20, 220, false, paint);
@@ -855,7 +855,7 @@ export function drawFrame(
     canvas.drawRect(fieldRect, paint);
   }
 
-  // Storm Tyrant's lanes (`frame.lanes`, spec §7/§8): a translucent warning band over each, pulsing
+  // Storm Tyrant's lanes (`frame.lanes`): a translucent warning band over each, pulsing
   // faster as `ticksLeft` falls.
   for (let i = 0; i < f.lanes.length; i += LANE_STRIDE) {
     const lane = f.lanes[i]!;
@@ -869,8 +869,8 @@ export function drawFrame(
     paint.setAlphaf(1);
   }
 
-  // Abyssal Huntsman's sight line (`frame.aim`, spec §7/§8): a thin line from the near point past the
-  // far one to the field edge, fading with ticksLeft. Ruling R65: a decoy's line draws identically to
+  // Abyssal Huntsman's sight line (`frame.aim`): a thin line from the near point past the
+  // far one to the field edge, fading with ticksLeft. A decoy's line draws identically to
   // the real one — the ghost boss's own 45% alpha (`draw.ts`'s boss block below) is the only tell, so
   // the player can't read the bluff for free off the line itself. `decoy` is still read out of the
   // frame (unused below) so the renderer could tell them apart again later without a frame change.
@@ -884,7 +884,7 @@ export function drawFrame(
       const ay0 = py(f.aim[i + 1]!);
       const ax1 = px(f.aim[i + 2]!);
       const ay1 = py(f.aim[i + 3]!);
-      // f.aim[i + 4] is `decoy` — read for the frame's own shape, not used for alpha (ruling R65).
+      // f.aim[i + 4] is `decoy` — read for the frame's own shape, not used for alpha.
       const ticksLeft = f.aim[i + 5]!;
       const fade = Math.min(1, ticksLeft / AIM_FADE_TICKS);
       const farX = ax1 + (ax1 - ax0) * AIM_EXTEND;
@@ -1013,7 +1013,7 @@ export function drawFrame(
         canvas.drawCircle(x, y, baseR, paint);
         break;
       }
-      // The reefs 6-10 shot kinds (spec §5.1/§5.2, ruling R45): `Frame.enemyShots` carries only
+      // The reefs 6-10 shot kinds: `Frame.enemyShots` carries only
       // x/y/kindIndex (no velocity or per-bullet age), so a look that would need either — the
       // bubbler's own drift, the charge's brightening over time — is kept to what the frame gives.
       case KIND_INDEX.bubble: {
@@ -1057,7 +1057,7 @@ export function drawFrame(
         canvas.save();
         canvas.translate(x, y);
         canvas.rotate((f.tick * 12) % 360, 0, 0);
-        // Owner's on-device note 2026-09-22: twice the blade it had at 1.3 — the axe reads as a thrown
+        // Twice the blade it had at 1.3 — the axe reads as a thrown
         // weapon now, not a spark. The core's hitbox (140 units, `shotRadius`) is about this size.
         canvas.scale(baseR * 2.6, baseR * 2.6);
         canvas.drawRect(AXE_BLADE_UNIT, paint);
@@ -1074,7 +1074,7 @@ export function drawFrame(
         break;
       }
       case KIND_INDEX.orb: {
-        // Owner's pick 2026-09-22 (`orb.ts`): the shader fills a square around the shot, side
+        // The shader (`orb.ts`) fills a square around the shot, side
         // `2 * ORB_RADIUS * k * 1.6` — the extra 1.6 is the halo's own room to extend past the
         // 170-unit collision ball while its bright body still reads as that same ball (the shader's
         // own `INNER_RADIUS = 0.6`, `0.6 * 1.6 ~= 0.96`, puts the bright core right at the ball's
@@ -1102,7 +1102,7 @@ export function drawFrame(
         break;
       }
       case KIND_INDEX.needle: {
-        // No velocity in the frame: drawn vertical, leaning towards the field centre (ruling R45).
+        // No velocity in the frame: drawn vertical, leaning towards the field centre.
         const lean = ((FIELD_W / 2 - f.enemyShots[i]!) / (FIELD_W / 2)) * NEEDLE_LEAN_MAX;
         paint.setColor(NEEDLE_COLOR);
         paint.setStrokeWidth(NEEDLE_STROKE_W);
@@ -1138,7 +1138,7 @@ export function drawFrame(
     const bossFrames = sprites.bosses[b.kind - 1];
     const sprite = bossFrames !== undefined ? bossFrames[Math.floor(f.tick / 60) % 2] : undefined;
     if (sprite !== undefined) {
-      // Void/Huntsman decoy ghosts (`boss_clone`, ruling R47): the current boss frame at 45% alpha at
+      // Void/Huntsman decoy ghosts (`boss_clone`): the current boss frame at 45% alpha at
       // the last captured pair's x's, `boss.y`. Only the most recent pair draws — a fresh `boss_clone`
       // supersedes an older one even if it is still within its own 90-tick lifetime.
       let cloneEntry: EffectEntry | null = null;
@@ -1199,7 +1199,7 @@ export function drawFrame(
       drawSpikeFlash(canvas, paint, bx, by, b.w * k * 1.05, b.h * k * 1.05);
     }
     if (b.kind === 8) {
-      // Gold Corsair's Spikes telegraph (`boss_windup`, ruling R62, fix round 1): the same saw-tooth
+      // Gold Corsair's Spikes telegraph (`boss_windup`): the same saw-tooth
       // as `reflecting` above, flickering for the 45 ticks before `boss_reflect` turns it on for
       // real. Only the most recent `boss_windup` entry matters, the same "latest wins" rule the
       // ghosts (`boss_clone`) already use above.
@@ -1345,14 +1345,14 @@ export function drawFrame(
     canvas.restore();
   }
 
-  // One-shot effects (spec §8, ruling R45): captured tick/position from `GameScreen.tsx`'s event
+  // One-shot effects: captured tick/position from `GameScreen.tsx`'s event
   // loop, drawn purely as a function of `f.tick - entry.tick`, dropped past their own lifetime.
   // `boss_clone`'s ghosts are drawn inline with the boss above (they need its current sprite/y).
   for (const entry of effects.entries) {
     // Drawn inline elsewhere, with data this loop doesn't have: `boss_clone`'s ghosts need the boss's
-    // current sprite/y (in the boss block above); Gold Corsair's own `boss_windup` flicker (kind 8,
-    // ruling R62) needs the boss's box too, so it is drawn there alongside `reflecting`, not here.
-    // `crystal_shatter` (ruling R61) no longer draws a one-shot burst at all — it only ever drives the
+    // current sprite/y (in the boss block above); Gold Corsair's own `boss_windup` flicker (kind 8)
+    // needs the boss's box too, so it is drawn there alongside `reflecting`, not here.
+    // `crystal_shatter` no longer draws a one-shot burst at all — it only ever drives the
     // continuous per-crystal warning tint above, computed once before the crystal loop.
     if (entry.kind === 'boss_clone' || entry.kind === 'crystal_shatter') continue;
     if (entry.kind === 'boss_windup' && f.boss?.kind === 8) continue;
@@ -1416,7 +1416,7 @@ export function drawFrame(
       continue;
     }
     if (entry.kind === 'revive_rings' || entry.kind === 'phase_rings') {
-      // Owner's pick 2026-09-22 (`magicRings.ts`): the Tide's return around Octopi, a boss's phase
+      // The rings (`magicRings.ts`): the Tide's return around Octopi, a boss's phase
       // change around itself. `phase_rings` needs the boss's own current box, still alive mid-fight
       // (a phase change never kills it) — `bossColor` is the same per-kind colour the enemy-shot
       // block above already computed. No position data of their own beyond the captured (x, y).

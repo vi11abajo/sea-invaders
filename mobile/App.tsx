@@ -70,7 +70,7 @@ function routeFor(url: string | null): Route {
  * loadout's active skin and equipped octopi variant on every screen below it (Home's hero, the game,
  * the result pose read them through `SkinContext` and `EquippedOctopiContext`).
  *
- * What may be worn is decided here, once (champions and skins design doc §3): the wallet's items,
+ * What may be worn is decided here, once: the wallet's items,
  * the awards the campaign has earned and the Seeker link. A selector that is no longer allowed (a
  * demo campaign reset un-earns an award) is worn as the base, in every screen alike.
  */
@@ -102,7 +102,7 @@ function Shell({ initialLevel = null }: { initialLevel?: { id: number; tide: boo
 }
 
 /** The splash stays up at least this long, so a fast start does not flash the key art. */
-const SPLASH_MIN_MS = 1870; // 1400 + 33 % (owner, 2026-09-15)
+const SPLASH_MIN_MS = 1870; // 1400 + 33 %
 
 /** True once the app is ready AND the splash has been shown for `SPLASH_MIN_MS`. */
 function useSplashGate(ready: boolean): boolean {
@@ -122,7 +122,7 @@ interface ScreensProps {
   auth: ReturnType<typeof useSession>;
   loadout: LoadoutApi;
   campaign: ReturnType<typeof useCampaign>;
-  /** One Seeker status for the whole shell (Phase 3C): Home's wallet pill and the Profile's Seeker row read the same hook, so they can never disagree. */
+  /** One Seeker status for the whole shell: Home's wallet pill and the Profile's Seeker row read the same hook, so they can never disagree. */
   seeker: SeekerState;
   /** The selectors this player may wear (`allowedSelectors`): the Profile's tiles and the Level start picker. */
   allowed: Selectors;
@@ -169,7 +169,7 @@ function Screens({ initialLevel, auth, loadout, campaign, seeker, allowed, splas
     if (screen === 'shop' && session === null && !restoring) setScreen('home');
   }, [screen, session, restoring]);
 
-  // One music track per screen (design doc table B), in this one place rather than in every screen:
+  // One music track per screen, in this one place rather than in every screen:
   // Home/Shop/Profile/the leaderboards share the theme, the campaign map gets its own, and a level
   // gets the boss theme or the run theme by its own `boss` flag (a pure lookup from its id, so the
   // level's own Level-start and boss-reveal screens - still the same `screen` value - already get it
@@ -177,7 +177,7 @@ function Screens({ initialLevel, auth, loadout, campaign, seeker, allowed, splas
   // whatever the run was already playing. `playMusic` is idempotent for the same id, so re-running
   // this on every unrelated render (e.g. `ticketMessage` changing) is harmless.
   // The bubbles-only ambience loop rides along, but only under Home, the Shop and the Profile
-  // (owner decision 2026-09-16: nowhere near a run, the map or the boards).
+  // (nowhere near a run, the map or the boards).
   useEffect(() => {
     if (screen === 'home' || screen === 'shop' || screen === 'profile') startAmbience();
     else stopAmbience();
@@ -220,7 +220,7 @@ function Screens({ initialLevel, auth, loadout, campaign, seeker, allowed, splas
   // prepare-and-retry), then poll the backend until the tx is confirmed on-chain before
   // refreshing — the backend only clears its 5s player cache once it sees the confirmation, so
   // refreshing any earlier can still show the pre-purchase attempt count. A decline leaves the
-  // caller on the same screen with no message (spec §8).
+  // caller on the same screen with no message.
   const buyTicket = useCallback(async (): Promise<boolean> => {
     setTicketBusy(true);
     try {

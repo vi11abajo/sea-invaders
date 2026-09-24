@@ -10,7 +10,7 @@ import { SEEKER_SKIN_CODE, SKIN_ITEM_IDS, VARIANT_ITEM_IDS, isSkinIndex, isVaria
 const KEY = 'loadout.v1';
 /**
  * AsyncStorage key of the wallet-less player's own choice, `{ wallet: null, activeSkin, activeVariant }`
- * (champions and skins design doc §3: an earned award can be worn without a wallet, kept on the phone
+ * (an earned award can be worn without a wallet, kept on the phone
  * only). Separate from `KEY`, so signing in or out never mixes it with a wallet's copy.
  */
 const LOCAL_KEY = 'loadout.local.v1';
@@ -26,7 +26,7 @@ export interface Loadout {
   /** The champion: the Level start picker equips it, and campaign runs play with it. */
   activeVariant: VariantIndex;
   /**
-   * What the backend derived from the wallet's stored campaign progress (design doc §3): champion
+   * What the backend derived from the wallet's stored campaign progress: champion
    * indexes and skin codes. Empty signed out, and from an API that does not send it.
    */
   earned: Selectors;
@@ -141,7 +141,7 @@ function sanitize(raw: { owned?: unknown; activeSkin?: unknown; activeVariant?: 
 }
 
 /**
- * The wallet-less choice made safe (design doc §3): only a selector with no shop item behind it
+ * The wallet-less choice made safe: only a selector with no shop item behind it
  * and other than the Seeker look (which needs a wallet's link) survives; anything else is the base.
  * An award still has to be earned to show — the app shell checks that against the campaign.
  */
@@ -240,11 +240,11 @@ function clearMirror(): void {
 }
 
 /**
- * The equipped skin and variant (design doc §5, Profile). Signed in, the backend is the truth
+ * The equipped skin and variant (Profile). Signed in, the backend is the truth
  * (`GET /api/profile/loadout`) and every answer shown is mirrored to AsyncStorage (`loadout.v1`),
  * so the skin still applies offline and at cold start before the network answers. Signed out, it
- * is the base, or the award the player picked on this phone (`loadout.local.v1`, champions and skins
- * design doc §3); signing in or out leaves that choice where it is. A cached skin is worn only until
+ * is the base, or the award the player picked on this phone (`loadout.local.v1`); signing in or out
+ * leaves that choice where it is. A cached skin is worn only until
  * the backend answers; a session the backend refuses drops it and the copy.
  *
  * The latest choice wins. Every request takes the next number of one sequence when it is sent.

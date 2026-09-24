@@ -4,16 +4,16 @@ import { getToday, type TodayInfo } from '../api/daily';
 import type { Session } from '../api/session';
 import type { CampaignInfo, HomeModel, RankedInfo } from './model';
 
-/** The campaign card's `N/total` (ruling R54): total is the core's own `LEVEL_COUNT`, never a
+/** The campaign card's `N/total`: total is the core's own `LEVEL_COUNT`, never a
  * hard-coded number, so it grows with the campaign. */
 function campaignFrom(progress: CampaignProgress | null): CampaignInfo | null {
   if (progress === null) return null;
   return { level: progress.cleared.filter(Boolean).length, total: LEVEL_COUNT };
 }
 
-/** The on-chain ticket price (spec §4); shown on the card even before tickets exist. */
+/** The on-chain ticket price; shown on the card even before tickets exist. */
 const TICKET_PRICE_SKR = 10;
-/** Attempts per ticket (spec §4); used until the server reports the on-chain value. */
+/** Attempts per ticket; used until the server reports the on-chain value. */
 const ATTEMPTS_PER_TICKET = 3;
 
 function rankedFrom(today: TodayInfo, fetchedAt: number): RankedInfo {
@@ -35,7 +35,7 @@ function rankedFrom(today: TodayInfo, fetchedAt: number): RankedInfo {
 
 /**
  * Builds the HomeModel from the session and the server's view of today. Ranked data needs a
- * session. `seekerLinked` comes from the app shell's single `useSeeker` (Phase 3C), shared with the
+ * session. `seekerLinked` comes from the app shell's single `useSeeker`, shared with the
  * Profile, so the wallet pill's `SEEKER` badge and the Profile's Seeker row never disagree.
  */
 export function useHomeModel(session: Session | null, progress: CampaignProgress | null, seekerLinked: boolean): { model: HomeModel; refresh: () => void; error: string | null } {

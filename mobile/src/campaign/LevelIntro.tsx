@@ -28,7 +28,7 @@ const FORMATION_NAMES: Record<Formation, string> = {
 };
 
 /**
- * The mark a living formation's name carries on the Level start screen (ruling R55): `whirlpool`
+ * The mark a living formation's name carries on the Level start screen: `whirlpool`
  * rotates, `claws` splits, `manta` reforms into the `spearhead` template it falls back to (all three,
  * `sim/living.ts`). Every other formation marches as a plain block and gets none.
  */
@@ -38,7 +38,7 @@ const LIVING_MARK: Partial<Record<Formation, string>> = {
   manta: '▸ Spearhead',
 };
 
-/** A formation's display name with its living mark after it, exactly as ruling R55 spells them. */
+/** A formation's display name with its living mark after it, exactly as spelled above. */
 function formationLabel(f: Formation): string {
   const mark = LIVING_MARK[f];
   return mark === undefined ? FORMATION_NAMES[f] : `${FORMATION_NAMES[f]} ${mark}`;
@@ -50,7 +50,7 @@ const CRAB_NAMES: Record<CrabType, string> = {
 };
 
 /**
- * The picked octopi in the world (handoff 06): 84 dp, its top at y 470 of the 400x890 frame (the
+ * The picked octopi in the world: 84 dp, its top at y 470 of the 400x890 frame (the
  * Seeker's dp), drifting up 10 dp and back every 3 s. A taller sheet lifts it to sit `PREVIEW_GAP`
  * above the sheet; with no room left under the level's heading it is not shown.
  */
@@ -92,7 +92,7 @@ interface LevelIntroProps {
 }
 
 /**
- * The Level start screen (handoff 06): what the level is, the octopi picker and Start level. The
+ * The Level start screen: what the level is, the octopi picker and Start level. The
  * picked octopi is the loadout's variant, so the choice is kept for the next level too.
  */
 export function LevelIntro({
@@ -152,7 +152,7 @@ export function LevelIntro({
   );
 
   // A sold champion is had in the Shop (after connecting, when signed out); an award is had by
-  // beating its boss, which the toast names (design doc §5).
+  // beating its boss, which the toast names.
   const locked = (variant: VariantIndex) => {
     if (VARIANT_ITEM_IDS[variant] != null) {
       if (signedIn) onOpenShop();
@@ -220,7 +220,7 @@ export function LevelIntro({
                 </View>
               ))}
             </View>
-            {/* Reefs 6-10 only, regular levels only (ruling R55, R64): names the reef's veteran the
+            {/* Reefs 6-10 only, regular levels only: names the reef's veteran the
                 same way the map's level sheet already names it for reefs 1-5 (`reefNewEnemyCopy`,
                 `REEF_NEW_KIND`) — no new copy style. Never on a boss row, matching the first
                 campaign's boss sheet, which never shows "New enemy this reef" either. */}

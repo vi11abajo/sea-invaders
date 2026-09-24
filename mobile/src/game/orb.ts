@@ -2,8 +2,7 @@ import { Skia, type SkRuntimeEffect } from '@shopify/react-native-skia';
 import { LIGHTNING_HUE } from './lightning';
 
 /**
- * The Storm Tyrant's homing orb (enemy shot kind `orb`, spec §5.2 row 9, owner's pick of 2026-09-22
- * evening), adapted for Skia's SkSL from the React Bits `Orb` component (MIT + Commons Clause,
+ * The Storm Tyrant's homing orb (enemy shot kind `orb`), adapted for Skia's SkSL from the React Bits `Orb` component (MIT + Commons Clause,
  * https://reactbits.dev — the same credit `lightning.ts`/`tunnel.ts` already carry). Changes from the
  * original: SkSL types and entry point; no hover/mouse logic and no rotation input (the gallery's own
  * `hover`/`rot` uniforms are gone, not just zeroed); the hue is baked to `LIGHTNING_HUE` — the same

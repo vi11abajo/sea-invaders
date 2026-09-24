@@ -13,7 +13,7 @@ interface HeartsProps {
 const MAX_ROW = 5;
 
 /**
- * Lives as heart glyphs (Task 19 owner rules, 2026-09-13): up to 5 lives draw one filled heart per
+ * Lives as heart glyphs: up to 5 lives draw one filled heart per
  * life in a row; above 5, a single heart carries the count instead of a longer row; 0 lives draws
  * five dim outline hearts. Used by the in-run HUD and the campaign map header.
  */

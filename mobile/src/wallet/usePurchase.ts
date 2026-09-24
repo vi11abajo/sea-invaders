@@ -73,7 +73,7 @@ export type PurchaseOutcome<R> =
   /** Nothing to report: another purchase was already running, or the caller went away mid-flight. */
   | { status: 'abandoned' };
 
-/** The toast every host shows when the wallet declines (handoff "Wallet & error states"), with the warning dot. */
+/** The toast every host shows when the wallet declines, with the warning dot. */
 export const DECLINED_TOAST = 'Signature declined — nothing changed';
 
 /** The swap half of a split payment failed on chain or expired: the payment half was never signed. */
@@ -90,7 +90,7 @@ const SWAP_ERROR_CODES = new Set(['swap_quote_failed', 'swap_instructions_failed
 
 /**
  * The extra chime layered over the generic `tx_confirmed` shell chime once a purchase confirms, by
- * kind (sound design doc table C). `revive` has none here: the Tide's own `revived` sound (played
+ * kind. `revive` has none here: the Tide's own `revived` sound (played
  * from the run's frame loop, `GameScreen.tsx`, when the core's `revive()` actually resumes play)
  * already marks that moment. Ticket purchases do not run through this hook today (see `App.tsx`'s
  * `buyTicket`, wired separately) — kept here anyway so nothing has to change if that ever moves.
@@ -140,7 +140,7 @@ function numberOr(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-/** What the signing sheet appends to `what` when the payment swaps SOL for the missing SKR (handoff 11). */
+/** What the signing sheet appends to `what` when the payment swaps SOL for the missing SKR. */
 const SWAP_NOTE = 'SOL → SKR auto-swap';
 
 /**

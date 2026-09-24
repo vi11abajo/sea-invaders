@@ -14,7 +14,7 @@ half4 main(float2 p) {
   return half4(half3(n) * 0.07, 0.07);
 }`);
 
-/** Owner's pick 2026-09-22 evening: each theme's two rays, one peak colour apiece (the `LIGHT_RAYS`
+/** Each theme's two rays, one peak colour apiece (the `LIGHT_RAYS`
  * shader computes its own falloff, so no gradient stop pair is needed any more). */
 const RAY_COLORS: Record<WorldTheme, [string, string]> = {
   night: ['rgba(153,69,255,0.45)', 'rgba(40,224,185,0.4)'],
@@ -33,7 +33,7 @@ export function Backdrop({ theme = 'night', variant = 'menu', floorGlow = false 
   const { width: w, height: h } = useWindowDimensions();
   const rayA = useSharedValue<number>(MOTION.raysMin);
   const rayB = useSharedValue<number>(MOTION.raysMax);
-  // Owner's pick 2026-09-22 evening: the shader's own slow-breathing clock, the same long-lap ramp
+  // The shader's own slow-breathing clock, the same long-lap ramp
   // `SwirlBackdrop.tsx` uses for its `iTime` — `rayA`/`rayB` above still drive each ray's own
   // opacity exactly as they always did.
   const rayTime = useSharedValue(0);
@@ -66,7 +66,7 @@ export function Backdrop({ theme = 'night', variant = 'menu', floorGlow = false 
           </Group>
         )}
         {LIGHT_RAYS !== null && !play ? (
-          // The shader rays are for the menus only: on the first device look (2026-09-23) they held
+          // The shader rays are for the menus only: on the first device look, they held
           // the game loop at 54 fps (it runs 86-106 without), so the play variant keeps the two
           // skewed gradient rays the file always drew, at half strength as before.
           <Group>
@@ -121,8 +121,8 @@ function Band({ w, y, height, colors, opacity }: { w: number; y: number; height:
 }
 
 /**
- * Owner's pick 2026-09-22 evening (`lightRays.ts`, React Bits `LightRays`): one full-canvas shader
- * fill anchored above the screen, in place of the skewed gradient rect this used to draw. `opacity`
+ * One full-canvas shader fill (`lightRays.ts`, React Bits `LightRays`), anchored above the screen,
+ * in place of the skewed gradient rect this used to draw. `opacity`
  * is the same per-ray breathing animation the file always had; `time` is shared by both rays, driving
  * the shader's own slow pulse. No blur wrapper any more — the shader's own falloff is already soft,
  * and skipping the extra blur pass is most of this replacement's performance budget.

@@ -41,7 +41,7 @@ function describeRecordError(error: unknown): { message: string; retryable: bool
  * fresh-prepare-and-retry, per `sendWithBlockhashRetry`), then polls the backend every 2s for up
  * to 60s until the transaction is confirmed. `already_recorded` — someone else's request, or a
  * stale caller-side check, already covered this score — resolves straight to `done`. Declining in
- * the wallet returns to `idle` with a "Not recorded" hint rather than an error (spec §8 Records).
+ * the wallet returns to `idle` with a "Not recorded" hint rather than an error.
  */
 export function useRecordScore(onRecorded: (signature: string) => void): { phase: RecordPhase; record: (day: number) => void } {
   const [phase, setPhase] = useState<RecordPhase>({ kind: 'idle' });

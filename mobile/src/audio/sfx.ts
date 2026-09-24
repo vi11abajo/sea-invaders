@@ -2,7 +2,7 @@ import { Asset } from 'expo-asset';
 import ReefSfx from '../../modules/reef-sfx';
 
 /**
- * One-shot sound catalogue (design doc `2026-09-16-sound-and-haptics.md`, tables A and C). Every id
+ * One-shot sound catalogue. Every id
  * is a file name under `assets/sfx/`; most are still generated placeholders (see
  * `assets/sfx/README.md`), but the owner's own recordings have started landing under the same ids -
  * a drop-in replacement needs no code change beyond what this file already does for `player_hit`'s
@@ -13,7 +13,7 @@ const SFX_ASSETS = {
   boost_auto_target: require('../../assets/sfx/boost_auto_target.m4a'),
   boost_coin_shower: require('../../assets/sfx/boost_coin_shower.m4a'),
   // The drop bloop, the wave-start swell and the wave-cleared chime ship silent: their bubbly
-  // placeholders crowded the runs (the owner, 2026-09-16). To enable one, drop the recording under
+  // placeholders crowded the runs. To enable one, drop the recording under
   // `assets/sfx/<id>.wav` and replace `null` with `require('../../assets/sfx/<id>.wav')`.
   boost_drop: null as number | null,
   boost_expire: require('../../assets/sfx/boost_expire.wav'),
@@ -43,7 +43,7 @@ const SFX_ASSETS = {
   boss_shot: require('../../assets/sfx/boss_shot.m4a'),
   boss_spawn: require('../../assets/sfx/boss_spawn.wav'),
   boss_teleport: require('../../assets/sfx/boss_teleport.wav'),
-  // The reefs 6-10 one-shots (task 12, ruling R46 amendment): synthesized placeholders, the same as
+  // The reefs 6-10 one-shots: synthesized placeholders, the same as
   // every other id below without an owner recording — see `assets/sfx/README.md`.
   bubble_pop: require('../../assets/sfx/bubble_pop.wav'),
   charge_burst: require('../../assets/sfx/charge_burst.wav'),
@@ -55,7 +55,7 @@ const SFX_ASSETS = {
   lightning: require('../../assets/sfx/lightning.wav'),
   needle: require('../../assets/sfx/needle.wav'),
   // The level-cleared fanfare ships silent: its placeholder rang like a gong on the level's end
-  // screen (the owner, 2026-09-16). To enable it, drop the recording under
+  // screen. To enable it, drop the recording under
   // `assets/sfx/level_cleared.wav` and replace `null` with `require('../../assets/sfx/level_cleared.wav')`.
   level_cleared: null as number | null,
   meteor_impact: require('../../assets/sfx/meteor_impact.wav'),
@@ -85,8 +85,8 @@ const SFX_ASSETS = {
   tx_sent: require('../../assets/sfx/tx_sent.wav'),
   ui_back: require('../../assets/sfx/ui_back.wav'),
   ui_error: require('../../assets/sfx/ui_error.wav'),
-  // The sheet sound ships silent until a real recording exists: only that placeholder scraped (the
-  // owner, 2026-09-16), while the tap and back placeholders stay. To enable it, drop the recording
+  // The sheet sound ships silent until a real recording exists: only that placeholder scraped,
+  // while the tap and back placeholders stay. To enable it, drop the recording
   // under `assets/sfx/ui_sheet.wav` and replace `null` with `require('../../assets/sfx/ui_sheet.wav')`.
   ui_sheet: null as number | null,
   ui_tap: require('../../assets/sfx/ui_tap.wav'),
@@ -108,7 +108,7 @@ const VARIANTS: Partial<Record<SfxId, SfxId[]>> = {
   player_hit: ['player_hit_1', 'player_hit_2', 'player_hit_3', 'player_hit_4'],
 };
 
-/** Frequent, quiet by design (doc: "almost a whisper") - ordinary hits and the drop bloop; `octopi_shot`, `crab_hit` and `boss_hit` now carry their own volumes below instead of this shared one. */
+/** Frequent, quiet by design, almost a whisper - ordinary hits and the drop bloop; `octopi_shot`, `crab_hit` and `boss_hit` now carry their own volumes below instead of this shared one. */
 const QUIET_IDS = new Set<SfxId>(['crab_shot', 'crab_armored_tok', 'boost_drop']);
 /** Interface feedback: present but never louder than the game it sits over. */
 const SOFT_IDS = new Set<SfxId>(['ui_tap', 'ui_back', 'ui_sheet', 'ui_error', 'node_tap']);
@@ -119,18 +119,18 @@ const VOLUME_SOFT = 0.55;
 const VOLUME_FULL = 0.85;
 
 /**
- * The owner's recordings play at the loudness of the owner's earlier version of the game
- * (2026-09-16): its sound manager multiplied the volume each call passed (shots 0.3, MULTI_SHOT
+ * The owner's recordings play at the loudness of the owner's earlier version of the game:
+ * its sound manager multiplied the volume each call passed (shots 0.3, MULTI_SHOT
  * 0.6, hurt 0.6, crab death 0.3, boss hit/shot 1.0, every boost 0.7) by a per-sound level
  * (`soundVolumes`), and these are the products, rounded to three places. `LEGACY_GAIN` scales all
  * of them together should the phone's speaker want the whole set louder or quieter.
  */
 const LEGACY_GAIN = 1;
 const VOLUME_OVERRIDE: Partial<Record<SfxId, number>> = {
-  octopi_shot: 0.04 * LEGACY_GAIN, // 0.3 × 0.28 = 0.084 in the earlier version; halved again by ear on the phone (owner, 2026-09-16)
+  octopi_shot: 0.04 * LEGACY_GAIN, // 0.3 × 0.28 = 0.084 in the earlier version; halved again by ear on the phone
   octopi_multishot: 0.108 * LEGACY_GAIN, // 0.6 × 0.18
   crab_hit: 0.15 * LEGACY_GAIN, // 0.3 × 0.5
-  boss_hit: 0.12 * LEGACY_GAIN, // 1.0 × 0.25 in the earlier version; halved by ear on the phone (owner, 2026-09-16)
+  boss_hit: 0.12 * LEGACY_GAIN, // 1.0 × 0.25 in the earlier version; halved by ear on the phone
   boss_shot: 0.28 * LEGACY_GAIN, // 1.0 × 0.28
   player_hit_1: 0.252 * LEGACY_GAIN, // 0.6 × 0.42
   player_hit_2: 0.252 * LEGACY_GAIN,
@@ -162,7 +162,7 @@ function volumeOf(id: SfxId): number {
 }
 
 /**
- * Random pitch within ±`width` (doc: "so they never machine-gun"), `width` a per-id table defaulting
+ * Random pitch within ±`width`, so repeats never sound machine-gunned; `width` a per-id table defaulting
  * to 0.05 (±5 %). `octopi_multishot` gets a one-sided range instead (1.0-1.2, never slower than the
  * plain shot it replaces), so it is special-cased rather than added to the table. The sound pool
  * takes the rate as an argument of the play itself, so varying it is free: there is no player whose

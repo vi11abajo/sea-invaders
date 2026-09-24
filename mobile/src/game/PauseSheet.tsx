@@ -3,8 +3,8 @@ import { Sheet } from '../ui/Sheet';
 import { Txt } from '../ui/Txt';
 
 /**
- * Shown over a run just revived by the Tide: the run stays stopped until the player is ready (owner
- * ruling 2026-09-17: a revive that resumed the moment the chain confirmed it gave no time to get set).
+ * Shown over a run just revived by the Tide: the run stays stopped until the player is ready (a
+ * revive that resumed the moment the chain confirmed it gave no time to get set).
  */
 export function RevivedSheet({ lives, onResume }: { lives: number; onResume: () => void }) {
   return (

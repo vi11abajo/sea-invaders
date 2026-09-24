@@ -1,7 +1,7 @@
 import { Skia, type SkRuntimeEffect } from '@shopify/react-native-skia';
 
 /**
- * Concentric glowing rings (owner's pick of 2026-09-22 evening), adapted for Skia's SkSL from the
+ * Concentric glowing rings, adapted for Skia's SkSL from the
  * React Bits `MagicRings` component (three.js; MIT + Commons Clause, https://reactbits.dev — the same
  * credit `lightning.ts`/`tunnel.ts` already carry). Two moments share this one effect (`draw.ts`'s
  * `revive_rings`/`phase_rings` kinds): the Tide's return around Octopi, and a boss's phase change
@@ -70,7 +70,7 @@ half4 main(float2 fragCoord) {
     float amount = ring(p, BASE_RADIUS + fi * RADIUS_STEP, pow(RING_GAP, fi), i == 0 ? 0.0 : 0.35 * fi, px);
     col += uColor * bright * amount;
   }
-  // Owner's note 2026-09-23: the rings used to run straight into the square they are drawn in and
+  // The rings used to run straight into the square they are drawn in and
   // end on its edge as a hard line; now they melt away over the last tenth of the disc's radius
   // (p spans -0.5..0.5 across the square), so no caller's box size can ever show as an edge.
   col *= 1.0 - smoothstep(0.38, 0.49, length(p));

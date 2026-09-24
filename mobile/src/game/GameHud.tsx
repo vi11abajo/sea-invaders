@@ -6,7 +6,7 @@ import { COLORS, FONTS, RADIUS } from '../ui/tokens';
 import { BOSS_HEX } from './bossPalette';
 import { BOSS_NAMES } from './bossNames';
 
-/** One icon per `BoostType`, the same art the world drop uses (spec M1). */
+/** One icon per `BoostType`, the same art the world drop uses. */
 const BOOST_ICON: Record<BoostType, ImageSourcePropType> = {
   RAPID_FIRE: require('../../assets/sprites/boosts/rapidFire.png'),
   ICE_FREEZE: require('../../assets/sprites/boosts/iceFreeze.png'),
@@ -42,8 +42,8 @@ export interface HudBadge {
 }
 
 /**
- * Boss HP-bar tint per kind (1..10): spec §4.2 / §5.2 palette. An alias of `bossPalette.ts`'s
- * `BOSS_HEX` (task 12, ruling R44), the single table `draw.ts` also reads — never declared twice.
+ * Boss HP-bar tint per kind (1..10). An alias of `bossPalette.ts`'s
+ * `BOSS_HEX`, the single table `draw.ts` also reads — never declared twice.
  * The reef key art borrows it (`campaign/reefBackground.ts`).
  */
 export const BOSS_COLOR: readonly string[] = BOSS_HEX;
@@ -103,7 +103,7 @@ export function GameHud({ mode, badge, score, lives, wave = 0, waves, combo, boo
           <Text style={styles.score}>{formatInt(score)}</Text>
         </View>
         {wave > 0 && !boss && (
-          // Owner's note 2026-09-23: the gap between the score card and the hearts carries the wave —
+          // The gap between the score card and the hearts carries the wave —
           // `WAVE 3` in Daily Run and Practice, `WAVE 3 / 5` on a campaign level; on a window narrower
           // than `COMPACT_WAVE_BELOW` just `3` / `3 / 5`. Hidden while a boss stands, when the boss bar
           // below says what matters.
@@ -177,7 +177,7 @@ function ComboPill({ combo }: { combo: number }) {
  */
 const SHIELD_PIP_CAP = 10;
 
-/** Name, HP bar with phase notches, shield pips and status tags: spec §4.3. */
+/** Name, HP bar with phase notches, shield pips and status tags. */
 function BossBar({ boss }: { boss: BossFrame }) {
   const color = BOSS_COLOR[boss.kind - 1] ?? COLORS.text;
   const name = BOSS_NAMES[boss.kind - 1] ?? `Boss ${boss.kind}`;
@@ -228,9 +228,9 @@ const HUD_PILL_HEIGHT = 38;
 
 const styles = StyleSheet.create({
   root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  // Owner's note 2026-09-23: the three top-row pieces sit on one centre line and the two pills
+  // The three top-row pieces sit on one centre line and the two pills
   // share one height, so the row reads as a single bar rather than three loose boxes.
-  // Owner's note 2026-09-23 (second): with a champion's badge widening the score card and five
+  // With a champion's badge widening the score card and five
   // hearts in the pill, the row ran past the right edge on a 400 dp screen — the hearts pill was
   // pushed off it. The budget, in dp of the window width less 32: the score card 150, up to ~160
   // with a champion's badge (`LEVEL 60` + `CORALUNA`); the wave pill 94 as `WAVE 3 / 5`, 58 as the
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   top: { position: 'absolute', top: 28, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   glass: { backgroundColor: COLORS.hudGlass, borderWidth: 1, borderColor: COLORS.glassBorder },
   // `minWidth`/`paddingRight`: a seven-digit mono score measured narrower than it rendered and ran
-  // past the card's edge (owner's note 2026-09-23).
+  // past the card's edge.
   scoreCard: { borderRadius: RADIUS.hudCard, paddingHorizontal: 16, paddingVertical: 10, minWidth: 150, justifyContent: 'center' },
   mode: { fontFamily: FONTS.medium, fontSize: 10, letterSpacing: 0.4, color: COLORS.textSecondary },
   modeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

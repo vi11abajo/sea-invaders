@@ -15,12 +15,12 @@ import { PENDING_LONG_MS, useRevive, type TideQuote } from './useRevive';
 
 /** Steps on the on-chain ladder (`Config.revive_ladder`, eight prices): one bar segment each. */
 const LADDER_STEPS = 8;
-/** The revive spinner's arc (handoff Motion): the gradient's purple end. */
+/** The revive spinner's arc: the gradient's purple end. */
 const REVIVE_SPINNER = SIGNATURE_GRADIENT.colors[0];
 
 type ToastState = { id: number; text: string; dot: string } | null;
 
-/** `inSeconds` as the handoff's countdown: `1 h 40 min`, `1 h 05 min`, `40 min` (never below 1 min). */
+/** `inSeconds` as a countdown: `1 h 40 min`, `1 h 05 min`, `40 min` (never below 1 min). */
 function dropsIn(seconds: number): string {
   const minutes = Math.max(1, Math.ceil(seconds / 60));
   const hours = Math.floor(minutes / 60);
@@ -45,7 +45,7 @@ interface TideSheetProps {
 }
 
 /**
- * The Tide (handoff 10 and 12), over the paused run after Octopi's last life: the revive price,
+ * The Tide, over the paused run after Octopi's last life: the revive price,
  * when it next falls, the ladder, then Revive or End level; while the revive is confirmed, the
  * pending sheet, with Retry / End level after 60 s. The wallet's own sheets (signing, not enough
  * SOL/SKR, Connect) take the sheet's place while they are up. System Back never ends the level.
@@ -141,9 +141,9 @@ interface OfferSheetProps {
   onEndLevel: () => void;
 }
 
-/** Handoff 10: `THE TIDE` / `Octopi is down`, the price card, the ladder, the note, Revive / End level. */
+/** `THE TIDE` / `Octopi is down`, the price card, the ladder, the note, Revive / End level. */
 function OfferSheet({ quote, now, solPrice, revivesLeft, connecting, onRevive, onRetryQuote, onConnect, onEndLevel }: OfferSheetProps) {
-  // Handoff 10's `Price ladder 25 → 120 SKR · falls back over time`, with the range read from the
+  // `Price ladder 25 → 120 SKR · falls back over time`, with the range read from the
   // quote's on-chain ladder (never hardcoded), plus this level's remaining revives.
   const revives = `${revivesLeft} ${revivesLeft === 1 ? 'revive' : 'revives'} left`;
   // `Array.isArray`: an API still answering without the ladder must not break the sheet.
@@ -157,7 +157,7 @@ function OfferSheet({ quote, now, solPrice, revivesLeft, connecting, onRevive, o
   } else if (quote.status === 'error') {
     primary = <PillButton label="Try again" onPress={onRetryQuote} />;
   } else if (quote.status === 'ready') {
-    // Design doc §5 "Swap": short on SKR, on a cluster that can swap, the primary is priced in SOL -
+    // Short on SKR, on a cluster that can swap, the primary is priced in SOL -
     // the auto-swap pays the difference in the same signature.
     const price = solPrice === null ? `${formatSkr(quote.quote.priceSkr)} SKR` : `≈ ${formatSolPrice(solPrice)} SOL`;
     primary = <PillButton label={`Revive · ${price}`} onPress={onRevive} />;
@@ -235,7 +235,7 @@ function LadderBar({ step }: { step: number | null }) {
   );
 }
 
-/** Handoff 12: the purple spinner and the pending clock; after 60 s the note and Retry / End level. */
+/** The purple spinner and the pending clock; after 60 s the note and Retry / End level. */
 function PendingSheet({ elapsedMs, onRetry, onEndLevel }: { elapsedMs: number; onRetry: () => void; onEndLevel: () => void }) {
   const long = elapsedMs >= PENDING_LONG_MS;
   return (

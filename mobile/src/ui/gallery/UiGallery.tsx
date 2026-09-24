@@ -40,13 +40,13 @@ interface LookSample {
   name: string;
 }
 
-/** Every champion's own art (design doc §1), in `VARIANT_INDEX` order; the base Octopi keeps its colours, so it is left out. */
+/** Every champion's own art, in `VARIANT_INDEX` order; the base Octopi keeps its colours, so it is left out. */
 const CHAMPION_SAMPLES: readonly LookSample[] = VARIANT_OCTOPI.flatMap((octopi) => {
   const look = CHAMPION_LOOK[octopi];
   return look?.kind === 'art' ? [{ key: octopi, look, accent: ACCENT_BY_VARIANT[octopi], name: VARIANT_NAMES[octopi] }] : [];
 });
 
-/** Every drawn skin (design doc §2), by code; the tints recolour the base Octopi and are left out. */
+/** Every drawn skin, by code; the tints recolour the base Octopi and are left out. */
 const SKIN_SAMPLES: readonly LookSample[] = SKIN_NAMES.flatMap((name, code) => {
   const look = SKIN_LOOK[code];
   return look?.kind === 'art' ? [{ key: `skin-${code}`, look, accent: accentOfSkin(code) ?? COLORS.text, name }] : [];

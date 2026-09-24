@@ -19,7 +19,7 @@ import { BossIntro } from './BossIntro';
 import { LevelIntro } from './LevelIntro';
 import type { FinishLevelInput } from './useCampaign';
 
-/** The level-result kind `finishLevel` reports, from the core's progress rules (spec §6.1). */
+/** The level-result kind `finishLevel` reports, from the core's progress rules. */
 type Outcome = ReturnType<typeof applyLevelResult>['outcome'];
 
 /** The Level start screen, then (with the run built when Start was pressed) the boss reveal and the run. */
@@ -39,7 +39,7 @@ const TITLE: Record<Outcome, string> = {
 };
 
 /**
- * The result's award line (champions and skins design doc §5): what clearing award level `levelId`
+ * The result's award line: what clearing award level `levelId`
  * has just earned, and where it is equipped; undefined for every other level. Only a real clear
  * earns (awards are derived from the cleared levels), so a practice replay never shows it.
  */
@@ -51,7 +51,7 @@ function awardNote(levelId: number): string | undefined {
     : `New look: ${SKIN_NAMES[award.skin]} — equip it in Profile`;
 }
 
-/** Tide revives one level attempt allows (design §3.6, a client rule); the next loss ends the level. */
+/** Tide revives one level attempt allows (a client rule); the next loss ends the level. */
 const REVIVES_PER_ATTEMPT = 3;
 
 /** A loss the Tide sheet is offering a revive for. */
@@ -108,8 +108,8 @@ interface CampaignLevelScreenProps {
 /**
  * The reef lives a finished level hands back to the progress. An octopi's extra life (Anchor's, added
  * by the core at `createGame`) belongs to that one level: a hit spends it first, and one still unspent
- * at the end does not carry over, so a clean Anchor run returns the lives it came in with (owner
- * ruling 2026-09-14). Lives won from HEALTH_BOOST still carry; after a Tide revive nothing is deducted.
+ * at the end does not carry over, so a clean Anchor run returns the lives it came in with.
+ * Lives won from HEALTH_BOOST still carry; after a Tide revive nothing is deducted.
  */
 function reefLivesAfter(livesLeft: number, run: RunConfig | null, revived: boolean): number {
   if (run === null) return livesLeft;

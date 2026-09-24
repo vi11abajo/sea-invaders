@@ -1,15 +1,15 @@
 import { apiFetch } from './client';
 
-/** The wallet's inventory and equipped selection (design doc §3, `GET/PUT /api/profile/loadout`). */
+/** The wallet's inventory and equipped selection (`GET/PUT /api/profile/loadout`). */
 export interface LoadoutInfo {
   /** Catalogue item ids the wallet owns, read from the chain. */
   owned: number[];
-  /** The skin code (champions and skins design doc §2): 0 = Octopi's own colours, 1..17 as `SKIN_NAMES`; 0 when the stored one is no longer allowed. */
+  /** The skin code: 0 = Octopi's own colours, 1..17 as `SKIN_NAMES`; 0 when the stored one is no longer allowed. */
   activeSkin: number;
-  /** The `VARIANT_INDEX` (design doc §3): 0 = the base Octopi, 1..8 the champions; 0 when the stored one is no longer allowed. */
+  /** The `VARIANT_INDEX`: 0 = the base Octopi, 1..8 the champions; 0 when the stored one is no longer allowed. */
   activeVariant: number;
   /**
-   * What the wallet's campaign progress has earned (design doc §3): variant indexes (7 Hex,
+   * What the wallet's campaign progress has earned: variant indexes (7 Hex,
    * 8 Kakashi) and skin codes (13..16). Missing from an older API's answer.
    */
   earned?: { variants: number[]; skins: number[] };

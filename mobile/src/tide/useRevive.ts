@@ -8,11 +8,11 @@ import { confirmRevive, issueRevive, quoteRevive, type ReviveQuote } from '../ap
 import { COLORS } from '../ui/tokens';
 import { DECLINED_TOAST, usePurchase } from '../wallet/usePurchase';
 
-/** After this long without a verdict, the pending sheet offers Retry / End level (handoff 12). */
+/** After this long without a verdict, the pending sheet offers Retry / End level. */
 export const PENDING_LONG_MS = 60_000;
 /** How often a sent revive is checked while it is pending. */
 const CHECK_MS = 2_000;
-/** What the signing sheet says is being paid for (handoff "Wallet & error states"). */
+/** What the signing sheet says is being paid for. */
 const WHAT = 'Revive · the Tide';
 /** A sent revive that can no longer land: the wallet paid no SKR for it. */
 const NOT_LANDED_TOAST = 'Revive did not go through — no SKR was taken';
@@ -170,7 +170,7 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
 
   // Mainnet only (the quote carries the same `swap.available` gate `GET /api/shop` reports), and
   // only while the wallet cannot cover the price in SKR: what the revive costs in SOL, for the
-  // primary's `Revive · ≈ X SOL` (design doc §5 "Swap"). `priceSol` travels with the quote itself
+  // primary's `Revive · ≈ X SOL`. `priceSol` travels with the quote itself
   // (`POST /api/revive/quote`, the backend's own cached Jupiter quote) - no separate call needed
   // here. Null on devnet (the gate) or when that quote failed, in which case the sheet keeps its
   // SKR price and the faucet hint exactly as they were.

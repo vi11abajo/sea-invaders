@@ -34,7 +34,7 @@ const NODE_SIZE = 52;
 const NODE_RADIUS = 16;
 const BOSS_SIZE = 96;
 const BOSS_RADIUS = 26;
-/** Node top-left corners, level 1 (bottom) -> boss (top), `CampaignMap.dc.html`'s `POS` table. */
+/** Node top-left corners, level 1 (bottom) -> boss (top). */
 const NODE_POS: readonly { x: number; y: number }[] = [
   { x: 54, y: 500 }, { x: 158, y: 412 }, { x: 68, y: 322 }, { x: 196, y: 240 }, { x: 96, y: 150 }, { x: 226, y: 34 },
 ];
@@ -285,7 +285,7 @@ function PathNode({ reef, index, isBoss, size, left, top, accent, state, best, b
     }
     pulse.value = withRepeat(withTiming(0.25, { duration: 800, easing: Easing.inOut(Easing.quad) }), -1, true);
   }, [state, pulse]);
-  // Matches `CampaignMap.dc.html`'s `ringPulse`: opacity 1->.25 and scale 1->1.12 move together.
+  // opacity 1->.25 and scale 1->1.12 move together.
   const ringStyle = useAnimatedStyle(() => ({
     opacity: state === 'current' ? pulse.value : 0,
     transform: [{ scale: interpolate(pulse.value, [0.25, 1], [1.12, 1]) }],
@@ -427,12 +427,12 @@ function BottomPanel({ reef, progress, sprites, onPlay, onOpenLevelSheet, onSele
   );
 }
 
-/** Fixed chip width/gap the rail scrolls over (ruling R53): ten chips no longer fit one screen width. */
+/** Fixed chip width/gap the rail scrolls over: ten chips no longer fit one screen width. */
 const RAIL_CHIP_WIDTH = 64;
 const RAIL_GAP = 8;
 
 /**
- * The reef rail: a horizontal scroll over all `REEFS` chips (ruling R53 — the "?" placeholder chip
+ * The reef rail: a horizontal scroll over all `REEFS` chips (the "?" placeholder chip
  * and "more reefs coming" copy are gone now that reefs 6-10 are real). The current reef's chip
  * scrolls into view, centred where there's room, on mount and every time the pointer moves to a
  * different reef.
@@ -548,7 +548,7 @@ function StatTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Owner request 2026-09-13: the reef legends return as an info panel inside the level/boss sheet. */
+/** The reef legends return as an info panel inside the level/boss sheet. */
 type SheetView = 'main' | 'info';
 
 /** A round "i" toggle pinned to the sheet card's own top-left corner, over the tile — visible in both sheet views. */

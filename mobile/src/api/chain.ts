@@ -13,7 +13,7 @@ export interface PreparedTx {
 
 /**
  * A payment the backend built. Normally one transaction, but a SKR price the wallet cannot cover is
- * paid by swapping SOL in the same payment (design doc §5 "Swap"), and a swap route too wide to
+ * paid by swapping SOL in the same payment, and a swap route too wide to
  * share one 1232-byte packet with our own instruction comes back as `transactions` instead: the
  * swap first, then the payment out of the SKR it delivered, signed and sent in that order.
  */

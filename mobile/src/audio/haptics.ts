@@ -1,9 +1,8 @@
 import * as Haptics from 'expo-haptics';
 
 /**
- * The Seeker's motor, one named pattern per row of the design doc's table D
- * (`2026-09-16-sound-and-haptics.md`). The rule: nothing frequent buzzes — shots and ordinary kills
- * never vibrate. Impacts mark moments; notifications mark outcomes. Every function is fire-and-forget
+ * The Seeker's motor, one named pattern per kind of moment. The rule: nothing frequent buzzes —
+ * shots and ordinary kills never vibrate. Impacts mark moments; notifications mark outcomes. Every function is fire-and-forget
  * (`expo-haptics`'s calls are promises the caller must never await on a frame loop), swallows its own
  * errors (a device with no haptics motor, or a permission the OS refuses, must never crash a run —
  * warned once, not every call), and is a no-op while the Vibration switch is off.
@@ -36,8 +35,8 @@ function notification(type: Haptics.NotificationFeedbackType): void {
 }
 
 // ---------------------------------------------------------------------------
-// Single impacts, named by feel (table D's own vocabulary) - the building blocks every named moment
-// below is made from, and callable directly wherever a trigger's row is only ever "one impact".
+// Single impacts, named by feel - the building blocks every named moment
+// below is made from, and callable directly wherever a trigger is only ever "one impact".
 // ---------------------------------------------------------------------------
 
 export function hapticLight(): void {
@@ -85,7 +84,7 @@ function impactTwice(style: Haptics.ImpactFeedbackStyle, delayMs: number): void 
 }
 
 // ---------------------------------------------------------------------------
-// In a run (table D) - named moments, most delegating straight to a single-impact/notification
+// In a run - named moments, most delegating straight to a single-impact/notification
 // primitive above; the compound ones (a heartbeat, the tide coming back) are built here.
 // ---------------------------------------------------------------------------
 
@@ -115,7 +114,7 @@ export function hapticBossSpawn(): void {
   impactTwice(Haptics.ImpactFeedbackStyle.Heavy, 120);
 }
 
-/** The boss changes phase: two medium beats (no gap given in the doc; 120 ms matches the spawn heartbeat's own spacing). */
+/** The boss changes phase: two medium beats, 120 ms apart to match the spawn heartbeat's own spacing. */
 export function hapticBossPhase(): void {
   impactTwice(Haptics.ImpactFeedbackStyle.Medium, 120);
 }
@@ -141,7 +140,7 @@ export const hapticBossTeleport = hapticLight;
 /** Octopi is frozen. */
 export const hapticPlayerFreeze = hapticRigid;
 
-/** A bombardier's charge bursts into its fragments (reefs 6-10, task 12 ruling R46: one of the two new haptic ids the ruling allows). */
+/** A bombardier's charge bursts into its fragments: one of two new haptic ids added for reefs 6-10. */
 export const hapticChargeBurst = hapticMedium;
 
 /** The Tide revives Octopi: the tide coming back - soft, medium, heavy 150 ms apart, then a success notification. */
@@ -153,7 +152,7 @@ export function hapticRevived(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Interface (table D)
+// Interface
 // ---------------------------------------------------------------------------
 
 /** A sheet opens (not on close - table D marks only the open). */

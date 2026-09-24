@@ -4,7 +4,7 @@ import { COLORS } from '../ui/tokens';
 
 /**
  * Colours for the catalogue items, keyed by catalogue item id so the Shop and the Profile read the
- * same table (champions and skins design doc §1, §2, §5). Only the legacy tints (items 3-6) are
+ * same table. Only the legacy tints (items 3-6) are
  * ever a recolour: `tintMatrix` turns their entry into the Skia `ColorMatrix` that repaints the base
  * Octopi (`game/looks.ts`'s tint looks). Every other entry is a glow accent only — the Shop card's
  * and the Profile tile's `RadialGradient` behind the thumb (`OctopiThumb`) — because the champions
@@ -12,17 +12,17 @@ import { COLORS } from '../ui/tokens';
  * recoloured.
  */
 export const ITEM_TINT: Readonly<Record<number, string>> = {
-  // Champions Azul, Krang, Poseidon: the thumb colours of the Shop design (handoff 07), kept as the
-  // Shop rows' glow now that each champion has its own drawn art (design doc §1).
+  // Champions Azul, Krang, Poseidon: the thumb colours of the Shop's original design, kept as the
+  // Shop rows' glow now that each champion has its own drawn art.
   0: '#28E0B9', // Azul
   1: '#5497D5', // Krang
   2: '#9945FF', // Poseidon
-  // The legacy tints, the only recolours (design doc §2, unchanged).
+  // The legacy tints, the only recolours (unchanged).
   3: '#CFF15E', // Lime
   4: '#CA9FF5', // Lilac
   5: '#F48252', // Ember
   6: '#5B3FA8', // Abyss
-  // The sold drawn skins (design doc §2): the glow accent only — never a recolour. Each is the
+  // The sold drawn skins: the glow accent only — never a recolour. Each is the
   // dominant colour of the skin's own `-front.png` opaque pixels (outline black/white excluded),
   // measured from `mobile/assets/sprites/octopi/`.
   7: '#845642', // Bear — brown, 45% of opaque pixels
@@ -33,7 +33,7 @@ export const ITEM_TINT: Readonly<Record<number, string>> = {
   12: '#225691', // King — blue, 29%
   13: '#0097AF', // Matrix — green-cyan, its brightest chromatic accent (the sprite is 73% near-black)
   14: '#2B3144', // Sharingan — navy, 13%
-  // The sold champions (design doc §1): each sprite's dominant bright chromatic colour
+  // The sold champions: each sprite's dominant bright chromatic colour
   // (saturation ≥ 0.35, value ≥ 0.45), measured from its `-front.png`.
   15: '#B9BDD3', // Noob — an achromatic sprite: a pale slate chosen for the glow
   16: '#42DCF5', // Coraluna — cyan
@@ -41,7 +41,7 @@ export const ITEM_TINT: Readonly<Record<number, string>> = {
 };
 
 /**
- * The glow accent of the looks no catalogue item carries (design doc §2): the boss awards 13-16,
+ * The glow accent of the looks no catalogue item carries: the boss awards 13-16,
  * measured like the champions above, and the Seeker look 17, which takes the SEEKER badge's own
  * colour. Keyed by skin code, not item id.
  */
@@ -56,7 +56,7 @@ export const ACCENT_BY_SKIN: Readonly<Record<number, string>> = {
 };
 
 /**
- * Each variant's accent (design doc §1, §5): the HUD badge's fill (`AZUL`) and the champion thumbs'
+ * Each variant's accent: the HUD badge's fill (`AZUL`) and the champion thumbs'
  * glow. Azul, Krang and Poseidon take their own art's dominant colour, not `ITEM_TINT[0..2]`: those
  * were picked for the recolour the champions no longer wear, while the badge sits over the drawn
  * champion in the run. The base Octopi has no badge; white is its neutral glow.

@@ -23,12 +23,12 @@ export function Sheet({ children, kind = 'world', onDismiss, onLayout }: SheetPr
     shown.value = withTiming(1, { duration: MOTION.riseMs, easing: Easing.out(Easing.cubic) });
   }, [shown]);
   // Every sheet in the app (world and modal alike) shares this component, so this one effect
-  // covers the "a sheet opens or closes" row of the sound design doc for all of them at once.
+  // plays the sheet open/close sound for all of them at once.
   useEffect(() => {
     playSfx('ui_sheet');
     return () => playSfx('ui_sheet');
   }, []);
-  // Haptics (table D) only mark the open, not the close - mount-only, unlike the sound effect above.
+  // Haptics only mark the open, not the close - mount-only, unlike the sound effect above.
   useEffect(() => {
     hapticSheetOpen();
   }, []);

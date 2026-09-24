@@ -6,7 +6,7 @@ import { tintMatrix } from '../shop/tints';
 import { octopiLook, type Look } from './looks';
 
 /**
- * Octopi's looks on screen (champions and skins design doc §2, §5): which look the player wears
+ * Octopi's looks on screen: which look the player wears
  * (`useOctopiLook`, the one rule of `looks.ts`'s `octopiLook`) and the recolour a tint look is drawn
  * through (`tintFilter`). A drawn look needs no filter: its own pair is drawn as is.
  */
@@ -56,7 +56,7 @@ export function useEquippedOctopi(): OctopiVariant {
   return useContext(EquippedOctopiContext);
 }
 
-/** "Poseidon" for the trident variant (the champion's shown name, design doc §1); null for the base Octopi. */
+/** "Poseidon" for the trident variant (the champion's shown name); null for the base Octopi. */
 export function variantName(octopi: OctopiVariant): string | null {
   return octopi === 'base' ? null : VARIANT_NAMES[octopi];
 }

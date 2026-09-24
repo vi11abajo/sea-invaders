@@ -7,9 +7,9 @@ import { tintFilter } from './skins';
 
 /**
  * Read once on the JS thread; `draw.ts`'s worklet closes over this value rather than calling into
- * RN. Offscreen surfaces are sized in physical pixels using this ratio (spec: a several-hundred px
+ * RN. Offscreen surfaces are sized in physical pixels using this ratio: a several-hundred px
  * source sprite pre-scaled straight to dp size on a high-density screen was a ~12x reduction with no
- * filtering, then upscaled back — "extremely crushed"); `drawSpriteAt` scales back down to dp at
+ * filtering, then upscaled back — extremely crushed; `drawSpriteAt` scales back down to dp at
  * draw time.
  */
 export const PIXEL_RATIO = PixelRatio.get();
@@ -25,7 +25,7 @@ export interface Sprites {
    * (blue), bubbler (yellow), bombardier (red), patriarch (violet).
    */
   crabs: SkImage[];
-  /** ICE_FREEZE indication (owner ruling): three ice sprites, drawn one per crab (`draw.ts` picks a
+  /** ICE_FREEZE indication: three ice sprites, drawn one per crab (`draw.ts` picks a
    * deterministic variant per crab so it doesn't flicker). Index order is arbitrary — the three are
    * visually interchangeable. */
   ice: SkImage[];
@@ -62,7 +62,7 @@ export function useSprites(): Sprites | null {
   const crabVetRed = useImage(require('../../assets/sprites/crabVetRed.png'));
   const crabVetViolet = useImage(require('../../assets/sprites/crabVetViolet.png'));
 
-  // ICE_FREEZE indication (owner ruling): three interchangeable ice sprites.
+  // ICE_FREEZE indication: three interchangeable ice sprites.
   const ice1 = useImage(require('../../assets/sprites/ice1.png'));
   const ice2 = useImage(require('../../assets/sprites/ice2.png'));
   const ice3 = useImage(require('../../assets/sprites/ice3.png'));
@@ -213,7 +213,7 @@ export interface PreparedSprites {
   octopi: { front: PreparedSprite; hit: PreparedSprite };
   crabs: PreparedSprite[];
   /**
-   * ICE_FREEZE indication (owner ruling): the three ice sprites, pre-scaled to fit inside a
+   * ICE_FREEZE indication: the three ice sprites, pre-scaled to fit inside a
    * `CRAB.size * 1.3` square (keeping each image's own aspect ratio). `draw.ts` picks one of the
    * three per crab deterministically (by crab offset + kind) and draws it centred on that crab via
    * `drawSpriteAt` — same pre-scaled/mip-filtered path as every other sprite here.
@@ -315,7 +315,7 @@ type PreparedOctopi = Pick<PreparedSprites, 'octopi'>;
 type PreparedWorld = Omit<PreparedSprites, 'octopi'>;
 
 /**
- * A drawn look's two decoded poses (design doc §5): the Front pose and the Ooff (hit) pose, and the
+ * A drawn look's two decoded poses: the Front pose and the Ooff (hit) pose, and the
  * `lookKey` of the look they were decoded for — a pair is only ever used for that look.
  */
 export interface ArtPair {
@@ -332,14 +332,14 @@ function isPairOf(art: ArtPair | null, look: Look): art is ArtPair {
 /**
  * Octopi's front and hit poses in `look` (`octopiLook`), pre-scaled like every other sprite. A drawn
  * look with its own pair decoded (`art`) is drawn as is: Front for the front pose, Ooff for the hit
- * pose (design doc §5). Otherwise the base pair is used, recoloured for a tint look by the tint's
+ * pose. Otherwise the base pair is used, recoloured for a tint look by the tint's
  * `ColorMatrix` in the same offscreen draw (both base poses share the body colour `#1C6DC6` the
  * matrix is calibrated on); the base look keeps Octopi's own colours.
  *
  * The base poses are fitted to Octopi's width, as they always were. A drawn pose fits INSIDE the
- * base Front's box instead (ruling R-O): no wider than Octopi's width and no taller than the base
+ * base Front's box instead: no wider than Octopi's width and no taller than the base
  * Front at that width, its own aspect kept — a tall pair like Bunny (h/w 1.23) comes out narrower,
- * not taller; a wide one keeps the base width. The owner judges every look at the base Octopi's
+ * not taller; a wide one keeps the base width. Every look is sized to match the base Octopi's
  * size, and the hit box (the core's `OCTOPI.size`) is the same whatever Octopi wears. Each pose is
  * fitted on its own, as the base pair's two poses are, and centred on Octopi by `draw.ts` as before.
  */
@@ -388,7 +388,7 @@ function prepareWorld(sprites: Sprites, layout: Layout): PreparedWorld {
 
 /**
  * Pre-scales every sprite to its exact on-screen size once, at physical-pixel resolution with mip
- * filtering (Task 4's FPS ruling, plus the crushed-sprite fix): the UI-thread worklet then draws
+ * filtering (fixing both a frame-rate issue and the crushed-sprite blur described above): the UI-thread worklet then draws
  * each with a single `canvas.drawImageOptions` call, no per-frame resampling. Memoized in two parts
  * for `GameScreen`: the world sprites (`prepareWorld`) rebuild only when `sprites`/`layout` change,
  * Octopi's two poses in `look` (`prepareOctopi`) also when Octopi's look or its drawn pair `art`
@@ -422,7 +422,7 @@ export type ArtPairState = ArtPair | 'loading' | 'failed' | null;
 const PAIR_RELEASE_MS = 1000;
 
 /**
- * Decodes `look`'s drawn Front/Ooff pair for a run (design doc §5: only the equipped pair, never
+ * Decodes `look`'s drawn Front/Ooff pair for a run (only the equipped pair, never
  * the other twenty). The answer always belongs to the look passed in THIS render: a pair decoded
  * for a previous look is never returned, so a look that changes while the run is mounted (the
  * loadout answering after a quick tap on Practice) cannot draw or prime the old look's art under
@@ -475,7 +475,7 @@ export function useArtPair(look: Look): ArtPairState {
 /*
  * Octopi on UI screens (Home's hero, the result pose, Shop and Profile thumbs, leaderboard rows):
  * small snapshots of a look's front pose — the base sprite, recoloured for a tint look, or a drawn
- * pair's Front (design doc §5) — pre-scaled through the same `renderScaled` path as the game. A
+ * pair's Front — pre-scaled through the same `renderScaled` path as the game. A
  * source decodes to ~4 MB (the 1024 px base sprite) or ~8 MB (a 1400 px drawn Front), so sources
  * are decoded one at a time, only while a snapshot waits on them, and released as soon as none
  * does: a Shop or Profile full of drawn thumbs decodes each Front once, in turn, never all of them

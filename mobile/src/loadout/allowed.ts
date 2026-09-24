@@ -16,7 +16,7 @@ export const NO_SELECTORS: Selectors = { variants: [], skins: [] };
 export type EarnedAwards = ReturnType<typeof earnedAwards>;
 
 /**
- * Every selector this player may equip right now (champions and skins design doc §3): 0 always; a
+ * Every selector this player may equip right now: 0 always; a
  * sold one when the wallet owns its item; an award when the campaign has earned it (awards are
  * derived, never stored); the Seeker look with a verified Seeker link. The same three rules the
  * backend applies to `PUT /api/profile/loadout`, so a tile the app offers is one the backend takes.
@@ -67,7 +67,7 @@ export function wornSkin(allowed: Selectors, activeSkin: SkinIndex): SkinIndex {
 }
 
 /**
- * The boss whose defeat earns `award` (design doc §2/§3): the one the level table puts on the award
+ * The boss whose defeat earns `award`: the one the level table puts on the award
  * level's row. Null when no level awards it (a sold or free selector) or the row has no boss.
  */
 export function awardBoss(award: Award): string | null {
@@ -89,7 +89,7 @@ export function skinBoss(code: SkinIndex): string | null {
 }
 
 /**
- * Where a locked champion is had (design doc §5): "In the Shop" for a sold one, "Beat <boss>" for
+ * Where a locked champion is had: "In the Shop" for a sold one, "Beat <boss>" for
  * an award; null for the base Octopi, which is never locked.
  */
 export function variantHint(v: VariantIndex): string | null {
@@ -98,7 +98,7 @@ export function variantHint(v: VariantIndex): string | null {
   return boss === null ? null : `Beat ${boss}`;
 }
 
-/** Where a locked look is had (design doc §5): "In the Shop", "Beat <boss>" or "Verify Seeker"; null for code 0. */
+/** Where a locked look is had: "In the Shop", "Beat <boss>" or "Verify Seeker"; null for code 0. */
 export function skinHint(code: SkinIndex): string | null {
   if (SKIN_ITEM_IDS[code] != null) return 'In the Shop';
   if (code === SEEKER_SKIN_CODE) return 'Verify Seeker';
@@ -124,7 +124,7 @@ export function isAwardChange(change: LoadoutChange): boolean {
 export const AWARD_SYNCING = 'Your campaign is still syncing — try again in a moment';
 
 /**
- * The look/ability rule, said where champions and skins are chosen (owner, 2026-09-23; design doc
- * §5): under the Champions section of the Shop and the Champions group of the Profile.
+ * The look/ability rule, said where champions and skins are chosen: under the Champions section of
+ * the Shop and the Champions group of the Profile.
  */
 export const WEAR_RULE = "A skin changes only the look. A champion's ability works under any skin.";

@@ -17,11 +17,11 @@ import {
 } from './reefBackground';
 import { FIRST_VETERAN_REEF, REEF_ACCENT, REEF_WORLD } from './reefs';
 
-/** Ruling R66 (fix round): on top of `REEF_KEY_ART_DIM`, reefs `FIRST_VETERAN_REEF` and up (the
+/** On top of `REEF_KEY_ART_DIM`, reefs `FIRST_VETERAN_REEF` and up (the
  * second campaign) get this much extra dim so they read deeper/darker than the first five. */
 const REEF_KEY_ART_DEEP_DIM = 0.15;
 
-/** Flora bar sizes and sway periods, `CampaignMap.dc.html`'s `FLORA` table. Bars 0, 3, 6 use the reef's `floraAccent`. */
+/** Flora bar sizes and sway periods. Bars 0, 3, 6 use the reef's `floraAccent`. */
 const FLORA = [
   { w: 22, h: 62, ms: 3200 }, { w: 34, h: 34, ms: 4100 }, { w: 16, h: 92, ms: 2800 }, { w: 48, h: 28, ms: 5000 },
   { w: 18, h: 70, ms: 3600 }, { w: 28, h: 46, ms: 4400 }, { w: 16, h: 56, ms: 3000 }, { w: 24, h: 80, ms: 4800 },
@@ -39,7 +39,7 @@ const RAYS_OPACITY = { map: 1, play: 0.5 } as const;
 
 /**
  * CSS `saturate(.6)` as a colour matrix (W3C filter-effects formula, s = 0.6): the looming
- * background boss (`CampaignMap.dc.html`: `filter: blur(1px) saturate(.6)`) is dimmed, not fully
+ * background boss is dimmed with `blur(1px) saturate(.6)`, not fully
  * greyscaled.
  */
 const LOOM_SATURATE_MATRIX = [
@@ -66,7 +66,7 @@ interface ReefBackdropProps {
 }
 
 /**
- * One reef's world (`CampaignMap.dc.html`): its water gradient, the top glow band, two swaying light
+ * One reef's world: its water gradient, the top glow band, two swaying light
  * rays, the seabed dome, swaying flora and, on the map, its boss looming in the water. The campaign
  * map and every screen of that reef's levels draw it, so a level looks like the reef it belongs to.
  */
@@ -74,7 +74,7 @@ export function ReefBackdrop({ reef, variant = 'map', bossSprite = null, floorBo
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <ReefWorld reef={reef} variant={variant} bossSprite={variant === 'map' ? bossSprite : null} floorBottom={floorBottom} />
-      {/* On the key art the seabed dome and the flora are gone (the owner: they hid the reef) and the header gets a scrim. */}
+      {/* On the key art the seabed dome and the flora are gone (the reef itself is hidden) and the header gets a scrim. */}
       {REEF_KEY_ART_BACKGROUND ? (
         <KeyArtScrim opacity={REEF_KEY_ART_SCRIM.opacity} fraction={REEF_KEY_ART_SCRIM.fraction} />
       ) : (
@@ -104,7 +104,7 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
   const rayA = useSharedValue<number>(MOTION.raysMin);
   const rayB = useSharedValue<number>(MOTION.raysMax);
   const drift = useSharedValue(0);
-  // Owner's pick 2026-09-22 evening: the shader's own slow-breathing clock, the same long-lap ramp
+  // The shader's own slow-breathing clock, the same long-lap ramp
   // `SwirlBackdrop.tsx`/`Backdrop.tsx` use — `rayA`/`rayB` above still drive each ray's own opacity.
   const rayTime = useSharedValue(0);
 
@@ -126,7 +126,7 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
   const keyArt = useImage(REEF_KEY_ART_BACKGROUND ? REEF_KEY_ART : null);
   // The looming boss: the design's faint ghost on the gradient, a clearer figure on the busy art.
   const bossLoom = REEF_KEY_ART_BACKGROUND ? REEF_KEY_ART_BOSS_LOOM : { opacity: BOSS_LOOM_OPACITY, blur: BOSS_LOOM_BLUR };
-  // Ruling R66 (fix round): reefs 6-10 tint the key art with the reef's own accent instead of the
+  // Reefs 6-10 tint the key art with the reef's own accent instead of the
   // boss colour (reef 9's accent and reef 4's boss colour are both hue 0, which made the two
   // backdrops read pixel-identical), plus an extra dim, so the second campaign reads deeper and
   // darker. Below `FIRST_VETERAN_REEF`, unchanged: the boss's own colour, from its real kind
@@ -185,8 +185,8 @@ function ReefWorld({ reef, variant, bossSprite, floorBottom }: {
 }
 
 /**
- * Owner's pick 2026-09-22 evening (`../ui/lightRays.ts`, React Bits `LightRays`): one full-canvas
- * shader fill anchored above the screen, in place of the skewed gradient rect this used to draw.
+ * One full-canvas shader fill (`../ui/lightRays.ts`, React Bits `LightRays`), anchored above the
+ * screen, in place of the skewed gradient rect this used to draw.
  * `opacity` is the same per-ray breathing animation the file always had; `time` is shared by both
  * rays. No blur wrapper any more — the shader's own falloff is already soft.
  */

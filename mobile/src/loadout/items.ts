@@ -3,8 +3,8 @@ import { SKIN_COUNT, VARIANT_BY_INDEX, VARIANT_INDEX, VARIANT_ITEM_IDS, VARIANT_
 /**
  * The catalogue's identity on the app side: a thin re-export of the core's `catalogue.ts`, where
  * the names, the selector ↔ item tables and the awards are written once for the backend and the app
- * alike (champions and skins design doc §3). Prices and ownership always come from the chain
- * through the backend (§4), never from here. `ITEM_NAMES` is kept as part of the app's public
+ * alike. Prices and ownership always come from the chain
+ * through the backend, never from here. `ITEM_NAMES` is kept as part of the app's public
  * catalogue surface, though nothing in the app imports it today.
  */
 export {
@@ -14,13 +14,13 @@ export {
 
 /**
  * `activeSkin`: the loadout selector the backend stores, the app equips and every ranked run
- * snapshots into `ranked_runs.skin` (design doc §2/§3). 0 = Octopi's own colours, 1..4 = the legacy
+ * snapshots into `ranked_runs.skin`. 0 = Octopi's own colours, 1..4 = the legacy
  * tints, 5..12 = the sold looks, 13..16 = the boss awards, 17 = the Seeker look; `SKIN_COUNT` codes
  * in all. How each one looks is `game/looks.ts`'s `SKIN_LOOK`.
  */
 export type SkinIndex = number;
 /**
- * `activeVariant`: the core's `VARIANT_INDEX` (design doc §3) — 0 the base Octopi, 1..3 Azul,
+ * `activeVariant`: the core's `VARIANT_INDEX` — 0 the base Octopi, 1..3 Azul,
  * Krang, Poseidon, 4..6 Noob, Coraluna, Shoupe, 7..8 Hex, Kakashi.
  */
 export type VariantIndex = number;
@@ -32,7 +32,7 @@ export type VariantIndex = number;
  */
 export const BASE_OCTOPI_NAME = VARIANT_NAMES.base;
 
-/** The core's `RunConfig.octopi` for each variant selector: what a campaign run plays with (design doc §3). */
+/** The core's `RunConfig.octopi` for each variant selector: what a campaign run plays with. */
 export const VARIANT_OCTOPI: readonly OctopiVariant[] = VARIANT_BY_INDEX;
 
 export function isSkinIndex(value: unknown): value is SkinIndex {

@@ -28,12 +28,12 @@ export function useCampaign() {
   }, []);
 
   /**
-   * The run config for level `id`, played with the variant `octopi` (design doc §4–5: every campaign
+   * The run config for level `id`, played with the variant `octopi` (every campaign
    * run, practice replays of cleared levels included; the core adds Anchor's extra life itself).
    * A practice replay starts with a full reef's lives, or with `carried` - the lives left over by
-   * the level just cleared when the player walks on through a cleared reef (owner ruling
-   * 2026-09-17: the hearts travel from level to level while "Next level" is pressed, and reset once
-   * the player leaves for the map). A real attempt always takes the progress's reef lives.
+   * the level just cleared when the player walks on through a cleared reef (the hearts travel from
+   * level to level while "Next level" is pressed, and reset once the player leaves for the map).
+   * A real attempt always takes the progress's reef lives.
    */
   const startLevel = useCallback(
     (id: number, practice: boolean, octopi: OctopiVariant, carried?: number): RunConfig => {

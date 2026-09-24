@@ -6,7 +6,7 @@ import type { Session } from '../api/session';
 
 const DEBOUNCE_MS = 2_000;
 
-/** Spec §6.2 comparison: `updatedAt` plus the per-level `cleared`/`best` arrays. */
+/** Progress comparison: `updatedAt` plus the per-level `cleared`/`best` arrays. */
 function differs(a: CampaignProgress, b: CampaignProgress): boolean {
   if (a.updatedAt !== b.updatedAt) return true;
   for (let i = 0; i < a.cleared.length; i++) if (a.cleared[i] !== b.cleared[i]) return true;
@@ -22,7 +22,7 @@ function differs(a: CampaignProgress, b: CampaignProgress): boolean {
  * - On sign-in (a new `session`, once `progress` has loaded): GET the server copy. A 404 with
  *   `code: 'not_found'` means the wallet never synced before — keep the local progress as-is; any
  *   other error (including a 404 with a different code) goes to the failure path. Otherwise
- *   `mergeProgress` the local and server copies (spec §6.2: per-level OR/max, position fields
+ *   `mergeProgress` the local and server copies (per-level OR/max, position fields
  *   from the newer `updatedAt`); `replaceProgress` only if the merge differs from local (avoids a
  *   redundant write), then PUT the merged value once so the server has it too.
  *   Readiness for the step below is tracked in state (not a ref), so a `progress` change that

@@ -2,7 +2,7 @@ import type { OctopiVariant } from '@sea-invaders/core';
 import { ITEM_TINT } from '../shop/tints';
 
 /**
- * How Octopi looks (champions and skins design doc §1, §2, §5): its own colours, a legacy tint
+ * How Octopi looks: its own colours, a legacy tint
  * recolouring the base sprite (`shop/tints.ts`'s `tintMatrix`), or a drawn Front/Ooff pair that
  * replaces the base sprite outright. `front`/`ooff` are static `require`s so Metro finds and bundles
  * every pair (`mobile/assets/sprites/octopi/`, `tools/octopi-sprites.py`'s output); `key` is the
@@ -41,9 +41,9 @@ const OUTLAW: Look = { kind: 'art', key: 'outlaw', front: require('../../assets/
 const SEEKER: Look = { kind: 'art', key: 'seeker', front: require('../../assets/sprites/octopi/seeker-front.png'), ooff: require('../../assets/sprites/octopi/seeker-ooff.png') };
 
 /**
- * Each skin code's look (design doc §2): 1-4 the legacy tints (items 3-6's `ITEM_TINT`), 5-17 the
+ * Each skin code's look: 1-4 the legacy tints (items 3-6's `ITEM_TINT`), 5-17 the
  * drawn skins. No entry for code 0 (Octopi's own colours) or a code outside 0..17, so a lookup is
- * typed `Look | undefined` (ruling R-P) and every caller falls back with `?? BASE_LOOK` — or uses
+ * typed `Look | undefined` and every caller falls back with `?? BASE_LOOK` — or uses
  * `lookOfSkin`, which does.
  */
 export const SKIN_LOOK: Readonly<Record<number, Look | undefined>> = {
@@ -67,8 +67,8 @@ export const SKIN_LOOK: Readonly<Record<number, Look | undefined>> = {
 };
 
 /**
- * Each variant's own look (design doc §1): every champion is drawn; the base Octopi keeps its
- * colours. Every variant is listed, but a lookup is typed `Look | undefined` (ruling R-P): a variant
+ * Each variant's own look: every champion is drawn; the base Octopi keeps its
+ * colours. Every variant is listed, but a lookup is typed `Look | undefined`: a variant
  * read from outside (`VARIANT_OCTOPI[i]` for an unknown selector) may be undefined, so callers fall
  * back with `?? BASE_LOOK`.
  */
@@ -85,7 +85,7 @@ export const CHAMPION_LOOK: Readonly<Record<OctopiVariant, Look | undefined>> = 
 };
 
 /**
- * The one rule every Octopi on screen follows (design doc §2): an equipped skin, drawn or tint,
+ * The one rule every Octopi on screen follows: an equipped skin, drawn or tint,
  * wins the look — the champion under it keeps its ability; without one, the champion shows its own
  * art; the base Octopi shows its own colours. A tint over a champion recolours the base sprite, as
  * it always did.

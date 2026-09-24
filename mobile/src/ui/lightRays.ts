@@ -15,7 +15,7 @@ export function rayColorVec3(rgba: string): [number, number, number] {
 }
 
 /**
- * Light through deep water (owner's pick of 2026-09-22 evening), adapted for Skia's SkSL from the
+ * Light through deep water, adapted for Skia's SkSL from the
  * React Bits `LightRays` component (MIT + Commons Clause, https://reactbits.dev — the same credit
  * `lightning.ts`/`tunnel.ts` already carry). Two callers share this one effect: `Backdrop.tsx` (the
  * generic menu/play backdrop) and `ReefBackdrop.tsx` (the campaign map), each drawing it twice — once
