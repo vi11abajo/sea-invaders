@@ -169,6 +169,11 @@ const SFX_FOR_EVENT: Partial<Record<GameEvent['type'], SfxId>> = {
   boost_expire: 'boost_expire',
   player_freeze: 'player_freeze',
   revived: 'revived',
+  // Noob's Shell absorbing a hit plays the same sound a SHIELD_BARRIER charge does on
+  // `player_hit` (`collide.ts:applyOctopiHit`); Coraluna's Coral growth plays the HEALTH_BOOST
+  // pickup's own stinger, since a growth is the same "+1 life" moment as that pickup.
+  shell_break: 'player_hit',
+  coral_growth: 'boost_health_boost',
   ...definedEntries(REEFS_SFX),
 };
 
@@ -233,6 +238,10 @@ const HAPTIC_FOR_EVENT: Partial<Record<GameEvent['type'], HapticId>> = {
   meteor_warning: 'meteor_warning',
   player_freeze: 'player_freeze',
   revived: 'revived',
+  // Same pairing as `SFX_FOR_EVENT` above: the shell reuses a SHIELD_BARRIER hit's own haptic,
+  // the coral growth reuses a boost pickup's.
+  shell_break: 'life_lost',
+  coral_growth: 'boost_pickup',
   ...definedEntries(REEFS_HAPTIC),
 };
 
@@ -324,6 +333,8 @@ interface Hud {
   boss: BossFrame | null;
   boosts: HudBoost[];
   shield: number;
+  /** Noob's Shell: `f.octopi.shell === 1`, false for every other variant and once it breaks. */
+  shell: boolean;
   /** "WAVE N" / "LEVEL N · WAVE 1" / "PHASE N", shown centre-screen for `BANNER_FRAMES` frames. */
   banner: string | null;
   /** A pickup's name, shown under the HUD for `TOAST_FRAMES` frames. */
@@ -332,7 +343,7 @@ interface Hud {
 
 const START_HUD: Hud = {
   score: 0, lives: 3, wave: 1, kills: 0, over: false, fps: 0,
-  boss: null, boosts: [], shield: 0, banner: null, toast: null,
+  boss: null, boosts: [], shield: 0, shell: false, banner: null, toast: null,
 };
 
 export interface RunOutcome {
@@ -607,9 +618,15 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
         } else if (ev.type === 'coral_growth') {
           // Coraluna's Coral growth: a toast and the shock rings at the position of Octopi the core
           // recorded with the event, until it gets feedback of its own.
-          toastText = 'Coral growth';
+          toastText = '+1 life';
           toastFrames = TOAST_FRAMES;
           blast.value = { tick: ev.tick, x: ev.x, y: ev.y };
+        } else if (ev.type === 'shell_break') {
+          // Noob's Shell absorbing a hit: same short toast style as every other pickup/growth line.
+          // The hit-pose sprite swap is already automatic (the core sets `octopi.invuln` exactly as a
+          // SHIELD_BARRIER charge does, `draw.ts` reads it the same way), so only the toast is new here.
+          toastText = 'Shell';
+          toastFrames = TOAST_FRAMES;
         }
         // The reefs 6-10 one-shot visuals: every entry is stamped with the
         // event's own `ev.tick`, never `state.tick` — a catch-up batch's later ticks must not age an
@@ -735,12 +752,13 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
       }
       const next: Hud = {
         score: state.score, lives: state.octopi.lives, wave: state.wave, kills: state.kills, over, fps,
-        boss: f.boss, boosts: boostsFromFrame(f.boosts, state.boosts.tamerStacks), shield: f.shield, banner: bannerText, toast: toastText,
+        boss: f.boss, boosts: boostsFromFrame(f.boosts, state.boosts.tamerStacks), shield: f.shield,
+        shell: f.octopi.shell === 1, banner: bannerText, toast: toastText,
       };
       if (
         next.score !== shown.score || next.lives !== shown.lives || next.wave !== shown.wave ||
         next.kills !== shown.kills || next.over !== shown.over || (__DEV__ && next.fps !== shown.fps) ||
-        next.shield !== shown.shield || next.banner !== shown.banner || next.toast !== shown.toast ||
+        next.shield !== shown.shield || next.shell !== shown.shell || next.banner !== shown.banner || next.toast !== shown.toast ||
         !sameBoss(next.boss, shown.boss) || !sameBoosts(next.boosts, shown.boosts)
       ) {
         shown = next;
@@ -907,6 +925,7 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
             boss={hud.boss}
             boosts={hud.boosts}
             shield={hud.shield}
+            shell={hud.shell}
             toast={hud.toast}
             hint={HINT}
             onPause={pause}

@@ -65,6 +65,8 @@ interface GameHudProps {
   boosts?: HudBoost[];
   /** Octopi's SHIELD_BARRIER hits left; a chip shows only when > 0. */
   shield?: number;
+  /** Noob's Shell: up (true) from the start of the wave/boss fight until it takes a hit. */
+  shell?: boolean;
   /** The active boss, when the level has one. */
   boss?: BossFrame | null;
   /** A short line under the HUD, e.g. a pickup name. */
@@ -80,7 +82,7 @@ interface GameHudProps {
 const COMPACT_WAVE_BELOW = 380;
 
 /** The in-run HUD over the world. Only the pause button takes touches. */
-export function GameHud({ mode, badge, score, lives, wave = 0, waves, combo, boosts, shield = 0, boss, toast, hint, onPause }: GameHudProps) {
+export function GameHud({ mode, badge, score, lives, wave = 0, waves, combo, boosts, shield = 0, shell = false, boss, toast, hint, onPause }: GameHudProps) {
   const { width } = useWindowDimensions();
   // SHIELD_BARRIER is shown only by the dedicated "Shield ×N" chip below, never as its own "∞" entry.
   const timedBoosts = boosts?.filter((b) => b.type !== 'SHIELD_BARRIER') ?? [];
@@ -122,8 +124,15 @@ export function GameHud({ mode, badge, score, lives, wave = 0, waves, combo, boo
       </View>
       <View style={styles.stack} pointerEvents="none">
         {boss != null && <BossBar boss={boss} />}
-        {(showBoosts || shield > 0) && (
+        {(showBoosts || shield > 0 || shell) && (
           <View style={styles.boosts}>
+            {shell && (
+              // Noob's Shell: a one-hit block, so no count or timer — just the name, gone the
+              // instant it breaks and back at the next wave or boss fight.
+              <View style={[styles.glass, styles.pill, styles.chip]}>
+                <Text style={styles.chipName}>Shell</Text>
+              </View>
+            )}
             {timedBoosts.map((b) => (
               <View key={b.type} style={[styles.glass, styles.pill, styles.chip]}>
                 <Image source={BOOST_ICON[b.type]} style={styles.chipIcon} resizeMode="contain" />
