@@ -2,6 +2,10 @@ name: anchor
 on:
   push: { paths: ['programs/**', '.github/workflows/anchor.yml'] }
   pull_request: { paths: ['programs/**'] }
+# The jobs only read the repository; nothing here writes back to GitHub.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

@@ -131,4 +131,20 @@ describe('/api/campaign', () => {
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ error: 'BadRequest', code: 'invalid_progress' });
   });
+
+  it('answers 400 for an updatedAt more than a day in the future, and stores nothing', async () => {
+    const res = await request(app).put('/api/campaign').set(auth).send({ progress: makeProgress({ updatedAt: 1e300 }) });
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'BadRequest', code: 'invalid_progress' });
+    expect((await request(app).get('/api/campaign').set(auth)).status).toBe(404);
+  });
+
+  it('stores only the known fields of a first save', async () => {
+    const res = await request(app).put('/api/campaign').set(auth).send({ progress: { ...makeProgress(), extra: 'x'.repeat(1000), nested: { a: 1 } } });
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body.progress).sort()).toEqual(['best', 'cleared', 'level', 'lives', 'reef', 'updatedAt', 'v']);
+    const stored = await request(app).get('/api/campaign').set(auth);
+    expect(stored.body.progress).not.toHaveProperty('extra');
+    expect(stored.body.progress).not.toHaveProperty('nested');
+  });
 });

@@ -66,10 +66,35 @@ export async function getCachedPlayer(wallet) {
   return value;
 }
 
-/** Clears the `getPlayer` cache for one wallet, or all wallets when called with no argument. */
+/** Clears the `getPlayer` cache for one wallet, or all wallets (and the shared week reads below) when called with no argument. */
 export function clearPlayerCache(wallet) {
-  if (wallet) playerCache.delete(wallet);
-  else playerCache.clear();
+  if (wallet) {
+    playerCache.delete(wallet);
+    return;
+  }
+  playerCache.clear();
+  weekReadsCache.clear();
+}
+
+const WEEK_READS_TTL_MS = 10_000;
+const weekReadsCache = new Map(); // week -> { value: Promise<[config, weekPool, vaultBalance]>, expiresAt }
+
+/**
+ * The reads of `todayInfo` that are the same for every caller - the config, the week's pool and its
+ * vault balance - shared for 10 s between signed-out callers, so their Home refreshes do not each hit the RPC.
+ * A failed read is not kept. Only the current week is ever asked for, so older entries are dropped.
+ */
+function weekReads(week) {
+  const now = Date.now();
+  const cached = weekReadsCache.get(week);
+  if (cached && cached.expiresAt > now) return cached.value;
+  const value = Promise.all([getConfig(), getWeekPool(week), getVaultBalance(week)]);
+  weekReadsCache.clear();
+  weekReadsCache.set(week, { value, expiresAt: now + WEEK_READS_TTL_MS });
+  value.catch(() => {
+    if (weekReadsCache.get(week)?.value === value) weekReadsCache.delete(week);
+  });
+  return value;
 }
 
 /** Attempts bought today via an on-chain ticket: only valid while `ticketDay` still matches today. */
@@ -85,11 +110,11 @@ export async function todayInfo({ userId, wallet, now }) {
   const used = userId ? await db.countRunsForDay(userId, day) : 0;
   const best = userId ? await db.bestForDay(userId, day) : null;
 
-  const [config, player, weekPool, vaultBalance, skrBalance] = await Promise.all([
-    getConfig(),
+  // A signed-in caller always reads fresh (its week rank moves with every record); a signed-out
+  // Home refresh shares the last 10 s of the same reads.
+  const [[config, weekPool, vaultBalance], player, skrBalance] = await Promise.all([
+    wallet ? Promise.all([getConfig(), getWeekPool(week), getVaultBalance(week)]) : weekReads(week),
     wallet ? getCachedPlayer(wallet) : null,
-    getWeekPool(week),
-    getVaultBalance(week),
     wallet ? getTokenBalance(wallet) : 0n,
   ]);
 

@@ -73,6 +73,7 @@ export async function confirmRecord({ userId, wallet, day, signature }) {
 }
 
 const WEEK_VIEW_TTL_MS = 30_000;
+const WEEK_VIEW_KEEP = 8;
 /** `week` -> `{ value, expiresAt }`. Populated and read by `weekView`; invalidated by `confirmRecord` and `clearWeekViewCache`. */
 const weekViewCache = new Map();
 
@@ -122,5 +123,7 @@ export async function weekView({ week, now }) {
   }
 
   weekViewCache.set(week, { value: result, expiresAt: Date.now() + WEEK_VIEW_TTL_MS });
+  // Any week can be asked for (`?week=`), so the cache keeps only the eight most recent weeks.
+  for (const key of weekViewCache.keys()) if (key < week - WEEK_VIEW_KEEP) weekViewCache.delete(key);
   return result;
 }

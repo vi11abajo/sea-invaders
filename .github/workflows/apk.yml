@@ -6,6 +6,10 @@ name: Build APK
 on:
   workflow_dispatch:
 
+# The jobs only read the repository; nothing here writes back to GitHub.
+permissions:
+  contents: read
+
 jobs:
   apk:
     name: Build the Android APK
