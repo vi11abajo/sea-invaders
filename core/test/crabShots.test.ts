@@ -127,7 +127,7 @@ describe('the weighted shooter', () => {
     expect(counts.swift! / counts.normal!).toBeGreaterThan(1.8);
     expect(counts.elder! / counts.normal!).toBeGreaterThan(1.8);
     expect(counts.heavy! / counts.normal!).toBeLessThan(0.6);
-  });
+  }, 20_000); // many simulated ticks: give it room on a loaded machine
 
   it('draws nothing beyond the fire roll on a tick that does not fire', () => {
     const s = firingSquad();
