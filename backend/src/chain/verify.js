@@ -1,7 +1,6 @@
 // Verifies a confirmed transaction's instructions actually invoke our program the way a `confirm*`
-// endpoint expects, before that endpoint touches its cache or DB - the closed Phase 2B parked item
-// for the new shop/tide endpoints (design doc §6, global-constraints.md's Phase 3B additions).
-// Deliberately independent of the anchor-lang coder: the discriminator and account order come
+// endpoint expects, before that endpoint touches its cache or DB - used by the shop and tide
+// confirm endpoints. Deliberately independent of the anchor-lang coder: the discriminator and account order come
 // straight from the checked-in IDL, and `purchase`'s two args (`item_id: u8`, `max_price: u64`) are
 // simple enough to read off the wire directly.
 import { PublicKey } from '@solana/web3.js';
@@ -48,7 +47,7 @@ export function hasRevive(instructions, { wallet }) {
  * The `sgt_mint` a `link_seeker` of our program linked (base58), or `null` when `instructions`
  * carries no such link with `wallet` in the `wallet` slot AND `serverAuthority` in the
  * `server_authority` slot. Both signers are required: the wallet's is the player's consent, the
- * server's is the attestation that the mainnet Seeker Genesis Token check passed (design doc §2/§3),
+ * server's is the attestation that the mainnet Seeker Genesis Token check passed,
  * and a link attested by anybody else is not one we issued.
  *
  * The mint is read off the verified instruction itself - layout after the 8-byte discriminator:

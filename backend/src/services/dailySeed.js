@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 
-// Day and week arithmetic shared with the on-chain program (spec §5.1). All times are Unix seconds.
+// Day and week arithmetic shared with the on-chain program. All times are Unix seconds.
 export const DAY_SECONDS = 86400;
 export const GRACE_SECONDS = 900;
 

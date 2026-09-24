@@ -1,4 +1,4 @@
-// The shop catalogue (design doc §1) and item purchases: catalogue prices and item ownership
+// The shop catalogue and item purchases: catalogue prices and item ownership
 // always come from the chain (the `Catalog` PDA and `Player.inventory` bitmask) - this module only
 // mirrors them for the API and builds/confirms the `purchase` transaction, the same way
 // `services/records.js`/`services/tickets.js` do for tickets.
@@ -31,9 +31,9 @@ let catalogCache = null; // { value, expiresAt }
 /**
  * The catalogue (the `Catalog` PDA), cached for 60s: `[{ id, kind, name, priceSkr, priceBaseUnits, active }]`.
  * `priceBaseUnits` (the exact on-chain `u64`) is for internal use only (`issuePurchase`'s `max_price`) -
- * routes must strip it before responding, since spec §3's `GET /api/shop` shape has no such field.
+ * routes must strip it before responding, since the `GET /api/shop` response has no such field.
  * Only the name is not the chain's: it comes from the catalogue shared with the app (`ITEM_NAMES`,
- * core/src/catalogue.ts - champions and skins spec §3); no price lives in code (that spec's §4).
+ * core/src/catalogue.ts); no price lives in code.
  */
 export async function readCatalog() {
   if (catalogCache && catalogCache.expiresAt > Date.now()) return catalogCache.value;
@@ -107,8 +107,8 @@ async function activeCatalogEntry(itemId) {
  * at – so the signing sheet (`usePurchase`’s `withPrepared`) can correct a stale price fetched
  * before an admin re-price landed, exactly as `issueRevive` already does.
  *
- * With `swap` (the app's `swap: true`) a short balance is paid in SOL instead, on mainnet only
- * (design doc §5 "Swap"): Jupiter swaps exactly the missing SKR inside the same transaction and the
+ * With `swap` (the app's `swap: true`) a short balance is paid in SOL instead, on mainnet only:
+ * Jupiter swaps exactly the missing SKR inside the same transaction and the
  * envelope gains `swapped`/`swappedSkr`/`inSol`/`maxInLamports` (see `swapEnvelope`). Everywhere
  * else - no `swap`, a cluster with no Jupiter, or a wallet that holds the price already - the
  * behaviour is exactly what it was.
@@ -136,8 +136,8 @@ export async function issuePurchase({ wallet, item, now, swap = false }) {
 
 /**
  * Confirms a submitted `purchase` transaction: verifies it actually invokes our program's
- * `purchase` instruction, for `item`, signed by `wallet` (global-constraints.md's Phase 3B
- * addition - every confirm endpoint verifies program id + instruction + payer) before refreshing
+ * `purchase` instruction, for `item`, signed by `wallet` (every confirm endpoint verifies program
+ * id + instruction + payer) before refreshing
  * the loadout cache. Re-callable while the transaction is not yet visible (`confirmed: false`).
  */
 export async function confirmPurchase({ wallet, signature, item }) {

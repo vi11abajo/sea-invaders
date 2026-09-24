@@ -16,7 +16,7 @@ export function currentCluster() {
 }
 
 /**
- * The endpoint the Seeker Genesis Token check reads mainnet through (design doc §3): `HELIUS_MAINNET_URL`
+ * The endpoint the Seeker Genesis Token check reads mainnet through: `HELIUS_MAINNET_URL`
  * when set, otherwise Helius's own mainnet endpoint carrying `HELIUS_API_KEY`. `null` when there is no
  * key to build it from - the seeker routes then answer 503 rather than reading mainnet unauthenticated.
  * The key lives in this one place: it is never logged, never part of an error message, and never returned.

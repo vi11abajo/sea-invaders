@@ -1,4 +1,4 @@
-// The SOL -> SKR swap composition (design doc §5 "Swap"): Jupiter's own instructions and ours in
+// The SOL -> SKR swap composition: Jupiter's own instructions and ours in
 // ONE v0 transaction the wallet signs once, against the recorded fixture in
 // `test/fixtures/jupiter-swap-instructions.json`. Nothing here touches the network: Jupiter is a
 // `fetchImpl` stub and the chain is `FakeConnection`, which also serves the route's lookup tables.

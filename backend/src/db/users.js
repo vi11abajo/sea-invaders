@@ -30,7 +30,7 @@ export async function findUsersByWallets(addresses) {
   return result.rows;
 }
 
-// The Seeker mirror (design doc §3): a copy of the on-chain link, written at confirm time so the
+// The Seeker mirror: a copy of the on-chain link, written at confirm time so the
 // leaderboards can render the SEEKER badge without one chain read per row. `Player.seeker` and the
 // `SeekerLink` PDA stay the truth - nothing here ever grants a badge the chain does not show.
 

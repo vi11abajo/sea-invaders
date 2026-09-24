@@ -33,7 +33,7 @@ const WALLET = user.wallet_address;
 const auth = { Authorization: `Bearer ${tokenFor(user)}` };
 const TREASURY = Keypair.generate().publicKey.toBase58();
 const WEEK = 42;
-// design doc §1: ladder[0..7] = 25, 30, 40, 50, 60, 75, 95, 120 SKR; ebb every 7200s.
+// ladder[0..7] = 25, 30, 40, 50, 60, 75, 95, 120 SKR; ebb every 7200s.
 const LADDER = [25_000_000n, 30_000_000n, 40_000_000n, 50_000_000n, 60_000_000n, 75_000_000n, 95_000_000n, 120_000_000n];
 
 function setLadderConfig() {
@@ -180,7 +180,7 @@ describe('issueRevive', () => {
   });
 });
 
-// design doc §5 "Swap", the Tide half: the revive is paid in SOL when the wallet is short on SKR.
+// The Tide half: the revive is paid in SOL when the wallet is short on SKR.
 // Mainnet only, and Jupiter is a stubbed global `fetch` - nothing here reaches the network.
 describe('issueRevive with a swap', () => {
   const originalCluster = process.env.SOLANA_CLUSTER;

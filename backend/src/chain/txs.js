@@ -66,7 +66,7 @@ function base64IfItFits(transaction) {
 }
 
 /**
- * `paymentInstructions` paid for by swapping SOL -> SKR first (design doc §5 "Swap"): Jupiter's own
+ * `paymentInstructions` paid for by swapping SOL -> SKR first: Jupiter's own
  * instructions - compute budget, setup, swap, cleanup, in the order `services/swap.js` collected
  * them - in front of ours, compiled into ONE v0 message against the route's address lookup tables,
  * fee payer = wallet, so the player signs once.

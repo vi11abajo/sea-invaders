@@ -1,4 +1,4 @@
-// The Seeker Genesis Token link (design doc §3): a mainnet read proves the token, the wallet's
+// The Seeker Genesis Token link: a mainnet read proves the token, the wallet's
 // signature proves consent, and the server's co-signature on `link_seeker` attests that the read
 // passed. The link itself lives on chain (`Player.seeker` + the `SeekerLink` PDA); `db/users.js`
 // only mirrors which mint it was, so the leaderboards can render the badge in one query.
@@ -101,8 +101,8 @@ export async function issueSeekerLink({ wallet }) {
 
 /**
  * Confirms a submitted `link_seeker` transaction: it must invoke our program's `link_seeker` with
- * the session wallet as `wallet` and our own server authority as `server_authority` (global-constraints:
- * every confirm endpoint verifies program id + instruction + payer) before the mirror is written.
+ * the session wallet as `wallet` and our own server authority as `server_authority` (every confirm
+ * endpoint verifies program id + instruction + payer) before the mirror is written.
  * The mint recorded is the one the verified instruction itself carries, never one a client named.
  * Re-callable while the transaction is not yet visible (`confirmed: false`).
  */

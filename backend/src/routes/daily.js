@@ -75,7 +75,7 @@ router.get('/leaderboard', async (req, res, next) => {
     const day = req.query.day === undefined ? dayOf(nowSeconds()) : boundedNumber(req.query.day, maxDay());
     if (day === null) return badDay(res);
     const rows = await db.leaderboardForDay(day, 50);
-    // The SEEKER badge for the whole board in one query, rather than a chain read per row (design doc §3).
+    // The SEEKER badge for the whole board in one query, rather than a chain read per row.
     const seekers = new Set(await findSeekerWallets(rows.map((row) => row.walletAddress)));
     res.json({
       day,

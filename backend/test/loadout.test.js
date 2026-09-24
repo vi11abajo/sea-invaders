@@ -41,7 +41,7 @@ function progressClearing(levels, length = 60) {
 }
 
 // The award level behind each skin code / variant index, inverted from core's own `AWARDS` table
-// (level -> award) so the sweep below never repeats the spec's numbers by hand.
+// (level -> award) so the sweep below never repeats those numbers by hand.
 const AWARD_LEVEL_OF_SKIN = {};
 const AWARD_LEVEL_OF_VARIANT = {};
 for (const [level, award] of Object.entries(AWARDS)) {
@@ -50,7 +50,7 @@ for (const [level, award] of Object.entries(AWARDS)) {
 }
 
 /**
- * One row per skin code (spec §3): what alone must be true before the wallet may equip it - nothing
+ * One row per skin code: what alone must be true before the wallet may equip it - nothing
  * for the free base, an inventory bit for a sold look, a cleared level for a boss award, or a
  * verified Seeker link for the Seeker look.
  */
@@ -62,7 +62,7 @@ const SKIN_ROWS = Array.from({ length: SKIN_COUNT }, (_, code) => {
   return { code, kind: 'award', level: AWARD_LEVEL_OF_SKIN[code] };
 });
 
-/** One row per variant selector (spec §3, `VARIANT_INDEX` order), built the same way as `SKIN_ROWS`. */
+/** One row per variant selector (`VARIANT_INDEX` order), built the same way as `SKIN_ROWS`. */
 const VARIANT_ROWS = Array.from({ length: VARIANT_ITEM_IDS.length }, (_, index) => {
   if (index === 0) return { index, kind: 'free' };
   const itemId = VARIANT_ITEM_IDS[index];
@@ -159,7 +159,7 @@ describe('/api/profile/loadout', () => {
     expect(res.body).toMatchObject({ code: 'not_owned' });
   });
 
-  // Champions and skins spec §3: a sold look or champion needs its inventory bit, a boss award needs
+  // A sold look or champion needs its inventory bit, a boss award needs
   // its level cleared in the stored campaign, the Seeker look needs the chain's Seeker link.
   it('PUT refuses a sold look (code 5 -> item 7, Bear) until its item is owned', async () => {
     const refused = await request(app).put('/api/profile/loadout').set(auth).send({ activeSkin: 5 });
@@ -220,7 +220,7 @@ describe('/api/profile/loadout', () => {
     expect(res.body.earned).toEqual({ variants: [7], skins: [13, 14] });
   });
 
-  it('GET treats a malformed stored progress row as no awards rather than a 500 (review finding 7)', async () => {
+  it('GET treats a malformed stored progress row as no awards rather than a 500', async () => {
     // Only reachable via a manual DB edit - every API write validates first (routes/campaign.js).
     await memoryCampaign.upsertProgress(user.id, { v: 1 });
     const res = await request(app).get('/api/profile/loadout').set(auth);
@@ -265,7 +265,7 @@ describe('/api/profile/loadout', () => {
     expect(get.body).toMatchObject({ activeSkin: 0, activeVariant: 0 });
   });
 
-  // Review finding #4 (task-2-review.md): the full allow/deny matrix, one row per skin code and
+  // The full allow/deny matrix, one row per skin code and
   // variant index, each with only its own entitlement ever set.
   describe('every code needs only its own entitlement, and nothing else (spec §3 sweep)', () => {
     it.each(SKIN_ROWS)('skin $code ($kind)', async (row) => {

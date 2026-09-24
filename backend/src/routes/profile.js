@@ -1,7 +1,7 @@
-// The player's off-chain loadout (design doc §3/§5): which skin/variant is equipped. There is no
+// The player's off-chain loadout: which skin/variant is equipped. There is no
 // on-chain instruction for equipping - a sold item's ownership is on-chain (`Player.inventory`), a
 // boss award follows from the stored campaign progress and the Seeker look from the chain's Seeker
-// link (champions and skins spec §3) - but the active selection only ever lives here, mirrored
+// link - but the active selection only ever lives here, mirrored
 // into the mobile app's AsyncStorage.
 import express from 'express';
 import { SEEKER_SKIN_CODE, SKIN_COUNT, SKIN_ITEM_IDS, VARIANT_INDEX, VARIANT_ITEM_IDS, earnedAwards, isValidProgress } from '@sea-invaders/core';
@@ -14,7 +14,7 @@ import { ownedItemIds, readPlayerShop } from '../services/shop.js';
 
 const router = express.Router();
 
-/** How many variant selectors exist: the base Octopi (0) and every champion (spec §3, `VARIANT_INDEX` order). */
+/** How many variant selectors exist: the base Octopi (0) and every champion (`VARIANT_INDEX` order). */
 const VARIANT_COUNT = VARIANT_ITEM_IDS.length;
 
 function isValidSelector(value, count) {
@@ -22,7 +22,7 @@ function isValidSelector(value, count) {
 }
 
 /**
- * Why the wallet `state` describes may not wear skin `code`, or null when it may (spec §3): a sold
+ * Why the wallet `state` describes may not wear skin `code`, or null when it may: a sold
  * look needs its catalogue item, the Seeker look a verified Seeker link, a boss look its level
  * cleared. Anything outside the table (a stray stored value) has no item it could own, so it is
  * refused too.
@@ -45,7 +45,7 @@ function variantRefusal({ owned, earned }, index) {
 
 /**
  * The wallet's live shop inventory, what its stored campaign has earned (awards are derived, never
- * stored - spec §3), whether it holds a verified Seeker link, and its stored selection. A stored
+ * stored), whether it holds a verified Seeker link, and its stored selection. A stored
  * selector that is no longer allowed - a demo campaign reset un-earns a boss award - reads as 0,
  * as does the selection of a wallet that has never set one.
  */

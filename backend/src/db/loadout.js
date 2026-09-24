@@ -1,6 +1,6 @@
 // A cache of a wallet's on-chain shop state (`inventory`, `tide`, `tide_at`) plus the truly
 // off-chain loadout selection (`active_skin`, `active_variant` - there is no on-chain instruction
-// for equipping a skin/variant, see design doc §3/§5). Refreshed by `GET /api/shop` and the
+// for equipping a skin/variant). Refreshed by `GET /api/shop` and the
 // `confirm*` endpoints once they know the fresh on-chain state.
 import pool from '../config/database.js';
 

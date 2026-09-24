@@ -218,7 +218,7 @@ describe('issuePurchase', () => {
   });
 });
 
-// design doc §5 "Swap": a wallet short on SKR pays with SOL instead, by swapping exactly the
+// A wallet short on SKR pays with SOL instead, by swapping exactly the
 // missing SKR through Jupiter in the same transaction. Mainnet only - everything below flips
 // SOLANA_CLUSTER per test and restores it, and Jupiter is a stubbed global `fetch`, never the network.
 describe('issuePurchase with a swap', () => {

@@ -17,7 +17,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
     const owned = new Set(ownedItemIds(shop.inventory));
     // An inactive item the wallet does not own is dropped (nothing to buy); an inactive item it
-    // already owns stays listed, since owning it never goes away (owner decision, spec §3 omits `active`).
+    // already owns stays listed, since owning it never goes away (owner decision).
     const visible = catalog.filter((it) => it.active || owned.has(it.id));
     const priced = await withSolPrices(visible);
     res.json({

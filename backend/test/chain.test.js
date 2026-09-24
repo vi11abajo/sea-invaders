@@ -256,7 +256,7 @@ describe('buildSettleWeekTx', () => {
     const result = await buildSettleWeekTx(7, winners, { connection });
     const tx = decode(result.transaction);
     expect(tx.message.staticAccountKeys[0].toBase58()).toBe(serverAuthority.publicKey.toBase58());
-    // F4: the first instruction must be the compute-budget one - up to 10 ATA creations + 10
+    // The first instruction must be the compute-budget one - up to 10 ATA creations + 10
     // transfer_checked CPIs + 1 rollover transfer can exceed the default 200_000 CU budget.
     expect(tx.message.compiledInstructions).toHaveLength(2);
     const [budgetIx, ix] = tx.message.compiledInstructions;
@@ -268,7 +268,7 @@ describe('buildSettleWeekTx', () => {
     const lastFourKeys = lastFour.map((i) => tx.message.staticAccountKeys[i].toBase58());
     expect(lastFourKeys[0]).toBe(winners[0].toBase58());
     expect(lastFourKeys[2]).toBe(winners[1].toBase58());
-    // Task 7 deferred minor: each winner's ATA (index 1 and 3 of the pairs) must be writable so
+    // Each winner's ATA (index 1 and 3 of the pairs) must be writable so
     // the payout/creation CPI can touch it; each wallet (index 0 and 2) must not be, since
     // settle_week is permissionless - only `caller` (the server authority) signs.
     expect(tx.message.isAccountWritable(lastFour[0])).toBe(false); // wallet

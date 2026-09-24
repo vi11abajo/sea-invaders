@@ -1,7 +1,7 @@
 -- ============================================
 -- Migration: a ranked run may carry any of the eighteen skin codes
--- Description: the loadout's skin scale grew from 0..4 (the four tints) to 0..17 (champions and
---              skins spec, sections 2-3: the sold looks, the boss awards and the Seeker look), and
+-- Description: the loadout's skin scale grew from 0..4 (the four tints) to 0..17 (the sold looks,
+--              the boss awards and the Seeker look), and
 --              startRun snapshots the equipped code into ranked_runs.skin. 009 declared the 0..4
 --              CHECK inline on the column, so its name is whatever Postgres assigned: like 011,
 --              it is dropped by lookup (the CHECK constraint attached to the skin column, found by

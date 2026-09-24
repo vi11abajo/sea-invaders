@@ -1,4 +1,4 @@
-// The Tide (design doc §1/§2, `revive`): a rising/ebbing SKR price for continuing mid-level after
+// The Tide (`revive`): a rising/ebbing SKR price for continuing mid-level after
 // the last life is lost. `effectiveTide` mirrors `programs/.../instructions/ticket.rs::effective_tide`
 // exactly (same test cases, ported), so the quote a player sees is the price the program will
 // actually charge at the same clock - `revive_ladder` and `tide`/`tide_at` always come from the
@@ -44,7 +44,7 @@ function quoteFromPlayer(player, config, now) {
     nextStep = { priceSkr: Number(ladder[effective - 1]) / 1e6, inSeconds: boundary - now };
   }
 
-  // The whole ladder in SKR, so the app can show its range (design: `Price ladder 25 -> 120 SKR`) without hardcoding prices.
+  // The whole ladder in SKR, so the app can show its range (e.g. `Price ladder 25 -> 120 SKR`) without hardcoding prices.
   const ladderSkr = ladder.map((v) => Number(v) / 1e6);
 
   return { tide, effective, priceSkr, nextStep, ladderSkr };
@@ -56,8 +56,8 @@ function quoteFromPlayer(player, config, now) {
  * the same gate `GET /api/shop` reports, and `priceSol`/`maxInLamports` - the current price's SOL
  * cost from the cached `quoteSwapPrice` (`services/swap.js`), exactly as `withSolPrices` prices the
  * Shop's list. Both are `null` off mainnet or when the quote fails - a failed quote must not fail
- * the Tide quote itself. Together they are what turns the primary into `Revive · ≈ X SOL` (design
- * doc §5 "Swap") instead of the SKR price - on devnet the gate is false and nothing about the sheet
+ * the Tide quote itself. Together they are what turns the primary into `Revive · ≈ X SOL`
+ * instead of the SKR price - on devnet the gate is false and nothing about the sheet
  * changes.
  */
 export async function quoteRevive({ wallet, now }) {
@@ -104,7 +104,7 @@ export async function issueRevive({ wallet, now, swap = false }) {
 
 /**
  * Confirms a submitted `revive` transaction: verifies it actually invokes our program's `revive`
- * instruction, signed by `wallet` (global-constraints.md's Phase 3B addition), before refreshing
+ * instruction, signed by `wallet`, before refreshing
  * the loadout cache. Re-callable while the transaction is not yet visible (`confirmed: false`).
  */
 export async function confirmRevive({ wallet, signature }) {

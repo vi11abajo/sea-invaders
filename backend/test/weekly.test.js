@@ -129,7 +129,7 @@ describe('runWeekly', () => {
     await expect(runWeekly({ now: NOW, chain: fakeChain, log: silentLog() })).rejects.toThrow('rpc unavailable');
   });
 
-  // I3: the crank used to only ever look at `current - 1`, stranding an older unsettled week
+  // The crank used to only ever look at `current - 1`, stranding an older unsettled week
   // forever if a run was missed (VPS down, a persistent RPC failure). It now walks back and
   // settles every finished, unsettled week it finds, oldest first.
   describe('catching up on more than one missed week', () => {

@@ -158,8 +158,7 @@ export async function getTransactionStatus(signature, connection = defaultConnec
  * Fetches a confirmed transaction and flattens its instructions to `{ programId, accountKeys, data }`
  * (base58 keys, a raw `Buffer` of instruction data) - the shape `chain/verify.js` inspects to check
  * program id, instruction discriminator, args and payer before a `confirm*` endpoint touches its
- * cache or DB (see the design doc §6 / global-constraints.md's Phase 3B additions). Same
- * missing/failed/confirmed states as `getTransactionStatus`. Resolves address-lookup-table accounts
+ * cache or DB. Same missing/failed/confirmed states as `getTransactionStatus`. Resolves address-lookup-table accounts
  * via `meta.loadedAddresses` so a v0 tx that used one (e.g. the swap-composed transaction) still
  * flattens correctly, not just the always-static tickets/purchase/revive transactions.
  */

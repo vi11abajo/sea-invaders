@@ -3,7 +3,7 @@
 // and the route's address lookup tables come as bare addresses (verified 2026-09-14 against
 // Jupiter's own `toInstruction` helper and the /swap-instructions -> /build response mapping on
 // developers.jup.ag). This module turns both into what `chain/txs.js` needs to compile ONE v0
-// message that carries Jupiter's swap and our own payment instruction (design doc §5 "Swap").
+// message that carries Jupiter's swap and our own payment instruction.
 import { PublicKey, TransactionInstruction } from '@solana/web3.js';
 
 /** One Jupiter instruction as a web3.js instruction. `accounts` is absent on some (the compute-budget ones carry none). */

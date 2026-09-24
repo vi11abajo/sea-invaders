@@ -1,4 +1,4 @@
-// The Seeker Genesis Token check (design doc §3). The game itself runs on its own cluster, but the
+// The Seeker Genesis Token check. The game itself runs on its own cluster, but the
 // token only exists on mainnet, so this one read goes through Helius instead of `chain/connection.js` -
 // and it stays a read: nothing here signs or sends anything. The server's signature on `link_seeker`
 // is the attestation that this check passed (`chain/txs.js#buildLinkSeekerTx`).

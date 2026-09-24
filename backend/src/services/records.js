@@ -101,7 +101,7 @@ export async function weekView({ week, now }) {
     const userByWallet = new Map(users.map((u) => [u.wallet_address, u]));
     const payoutBps = config ? config.payoutBps : [];
 
-    // The skin each top player's best ranked run of the week was played in (design doc §8), fetched
+    // The skin each top player's best ranked run of the week was played in, fetched
     // once for every wallet here rather than per entry.
     const weekDays = Array.from({ length: 7 }, (_, i) => weekFirstDay(week) + i);
     const skinRows = await rankedRunsDb.bestSkinForUsers(users.map((u) => u.id), weekDays);
@@ -115,7 +115,7 @@ export async function weekView({ week, now }) {
       const user = userByWallet.get(entry.player);
       const skin = user ? skinByUserId.get(user.id) ?? 0 : 0;
       // The SEEKER badge comes from the `Player` account this entry already reads - the week view
-      // never needs the mirror (design doc §3).
+      // never needs the mirror.
       return { rank: i + 1, walletAddress: entry.player, username: user?.username ?? null, total: entry.total, days, forecastSkr, skin, seeker: Boolean(player?.seeker) };
     }));
 

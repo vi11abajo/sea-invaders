@@ -1,4 +1,4 @@
-// SOL -> SKR swap quotes via Jupiter, gated to mainnet (design doc §3): the network is decided
+// SOL -> SKR swap quotes via Jupiter, gated to mainnet: the network is decided
 // later, so every other endpoint in this phase stays cluster-agnostic, but a live quote against
 // Jupiter only ever makes sense once the deployment has actually moved to mainnet.
 import { chainConfig, currentCluster } from '../chain/config.js';
@@ -6,7 +6,7 @@ import { chainConfig, currentCluster } from '../chain/config.js';
 const JUPITER_QUOTE_URL = 'https://api.jup.ag/swap/v1/quote';
 const JUPITER_SWAP_INSTRUCTIONS_URL = 'https://api.jup.ag/swap/v1/swap-instructions';
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
-// Caps the accounts Jupiter's route may use, leaving room in the composed v0 tx for our own payment instruction under the 1232-byte limit (parent design §2.2); tune once measured on mainnet.
+// Caps the accounts Jupiter's route may use, leaving room in the composed v0 tx for our own payment instruction under the 1232-byte limit; tune once measured on mainnet.
 const JUPITER_MAX_ACCOUNTS = 32;
 /**
  * Rent the temporary wrapped-SOL account has to hold while the swap runs, before Jupiter's cleanup
@@ -105,7 +105,7 @@ async function requestQuote(amount, fetchImpl) {
 /**
  * Quotes a SOL -> SKR swap for exactly the SKR asked for (`swapMode=ExactOut`) via Jupiter, then
  * asks Jupiter to build the actual swap instructions for `wallet` against that quote - `chain/txs.js`
- * composes these into one v0 tx with the payment instruction (design doc §5 "Swap"). Used only by
+ * composes these into one v0 tx with the payment instruction. Used only by
  * `planSwap`, i.e. the payment composition path (`issuePurchase`/`issueRevive` with `swap: true`):
  * the price label path (`POST /api/swap/quote`, the Shop's `≈ X SOL`) uses the cheaper `quoteSwapPrice`
  * below instead, which never calls `/swap-instructions` at all.
