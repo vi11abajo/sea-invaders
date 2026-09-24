@@ -23,8 +23,8 @@ const HALF = idiv(CRAB.size, 2);
 
 /**
  * March steps a whirlpool crab takes to travel from its slot to the next one on its ring (march
- * steps, not wall-clock ticks). At the game's default 90 %
- * `TUNING.crabMovePct`, and with nothing slowing the wave, that is 50 ticks.
+ * steps, not wall-clock ticks). At the game's reference crab speed (`SPEED_PCT.crabMove`, 90 % of
+ * the original), and with nothing slowing the wave, that is 50 ticks.
  */
 export const ROTATE_TICKS = 45;
 

@@ -91,34 +91,53 @@ export function boostDurationPctFor(variant: OctopiVariant): number {
   return variant === 'base' ? 100 : (VARIANTS[variant].boostDurationPct ?? 100);
 }
 
-/**
- * Game-speed tuning in percent of the original speeds (100 = unchanged, below 100 slower, above
- * faster). Change these knobs rather than the values they scale: every derived speed follows.
- * Current tuning: Octopi's shots -20 %, crab movement -10 %, crab fire rate -10 %.
- * Any change alters every replay, so the release carries a CORE_VERSION bump and regenerated goldens.
- */
-export const TUNING = {
-  /** How fast Octopi's shots fly: scales `UNTUNED_SPEED.octopiShot` into `SHOT.speed`. */
-  octopiShotPct: 80,
-  /**
-   * How fast crabs move: the formation march only (see `marchSteps`). A wave's arrival descent
-   * runs at `ARRIVAL.speed` raw, which this knob does not touch.
-   */
-  crabMovePct: 90,
-  /** How often crabs fire: scales the per-tick fire chance (see `fireChance`). */
-  crabFirePct: 90,
-} as const;
-
-/** The original speeds, in units/tick, that the `TUNING` knobs scale. */
-export const UNTUNED_SPEED = { octopiShot: 240 } as const;
-
 /** `base` scaled to `pct` percent, rounded towards zero (integer-only like the rest of the core). */
 export function scalePct(base: number, pct: number): number {
   return idiv(base * pct, 100);
 }
 
-/** Player shot; `speed` is `UNTUNED_SPEED.octopiShot` scaled by `TUNING.octopiShotPct`. */
-export const SHOT = { w: 120, h: 360, speed: scalePct(UNTUNED_SPEED.octopiShot, TUNING.octopiShotPct) } as const;
+/**
+ * The game's reference speeds, in percent of the original speeds: Octopi's shots at 80 %, crab
+ * movement at 90 %, crab fire rate at 90 %. This is the speed the game shipped with at core 13, and
+ * it is treated as 1.0: every `TUNING` knob is measured against it, so a balance change reads as a
+ * step away from the game players know.
+ */
+export const BASE_SPEED_PCT = { octopiShot: 80, crabMove: 90, crabFire: 90 } as const;
+
+/**
+ * Game-speed tuning in percent of the reference speed (`BASE_SPEED_PCT`): 100 = the speed the game
+ * shipped with at core 13, below 100 slower (50 halves it), above faster. Change these knobs rather
+ * than the values they scale: every derived speed follows through `SPEED_PCT`.
+ * Any change alters every replay, so the release carries a CORE_VERSION bump and regenerated goldens.
+ */
+export const TUNING = {
+  /** How fast Octopi's shots fly: feeds `SPEED_PCT.octopiShot`, and through it `SHOT.speed`. */
+  octopiShotPct: 100,
+  /**
+   * How fast crabs move: the formation march only (see `marchSteps`). A wave's arrival descent
+   * runs at `ARRIVAL.speed` raw, which this knob does not touch.
+   */
+  crabMovePct: 100,
+  /** How often crabs fire: scales the per-tick fire chance (see `fireChance`). */
+  crabFirePct: 100,
+} as const;
+
+/**
+ * The speeds the simulation actually runs at, in percent of the original speeds: each reference
+ * speed scaled by its knob. With every knob at 100 this is exactly `BASE_SPEED_PCT`, so the derived
+ * values below are bit-identical to the ones the reference was measured from.
+ */
+export const SPEED_PCT = {
+  octopiShot: scalePct(BASE_SPEED_PCT.octopiShot, TUNING.octopiShotPct),
+  crabMove: scalePct(BASE_SPEED_PCT.crabMove, TUNING.crabMovePct),
+  crabFire: scalePct(BASE_SPEED_PCT.crabFire, TUNING.crabFirePct),
+} as const;
+
+/** The original speeds, in units/tick, that `SPEED_PCT` scales. */
+export const UNTUNED_SPEED = { octopiShot: 240 } as const;
+
+/** Player shot; `speed` is `UNTUNED_SPEED.octopiShot` scaled by `SPEED_PCT.octopiShot`. */
+export const SHOT = { w: 120, h: 360, speed: scalePct(UNTUNED_SPEED.octopiShot, SPEED_PCT.octopiShot) } as const;
 
 export const ENEMY_SHOT = {
   radius: 96,

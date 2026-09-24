@@ -1,5 +1,5 @@
 import {
-  ARRIVAL, CRAB, CRAB_SHOTS, CRAB_TYPES, ENEMY_SHOT, FIELD_H, FIELD_W, TUNING, TYPE_COLOUR, enemyShotPctFor, scalePct,
+  ARRIVAL, CRAB, CRAB_SHOTS, CRAB_TYPES, ENEMY_SHOT, FIELD_H, FIELD_W, SPEED_PCT, TYPE_COLOUR, enemyShotPctFor, scalePct,
 } from '../config';
 import { clamp, idiv, isqrt } from '../fixed';
 import type { CrabType } from '../levels';
@@ -97,12 +97,12 @@ function crabStep(s: GameState): number {
 }
 
 /**
- * How many march steps the formation takes on `tick`: `TUNING.crabMovePct` percent of one step per
+ * How many march steps the formation takes on `tick`: `SPEED_PCT.crabMove` percent of one step per
  * tick, spread evenly by rounding the running total up (at 90 it marches on ticks 0-8 and rests on
  * tick 9 of every ten, at 100 it marches every tick, at 150 it alternates two steps and one).
  * Scaling the number of steps instead of the small per-tick step keeps the tuned speed exact.
  */
-export function marchSteps(tick: number, pct: number = TUNING.crabMovePct): number {
+export function marchSteps(tick: number, pct: number = SPEED_PCT.crabMove): number {
   return idiv((tick + 1) * pct + 99, 100) - idiv(tick * pct + 99, 100);
 }
 
@@ -219,10 +219,10 @@ function pickShooter(s: GameState, aura: boolean): Crab {
 
 /**
  * Chance per tick, in 1/1000, that some crab fires: the original chance (capped at 60) scaled by
- * `TUNING.crabFirePct`. `offset` is the level's fireOffset (0 outside the campaign).
+ * `SPEED_PCT.crabFire`. `offset` is the level's fireOffset (0 outside the campaign).
  */
 export function fireChance(wave: number, offset = 0): number {
-  return scalePct(Math.min(ENEMY_SHOT.perMille + offset + (wave - 1) * 4, 60), TUNING.crabFirePct);
+  return scalePct(Math.min(ENEMY_SHOT.perMille + offset + (wave - 1) * 4, 60), SPEED_PCT.crabFire);
 }
 
 /** An `explosive` shot below this line splits into fragments immediately, fuse or not. */

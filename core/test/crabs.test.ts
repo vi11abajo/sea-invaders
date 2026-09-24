@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ENEMY_SHOT, INVASION_Y, PRACTICE_RUN, TUNING, createGame, crabSpeed, fireChance, marchCrabs, scalePct, spawnWave,
+  ENEMY_SHOT, INVASION_Y, PRACTICE_RUN, SPEED_PCT, createGame, crabSpeed, fireChance, marchCrabs, scalePct, spawnWave,
   updateEnemyShots,
 } from '../src';
 
@@ -45,8 +45,8 @@ describe('marchCrabs', () => {
 });
 
 describe('fireChance', () => {
-  it('rises 4 per wave, caps at 60, then scales by TUNING.crabFirePct', () => {
-    const p = TUNING.crabFirePct;
+  it('rises 4 per wave, caps at 60, then scales by SPEED_PCT.crabFire', () => {
+    const p = SPEED_PCT.crabFire;
     expect(fireChance(1)).toBe(scalePct(20, p));
     expect(fireChance(3)).toBe(scalePct(28, p));
     expect(fireChance(50)).toBe(scalePct(60, p));

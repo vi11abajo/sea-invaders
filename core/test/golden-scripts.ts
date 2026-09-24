@@ -246,9 +246,9 @@ export interface PlayResult {
 /**
  * Plays one script to its tick cap (or to `cleared`/`over`, whichever comes first) and records it.
  * Shared by the tuned goldens in `golden.test.ts` and the untuned baseline in
- * `golden-untuned.test.ts`, which plays these very scripts with the TUNING knobs mocked back to
- * 100 % — both go through this one function so the only difference between the two golden files is
- * the tuning itself.
+ * `golden-untuned.test.ts`, which plays these very scripts with every `SPEED_PCT` mocked back to
+ * 100 % (the original speeds) — both go through this one function so the only difference between
+ * the two golden files is the speed scaling itself.
  *
  * `kindsSeen`/`formationsSeen`/`shotKindsSeen` are sampled once before the
  * first tick and once after every tick, straight off `s.crabs`/`s.formation`/`s.enemyShots` — pure

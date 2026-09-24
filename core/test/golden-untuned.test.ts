@@ -5,10 +5,14 @@ import { CORE_VERSION, checkGoldens, type Golden } from '../src';
 import { GOLDEN_SCRIPTS, playScript } from './golden-scripts';
 
 /**
- * The untuned baseline: the same eight golden scripts played with every `TUNING` knob back at
- * 100 %, keeping the same property under test — the knobs only scale speeds. Move a knob and the
- * tuned goldens change while this file must not; change anything else in the simulation and both
- * change together.
+ * The untuned baseline: the same eight golden scripts played at the original speeds — every
+ * `SPEED_PCT` back at 100 %, so neither the reference speeds (`BASE_SPEED_PCT`) nor the `TUNING`
+ * knobs on top of them apply — keeping the same property under test: the speed scaling only scales
+ * speeds. Move a knob or the reference and the tuned goldens change while this file must not;
+ * change anything else in the simulation and both change together.
+ *
+ * `SPEED_PCT` and `SHOT` are what the simulation reads, and both are computed once when the config
+ * module loads, so those are the values mocked rather than the knobs they were computed from.
  *
  * Regenerate with `UPDATE_GOLDEN=1 npx vitest run test/golden-untuned.test.ts`, alongside the
  * tuned goldens.
@@ -17,7 +21,7 @@ vi.mock('../src/config', async (importOriginal) => {
   const m = await importOriginal<typeof import('../src/config')>();
   return {
     ...m,
-    TUNING: { octopiShotPct: 100, crabMovePct: 100, crabFirePct: 100 },
+    SPEED_PCT: { octopiShot: 100, crabMove: 100, crabFire: 100 },
     SHOT: { ...m.SHOT, speed: m.UNTUNED_SPEED.octopiShot },
   };
 });

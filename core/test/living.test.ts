@@ -49,7 +49,7 @@ function advance(s: GameState, ticks: number): void {
 /**
  * Advances until the wave has taken `steps` march steps, and returns how many ticks that took.
  * Rotation and the reform glide count march steps, not wall-clock ticks, and
- * `TUNING.crabMovePct` rests the march on one tick in ten.
+ * the reference crab speed (`SPEED_PCT.crabMove`, 90 %) rests the march on one tick in ten.
  */
 function advanceSteps(s: GameState, steps: number): number {
   let taken = 0;
@@ -170,7 +170,7 @@ describe('the whirlpool rotates', () => {
     const next = whirlpoolNext();
     const before = s.crabs.map((c) => c.slot);
     const ticks = advanceSteps(s, ROTATE_TICKS);
-    // 45 march steps is 50 ticks at the game's default 90 % `TUNING.crabMovePct`.
+    // 45 march steps is 50 ticks at the game's reference 90 % `SPEED_PCT.crabMove`.
     expect({ steps: ROTATE_TICKS, ticks }).toEqual({ steps: 45, ticks: 50 });
     expect(s.crabs.map((c) => c.slot)).toEqual(before.map((i) => next[i]));
     expect(form(s).rotateTick).toBe(0);
@@ -341,7 +341,7 @@ describe('the manta reforms', () => {
     expect(s.crabs.every((c) => onSlot(s, c))).toBe(false);
     expect(form(s).glideTicks).toBe(MARCH_STEP_UNITS); // one march step of the sixty still to go
     const last = advanceSteps(s, 1);
-    // 60 march steps is 66 ticks at the game's default 90 % `TUNING.crabMovePct`.
+    // 60 march steps is 66 ticks at the game's reference 90 % `SPEED_PCT.crabMove`.
     expect({ ticks: ticks + last }).toEqual({ ticks: 66 });
     expect(form(s).glideTicks).toBe(0);
     expect(s.crabs.every((c) => onSlot(s, c))).toBe(true);
