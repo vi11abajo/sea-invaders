@@ -370,7 +370,7 @@ const GUARD_BASE = 1_788_739_200 + 30 * WEEK;
 
 describe("week pool guards", () => {
   let ctx: Ctx;
-  let X: number; // the week the clock starts in; X + 1 gets settled before it
+  let X: number; // the week the clock starts in
   let sunday: number; // the last day of X + 1, alice's ticket day
   const mallory = Keypair.generate();
 
@@ -458,9 +458,13 @@ describe("week pool guards", () => {
     );
   });
 
-  // Runs after the test above: X + 1 is settled and the clock sits at its
-  // settle time.
   it("submit_daily_best refuses a record for a week that is already settled", async () => {
+    // X + 1 has no records, so it settles with an empty top list and rolls
+    // alice's ticket share on to X + 2.
+    await warpTo(ctx, weekEnd(X + 1) + 900);
+    await settleWeek(ctx, ctx.server, X + 1, []);
+    expect((await fetchWeekPool(ctx, X + 1)).settled).to.equal(true);
+
     // Recording a day closes before settling its week opens only while
     // both read the same grace_seconds. Raising the grace after X + 1
     // settled reopens alice's ticket day, so without the settled check
