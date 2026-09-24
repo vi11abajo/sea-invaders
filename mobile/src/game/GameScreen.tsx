@@ -834,15 +834,26 @@ export function GameScreen({ onExit, seed, mode = REPLAY_MODE.practice, hudMode 
     return () => sub.remove();
   });
 
-  // Leaving the app (Home, a call, the notification shade) pauses a live run the same way the pause
-  // button does; `pause()` itself refuses while the run is held for the Tide or waiting for Resume.
+  // Leaving the app (Home, a call) stops a live run's clock at once, and the Paused sheet opens when
+  // the app is back in front: a sheet mounted while the app is in the background never plays its
+  // rise-in on Android, so it stayed invisible over the dimmed run (seen on the Seeker). A run held
+  // for the Tide, waiting for Resume, or already paused is left as it is.
   const pauseRef = useRef(pause);
   pauseRef.current = pause;
   const overRef = useRef(hud.over);
   overRef.current = hud.over;
+  const leftMidRun = useRef(false);
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' && !overRef.current) pauseRef.current();
+      if (overRef.current) return;
+      if (state !== 'active') {
+        if (held.current || awaitingResume.current || paused.current) return;
+        paused.current = true;
+        leftMidRun.current = true;
+      } else if (leftMidRun.current) {
+        leftMidRun.current = false;
+        pauseRef.current();
+      }
     });
     return () => sub.remove();
   }, []);
