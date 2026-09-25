@@ -18,7 +18,7 @@
  *   3 Lime, 4 Lilac, 5 Ember, 6 Abyss            tint skins
  *   7 Bear, 8 Bunny, 9 Sponge, 10 Tiger,         drawn skins
  *   11 Grim, 12 King, 13 Matrix, 14 Sharingan
- *   15 Noob, 16 Coraluna, 17 Shoupe              champions (Thick skin, Surge, Last stand)
+ *   15 Noob, 16 Coraluna, 17 Shoupe              champions (Shell, Coral growth, Last stand)
  * Hex, Kakashi and the Pengu, Reaper, Wizard, Outlaw and Seeker skins are awarded, not sold, so
  * they have no row here.
  *
@@ -57,7 +57,7 @@ const PRICES_SKR: Readonly<Record<number, number>> = {
   3: 25, 4: 25, 5: 35, 6: 50,      // tint skins Lime, Lilac, Ember, Abyss - unchanged
   7: 35, 8: 35, 9: 35, 10: 35, 11: 35, 12: 35, // drawn skins Bear, Bunny, Sponge, Tiger, Grim, King
   13: 50, 14: 50,                  // drawn skins Matrix, Sharingan
-  15: 56, 16: 111, 17: 166,        // champions Noob (Thick skin), Coraluna (Surge), Shoupe (Last stand)
+  15: 56, 16: 111, 17: 166,        // champions Noob (Shell), Coraluna (Coral growth), Shoupe (Last stand)
 };
 
 /** Whether each item is a champion (`VARIANT`) or a look (`SKIN`); every id in `PRICES_SKR` needs one. */
