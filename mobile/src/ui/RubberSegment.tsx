@@ -174,17 +174,19 @@ export function RubberSegment<T extends string>({ items, value, onChange, disabl
               // beneath it instead of re-selecting an already-selected slot.
               pointerEvents={active ? 'none' : 'auto'}
             >
+              {/* The label sits inside the Pressable: a touch on the text itself has to bubble up to it. */}
               <Pressable
                 accessibilityRole="tab"
                 accessibilityLabel={item.label}
                 accessibilityState={{ selected: active, disabled }}
                 disabled={disabled}
                 onPress={() => commit(i)}
-                style={StyleSheet.absoluteFill}
-              />
-              <Txt variant="button" style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
-                {item.label}
-              </Txt>
+                style={styles.press}
+              >
+                <Txt variant="button" style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
+                  {item.label}
+                </Txt>
+              </Pressable>
             </View>
           );
         })}
@@ -196,7 +198,8 @@ export function RubberSegment<T extends string>({ items, value, onChange, disabl
 const styles = StyleSheet.create({
   track: { height: HEIGHT, borderRadius: RADIUS.pill, backgroundColor: COLORS.secondary, overflow: 'hidden' },
   row: { flex: 1, flexDirection: 'row' },
-  item: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  item: { flex: 1 },
+  press: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
   label: { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.textSecondary },
   labelActive: { color: COLORS.onPrimary },
   thumb: { position: 'absolute', top: THUMB_INSET, bottom: THUMB_INSET, borderRadius: RADIUS.pill, backgroundColor: COLORS.primary },
