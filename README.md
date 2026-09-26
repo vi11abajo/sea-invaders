@@ -46,6 +46,24 @@ Purchases, revives and the Seeker link follow the same shape: the backend builds
 | `fund_pool` | anyone can add SKR to the current week's pool |
 | `init_config` / `update_config` / `set_paused` | the admin's settings: ticket price, splits, the Tide's ladder, the payout table, the pause switch |
 
+## Verify it
+
+Everything on chain can be checked in Solana Explorer, switched to devnet:
+
+| What | Where |
+|---|---|
+| The program | [`G1vEN2CY1KfjPia3hD7MALBwseSRUfrcBivxfKKGqset`](https://explorer.solana.com/address/G1vEN2CY1KfjPia3hD7MALBwseSRUfrcBivxfKKGqset?cluster=devnet): its history holds the players' tickets, records and purchases and the weekly settlements |
+| The test SKR mint | [`Bk454WdhpYQB2crEQeVNQWWqi33xqFWXELHbi44XkHht`](https://explorer.solana.com/address/Bk454WdhpYQB2crEQeVNQWWqi33xqFWXELHbi44XkHht?cluster=devnet) (6 decimals) |
+| The live API | [`api.seainvaders.xyz/api/daily/today`](https://api.seainvaders.xyz/api/daily/today): today's seed number, the week's pool, the ticket price and the core version the server verifies with |
+
+Where the claims are tested:
+
+- **Deterministic replays.** `core/test/replay.test.ts` reproduces a recorded run to the same score, tick, end state and state hash; `core/test/golden.test.ts` pins recorded runs whose scores and hashes must never change. On the phone, `seainvaders://selftest` replays the same goldens on Hermes and compares them with the Node results.
+- **The server decides the score.** The app never sends one: `backend/src/services/rankedRuns.js` re-simulates the uploaded replay with the day's seed, the daily mode and the base Octopi, and records what that produces. `backend/test/rankedRuns.test.js` rejects replays on another seed, with extra lives, from practice mode, longer than the time since the run started, finished after the day's window, or recorded on another core version.
+- **No pay-to-win.** `core/test/replay.test.ts` rejects a daily replay recorded with a paid champion.
+- **The server's co-signature.** `programs/tests/record.test.ts`: a record fails without the server's signature and with a wrong server keypair.
+- **Counts.** 745 core and 493 backend tests (Vitest) and 51 program tests (Anchor, on a local validator); CI runs them on every push that touches their folder.
+
 ## Tech stack
 
 | Part | Stack |
