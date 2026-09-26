@@ -4,12 +4,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CountUp, formatIntWorklet } from '../ui/CountUp';
 import { GradientFill } from '../ui/GradientFill';
 import { SkrIcon } from '../ui/SkrIcon';
-import { COLORS, FONTS, RADIUS, REEF_LIFE, SIZE } from '../ui/tokens';
+import { COLORS, FONTS, RADIUS, SIZE } from '../ui/tokens';
 import type { WalletInfo } from './model';
 import { KEY_ART_TEXT_SHADOW } from './homeBackground';
+import { PadGlyph } from './PadGlyph';
 
 const AVATAR_GRADIENT = ['#9945FF', '#19FB9B'] as const;
-const CAMPAIGN_GRADIENT = ['#43B4CA', '#19FB9B'] as const;
 /** 40 dp pills get 4 dp of slop on each side, so the touch target is 48 dp. */
 const PILL_SLOP = 4;
 
@@ -63,25 +63,21 @@ export function HomeTopBar({ wallet, onWallet, onShop }: HomeTopBarProps) {
   );
 }
 
-/** Home's navigation: four round glass buttons with labels. Campaign carries the current level as a badge. */
+/** Home's navigation: four round glass buttons with game-pad glyphs and labels. Campaign carries the current level as a badge. */
 export function FeatureRow({ campaignBadge, onPress }: { campaignBadge: number | null; onPress: (f: Feature) => void }) {
   return (
     <View style={styles.features}>
       <FeatureButton label="Campaign" badge={campaignBadge} onPress={() => onPress('campaign')}>
-        <View style={styles.iconCampaign}>
-          <GradientFill radius={4} colors={CAMPAIGN_GRADIENT} />
-        </View>
+        <PadGlyph kind="triangle" />
       </FeatureButton>
       <FeatureButton label="Shop" onPress={() => onPress('shop')}>
-        <View style={styles.iconShop} />
+        <PadGlyph kind="circle" />
       </FeatureButton>
       <FeatureButton label="Ranks" onPress={() => onPress('ranks')}>
-        <View style={styles.iconRanks} />
+        <PadGlyph kind="bars" />
       </FeatureButton>
       <FeatureButton label="Profile" onPress={() => onPress('profile')}>
-        <View style={styles.iconProfile}>
-          <GradientFill radius={8} colors={AVATAR_GRADIENT} />
-        </View>
+        <PadGlyph kind="square" />
       </FeatureButton>
     </View>
   );
@@ -124,10 +120,6 @@ const styles = StyleSheet.create({
   features: { flexDirection: 'row' },
   feature: { flex: 1, alignItems: 'center', gap: 6 },
   featureIcon: { width: SIZE.featureIcon, height: SIZE.featureIcon, borderRadius: SIZE.featureIcon / 2, alignItems: 'center', justifyContent: 'center' },
-  iconCampaign: { width: 16, height: 16 },
-  iconShop: { width: 16, height: 16, borderRadius: 8, backgroundColor: REEF_LIFE.lilac },
-  iconRanks: { width: 16, height: 16, borderRadius: 2, borderWidth: 1.5, borderColor: '#FFFFFF' },
-  iconProfile: { width: 16, height: 16 },
   badge: {
     position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9,
     backgroundColor: COLORS.success, alignItems: 'center', justifyContent: 'center',
