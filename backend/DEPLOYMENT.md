@@ -509,7 +509,8 @@ fingerprint is public and must match `https://seainvaders.xyz/.well-known/assetl
 the app's identity through Mobile Wallet Adapter. Android installs an update only over an
 app signed with the same key, so switching from the debug key to the release key means one
 uninstall on the device. `mobile/app.json`'s `android.versionCode` must grow with every
-build that goes to people (it is 3 for version 1.0.0).
+build that goes to people, and `version` follows semver: a fix bumps the patch, a new feature or a
+visible change the minor (it is 8 for version 1.3.0).
 
 ---
 
