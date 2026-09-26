@@ -4,7 +4,7 @@ An arcade shooter under the sea, built for the Solana Seeker. You play Octopi, a
 
 The current build runs on devnet against a test SKR mint; the app is the only client.
 
-**Play it:** the signed Android build and a tour of the game are at [seainvaders.xyz](https://seainvaders.xyz/). Practice and the campaign need nothing; ranked runs, the shop and the Tide need a wallet on devnet, and the app hands out test SKR, plus a little devnet SOL for fees to a wallet that has almost none.
+**Play it:** the signed Android build and a tour of the game are at [seainvaders.xyz](https://seainvaders.xyz/). Practice and the campaign need nothing; ranked runs, the shop and the Tide need a wallet on devnet, and the app hands out test SKR, plus a little devnet SOL for fees to a wallet that has almost none. The app is not on Google Play yet, so Android may say Play Protect has never checked apps from this developer: tap "Install anyway". The APK's SHA-256 and signing certificate are listed in the [v1.3.0 release](https://github.com/vi11abajo/sea-invaders/releases/tag/v1.3.0).
 
 ## What is in the game
 
