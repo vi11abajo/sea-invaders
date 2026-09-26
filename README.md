@@ -4,7 +4,7 @@ An arcade shooter under the sea, built for the Solana Seeker. You play Octopi, a
 
 The current build runs on devnet against a test SKR mint; the app is the only client.
 
-**Play it:** the signed Android build and a tour of the game are at [seainvaders.xyz](https://seainvaders.xyz/). Practice and the campaign need nothing; ranked runs, the shop and the Tide need a wallet on devnet, and the app hands out test SKR.
+**Play it:** the signed Android build and a tour of the game are at [seainvaders.xyz](https://seainvaders.xyz/). Practice and the campaign need nothing; ranked runs, the shop and the Tide need a wallet on devnet, and the app hands out test SKR, plus a little devnet SOL for fees to a wallet that has almost none.
 
 ## What is in the game
 

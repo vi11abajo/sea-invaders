@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { CLUSTER } from '../api/config';
-import { requestFaucet } from '../api/daily';
+import { faucetMessage, requestFaucet } from '../api/daily';
 import { buyItem, confirmPurchase, getShop, type ShopInfo, type ShopItem } from '../api/shop';
 import { onBackPress } from '../audio/onBackPress';
 import { ABILITY } from '../loadout/abilities';
@@ -162,10 +162,10 @@ export function ShopScreen({ walletAddress, onBack }: ShopScreenProps) {
   const faucet = useCallback(async () => {
     setFaucetBusy(true);
     try {
-      const { amountSkr } = await requestFaucet();
+      const result = await requestFaucet();
       if (!alive.current) return;
       reset();
-      show(`+${amountSkr} SKR from the faucet`);
+      show(faucetMessage(result));
       void load();
     } catch (e) {
       if (alive.current) show(messageOf(e), COLORS.warning);

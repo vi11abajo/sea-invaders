@@ -98,12 +98,13 @@ export function SigningSheet({ title, what, amount, fee, swap }: { title: string
 }
 
 /**
- * "Not enough SOL for fees". The design's "Top up in wallet" only closes the sheet:
+ * "Not enough SOL for fees". The design's "Top up in wallet" only closes the sheet: on mainnet
  * the app cannot fund a wallet. With `swapping`, `requiredLamports` also covers the SOL the
- * auto-swap spends, so the copy says so rather than calling all of it a network fee.
+ * auto-swap spends, so the copy says so rather than calling all of it a network fee. `onFaucet`
+ * (devnet builds) offers the test faucet instead, which sends SOL for fees to a nearly empty wallet.
  */
-function NoSolSheet({ requiredLamports, haveLamports, swapping, onClose }: {
-  requiredLamports: number; haveLamports: number; swapping: boolean; onClose: () => void;
+function NoSolSheet({ requiredLamports, haveLamports, swapping, onFaucet, faucetBusy, onClose }: {
+  requiredLamports: number; haveLamports: number; swapping: boolean; onFaucet?: () => void; faucetBusy: boolean; onClose: () => void;
 }) {
   return (
     <Sheet kind="modal" onDismiss={onClose}>
@@ -117,7 +118,11 @@ function NoSolSheet({ requiredLamports, haveLamports, swapping, onClose }: {
         <AmountTile label="Required" value={`${formatSolAmount(requiredLamports, 'up')} SOL`} />
         <AmountTile label="You have" value={`${formatSolAmount(haveLamports, 'down')} SOL`} short />
       </View>
-      <PillButton label="Top up in wallet" onPress={onClose} />
+      {onFaucet !== undefined ? (
+        <PillButton label={faucetBusy ? 'Getting test SOL…' : 'Get test SOL'} onPress={onFaucet} disabled={faucetBusy} />
+      ) : (
+        <PillButton label="Top up in wallet" onPress={onClose} />
+      )}
       <PillButton kind="secondary" label="Cancel" onPress={onClose} />
     </Sheet>
   );
@@ -151,7 +156,7 @@ function NoSkrSheet({ needSkr, haveSkr, onFaucet, faucetBusy, onClose }: {
 
 interface PurchaseSheetsProps {
   purchase: Purchase;
-  /** Devnet only: mints test SKR; offered by the not-enough-SKR sheet. */
+  /** Devnet only: the test faucet (SKR, and SOL for fees to a nearly empty wallet); offered by both not-enough sheets. */
   onFaucet?: () => void;
   /** True while that faucet request runs. */
   faucetBusy?: boolean;
@@ -181,7 +186,16 @@ export function PurchaseSheets({ purchase, onFaucet, faucetBusy = false }: Purch
     );
   }
   if (phase === 'error' && error?.code === 'no_sol') {
-    return <NoSolSheet requiredLamports={error.requiredLamports} haveLamports={error.haveLamports} swapping={order.swapSol !== undefined} onClose={reset} />;
+    return (
+      <NoSolSheet
+        requiredLamports={error.requiredLamports}
+        haveLamports={error.haveLamports}
+        swapping={order.swapSol !== undefined}
+        onFaucet={onFaucet}
+        faucetBusy={faucetBusy}
+        onClose={reset}
+      />
+    );
   }
   if (phase === 'error' && error?.code === 'no_skr') {
     return <NoSkrSheet needSkr={error.needSkr} haveSkr={error.haveSkr} onFaucet={onFaucet} faucetBusy={faucetBusy} onClose={reset} />;

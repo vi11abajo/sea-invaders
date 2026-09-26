@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import { WalletDeclined, pollUntilConfirmed, sendWithBlockhashRetry, useSignAndSend } from './src/api/chain';
 import { APP_IDENTITY, CHAIN, RPC_URL } from './src/api/config';
-import { confirmTicket, requestFaucet, requestTicket } from './src/api/daily';
+import { confirmTicket, faucetMessage, requestFaucet, requestTicket } from './src/api/daily';
 import { useSession } from './src/api/useSession';
 import { hapticError, hapticSuccess } from './src/audio/haptics';
 import { playMusic, startAmbience, stopAmbience } from './src/audio/music';
@@ -246,8 +246,7 @@ function Screens({ initialLevel, auth, loadout, campaign, seeker, allowed, splas
   const buyFaucet = useCallback(async () => {
     setTicketBusy(true);
     try {
-      const { amountSkr } = await requestFaucet();
-      setTicketMessage(`+${amountSkr} SKR from the faucet`);
+      setTicketMessage(faucetMessage(await requestFaucet()));
       refresh();
     } catch (e) {
       setTicketMessage(e instanceof Error ? e.message : 'Faucet failed');

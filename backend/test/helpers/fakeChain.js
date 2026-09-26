@@ -85,6 +85,8 @@ export const state = {
   sentTxs: [],
   sendSignedError: null,
   solBalance: 1_000_000_000n, // 1 SOL - plenty, so the faucet's balance check passes by default
+  walletSol: new Map(), // per-key SOL balances that override solBalance
+  solSent: new Map(), // wallet -> lamports the faucet sent it
   mintTestTokensError: null,
   getSeekerLinkByPlayerError: null,
 };
@@ -106,6 +108,8 @@ export function reset() {
   state.sentTxs = [];
   state.sendSignedError = null;
   state.solBalance = 1_000_000_000n;
+  state.walletSol.clear();
+  state.solSent.clear();
   state.mintTestTokensError = null;
   state.getSeekerLinkByPlayerError = null;
 }
@@ -164,6 +168,11 @@ export function setSendSignedError(error) {
 /** Sets what `getSolBalance` reports for any pubkey (lamports). */
 export function setSolBalance(lamports) {
   state.solBalance = BigInt(lamports);
+}
+
+/** Sets what `getSolBalance` reports for one wallet (lamports), overriding `setSolBalance` for it. */
+export function setWalletSolBalance(wallet, lamports) {
+  state.walletSol.set(keyOf(wallet), BigInt(lamports));
 }
 
 /** Makes the next `mintTestTokens` call throw `error` instead of "minting". */
@@ -231,8 +240,8 @@ export async function getSeekerLinkByPlayer(wallet) {
   return null;
 }
 
-export async function getSolBalance() {
-  return state.solBalance;
+export async function getSolBalance(pubkey) {
+  return state.walletSol.get(keyOf(pubkey)) ?? state.solBalance;
 }
 
 // ---- txs.js ----
@@ -285,9 +294,10 @@ export async function sendSigned(prepared) {
   return `FakeSendSignature${state.sentTxs.length}`;
 }
 
-export async function mintTestTokens(wallet, amount) {
+export async function mintTestTokens(wallet, amount, { lamports = 0n } = {}) {
   if (state.mintTestTokensError) throw state.mintTestTokensError;
   const key = keyOf(wallet);
   state.balances.set(key, (state.balances.get(key) ?? 0n) + BigInt(amount));
+  if (lamports > 0n) state.solSent.set(key, (state.solSent.get(key) ?? 0n) + lamports);
   return { signature: 'FakeMintSignature111111111111111111111111' };
 }

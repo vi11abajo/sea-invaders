@@ -403,6 +403,41 @@ describe('/api/daily', () => {
       process.env.SOLANA_CLUSTER = original;
     });
 
+    it('sends 0.02 SOL for fees with the SKR to a wallet holding less than 0.01 SOL', async () => {
+      const original = process.env.SOLANA_CLUSTER;
+      process.env.SOLANA_CLUSTER = 'devnet';
+      fakeChain.setWalletSolBalance(user.wallet_address, 9_999_999n);
+      const res = await request(createApp()).post('/api/devnet/faucet').set(auth);
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ amountSkr: 100, amountSol: 0.02 });
+      expect(fakeChain.state.solSent.get(user.wallet_address)).toBe(20_000_000n);
+      process.env.SOLANA_CLUSTER = original;
+    });
+
+    it('sends no SOL to a wallet that already holds 0.01 SOL', async () => {
+      const original = process.env.SOLANA_CLUSTER;
+      process.env.SOLANA_CLUSTER = 'devnet';
+      fakeChain.setWalletSolBalance(user.wallet_address, 10_000_000n);
+      const res = await request(createApp()).post('/api/devnet/faucet').set(auth);
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ amountSkr: 100, amountSol: 0 });
+      expect(fakeChain.state.solSent.has(user.wallet_address)).toBe(false);
+      process.env.SOLANA_CLUSTER = original;
+    });
+
+    it('still mints the SKR but keeps the SOL when sending it would take the server under its reserve', async () => {
+      const original = process.env.SOLANA_CLUSTER;
+      process.env.SOLANA_CLUSTER = 'devnet';
+      fakeChain.setSolBalance(510_000_000n); // 0.51 SOL: 0.02 more out would leave 0.49, under the 0.5 reserve
+      fakeChain.setWalletSolBalance(user.wallet_address, 0n);
+      const res = await request(createApp()).post('/api/devnet/faucet').set(auth);
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ amountSkr: 100, amountSol: 0 });
+      expect(fakeChain.state.balances.get(user.wallet_address)).toBe(100_000_000n);
+      expect(fakeChain.state.solSent.has(user.wallet_address)).toBe(false);
+      process.env.SOLANA_CLUSTER = original;
+    });
+
     it('returns 503 FaucetUnavailable when the server authority is below its SOL reserve', async () => {
       const original = process.env.SOLANA_CLUSTER;
       process.env.SOLANA_CLUSTER = 'devnet';

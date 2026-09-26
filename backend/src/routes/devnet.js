@@ -30,13 +30,14 @@ router.post('/faucet', authenticateToken, async (req, res, next) => {
     // mint; it is handed back when nothing was minted, so the player can try again at once.
     lastFaucetAt.set(wallet, now);
     let signature;
+    let lamports;
     try {
-      ({ signature } = await claimFaucet(wallet));
+      ({ signature, lamports } = await claimFaucet(wallet));
     } catch (error) {
       if (lastFaucetAt.get(wallet) === now) lastFaucetAt.delete(wallet);
       throw error;
     }
-    res.json({ signature, amountSkr: 100 });
+    res.json({ signature, amountSkr: 100, amountSol: Number(lamports) / 1e9 });
   } catch (error) {
     if (error instanceof FaucetUnavailableError) {
       return res.status(503).json({ error: 'FaucetUnavailable', message: error.message });

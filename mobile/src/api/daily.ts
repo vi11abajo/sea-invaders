@@ -132,9 +132,24 @@ export function requestTicket(): Promise<PreparedTx & { createsPlayer: boolean }
   return apiFetch('/api/daily/ticket', { method: 'POST', auth: true });
 }
 
-/** Devnet only: mints 100 test SKR to the caller's wallet server-side, no wallet interaction needed. */
-export function requestFaucet(): Promise<{ signature: string; amountSkr: number }> {
+export interface FaucetResult {
+  signature: string;
+  amountSkr: number;
+  /** SOL sent for fees with the SKR: 0 unless the wallet held almost none (absent from older servers). */
+  amountSol?: number;
+}
+
+/**
+ * Devnet only: mints 100 test SKR to the caller's wallet server-side, plus a little SOL for fees
+ * when the wallet holds almost none; no wallet interaction needed.
+ */
+export function requestFaucet(): Promise<FaucetResult> {
   return apiFetch('/api/devnet/faucet', { method: 'POST', auth: true });
+}
+
+/** The toast after a faucet claim. */
+export function faucetMessage({ amountSkr, amountSol }: FaucetResult): string {
+  return amountSol ? `+${amountSkr} SKR and ${amountSol} SOL from the faucet` : `+${amountSkr} SKR from the faucet`;
 }
 
 export interface ConfirmTicketResult {

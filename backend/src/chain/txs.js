@@ -13,8 +13,11 @@
 //  - `buildCreateWeekPoolTx` and `buildSettleWeekTx` are backend-maintenance
 //    instructions with no player wallet involved: fee payer is the server
 //    authority, which fully signs before the caller sends it.
-import { ComputeBudgetProgram, PACKET_DATA_SIZE, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getOrCreateAssociatedTokenAccount, mintTo } from '@solana/spl-token';
+import {
+  ComputeBudgetProgram, PACKET_DATA_SIZE, PublicKey, SystemProgram, Transaction, TransactionMessage, VersionedTransaction,
+  sendAndConfirmTransaction,
+} from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createMintToInstruction, getOrCreateAssociatedTokenAccount } from '@solana/spl-token';
 import { BN } from '@anchor-lang/core';
 import { program as buildProgram } from './program.js';
 import { connection as defaultConnection } from './connection.js';
@@ -350,9 +353,10 @@ export async function buildSettleWeekTx(week, winners, { connection = defaultCon
 
 /**
  * Devnet-only faucet: mints `amount` base units of the test SKR mint to `wallet`'s ATA, creating
- * it if needed. The test mint's mint authority is the server authority, so this needs no admin key.
+ * it if needed, and in the same transaction sends `lamports` of SOL for fees when that is above 0.
+ * The test mint's mint authority is the server authority, so this needs no admin key.
  */
-export async function mintTestTokens(wallet, amount, { connection = defaultConnection() } = {}) {
+export async function mintTestTokens(wallet, amount, { lamports = 0n, connection = defaultConnection() } = {}) {
   const walletKey = toPublicKey(wallet);
   const { skrMint, serverAuthority } = chainConfig();
   // getOrCreateAssociatedTokenAccount swallows any failure of its own create transaction (an
@@ -364,8 +368,10 @@ export async function mintTestTokens(wallet, amount, { connection = defaultConne
   const destination = await getOrCreateAssociatedTokenAccount(
     connection, serverAuthority, skrMint, walletKey, true, 'confirmed', { commitment: 'confirmed' },
   );
-  const signature = await mintTo(
-    connection, serverAuthority, skrMint, destination.address, serverAuthority, amount, [], { commitment: 'confirmed' },
-  );
+  const tx = new Transaction().add(createMintToInstruction(skrMint, destination.address, serverAuthority.publicKey, amount));
+  if (lamports > 0n) {
+    tx.add(SystemProgram.transfer({ fromPubkey: serverAuthority.publicKey, toPubkey: walletKey, lamports }));
+  }
+  const signature = await sendAndConfirmTransaction(connection, tx, [serverAuthority], { commitment: 'confirmed' });
   return { signature };
 }

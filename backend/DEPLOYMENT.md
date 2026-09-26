@@ -365,7 +365,9 @@ Expected response:
 ## Devnet faucet
 
 `POST /api/devnet/faucet` mints 100 test SKR to the caller's wallet (10-minute cooldown
-per wallet, requires an authenticated request). The route is mounted only when
+per wallet, requires an authenticated request). A wallet holding less than 0.01 SOL also gets
+0.02 SOL for fees in the same transaction, paid by the server authority, unless that would take
+it under its reserve; the SKR is minted either way (`backend/src/services/faucet.js`). The route is mounted only when
 `SOLANA_CLUSTER=devnet` (`backend/src/createApp.js`); on `mainnet` it does not exist
 (returns 404), by design: the faucet must never exist on mainnet. It also stays shut while the
 server authority is below its SOL reserve (`FAUCET_MIN_SOL`, see "Server authority funding").
@@ -427,7 +429,7 @@ commit it.
 The server authority is the fee payer (and, where accounts are created, the rent
 payer) for every backend-initiated transaction, not just a co-signer: it pays for
 `create_week_pool` (the weekly crank), the winners' token accounts created inside
-`settle_week`, the faucet's `getOrCreateAssociatedTokenAccount` + `mintTo` on devnet
+`settle_week`, the faucet's `getOrCreateAssociatedTokenAccount`, mint and SOL drip on devnet
 (`backend/src/chain/txs.js`), and its own transaction fees throughout. If its SOL
 balance runs out, the crank, settlement, and faucet all start failing even though
 `SERVER_AUTHORITY_SECRET` itself is still valid.

@@ -3,7 +3,7 @@ import { useMobileWallet } from '@wallet-ui/react-native-web3js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PollCancelled, readSignature, EXPIRY_MARGIN_BLOCKS, type SignatureVerdict } from '../api/chain';
 import { ApiError } from '../api/client';
-import { requestFaucet } from '../api/daily';
+import { faucetMessage, requestFaucet } from '../api/daily';
 import { confirmRevive, issueRevive, quoteRevive, type ReviveQuote } from '../api/revive';
 import { COLORS } from '../ui/tokens';
 import { DECLINED_TOAST, usePurchase } from '../wallet/usePurchase';
@@ -319,10 +319,10 @@ export function useRevive({ signedIn, connecting, onRevived, toast }: UseReviveO
   const faucet = useCallback(async () => {
     setFaucetBusy(true);
     try {
-      const { amountSkr } = await requestFaucet();
+      const result = await requestFaucet();
       if (!alive.current) return;
       reset();
-      toastRef.current(`+${amountSkr} SKR from the faucet`);
+      toastRef.current(faucetMessage(result));
       void loadQuote(true);
     } catch (error) {
       if (alive.current) toastRef.current(messageOf(error), COLORS.warning);
