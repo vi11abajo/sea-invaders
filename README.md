@@ -56,6 +56,17 @@ Everything on chain can be checked in Solana Explorer, switched to devnet:
 | The test SKR mint | [`Bk454WdhpYQB2crEQeVNQWWqi33xqFWXELHbi44XkHht`](https://explorer.solana.com/address/Bk454WdhpYQB2crEQeVNQWWqi33xqFWXELHbi44XkHht?cluster=devnet) (6 decimals) |
 | The live API | [`api.seainvaders.xyz/api/daily/today`](https://api.seainvaders.xyz/api/daily/today): today's seed number, the week's pool, the ticket price and the core version the server verifies with |
 
+One transaction of each kind from the program's history:
+
+| Instruction | Transaction | What it shows |
+|---|---|---|
+| `buy_ticket` | [`5X5mPj…MfVb`](https://explorer.solana.com/tx/5X5mPjHDGcA6esnokhEUzXd4hU3FDaNf8k7C87ehbQvKrtCnmUfaFaF23BZs8i9JZ4kVqryaDs4vj7o9moaGMfVb?cluster=devnet) | 10 SKR from the player: 9.5 to the week's pool, 0.5 to the treasury |
+| `submit_daily_best` | [`5HHdNC…D9hB`](https://explorer.solana.com/tx/5HHdNCh3vuxQATiSHKxWhnajCkQrEkb86EDYuJ96DMPU5sp41HvfV2vEFVoStpCrZhAKmh3MZsTUQEphKzWAD9hB?cluster=devnet) | a day's best, signed by the player and co-signed by the server authority `nNQn5M…K7wH` |
+| `settle_week` | [`2gf2z9…kkAz`](https://explorer.solana.com/tx/2gf2z9xBwLyASK4pa1nhAdrr2YZJyn6ACfHt9wVEKPU326Yf11Tok4u9wThi7iyieJcc1Z2NvVEhc883m6XZkkAz?cluster=devnet) | the hourly crank settles a week with one ranked player: 60.2505 SKR (30 % of 200.835) straight to the player's token account, 140.5845 rolled into the next week's pool |
+| `purchase` | [`3TJPNc…THLZ`](https://explorer.solana.com/tx/3TJPNcK9R744WSTrjfPgSALqUPbchqSD42KrFzNFVatfVHgx43EPGVq1ivof2AmPnHBRFsEbn2cqbPrkJ8HJTHLZ?cluster=devnet) | a 35 SKR item: 28 to the treasury, 7 (20 %) to the week's pool |
+| `revive` | [`WYJGgJ…6JsT`](https://explorer.solana.com/tx/WYJGgJHrXDyYRiwkTY4bobCWEBnzZVvW5R3FyQk5LbuNmucKAhYVtr329JidGxb2PCDn7iDt291bkMzViVC6JsT?cluster=devnet) | the Tide's third step, 8 SKR: 6.4 to the treasury, 1.6 (20 %) to the week's pool |
+| `link_seeker` | [`5ftS2R…uCBR`](https://explorer.solana.com/tx/5ftS2Ri4iwwa9TQG5JGD8uuJGvdMTJRfznNn4CRP5moWuT6yohHgQnB25C8sykeqDRUSBbQQQ4uLoF7yvGasuCBR?cluster=devnet) | a Seeker Genesis Token linked to a player, co-signed by the server after its mainnet check |
+
 Where the claims are tested:
 
 - **Deterministic replays.** `core/test/replay.test.ts` reproduces a recorded run to the same score, tick, end state and state hash; `core/test/golden.test.ts` pins recorded runs whose scores and hashes must never change. On the phone, `seainvaders://selftest` replays the same goldens on Hermes and compares them with the Node results.
