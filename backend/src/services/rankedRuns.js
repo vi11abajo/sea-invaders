@@ -1,5 +1,5 @@
 import { CORE_VERSION, MAX_REPLAY_TICKS, REPLAY_MODE, OCTOPI, TICKS_PER_SECOND, decodeReplay, runReplay } from '@sea-invaders/core';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import * as db from '../db/rankedRuns.js';
 import * as loadoutDb from '../db/loadout.js';
 import { getConfig, getPlayer, getTokenBalance, getVaultBalance, getWeekPool } from '../chain/readers.js';
@@ -158,7 +158,7 @@ export async function startRun({ userId, wallet, now }) {
   // snapshot is the run's record regardless.
   const loadout = wallet ? await loadoutDb.getLoadout(wallet) : null;
   const skin = loadout?.activeSkin ?? 0;
-  const run = { id: uuidv4(), userId, day, seed: dailySeed(seedSecret(), day), coreVersion: CORE_VERSION, startedAt: now, skin };
+  const run = { id: randomUUID(), userId, day, seed: dailySeed(seedSecret(), day), coreVersion: CORE_VERSION, startedAt: now, skin };
   // Counting the day's runs and inserting this one is a single locked step per user, so parallel
   // starts queue up instead of all reading the same count and each creating a run.
   const { inserted, used } = await db.insertRunWithinAttempts(run, attemptsAllowed);
