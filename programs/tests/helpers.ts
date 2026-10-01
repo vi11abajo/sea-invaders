@@ -101,7 +101,7 @@ export async function setup(): Promise<Ctx> {
     // that upgrade authority (see admin.rs's `InitConfig`). So
     // `admin` must be the provider wallet keypair itself, not a random
     // one, or the first `initConfig()` call in the suite fails with
-    // `NotUpgradeAuthority`. `anchor test`/`ts-mocha` runs with
+    // `NotUpgradeAuthority`. `anchor test`/mocha runs with
     // `ANCHOR_WALLET` set to the configured wallet path (`Anchor.toml`'s
     // `[provider].wallet`, default `~/.config/solana/id.json`).
     const walletPath = process.env.ANCHOR_WALLET;

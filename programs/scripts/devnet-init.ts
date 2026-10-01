@@ -33,8 +33,8 @@ import { configPda, loadKeypair, loadProgram } from "./common";
 // Copied verbatim from `tests/fixtures.ts` (`LADDER`/`PAYOUT`) rather than
 // imported - importing that file here drags its `createWeekPool` helper
 // through this script's strict type-check, which fails on a pre-existing,
-// unrelated IDL `relations` typing mismatch (ts-mocha runs the test suite
-// with looser settings that don't hit it). Do not let these values diverge
+// unrelated IDL `relations` typing mismatch (the test suite runs transpile-only
+// through ts-register.js, so it never hits it). Do not let these values diverge
 // from `tests/fixtures.ts` if either changes.
 const LADDER = [25, 30, 40, 50, 60, 75, 95, 120].map((s) =>
   new BN(s).mul(new BN(1_000_000))
