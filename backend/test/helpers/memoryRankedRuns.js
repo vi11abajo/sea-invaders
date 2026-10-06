@@ -94,6 +94,10 @@ export async function bestSkinForUsers(userIds, days) {
   return [...bestPerUser.entries()].map(([userId, r]) => ({ userId, skin: r.skin ?? 0 }));
 }
 
-export async function verifiedRunsForDay(day, limit) {
-  return [...runs.values()].filter((r) => r.day === day && r.status === 'verified').sort((a, b) => b.score - a.score || a.finishedAt - b.finishedAt).slice(0, limit);
+export async function verifiedRunsForDay(day, limit, offset = 0) {
+  return [...runs.values()]
+    .filter((r) => r.day === day && r.status === 'verified')
+    .sort((a, b) => b.score - a.score || a.finishedAt - b.finishedAt || (a.id < b.id ? -1 : 1))
+    .slice(offset, offset + limit)
+    .map((r) => ({ ...r, walletAddress: users.get(r.userId)?.wallet_address ?? '' }));
 }

@@ -1,9 +1,10 @@
-import { CORE_VERSION, MAX_REPLAY_TICKS, REPLAY_MODE, OCTOPI, TICKS_PER_SECOND, decodeReplay, runReplay } from '@sea-invaders/core';
+import { CORE_VERSION, MAX_REPLAY_TICKS, TICKS_PER_SECOND, decodeReplay } from '@sea-invaders/core';
 import { randomUUID } from 'node:crypto';
 import * as db from '../db/rankedRuns.js';
 import * as loadoutDb from '../db/loadout.js';
 import { getConfig, getPlayer, getTokenBalance, getVaultBalance, getWeekPool } from '../chain/readers.js';
 import { currentCluster } from '../chain/config.js';
+import { simulateDailyReplay } from './dailyReplay.js';
 import { dailySeed, dayOf, isDayOpen, secondsToNextDay, weekOf, weekdayOf } from './dailySeed.js';
 
 const STATUS = {
@@ -226,7 +227,7 @@ export async function finishRun({ userId, runId, replayBase64, now }) {
 
   let result;
   try {
-    result = runReplay(replay, { seed: run.seed, mode: REPLAY_MODE.daily, levelId: 0, lives: OCTOPI.lives, octopi: 'base' });
+    result = simulateDailyReplay(replay, run.seed);
   } catch (error) {
     await reject('seed_mismatch', error.message);
   }

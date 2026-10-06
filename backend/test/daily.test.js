@@ -210,6 +210,51 @@ describe('/api/daily', () => {
     expect((await request(app).get('/api/daily/seed/abc')).status).toBe(400);
   });
 
+  it("publishes a closed day's verified replays with the day's seed, and nothing for an open day", async () => {
+    const today = dayOf(Date.now() / 1000);
+    expect((await request(app).get(`/api/daily/replays/${today}`)).status).toBe(404);
+    expect((await request(app).get('/api/daily/replays/abc')).status).toBe(400);
+
+    const day = today - 2;
+    const seed = dailySeed(SECRET, day);
+    const played = playReplay(seed, 600);
+    await memory.insertRun({ id: 'run-verified', userId: user.id, day, seed, coreVersion: CORE_VERSION, startedAt: 10 });
+    await memory.finishRun('run-verified', {
+      finishedAt: 20, ticks: played.ticks, score: played.score, stateHash: 'hash-1', gameOver: played.over,
+      replay: Buffer.from(played.base64, 'base64'), status: 'verified',
+    });
+    await memory.insertRun({ id: 'run-rejected', userId: user.id, day, seed, coreVersion: CORE_VERSION, startedAt: 30 });
+    await memory.finishRun('run-rejected', { finishedAt: 40, status: 'rejected', rejectReason: 'too_fast' });
+    await memory.insertRun({ id: 'run-started', userId: user.id, day, seed, coreVersion: CORE_VERSION, startedAt: 50 });
+
+    const res = await request(app).get(`/api/daily/replays/${day}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      day, seed, offset: 0, limit: 20,
+      runs: [{
+        runId: 'run-verified', walletAddress: user.wallet_address, coreVersion: CORE_VERSION,
+        score: played.score, ticks: played.ticks, stateHash: 'hash-1', gameOver: played.over, finishedAt: 20, replay: played.base64,
+      }],
+    });
+  });
+
+  it('pages through a day of replays, best score first', async () => {
+    const day = dayOf(Date.now() / 1000) - 3;
+    const seed = dailySeed(SECRET, day);
+    for (let i = 0; i < 23; i++) {
+      await memory.insertRun({ id: `run-${i}`, userId: user.id, day, seed, coreVersion: CORE_VERSION, startedAt: i });
+      await memory.finishRun(`run-${i}`, {
+        finishedAt: 100 + i, ticks: 1, score: 1000 + i, stateHash: 'h', gameOver: true, replay: Buffer.from([i]), status: 'verified',
+      });
+    }
+    const first = await request(app).get(`/api/daily/replays/${day}`);
+    expect(first.body.runs.map((r) => r.score)).toEqual(Array.from({ length: 20 }, (_, i) => 1022 - i));
+    const rest = await request(app).get(`/api/daily/replays/${day}?offset=20`);
+    expect(rest.body).toMatchObject({ offset: 20, limit: 20 });
+    expect(rest.body.runs.map((r) => r.score)).toEqual([1002, 1001, 1000]);
+    expect((await request(app).get(`/api/daily/replays/${day}?offset=-1`)).status).toBe(400);
+  });
+
   it('requires a token to buy a ticket', async () => {
     expect((await request(app).post('/api/daily/ticket')).status).toBe(401);
   });

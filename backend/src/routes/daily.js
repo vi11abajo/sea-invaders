@@ -100,6 +100,45 @@ router.get('/seed/:day', (req, res) => {
   res.json({ day, seed: dailySeed(process.env.DAILY_SEED_SECRET, day) });
 });
 
+/** How many replays one page of `/replays/:day` carries; `offset` pages through the rest. */
+const REPLAY_PAGE = 20;
+
+/**
+ * Every verified run of a closed day, with the day's seed and the replay the server verified, so
+ * anyone can re-simulate a score with the same core (src/tools/verifyReplays.js does it for a whole
+ * day) instead of taking the server's word for it. Like the seed, nothing is published while the
+ * day is still open.
+ */
+router.get('/replays/:day', async (req, res, next) => {
+  try {
+    const day = boundedNumber(req.params.day, maxDay());
+    if (day === null) return badDay(res);
+    const offset = req.query.offset === undefined ? 0 : boundedNumber(req.query.offset, 1_000_000);
+    if (offset === null) return res.status(400).json({ error: 'BadRequest', message: 'offset must be a whole number from 0 to 1000000' });
+    if (!isSeedPublic(day, nowSeconds())) return res.status(404).json({ error: 'SeedNotPublic', message: 'Replays are published once the day closes' });
+    const runs = await db.verifiedRunsForDay(day, REPLAY_PAGE, offset);
+    res.json({
+      day,
+      seed: dailySeed(process.env.DAILY_SEED_SECRET, day),
+      offset,
+      limit: REPLAY_PAGE,
+      runs: runs.map((run) => ({
+        runId: run.id,
+        walletAddress: run.walletAddress,
+        coreVersion: run.coreVersion,
+        score: run.score,
+        ticks: run.ticks,
+        stateHash: run.stateHash,
+        gameOver: run.gameOver,
+        finishedAt: run.finishedAt,
+        replay: Buffer.from(run.replay).toString('base64'),
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/ticket', authenticateToken, sessionLimiter, async (req, res, next) => {
   try {
     res.status(201).json(await issueTicket({ wallet: req.user.walletAddress, now: nowSeconds() }));

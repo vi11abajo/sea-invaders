@@ -71,9 +71,10 @@ Where the claims are tested:
 
 - **Deterministic replays.** `core/test/replay.test.ts` reproduces a recorded run to the same score, tick, end state and state hash; `core/test/golden.test.ts` pins recorded runs whose scores and hashes must never change. On the phone, `seainvaders://selftest` replays the same goldens on Hermes and compares them with the Node results.
 - **The server decides the score.** The app never sends one: `backend/src/services/rankedRuns.js` re-simulates the uploaded replay with the day's seed, the daily mode and the base Octopi, and records what that produces. `backend/test/rankedRuns.test.js` rejects replays on another seed, with extra lives, from practice mode, longer than the time since the run started, finished after the day's window, or recorded on another core version.
+- **Re-check any score yourself.** Once a day closes, [`api.seainvaders.xyz/api/daily/replays/{day}`](https://api.seainvaders.xyz/api/daily/replays/20727) publishes that day's seed and every verified run with its replay, score and state hash. `npm run verify:replays -- {day}` in `backend/` (after `npm ci` and `npm run build:core`) downloads them, re-simulates each replay with this checkout's core through the same function the server uses (`backend/src/services/dailyReplay.js`), and reports every run as a match or a mismatch; runs recorded on an older core version are listed as skipped.
 - **No pay-to-win.** `core/test/replay.test.ts` rejects a daily replay recorded with a paid champion.
 - **The server's co-signature.** `programs/tests/record.test.ts`: a record fails without the server's signature and with a wrong server keypair.
-- **Counts.** 745 core and 493 backend tests (Vitest) and 51 program tests (Anchor, on a local validator); CI runs them on every push that touches their folder.
+- **Counts.** 745 core and 502 backend tests (Vitest) and 51 program tests (Anchor, on a local validator); CI runs them on every push that touches their folder.
 
 ## Tech stack
 

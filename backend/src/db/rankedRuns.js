@@ -115,10 +115,16 @@ export async function bestSkinForUsers(userIds, days) {
   return result.rows.map((row) => ({ userId: row.user_id, skin: row.skin }));
 }
 
-export async function verifiedRunsForDay(day, limit) {
+/**
+ * One page of a day's verified runs for the public replay list: best score first (tie: earliest
+ * finished, then id, so pages never overlap), each with its player's wallet and the replay bytes.
+ */
+export async function verifiedRunsForDay(day, limit, offset = 0) {
   const result = await pool.query(
-    `SELECT * FROM ranked_runs WHERE day = $1 AND status = 'verified' ORDER BY score DESC, finished_at ASC LIMIT $2`,
-    [day, limit],
+    `SELECT r.*, u.wallet_address FROM ranked_runs r JOIN users u ON u.id = r.user_id
+      WHERE r.day = $1 AND r.status = 'verified'
+      ORDER BY r.score DESC, r.finished_at ASC, r.id ASC LIMIT $2 OFFSET $3`,
+    [day, limit, offset],
   );
-  return result.rows.map((row) => ({ ...rowToRun(row), replay: row.replay }));
+  return result.rows.map((row) => ({ ...rowToRun(row), walletAddress: row.wallet_address, replay: row.replay }));
 }

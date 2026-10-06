@@ -85,6 +85,23 @@ describe('db/rankedRuns.js finishRun', () => {
   });
 });
 
+describe('db/rankedRuns.js verifiedRunsForDay', () => {
+  it("reads only the day's verified runs, best first, with each player's wallet and replay", async () => {
+    const replay = Buffer.from([1, 2, 3]);
+    answers = [['FROM ranked_runs', { rows: [{
+      id: 'run-1', user_id: 7, day: 20700, seed: 'seed', core_version: 14, started_at: '2026-10-01T00:00:00Z', finished_at: '2026-10-01T00:03:00Z',
+      ticks: 900, score: 4200, state_hash: 'abcd', game_over: true, status: 'verified', skin: 0, replay, wallet_address: 'Wallet1111',
+    }] }]];
+    const rows = await runs.verifiedRunsForDay(20700, 20, 40);
+    const sql = sqlOf()[0];
+    expect(sql).toContain('JOIN users u ON u.id = r.user_id');
+    expect(sql).toContain("r.day = $1 AND r.status = 'verified'");
+    expect(sql).toContain('ORDER BY r.score DESC, r.finished_at ASC, r.id ASC LIMIT $2 OFFSET $3');
+    expect(statements[0].params).toEqual([20700, 20, 40]);
+    expect(rows).toEqual([expect.objectContaining({ id: 'run-1', score: 4200, stateHash: 'abcd', coreVersion: 14, walletAddress: 'Wallet1111', replay })]);
+  });
+});
+
 describe('db/users.js findOrCreateWalletUser', () => {
   const WALLET = 'Ab12xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCd34';
   const ROW = { id: 7, wallet_address: WALLET, username: 'Ab12...Cd34' };
